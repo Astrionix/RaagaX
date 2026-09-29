@@ -114,7 +114,7 @@ object SpotifyPlaylistParser {
 
             val html = Http.client.newCall(request).execute().use { resp ->
                 if (!resp.isSuccessful) throw IllegalStateException("HTTP ${resp.code} fetching Spotify embed")
-                resp.body?.string() ?: throw IllegalStateException("Empty body from Spotify embed")
+                resp.body.string()
             }
 
             val scriptMatcher = SCRIPT_JSON_REGEX.matcher(html)
@@ -145,6 +145,7 @@ object SpotifyPlaylistParser {
                 ?.get("settings")?.jsonObject
                 ?.get("session")?.jsonObject
                 ?.get("accessToken")?.jsonPrimitive?.contentOrNull
+                ?: Regex(""""accessToken"\s*:\s*"([^"]+)"""").find(jsonContent)?.groupValues?.get(1)
 
             val tracks = mutableListOf<SpotifyTrack>()
             val trackListArray = entity["trackList"]?.jsonArray
@@ -170,14 +171,58 @@ object SpotifyPlaylistParser {
                 throw IllegalStateException("No tracks found in Spotify ${target.type}")
             }
 
-            // If the playlist has 50+ tracks (which is Spotify embed's maximum), paginate to fetch all remaining tracks
+            // For playlists, fetch full track list (bypassing embed limit to get all songs, e.g. 300+ tracks)
             var isPartial = false
-            if (target.type == "playlist" && tracks.size >= 50) {
-                val fetchResult = fetchAdditionalTracks(target.id, currentCount = tracks.size, token = sessionToken)
-                if (fetchResult.tracks.isNotEmpty()) {
-                    tracks.addAll(fetchResult.tracks)
+            if (target.type == "playlist") {
+                // Strategy 1: Pathfinder GraphQL (from offset 0, full pagination)
+                val pathfinderResult = fetchTracksViaPathfinder(target.id, startOffset = 0, token = sessionToken)
+                when {
+                    // Pathfinder succeeded and is definitively complete — use its result
+                    pathfinderResult.isComplete && pathfinderResult.tracks.isNotEmpty() -> {
+                        tracks.clear()
+                        tracks.addAll(pathfinderResult.tracks)
+                        isPartial = false
+                        Log.d(TAG, "Pathfinder complete: ${tracks.size} tracks")
+                    }
+                    // Pathfinder returned more tracks than embed (partial but better) — use & mark partial
+                    pathfinderResult.tracks.size > tracks.size -> {
+                        tracks.clear()
+                        tracks.addAll(pathfinderResult.tracks)
+                        isPartial = true
+                        Log.d(TAG, "Pathfinder partial: ${tracks.size} tracks, trying Web API supplement")
+                        // Supplement what pathfinder missed via Web API
+                        if (tracks.size >= 50) {
+                            val webApiResult = fetchAllTracksViaWebApi(target.id, startOffset = tracks.size, token = sessionToken)
+                            if (webApiResult.tracks.isNotEmpty()) {
+                                tracks.addAll(webApiResult.tracks)
+                                isPartial = !webApiResult.isComplete
+                            }
+                        }
+                    }
+                    // Pathfinder failed or returned same/fewer — try Web API from scratch (offset 0)
+                    else -> {
+                        Log.d(TAG, "Pathfinder returned ${pathfinderResult.tracks.size} (embed has ${tracks.size}), trying Web API from offset 0")
+                        val webApiResult = fetchAllTracksViaWebApi(target.id, startOffset = 0, token = sessionToken)
+                        when {
+                            webApiResult.tracks.size > tracks.size -> {
+                                tracks.clear()
+                                tracks.addAll(webApiResult.tracks)
+                                isPartial = !webApiResult.isComplete
+                                Log.d(TAG, "Web API: ${tracks.size} tracks (complete=${webApiResult.isComplete})")
+                            }
+                            // Web API also failed — try appending from the embed's cutoff point
+                            tracks.size >= 50 -> {
+                                val appendResult = fetchAdditionalTracks(target.id, currentCount = tracks.size, token = sessionToken)
+                                if (appendResult.tracks.isNotEmpty()) {
+                                    tracks.addAll(appendResult.tracks)
+                                }
+                                isPartial = !appendResult.isComplete
+                                Log.d(TAG, "Appended ${appendResult.tracks.size} extra tracks, total=${tracks.size}")
+                            }
+                            else -> isPartial = true
+                        }
+                    }
                 }
-                isPartial = !fetchResult.isComplete
             }
 
             SpotifyPlaylistInfo(
@@ -216,49 +261,61 @@ object SpotifyPlaylistParser {
         val isComplete: Boolean,
     )
 
-    private const val PATHFINDER_URL = "https://api-partner.spotify.com/pathfinder/v1/query"
-    private const val FETCH_PLAYLIST_SHA256 = "a65e12194ed5fc443a1cdebed5fabe33ca5b07b987185d63c72483867ad13cb4"
-    private const val MAX_TOTAL_TRACKS = 2000
+    private val PATHFINDER_URLS = listOf(
+        "https://api-partner.spotify.com/pathfinder/v1/query",
+        "https://api-partner.spotify.com/pathfinder/v2/query",
+    )
+    private val PATHFINDER_HASHES = listOf(
+        "7982b11e21535cd2594badc40030b745671b61a1fa66766e569d45e6364f3422",
+        "a65e12194ed5fc443a1cdebed5fabe33ca5b07b987185d63c72483867ad13cb4",
+    )
+    private const val MAX_TOTAL_TRACKS = 2500
 
     private fun String.urlEncoded(): String = URLEncoder.encode(this, "UTF-8")
 
     /**
-     * Fetches all remaining tracks beyond [currentCount] for a playlist.
-     * Tries the web player's Pathfinder GraphQL endpoint first (which supports anonymous tokens
-     * embedded directly in the page), and falls back to the standard Web API.
+     * Attempts to fetch tracks from Spotify Pathfinder GraphQL API across supported hashes and URLs.
      */
-    private suspend fun fetchAdditionalTracks(
+    private suspend fun fetchTracksViaPathfinder(
         playlistId: String,
-        currentCount: Int,
+        startOffset: Int,
         token: String?,
     ): FetchResult {
         val validToken = token
             ?: runCatching { SpotifyToken.accessToken(allowAnonymous = true) }.getOrNull()
             ?: return FetchResult(emptyList(), isComplete = false)
 
-        // 1. Try Spotify Pathfinder GraphQL API (primary method, works without login)
-        val pathfinderResult = runCatching {
-            fetchAdditionalTracksViaPathfinder(playlistId, currentCount, validToken)
-        }.getOrNull()
+        val clientToken = runCatching { SpotifyToken.clientToken() }.getOrNull()
 
-        if (pathfinderResult != null && (pathfinderResult.tracks.isNotEmpty() || pathfinderResult.isComplete)) {
-            Log.d(TAG, "Fetched ${pathfinderResult.tracks.size} extra tracks via Pathfinder (complete=${pathfinderResult.isComplete})")
-            return pathfinderResult
+        for (hash in PATHFINDER_HASHES) {
+            for (baseUrl in PATHFINDER_URLS) {
+                val result = runCatching {
+                    executePathfinderLoop(playlistId, startOffset, validToken, clientToken, baseUrl, hash)
+                }.getOrNull()
+
+                if (result != null && result.tracks.isNotEmpty()) {
+                    Log.d(TAG, "Fetched ${result.tracks.size} tracks using $baseUrl (hash=${hash.take(8)}, complete=${result.isComplete})")
+                    return result
+                }
+            }
         }
 
-        // 2. Fallback to Spotify Web API
-        return runCatching {
-            fetchAdditionalTracksViaWebApi(playlistId, currentCount, validToken)
-        }.getOrDefault(FetchResult(emptyList(), isComplete = false))
+        return FetchResult(emptyList(), isComplete = false)
     }
 
-    private fun fetchAdditionalTracksViaPathfinder(
+    /**
+     * Executes the pagination loop against a specific Pathfinder endpoint and query hash.
+     */
+    private fun executePathfinderLoop(
         playlistId: String,
-        currentCount: Int,
+        startOffset: Int,
         token: String,
+        clientToken: String?,
+        baseUrl: String,
+        hash: String,
     ): FetchResult {
-        val additional = mutableListOf<SpotifyTrack>()
-        var offset = currentCount
+        val allTracks = mutableListOf<SpotifyTrack>()
+        var offset = startOffset
         val limit = 100
         var isComplete = false
 
@@ -272,34 +329,52 @@ object SpotifyPlaylistParser {
             val extensions = buildJsonObject {
                 putJsonObject("persistedQuery") {
                     put("version", 1)
-                    put("sha256Hash", FETCH_PLAYLIST_SHA256)
+                    put("sha256Hash", hash)
                 }
             }
 
-            val url = "$PATHFINDER_URL?operationName=fetchPlaylist" +
+            val url = "$baseUrl?operationName=fetchPlaylist" +
                     "&variables=${variables.toString().urlEncoded()}" +
                     "&extensions=${extensions.toString().urlEncoded()}"
 
-            val req = Request.Builder()
+            val reqBuilder = Request.Builder()
                 .url(url)
                 .header("Authorization", "Bearer $token")
                 .header("app-platform", "WebPlayer")
                 .header("User-Agent", USER_AGENT)
-                .build()
+                .header("Accept", "application/json")
+                .header("Accept-Language", "en-US,en;q=0.9")
+
+            if (!clientToken.isNullOrBlank()) {
+                reqBuilder.header("client-token", clientToken)
+            }
 
             val body = runCatching {
-                Http.client.newCall(req).execute().use { resp ->
-                    if (resp.isSuccessful) resp.body?.string() else null
+                Http.client.newCall(reqBuilder.build()).execute().use { resp ->
+                    if (resp.isSuccessful) resp.body.string() else null
                 }
             }.getOrNull() ?: break
 
             val root = runCatching { json.parseToJsonElement(body).jsonObject }.getOrNull() ?: break
-            val content = root["data"]?.jsonObject
-                ?.get("playlistV2")?.jsonObject
-                ?.get("content")?.jsonObject ?: break
+            val playlistData = root["data"]?.jsonObject?.get("playlistV2")?.jsonObject
+                ?: root["data"]?.jsonObject?.get("playlist")?.jsonObject
+                ?: root["data"]?.jsonObject?.get("album")?.jsonObject
+                ?: root["data"]?.jsonObject?.get("albumV2")?.jsonObject
+                ?: break
+
+            val content = playlistData["content"]?.jsonObject
+                ?: playlistData["tracks"]?.jsonObject
+                ?: playlistData
 
             val totalCount = content["totalCount"]?.jsonPrimitive?.intOrNull
-            val items = content["items"]?.jsonArray ?: break
+                ?: playlistData["totalTracks"]?.jsonPrimitive?.intOrNull
+                ?: playlistData["total"]?.jsonPrimitive?.intOrNull
+
+            val items = content["items"]?.jsonArray
+                ?: playlistData["items"]?.jsonArray
+                ?: content["trackList"]?.jsonArray
+                ?: break
+
             if (items.isEmpty()) {
                 isComplete = (totalCount == null || offset >= totalCount)
                 break
@@ -308,18 +383,21 @@ object SpotifyPlaylistParser {
             for (item in items) {
                 val itemObj = item.jsonObject
                 val itemV2Data = itemObj["itemV2"]?.jsonObject?.get("data")?.jsonObject
-                val identityTrait = itemObj["itemV3"]?.jsonObject?.get("data")?.jsonObject
-                    ?.get("identityTrait")?.jsonObject
-                val trackObj = itemObj["track"]?.jsonObject
+                val itemV3Data = itemObj["itemV3"]?.jsonObject?.get("data")?.jsonObject
+                val identityTrait = itemV3Data?.get("identityTrait")?.jsonObject
+                val trackObj = itemObj["track"]?.jsonObject ?: itemObj["item"]?.jsonObject
 
                 val trackTitle = (
                     itemV2Data?.get("name")?.jsonPrimitive?.contentOrNull
                         ?: identityTrait?.get("name")?.jsonPrimitive?.contentOrNull
                         ?: trackObj?.get("name")?.jsonPrimitive?.contentOrNull
+                        ?: itemObj["data"]?.jsonObject?.get("name")?.jsonPrimitive?.contentOrNull
+                        ?: itemObj["name"]?.jsonPrimitive?.contentOrNull
                 )?.trim() ?: continue
 
                 val artists = itemV2Data?.get("artists")?.jsonObject?.get("items")?.jsonArray?.mapNotNull {
                     it.jsonObject["profile"]?.jsonObject?.get("name")?.jsonPrimitive?.contentOrNull
+                        ?: it.jsonObject["name"]?.jsonPrimitive?.contentOrNull
                 }?.joinToString(", ")?.takeIf { it.isNotBlank() }
                     ?: identityTrait?.get("contributors")?.jsonObject?.get("items")?.jsonArray?.mapNotNull {
                         it.jsonObject["name"]?.jsonPrimitive?.contentOrNull
@@ -327,17 +405,20 @@ object SpotifyPlaylistParser {
                     ?: trackObj?.get("artists")?.jsonArray?.mapNotNull {
                         it.jsonObject["name"]?.jsonPrimitive?.contentOrNull
                     }?.joinToString(", ")
+                    ?: itemObj["data"]?.jsonObject?.get("artists")?.jsonArray?.mapNotNull {
+                        it.jsonObject["name"]?.jsonPrimitive?.contentOrNull
+                    }?.joinToString(", ")
                     ?: ""
 
                 val durationMs = itemV2Data?.get("trackDuration")?.jsonObject
                     ?.get("totalMilliseconds")?.jsonPrimitive?.longOrNull
-                    ?: itemObj["itemV3"]?.jsonObject?.get("data")?.jsonObject
-                        ?.get("consumptionExperienceTrait")?.jsonObject
+                    ?: itemV3Data?.get("consumptionExperienceTrait")?.jsonObject
                         ?.get("duration")?.jsonObject
                         ?.get("seconds")?.jsonPrimitive?.longOrNull?.let { it * 1000L }
                     ?: trackObj?.get("duration_ms")?.jsonPrimitive?.longOrNull
+                    ?: itemObj["duration_ms"]?.jsonPrimitive?.longOrNull
 
-                additional.add(
+                allTracks.add(
                     SpotifyTrack(
                         title = trackTitle,
                         artist = artists.replace("\u00A0", " ").trim(),
@@ -357,69 +438,149 @@ object SpotifyPlaylistParser {
             }
         }
 
-        return FetchResult(additional, isComplete = isComplete)
+        return FetchResult(allTracks, isComplete = isComplete)
     }
 
-    private fun fetchAdditionalTracksViaWebApi(
+    /**
+     * Fetches ALL tracks for a playlist via Spotify Web API starting from [startOffset].
+     * When startOffset=0 this replaces the embed completely. Uses the session token from embed
+     * which is a real Spotify access token that works with api.spotify.com.
+     */
+    private suspend fun fetchAllTracksViaWebApi(
+        playlistId: String,
+        startOffset: Int,
+        token: String?,
+    ): FetchResult = withContext(Dispatchers.IO) {
+        val validToken = token
+            ?: runCatching { SpotifyToken.accessToken(allowAnonymous = true) }.getOrNull()
+            ?: return@withContext FetchResult(emptyList(), isComplete = false)
+
+        runCatching {
+            fetchAllTracksViaWebApiInternal(playlistId, startOffset, validToken)
+        }.getOrDefault(FetchResult(emptyList(), isComplete = false))
+    }
+
+    /**
+     * Fetches all remaining tracks beyond [currentCount] for a playlist.
+     * Tries the web player's Pathfinder GraphQL endpoint first, and falls back to the Web API.
+     */
+    private suspend fun fetchAdditionalTracks(
         playlistId: String,
         currentCount: Int,
+        token: String?,
+    ): FetchResult {
+        // 1. Try Pathfinder starting at currentCount
+        val pathfinderResult = fetchTracksViaPathfinder(playlistId, startOffset = currentCount, token = token)
+        if (pathfinderResult.tracks.isNotEmpty() || pathfinderResult.isComplete) {
+            Log.d(TAG, "Fetched ${pathfinderResult.tracks.size} extra tracks via Pathfinder (complete=${pathfinderResult.isComplete})")
+            return pathfinderResult
+        }
+
+        // 2. Fallback to Spotify Web API from currentCount
+        return fetchAllTracksViaWebApi(playlistId, startOffset = currentCount, token = token)
+    }
+
+    /**
+     * Core Web API pagination — fetches tracks starting at [startOffset] from
+     * api.spotify.com using the given [token]. When startOffset=0 this returns
+     * the complete playlist.
+     */
+    private fun fetchAllTracksViaWebApiInternal(
+        playlistId: String,
+        startOffset: Int,
         token: String,
     ): FetchResult {
         val clientToken = runCatching { SpotifyToken.clientToken() }.getOrNull()
-        val additional = mutableListOf<SpotifyTrack>()
-        var offset = currentCount
-        val limit = 50
+        val result = mutableListOf<SpotifyTrack>()
+        var offset = startOffset
+        val limit = 100
         var isComplete = false
+        var consecutiveFailures = 0
 
         while (offset < MAX_TOTAL_TRACKS) {
-            val url = "https://api.spotify.com/v1/playlists/$playlistId/tracks?offset=$offset&limit=$limit"
+            // Include fields to reduce payload size and avoid 400 errors on large playlists
+            val url = "https://api.spotify.com/v1/playlists/$playlistId/tracks" +
+                "?offset=$offset&limit=$limit" +
+                "&fields=items(track(name,duration_ms,artists(name))),next,total"
+
             val reqBuilder = Request.Builder()
                 .url(url)
                 .header("Authorization", "Bearer $token")
                 .header("User-Agent", USER_AGENT)
+                .header("Accept", "application/json")
+                .header("Accept-Language", "en-US,en;q=0.9")
 
             if (!clientToken.isNullOrBlank()) {
-                reqBuilder.header("Client-Token", clientToken)
+                reqBuilder.header("client-token", clientToken)
             }
 
-            val body = runCatching {
+            val (respCode, body) = runCatching {
                 Http.client.newCall(reqBuilder.build()).execute().use { resp ->
-                    if (resp.isSuccessful) resp.body?.string() else null
+                    resp.code to if (resp.isSuccessful) resp.body.string() else null
                 }
-            }.getOrNull() ?: break
+            }.getOrDefault(-1 to null)
+
+            if (body == null) {
+                // 401 = token expired, 403 = forbidden — no point retrying
+                if (respCode == 401 || respCode == 403) break
+                consecutiveFailures++
+                if (consecutiveFailures >= 3) break
+                continue
+            }
+            consecutiveFailures = 0
 
             val root = runCatching { json.parseToJsonElement(body).jsonObject }.getOrNull() ?: break
+            val total = root["total"]?.jsonPrimitive?.intOrNull
             val items = root["items"]?.jsonArray ?: break
+
             if (items.isEmpty()) {
                 isComplete = true
                 break
             }
 
             for (item in items) {
-                val trackObj = item.jsonObject["track"]?.jsonObject ?: continue
+                val obj = item.jsonObject
+                // Tracks can be null (e.g., local files or removed items)
+                val trackObj = obj["track"]?.jsonObject ?: continue
+                // Skip local-only or null tracks
+                if (trackObj["id"]?.jsonPrimitive?.contentOrNull == null &&
+                    trackObj["name"]?.jsonPrimitive?.contentOrNull == null) continue
                 val trackTitle = trackObj["name"]?.jsonPrimitive?.contentOrNull?.trim() ?: continue
+                if (trackTitle.isBlank()) continue
+
                 val artists = trackObj["artists"]?.jsonArray?.mapNotNull {
                     it.jsonObject["name"]?.jsonPrimitive?.contentOrNull
-                }?.joinToString(", ") ?: ""
-                val durationMs = trackObj["duration_ms"]?.jsonPrimitive?.contentOrNull?.toLongOrNull()
+                }?.filter { it.isNotBlank() }?.joinToString(", ").orEmpty()
 
-                additional.add(
+                val durationMs = trackObj["duration_ms"]?.jsonPrimitive?.longOrNull
+
+                result.add(
                     SpotifyTrack(
                         title = trackTitle,
                         artist = artists.replace("\u00A0", " ").trim(),
-                        durationMs = durationMs
+                        durationMs = durationMs,
                     )
                 )
             }
 
             offset += items.size
+
+            // Check if we've fetched everything
             val next = root["next"]?.jsonPrimitive?.contentOrNull
-            if (next.isNullOrBlank() || items.size < limit) {
+            if (next.isNullOrBlank()) {
+                isComplete = true
+                break
+            }
+            if (total != null && offset >= total) {
+                isComplete = true
+                break
+            }
+            if (items.size < limit) {
                 isComplete = true
                 break
             }
         }
 
-        return FetchResult(additional, isComplete = isComplete)
+        return FetchResult(result, isComplete = isComplete)
     }
 }

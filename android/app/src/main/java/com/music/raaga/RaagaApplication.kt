@@ -123,7 +123,14 @@ class RaagaApplication : Application(), SingletonImageLoader.Factory {
         }
         // Initialize LastFM with saved settings if available
         initLastfm()
-        backgroundInit.join()
+        // backgroundInit runs SourceRegistry/InnerTubeXResolver/CanvasCache on a
+        // background thread. Previously .join() blocked the main thread here, delaying
+        // the first frame by the duration of those opens (~300-700ms on cold start).
+        // Those subsystems are only needed when playback or canvas requests fire —
+        // not at first render — so we let the thread finish on its own.
+        // No join needed: if PlaybackService starts before this thread finishes,
+        // SourceRegistry.init is idempotent and the service will simply wait on its
+        // own first read until the store is open.
     }
 
     /**

@@ -32,6 +32,9 @@ import coil3.compose.AsyncImagePainter
 import coil3.request.ImageRequest
 import com.music.raaga.data.canvas.CanvasArtwork
 import com.music.raaga.data.canvas.CanvasRepository
+import com.music.raaga.data.model.HEADER_ART_PX
+import com.music.raaga.data.model.CARD_ART_PX
+import com.music.raaga.data.model.ROW_ART_PX
 import com.music.raaga.data.model.Song
 import com.music.raaga.data.model.artworkAt
 import com.music.raaga.data.settings.AppSettings
@@ -101,7 +104,11 @@ internal fun rememberCanvasArtwork(song: Song): CanvasArtwork? {
  * Everything here is keyed on the cover's [url] — see [rememberPlayerArtwork].
  */
 @Stable
-internal class PlayerArtwork(val url: String?, private val context: Context) {
+internal class PlayerArtwork(
+    val url: String?,
+    private val remoteArt: String?,
+    private val context: Context,
+) {
     /**
      * Whether the cover is on screen. Keyed on the artwork rather than on the
      * track, because that is what it actually describes and because only Coil
@@ -112,17 +119,6 @@ internal class PlayerArtwork(val url: String?, private val context: Context) {
 
     /**
      * Which go at this cover we are on, and the reason there is more than one.
-     *
-     * Coil does not retry: a request that fails is over, and the state it leaves
-     * behind is the state this screen keeps until the model changes — which,
-     * keyed on the cover, means until the next track. One dropped connection at
-     * the wrong moment and the player showed its placeholder tile for a song it
-     * would have drawn perfectly a second later, with the widget and the
-     * notification both showing the cover from cache the whole time.
-     *
-     * Bounded and spaced, because the usual reason a cover fails is that there
-     * is no network at all, and a retry per recomposition — which is what an
-     * unremembered request effectively gave — is a spin, not a recovery.
      */
     var attempt by mutableIntStateOf(0)
         private set
@@ -133,42 +129,41 @@ internal class PlayerArtwork(val url: String?, private val context: Context) {
     /**
      * The one request for this cover, built once.
      *
-     * Both the sleeve and the full-bleed banner draw from it, which is what
-     * their own comments claim ("one ask, one decode, one bitmap for both") and
-     * what building it inline at each of them quietly failed to deliver: Coil
-     * compares models to decide whether to start a new load, and two separately
-     * built requests are never equal — `ImageRequest` has no `equals`, and
-     * neither does the size resolver `.size()` hands it. So each was its own
-     * load, and worse, *every recomposition* was another one. The player
-     * recomposes at least twice a second off the position tick, and each pass
-     * pushed the painter back through Loading before it settled on Success
-     * again, which is exactly the [loaded] this screen hangs the banner, the
-     * sleeve's alpha, its shadow and its placeholder icon on.
-     *
-     * Remembered on the cover and the attempt, so it changes when the picture
-     * changes and when a retry is deliberately asked for, and at no other time.
+     * Preloaded with a placeholder from Coil's memory cache using the 160px
+     * or 480px artwork already rendered in the mini player or shelf cards.
+     * On retry, falls back from 1200px -> 720px -> 480px -> raw remoteArt.
      */
     val request: ImageRequest by derivedStateOf {
         val attempt = attempt
+        val targetUrl = when (attempt) {
+            0 -> url
+            1 -> remoteArt?.artworkAt(HEADER_ART_PX) ?: url
+            2 -> remoteArt?.artworkAt(CARD_ART_PX) ?: url
+            else -> remoteArt ?: url
+        }
+        val placeholderKey = remoteArt?.artworkAt(ROW_ART_PX)
+            ?: remoteArt?.artworkAt(CARD_ART_PX)
+            ?: remoteArt
         ImageRequest.Builder(context)
-            .data(url)
-            .size(ART_PX)
-            // What makes a retry a new request as far as Coil's model comparison
-            // is concerned. Only from the second go onwards, so the ordinary
-            // request stays byte-identical to the one the mesh and the palette
-            // make of the same cover and goes on sharing their memory-cache
-            // entry. The disk key is unaffected either way.
-            .apply { if (attempt > 0) memoryCacheKeyExtra("attempt", attempt.toString()) }
+            .data(targetUrl)
+            .size(if (attempt == 0) ART_PX else CARD_ART_PX)
+            .apply {
+                if (placeholderKey != null) {
+                    placeholderMemoryCacheKey(placeholderKey)
+                    error(placeholderKey)
+                }
+                if (attempt > 0) memoryCacheKeyExtra("attempt", attempt.toString())
+            }
             .build()
     }
 
     /** Fed from each painter drawing [request]. */
     fun onState(state: AsyncImagePainter.State) {
-        loaded = state is AsyncImagePainter.State.Success
-        // Only the failure is latched, and only upwards: the retry that clears
-        // it is [failed]'s own effect, and clearing it from a Loading state here
-        // would cancel that effect's wait every time the painter passed back
-        // through Loading.
+        if (state is AsyncImagePainter.State.Success ||
+            (state is AsyncImagePainter.State.Loading && state.painter != null)
+        ) {
+            loaded = true
+        }
         if (state is AsyncImagePainter.State.Success) failed = false
         if (state is AsyncImagePainter.State.Error) failed = true
     }
@@ -183,7 +178,7 @@ internal class PlayerArtwork(val url: String?, private val context: Context) {
 internal fun rememberPlayerArtwork(remoteArt: String?): PlayerArtwork {
     val context = LocalContext.current
     val artUrl = remoteArt?.artworkAt(ART_PX)
-    val art = remember(artUrl) { PlayerArtwork(artUrl, context) }
+    val art = remember(artUrl) { PlayerArtwork(artUrl, remoteArt, context) }
     LaunchedEffect(artUrl, art.failed) {
         // A track with no artwork at all fails immediately and would fail
         // identically three more times: there is no request to make, so there is

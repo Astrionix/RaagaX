@@ -15,6 +15,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.compose.animation.AnimatedContent
@@ -236,6 +237,7 @@ import com.music.raaga.data.YtMusicRepository
 import com.music.raaga.ui.player.NowPlayingScreen
 import com.music.raaga.ui.screens.DetailScreen
 import com.music.raaga.ui.screens.ExploreScreen
+import com.music.raaga.ui.screens.NewScreen
 import com.music.raaga.ui.screens.LocalMusicScreen
 import com.music.raaga.ui.screens.HomeScreen
 import com.music.raaga.ui.screens.LibraryGridPage
@@ -421,7 +423,7 @@ private fun RaagaApp(
     // rather than inside the bar because the page's scroll is what drives it,
     // and the page is a sibling of the bar rather than a child.
     val navBarScroll = rememberFloatingTabBarScrollConnection()
-    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+    var selectedTab by rememberSaveable { mutableIntStateOf(TAB_LIBRARY) }
     /**
      * Whether the player's sheet is up. The player is always a full-screen
      * take-over raised over the page, on every window size — the library
@@ -591,6 +593,7 @@ private fun RaagaApp(
     val query by viewModel.query.collectAsStateWithLifecycle()
     val results by viewModel.results.collectAsStateWithLifecycle()
     val exploreState by viewModel.explore.collectAsStateWithLifecycle()
+    val newFeedState by viewModel.newFeed.collectAsStateWithLifecycle()
     val selectedMoodGenre by viewModel.selectedMoodGenre.collectAsStateWithLifecycle()
     val moodGenreShelves by viewModel.moodGenreShelves.collectAsStateWithLifecycle()
     val libraryState by viewModel.library.collectAsStateWithLifecycle()
@@ -877,7 +880,7 @@ private fun RaagaApp(
     val currentFeed = when {
         showSettings || showAccountScrobbling || detail != null -> null
         selectedTab == TAB_HOME -> MainViewModel.Feed.HOME
-        selectedTab == TAB_EXPLORE -> MainViewModel.Feed.EXPLORE
+        selectedTab == TAB_EXPLORE -> MainViewModel.Feed.NEW
         selectedTab == TAB_LIBRARY -> MainViewModel.Feed.LIBRARY
         else -> null
     }
@@ -892,7 +895,7 @@ private fun RaagaApp(
 
     val currentPull = when (currentFeed) {
         MainViewModel.Feed.HOME -> homePull
-        MainViewModel.Feed.EXPLORE -> explorePull
+        MainViewModel.Feed.EXPLORE, MainViewModel.Feed.NEW -> explorePull
         MainViewModel.Feed.LIBRARY -> libraryPull
         null -> null
     }
@@ -938,17 +941,17 @@ private fun RaagaApp(
     // a fold. Keyed on the labels so a locale change still rebuilds it.
     val homeLabel = stringResource(R.string.home)
     val playLabel = stringResource(R.string.play)
-    val exploreLabel = stringResource(R.string.explore)
+    val newLabel = stringResource(R.string.tab_new)
     val libraryLabel = stringResource(R.string.library)
     val searchLabel = stringResource(R.string.search)
     val historyLabel = stringResource(R.string.history)
     val replayLabel = stringResource(R.string.replay)
     val queueLabel = stringResource(R.string.queue)
     val sharedLinkLabel = stringResource(R.string.shared_link)
-    val tabs = remember(homeLabel, exploreLabel, libraryLabel, searchLabel) {
+    val tabs = remember(homeLabel, newLabel, libraryLabel, searchLabel) {
         listOf(
             BottomTab(homeLabel, RaagaIcons.Home),
-            BottomTab(exploreLabel, RaagaIcons.Explore),
+            BottomTab(newLabel, RaagaIcons.NewMusic),
             BottomTab(libraryLabel, RaagaIcons.Library),
             BottomTab(searchLabel, RaagaIcons.Search),
         )
@@ -1753,6 +1756,27 @@ private fun RaagaApp(
             Toast.makeText(context, context.getString(R.string.storage_required_read), Toast.LENGTH_SHORT).show()
         }
     }
+    // Gallery image picker for custom playlist covers.
+    // browseId of the playlist whose cover is being changed — held while the
+    // picker is open so the result handler knows where to store the URI.
+    var pendingCoverBrowseId by remember { mutableStateOf<String?>(null) }
+    val playlistCoverPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia(),
+    ) { uri ->
+        val browseId = pendingCoverBrowseId ?: return@rememberLauncherForActivityResult
+        pendingCoverBrowseId = null
+        if (uri != null) {
+            // Keep the permission alive across restarts so Coil can load the
+            // image even after the app is killed and relaunched.
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                )
+            }
+            AppSettings.setPlaylistLocalCover(browseId, uri.toString())
+        }
+    }
     // Shared by the Library tab itself and by a shelf's "Show all" page, so a
     // card opens the same way from either.
     val onLibraryItemClick: (ShelfItem) -> Unit = { item ->
@@ -2269,14 +2293,14 @@ private fun RaagaApp(
             // Only when Settings was the whole of what was on screen. Opened
             // over Replay or over a release page, closing it reveals that again
             // rather than throwing both away.
-            if (detail == null && !showReplay) selectedTab = TAB_HOME
+            if (detail == null && !showReplay) selectedTab = TAB_LIBRARY
         }
         BackHandler(
             enabled = detail == null && !showSettings && !showAccountScrobbling &&
                 !showSources && !showListenTogether && !showEqualizer && !showReplay && selectedMoodGenre == null &&
-                selectedTab != TAB_HOME,
+                selectedTab != TAB_LIBRARY,
         ) {
-            selectedTab = TAB_HOME
+            selectedTab = TAB_LIBRARY
         }
         BackHandler(enabled = showUpdateDialog) { showUpdateDialog = false }
         BackHandler(enabled = showListenBrainzLogin) { showListenBrainzLogin = false }
@@ -2784,13 +2808,29 @@ private fun RaagaApp(
                                 onRetry = { viewModel.openMoodGenre(category) },
                                 contentPadding = listPadding,
                             )
-                        } ?: ExploreScreen(
-                            state = exploreState,
+                        } ?: NewScreen(
+                            state = newFeedState,
                             listState = exploreListState,
+                            onItemClick = { item, shelfTitle ->
+                                val song = shelfSong(item)
+                                when {
+                                    song != null -> playRadio(
+                                        song,
+                                        QueueSource(shelfTitle, PlaybackSourceType.EXPLORE),
+                                    )
+                                    item.browseId != null -> viewModel.openDetail(
+                                        browseId = item.browseId,
+                                        title = item.title,
+                                        subtitle = item.subtitle,
+                                        thumbnailUrl = item.thumbnailUrl,
+                                    )
+                                }
+                            },
+                            onItemLongPress = onShelfLongPress,
                             onCategoryClick = viewModel::openMoodGenre,
-                            onRetry = viewModel::loadExplore,
-                            refreshing = MainViewModel.Feed.EXPLORE in refreshing,
-                            onRefresh = { viewModel.refresh(MainViewModel.Feed.EXPLORE) },
+                            onRetry = viewModel::loadNewFeed,
+                            refreshing = MainViewModel.Feed.NEW in refreshing,
+                            onRefresh = { viewModel.refresh(MainViewModel.Feed.NEW) },
                             pullState = explorePull,
                             contentPadding = listPadding,
                         )
@@ -3105,7 +3145,7 @@ private fun RaagaApp(
                         // Only worth surfacing where there's room for it and it won't
                         // be mistaken for a per-page action — Home, at rest.
                         if (!showSettings && !showAccountScrobbling && !showSources && !showListenTogether && !showEqualizer &&
-                            detail == null && selectedTab == TAB_HOME
+                            detail == null && (selectedTab == TAB_HOME || selectedTab == TAB_LIBRARY)
                         ) {
                             updateNotice?.let { update ->
                                 IconButton(onClick = { showUpdateDialog = true }) {
@@ -3772,8 +3812,21 @@ private fun RaagaApp(
                         tracks = tracks,
                         thumbnailUrl = thumbnailUrl,
                         onProgress = onProgress,
-                        onComplete = onComplete,
+                        onComplete = { result ->
+                            onComplete(result)
+                            result.fold(
+                                onSuccess = {
+                                    showQueueNotice(context.getString(R.string.import_completed, title, tracks.size))
+                                },
+                                onFailure = {
+                                    // Error will be shown in sheet if still open
+                                }
+                            )
+                        },
                     )
+                },
+                onCancelImport = {
+                    viewModel.cancelPlaylistImport()
                 },
                 onOpenPlaylist = { playlistId, title ->
                     viewModel.openDetail(
@@ -3931,6 +3984,26 @@ private fun RaagaApp(
                             viewModel.deletePlaylist(p)
                         }
                     },
+                    // Change cover: only offered for the account's own playlists
+                    // (playlist != null) so the browseId is always known.
+                    onChangeCover = playlist?.let {
+                        {
+                            browseActions = null
+                            pendingCoverBrowseId = target.browseId
+                            playlistCoverPicker.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        }
+                    },
+                    // Reset cover: only shown when there is already a local cover stored.
+                    onResetCover = target.browseId
+                        ?.takeIf { playlist != null && AppSettings.getPlaylistLocalCover(it) != null }
+                        ?.let { id ->
+                            {
+                                browseActions = null
+                                AppSettings.clearPlaylistLocalCover(id)
+                            }
+                        },
                     onDeleteDownload = target.downloadId?.let { id ->
                         {
                             browseActions = null
@@ -4599,7 +4672,8 @@ private const val SEEK_END_GUARD_MS = 1_000L
 private val DETAIL_TITLE_DROP = 320.dp
 
 private const val TAB_HOME = 0
-private const val TAB_EXPLORE = 1
+private const val TAB_NEW = 1
+private const val TAB_EXPLORE = TAB_NEW
 private const val TAB_LIBRARY = 2
 private const val TAB_SEARCH = 3
 

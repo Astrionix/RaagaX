@@ -34,6 +34,7 @@ import com.music.raaga.data.model.LibraryState
 import com.music.raaga.data.model.LikeStatus
 import com.music.raaga.data.model.MoodGenre
 import com.music.raaga.data.model.MoodGenreSection
+import com.music.raaga.data.model.NewFeedData
 import com.music.raaga.data.model.PlaylistPrivacy
 import com.music.raaga.data.model.SearchFilter
 import com.music.raaga.data.model.SearchResult
@@ -50,6 +51,7 @@ import com.music.raaga.download.Downloads
 import android.util.LruCache
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -135,6 +137,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _explore = MutableStateFlow<UiState<List<MoodGenreSection>>>(UiState.Loading)
     val explore: StateFlow<UiState<List<MoodGenreSection>>> = _explore.asStateFlow()
+
+    private val _newFeed = MutableStateFlow<UiState<NewFeedData>>(UiState.Loading)
+    val newFeed: StateFlow<UiState<NewFeedData>> = _newFeed.asStateFlow()
 
     private val _selectedMoodGenre = MutableStateFlow<MoodGenre?>(null)
     val selectedMoodGenre: StateFlow<MoodGenre?> = _selectedMoodGenre.asStateFlow()
@@ -959,7 +964,39 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Imports a playlist from Spotify by searching YouTube Music for each track,
+     * Searches YouTube Music for a query and retries up to [maxRetries] times with
+     * exponential backoff when the result is null (e.g. due to transient rate limiting).
+     */
+    private suspend fun searchWithRetry(query: String, maxRetries: Int = 2): String? {
+        repeat(maxRetries + 1) { attempt ->
+            if (attempt > 0) {
+                // Exponential backoff: 500ms, 1500ms
+                kotlinx.coroutines.delay(500L * attempt)
+            }
+            val result = runCatching {
+                val searchRes = YtMusicRepository.searchPage(query, SearchFilter.SONGS).getOrNull()
+                searchRes?.rows?.firstNotNullOfOrNull { row ->
+                    when (row) {
+                        is SearchResult.TopTrack -> row.song.videoId
+                        is SearchResult.Track -> row.song.videoId
+                        else -> null
+                    }
+                }
+            }.getOrNull()
+            if (result != null) return result
+        }
+        return null
+    }
+
+    private var currentImportJob: Job? = null
+
+    fun cancelPlaylistImport() {
+        currentImportJob?.cancel()
+        currentImportJob = null
+    }
+
+    /**
+     * Imports a playlist from Spotify or Apple Music by searching YouTube Music for each track,
      * creating a new playlist with the matched songs, and reporting progress.
      */
     fun importPlaylistFromSpotify(
@@ -969,54 +1006,52 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         thumbnailUrl: String?,
         onProgress: (Int, Int, String) -> Unit,
         onComplete: (Result<String>) -> Unit,
-    ) {
+    ): Job {
+        cancelPlaylistImport()
         if (!requireSignIn()) {
             onComplete(Result.failure(IllegalStateException("Sign in required")))
-            return
+            return Job().apply { complete() }
         }
         val name = title.trim().ifBlank { text(R.string.new_playlist) }
-        viewModelScope.launch(Dispatchers.IO) {
+        val job = viewModelScope.launch(Dispatchers.IO) {
             val total = tracks.size
-            var processed = 0
-            val progressMutex = Mutex()
+            val matchedVideoIds = java.util.Collections.synchronizedList(mutableListOf<Pair<Int, String>>())
+            val processedCount = java.util.concurrent.atomic.AtomicInteger(0)
             val semaphore = Semaphore(3)
 
-            val matchedVideoIds: List<String> = coroutineScope {
-                tracks.map { track ->
-                    async {
+            coroutineScope {
+                tracks.forEachIndexed { index, track ->
+                    launch {
                         semaphore.withPermit {
+                            if (!isActive) return@launch
                             val query = "${track.title} ${track.artist}".trim()
-                            val videoId = runCatching {
-                                val searchRes = YtMusicRepository.searchPage(query, SearchFilter.SONGS).getOrNull()
-                                searchRes?.rows?.firstNotNullOfOrNull { row ->
-                                    when (row) {
-                                        is SearchResult.TopTrack -> row.song.videoId
-                                        is SearchResult.Track -> row.song.videoId
-                                        else -> null
-                                    }
-                                }
-                            }.getOrNull()
-                            progressMutex.withLock {
-                                processed++
-                                withContext(Dispatchers.Main) {
-                                    onProgress(processed, total, "${track.title} · ${track.artist}")
-                                }
+                            val videoId = searchWithRetry(query)
+                            if (videoId != null) {
+                                matchedVideoIds.add(index to videoId)
                             }
-                            videoId
+                            val processed = processedCount.incrementAndGet()
+                            withContext(Dispatchers.Main) {
+                                onProgress(processed, total, "${track.title} · ${track.artist}")
+                            }
+                            delay(40L)
                         }
                     }
-                }.awaitAll().filterNotNull()
+                }
             }
 
-            if (matchedVideoIds.isEmpty()) {
+            if (!isActive) return@launch
+            val sortedVideoIds = matchedVideoIds.sortedBy { it.first }.map { it.second }
+
+            if (sortedVideoIds.isEmpty()) {
                 withContext(Dispatchers.Main) {
                     onComplete(Result.failure(IllegalStateException("No matching songs found on YouTube Music")))
                 }
                 return@launch
             }
 
-            val firstBatch = matchedVideoIds.take(50)
-            val remainingBatches = matchedVideoIds.drop(50).chunked(50)
+            // Create playlist with up to the first 50 songs in ONE call
+            val firstBatch = sortedVideoIds.take(50)
+            val remainingBatches = sortedVideoIds.drop(50).chunked(4)
 
             val createResult = YtMusicRepository.createPlaylist(
                 title = name,
@@ -1027,9 +1062,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             createResult.fold(
                 onSuccess = { playlistId ->
                     for (batch in remainingBatches) {
+                        if (!isActive) return@launch
                         runCatching {
                             YtMusicRepository.addToPlaylist(playlistId, batch)
                         }
+                        delay(120L)
                     }
 
                     setPlaylistOwned("VL$playlistId", true)
@@ -1037,7 +1074,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     val created = UserPlaylist(
                         playlistId = playlistId,
                         title = name,
-                        subtitle = "${matchedVideoIds.size} songs",
+                        subtitle = "${sortedVideoIds.size} songs",
                         thumbnailUrl = thumbnailUrl,
                     )
                     withContext(Dispatchers.Main) {
@@ -1064,6 +1101,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
             )
         }
+        currentImportJob = job
+        return job
     }
 
     /**
@@ -1323,6 +1362,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         startSuggestPipeline()
         startTypeaheadMediaPipeline()
         loadHome()
+        loadNewFeed()
         loadExplore()
         if (_signedIn.value) {
             loadLibrary()
@@ -1419,7 +1459,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * as one flag: a pull on Library while Home is still refreshing in the
      * background shouldn't leave the wrong tab showing a loader.
      */
-    enum class Feed { HOME, EXPLORE, LIBRARY }
+    enum class Feed { HOME, EXPLORE, LIBRARY, NEW }
 
     private val _refreshing = MutableStateFlow(emptySet<Feed>())
     val refreshing: StateFlow<Set<Feed>> = _refreshing.asStateFlow()
@@ -1439,9 +1479,49 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             when (feed) {
                 Feed.HOME -> refreshHome(identity)
                 Feed.EXPLORE -> fetchExplore()
+                Feed.NEW -> fetchNewFeed()
                 Feed.LIBRARY -> fetchLibrary(identity)
             }
             _refreshing.value = _refreshing.value - feed
+        }
+    }
+
+    fun loadNewFeed() {
+        _newFeed.value = UiState.Loading
+        viewModelScope.launch { fetchNewFeed() }
+    }
+
+    private suspend fun fetchNewFeed() {
+        val state = YtMusicRepository.newFeed().fold(
+            onSuccess = { data ->
+                if (data.newReleases.isEmpty() && data.charts.isEmpty() && data.moodGenres.isEmpty()) {
+                    UiState.Error(text(R.string.nothing_to_explore))
+                } else {
+                    UiState.Success(data)
+                }
+            },
+            onFailure = { UiState.Error(it.message ?: text(R.string.unknown_error)) },
+        )
+        _newFeed.value = state
+        if (state is UiState.Success) {
+            viewModelScope.launch {
+                for (section in state.data.moodGenres) {
+                    for (item in section.items) {
+                        if (item.thumbnailUrl != null) continue
+                        val artwork = YtMusicRepository.moodGenreArtwork(item.browseId, item.params).getOrNull()
+                            ?: continue
+                        val current = (_newFeed.value as? UiState.Success)?.data ?: return@launch
+                        _newFeed.value = UiState.Success(
+                            current.copy(
+                                moodGenres = current.moodGenres.map { s ->
+                                    if (s.title != section.title) s
+                                    else s.copy(items = s.items.map { if (it.title == item.title) it.copy(thumbnailUrl = artwork) else it })
+                                }
+                            )
+                        )
+                    }
+                }
+            }
         }
     }
 

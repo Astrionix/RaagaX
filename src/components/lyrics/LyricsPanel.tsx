@@ -6,6 +6,7 @@ import { usePlayerStore } from '@/context/usePlayerStore';
 import { useThemeStore } from '@/context/useThemeStore';
 import { LyricsLine } from '@/lib/lyrics/LyricsTypes';
 import { X, Mic2, Music } from 'lucide-react';
+import { AppleWordSyncedLyrics } from '@/components/lyrics/AppleWordSyncedLyrics';
 
 export function LyricsPanel() {
   const { status, type, lines, currentLineIndex, scriptMode, setScriptMode, hasTransliteration } = useLyricsStore();
@@ -316,7 +317,7 @@ export function LyricsPanel() {
 
       {/* Synchronized Lyrics Container */}
       <div className="flex-1 overflow-hidden relative">
-        {content()}
+        <AppleWordSyncedLyrics isExpandedView={false} />
       </div>
 
       {/* Footer Info */}

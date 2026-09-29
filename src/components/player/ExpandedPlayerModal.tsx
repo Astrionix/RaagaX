@@ -40,6 +40,9 @@ import {
   Disc3,
   Plus,
   MonitorSpeaker,
+  Activity,
+  Gauge,
+  Speaker,
 } from 'lucide-react';
 import { usePlayerStore } from '@/context/usePlayerStore';
 import { usePlaylistStore } from '@/context/usePlaylistStore';
@@ -56,6 +59,11 @@ import { AlbumCatalogEngine } from '@/lib/albumCatalog';
 import { SongActionMenu } from '@/components/common/SongActionMenu';
 import { VolumeControl } from '@/components/player/VolumeControl';
 import { PlaybackService } from '@/lib/playback/PlaybackService';
+import { ArtworkMeshBackdrop } from '@/components/player/ArtworkMeshBackdrop';
+import { AppleWordSyncedLyrics } from '@/components/lyrics/AppleWordSyncedLyrics';
+import { StatsForNerdsModal } from '@/components/player/StatsForNerdsModal';
+import { PlaybackSpeedModal } from '@/components/player/PlaybackSpeedModal';
+import { AudioOutputSheet } from '@/components/player/AudioOutputSheet';
 
 export function ExpandedPlayerModal() {
   const { playlists, addSongToPlaylist } = usePlaylistStore();
@@ -68,6 +76,9 @@ export function ExpandedPlayerModal() {
   const [isDesktopQueueOpen, setIsDesktopQueueOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [songTransitionKey, setSongTransitionKey] = useState<string>('');
+  const [isStatsModalOpen, setIsStatsModalOpen] = useState(false);
+  const [isSpeedModalOpen, setIsSpeedModalOpen] = useState(false);
+  const [isOutputSheetOpen, setIsOutputSheetOpen] = useState(false);
 
   const {
     status: lyricsStatus,
@@ -468,71 +479,8 @@ export function ExpandedPlayerModal() {
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      {/* ── 1. DYNAMIC ARTWORK ATMOSPHERE (Cover Blur + 2-3 Color Meshes + Dark Glass Scrim) ── */}
-      {/* Layer A: Blurred Enlarged Cover Artwork (40-60px blur) */}
-      <div
-        className="absolute inset-0 opacity-65 scale-125 pointer-events-none transition-all duration-700 ease-out"
-        style={{
-          backgroundImage: `url(${coverUrl})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          filter: 'blur(50px) saturate(175%) brightness(0.50)',
-        }}
-      />
-
-      {/* Layer B: Apple Music Style Living Fluid Ambient Mesh Background */}
-      {palette && (
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          {/* Fluid Mesh Orb 1: Primary Dominant Glow (Drifting top & center) */}
-          <div
-            className={`absolute -top-32 left-1/4 w-[120%] h-[580px] rounded-full blur-[80px] transition-opacity duration-1000 opacity-75 animate-ambient-drift-1 ${
-              !isPlaying ? 'ambient-paused' : ''
-            }`}
-            style={{
-              background: `radial-gradient(ellipse at 50% 40%, ${palette.primary} 0%, ${palette.secondary || palette.primary} 55%, transparent 75%)`,
-            }}
-          />
-
-          {/* Fluid Mesh Orb 2: Secondary Floating Accent (Counter-orbiting bottom-left to center) */}
-          <div
-            className={`absolute top-48 -left-20 w-[90%] h-[480px] rounded-full blur-[75px] transition-opacity duration-1000 opacity-60 animate-ambient-drift-2 ${
-              !isPlaying ? 'ambient-paused' : ''
-            }`}
-            style={{
-              background: `radial-gradient(circle at 40% 40%, ${palette.secondary} 0%, ${palette.highlight || palette.primary} 50%, transparent 70%)`,
-            }}
-          />
-
-          {/* Fluid Mesh Orb 3: Highlight Bloom (Pulsing Behind Foreground Artwork) */}
-          <div
-            className={`absolute top-1/3 left-1/2 w-[520px] h-[520px] rounded-full blur-[65px] transition-opacity duration-1000 opacity-45 animate-ambient-bloom ${
-              !isPlaying ? 'ambient-paused' : ''
-            }`}
-            style={{
-              background: `radial-gradient(circle at 50% 50%, ${palette.highlight || palette.primary} 0%, transparent 65%)`,
-            }}
-          />
-
-          {/* Fluid Mesh Orb 4: Deep Atmospheric Under-Glow (Slow drifter in lower quadrant) */}
-          <div
-            className={`absolute -bottom-24 -right-16 w-[85%] h-[440px] rounded-full blur-[85px] transition-opacity duration-1000 opacity-50 animate-ambient-drift-3 ${
-              !isPlaying ? 'ambient-paused' : ''
-            }`}
-            style={{
-              background: `radial-gradient(ellipse at 50% 50%, ${palette.secondary} 0%, ${palette.primary} 45%, transparent 70%)`,
-            }}
-          />
-        </div>
-      )}
-
-      {/* Layer C: Dark Glass / Vignette Scrim (Ensures Crisp Artwork & Neutral Glass Readability) */}
-      <div
-        className="absolute inset-0 pointer-events-none transition-all duration-700"
-        style={{
-          background:
-            'radial-gradient(ellipse at 50% 35%, rgba(6,7,10,0.15) 0%, rgba(6,7,10,0.55) 55%, rgba(6,7,10,0.92) 100%)',
-        }}
-      />
+      {/* ── 1. RAAGA ANDROID ARTWORK MESH BACKDROP (Dynamic Mesh Gradient from ArtworkMeshBackdrop.kt) ── */}
+      <ArtworkMeshBackdrop intensity="vibrant" continuous={isPlaying} scrimOpacity={0.68} />
       <div
         className="absolute inset-0 pointer-events-none transition-all duration-700"
         style={{
@@ -1135,56 +1083,10 @@ export function ExpandedPlayerModal() {
 
               {/* Tab Content */}
               <div className="flex-1 overflow-y-auto no-scrollbar py-6 min-h-0">
-                {/* 1. Lyrics */}
+                {/* 1. Lyrics (Apple-Style Word-Synced + Translation + Particle Drift) */}
                 {desktopTab === 'lyrics' && (
-                  <div ref={modalLyricsScrollRef} className="space-y-4 pr-4">
-                    <div className="text-3xl font-serif text-[#F0444F] font-bold select-none mb-2">
-                      “
-                    </div>
-
-                    {lyricsStatus === 'loading' && (
-                      <div className="py-16 flex flex-col items-center justify-center text-white/50 gap-3">
-                        <Loader2 className="w-6 h-6 text-[#F0444F] animate-spin" />
-                        <p className="text-xs font-medium">Syncing lyrics...</p>
-                      </div>
-                    )}
-
-                    {lyricsStatus === 'unavailable' || lyricsLines.length === 0 ? (
-                      <div className="py-16 text-center text-white/50 space-y-2">
-                        <p className="text-base font-bold text-white">Lyrics unavailable</p>
-                        <p className="text-xs text-white/40">No synchronized lyrics found for this track.</p>
-                      </div>
-                    ) : (
-                      lyricsLines.map((line, idx) => {
-                        const isActive = idx === lyricsIndex;
-                        const isPassed = idx < lyricsIndex;
-                        const mainContent = (scriptMode === 'transliteration' && line.romanizedText)
-                          ? line.romanizedText
-                          : (line.nativeText || line.text);
-
-                        return (
-                          <div
-                            key={line.id}
-                            id={`modal-lyric-line-${idx}`}
-                            onClick={() => {
-                              if (line.startMs !== undefined && line.startMs >= 0) {
-                                const sec = line.startMs / 1000;
-                                usePlayerStore.getState().setCurrentTime(sec, true);
-                                usePlayerStore.getState().setSeekTarget(sec);
-                              }
-                            }}
-                            className={`cursor-pointer transition-all duration-300 transform origin-left leading-relaxed ${isActive
-                                ? 'text-xl lg:text-2xl font-black text-white scale-[1.02]'
-                                : isPassed
-                                  ? 'text-sm lg:text-base font-medium text-white/30 hover:text-white/60'
-                                  : 'text-sm lg:text-base font-medium text-white/50 hover:text-white'
-                              }`}
-                          >
-                            {mainContent}
-                          </div>
-                        );
-                      })
-                    )}
+                  <div className="h-full flex flex-col min-h-0 overflow-hidden rounded-2xl bg-white/[0.02] border border-white/10">
+                    <AppleWordSyncedLyrics isExpandedView={true} />
                   </div>
                 )}
 
@@ -1367,67 +1269,9 @@ export function ExpandedPlayerModal() {
               </div>
             </div>
           ) : viewMode === 'lyrics' ? (
-            /* SYNCHRONIZED LYRICS STAGE */
+            /* SYNCHRONIZED LYRICS STAGE (APPLE-STYLE WORD-SYNCED + TRANSLATION + PARTICLE DRIFT) */
             <div className="w-full flex-1 flex flex-col min-h-0 overflow-hidden py-1">
-              <div className="flex items-center justify-between px-3 pb-2 mb-1 border-b border-white/10 flex-shrink-0">
-                <div className="flex items-center gap-2 text-xs font-bold text-white">
-                  <Mic2 className="w-4 h-4 text-[#F0444F]" /> Synced Lyrics
-                </div>
-                <button
-                  onClick={() => setViewMode('art')}
-                  className="text-xs font-semibold text-white/80 hover:text-white px-3 py-1 rounded-full bg-white/10 hover:bg-white/20 transition-all cursor-pointer"
-                >
-                  Show Artwork
-                </button>
-              </div>
-
-              <div
-                ref={modalLyricsScrollRef}
-                className="flex-1 overflow-y-auto no-scrollbar py-6 px-3 space-y-3.5 flex flex-col items-start"
-              >
-                {lyricsStatus === 'loading' && (
-                  <div className="w-full flex flex-col items-center justify-center py-12 text-white/60 gap-3">
-                    <Loader2 className="w-6 h-6 text-[#F0444F] animate-spin" />
-                    <p className="text-xs font-semibold">Syncing lyrics...</p>
-                  </div>
-                )}
-                {lyricsStatus === 'unavailable' || lyricsLines.length === 0 ? (
-                  <div className="w-full text-center py-12 text-white/60 flex flex-col items-center gap-2">
-                    <p className="text-sm font-bold text-white">Lyrics unavailable</p>
-                    <p className="text-xs text-slate-400">No synchronized lyrics found for this track.</p>
-                  </div>
-                ) : (
-                  lyricsLines.map((line, idx) => {
-                    const isActive = idx === lyricsIndex;
-                    const isPassed = idx < lyricsIndex;
-                    const mainContent = (scriptMode === 'transliteration' && line.romanizedText)
-                      ? line.romanizedText
-                      : (line.nativeText || line.text);
-
-                    return (
-                      <div
-                        key={line.id}
-                        id={`modal-lyric-line-${idx}`}
-                        onClick={() => {
-                          if (line.startMs !== undefined && line.startMs >= 0) {
-                            const sec = line.startMs / 1000;
-                            usePlayerStore.getState().setCurrentTime(sec, true);
-                            usePlayerStore.getState().setSeekTarget(sec);
-                          }
-                        }}
-                        className={`w-full text-left transition-all duration-300 transform origin-left cursor-pointer py-1.5 ${isActive
-                            ? 'text-xl sm:text-2xl font-black text-white scale-[1.03]'
-                            : isPassed
-                              ? 'text-sm sm:text-base font-medium text-white/30'
-                              : 'text-sm sm:text-base font-semibold text-white/60 hover:text-white'
-                          }`}
-                      >
-                        {mainContent}
-                      </div>
-                    );
-                  })
-                )}
-              </div>
+              <AppleWordSyncedLyrics isExpandedView={true} />
             </div>
           ) : viewMode === 'queue' ? (
             /* UP NEXT QUEUE STAGE (MOBILE) */
@@ -1814,6 +1658,45 @@ export function ExpandedPlayerModal() {
                 <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-ping" />
               )}
             </button>
+
+            {/* Stats for Nerds Button (Raaga Android) */}
+            <button
+              onClick={() => {
+                haptics.lightImpact();
+                setIsStatsModalOpen(true);
+              }}
+              className="px-3 sm:px-3.5 py-1.5 rounded-full border border-white/10 bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+              title="Stats for Nerds (Audio Telemetry)"
+            >
+              <Activity className="w-3.5 h-3.5" />
+              <span>Stats</span>
+            </button>
+
+            {/* Playback Speed Button (Raaga Android) */}
+            <button
+              onClick={() => {
+                haptics.lightImpact();
+                setIsSpeedModalOpen(true);
+              }}
+              className="px-3 sm:px-3.5 py-1.5 rounded-full border border-white/10 bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+              title="Playback Speed"
+            >
+              <Gauge className="w-3.5 h-3.5" />
+              <span>Speed</span>
+            </button>
+
+            {/* Audio Output Button (Raaga Android) */}
+            <button
+              onClick={() => {
+                haptics.lightImpact();
+                setIsOutputSheetOpen(true);
+              }}
+              className="px-3 sm:px-3.5 py-1.5 rounded-full border border-white/10 bg-white/[0.06] hover:bg-white/[0.12] text-white/70 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+              title="Audio Output Device"
+            >
+              <Speaker className="w-3.5 h-3.5" />
+              <span>Output</span>
+            </button>
           </div>
         </div>
 
@@ -1974,6 +1857,20 @@ export function ExpandedPlayerModal() {
           </div>
         )}
       </div>
+
+      {/* Raaga Android Feature Modals */}
+      <StatsForNerdsModal
+        isOpen={isStatsModalOpen}
+        onClose={() => setIsStatsModalOpen(false)}
+      />
+      <PlaybackSpeedModal
+        isOpen={isSpeedModalOpen}
+        onClose={() => setIsSpeedModalOpen(false)}
+      />
+      <AudioOutputSheet
+        isOpen={isOutputSheetOpen}
+        onClose={() => setIsOutputSheetOpen(false)}
+      />
     </div>
   );
 }

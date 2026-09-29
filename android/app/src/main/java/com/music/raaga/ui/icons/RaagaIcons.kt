@@ -199,6 +199,44 @@ object RaagaIcons {
         }.build()
     }
 
+    val NewMusic: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "bc_new_flame",
+            defaultWidth = 24.dp, defaultHeight = 24.dp,
+            viewportWidth = 24f, viewportHeight = 24f,
+        ).apply {
+            path(
+                stroke = stroke,
+                strokeLineWidth = STROKE,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
+            ) {
+                // Outer flame contour
+                moveTo(12f, 2.5f)
+                quadTo(11f, 6.2f, 8.2f, 9.4f)
+                quadTo(5f, 13f, 5f, 15.8f)
+                arcToRelative(7f, 7f, 0f, isMoreThanHalf = false, isPositiveArc = false, 14f, 0f)
+                quadTo(19f, 11.5f, 15.2f, 8.2f)
+                quadTo(14.8f, 11f, 13f, 11f)
+                quadTo(11.6f, 11f, 12f, 2.5f)
+                close()
+            }
+            path(
+                stroke = stroke,
+                strokeLineWidth = 1.9f,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
+            ) {
+                // Inner ember
+                moveTo(12f, 14.5f)
+                quadTo(10.5f, 16f, 10.5f, 17.5f)
+                arcToRelative(1.5f, 1.5f, 0f, isMoreThanHalf = false, isPositiveArc = false, 3f, 0f)
+                quadTo(13.5f, 16f, 12f, 14.5f)
+                close()
+            }
+        }.build()
+    }
+
     val Shuffle: ImageVector by lazy {
         ImageVector.Builder(
             name = "bc_shuffle",

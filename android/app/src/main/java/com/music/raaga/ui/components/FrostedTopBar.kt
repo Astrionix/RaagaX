@@ -59,6 +59,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
@@ -309,6 +310,7 @@ fun FrostedTopBar(
                         .padding(start = PAGE_GUTTER),
                 )
             } else {
+                val isLight = MaterialTheme.colorScheme.surface.luminance() > 0.5f
                 Box(
                     modifier = Modifier
                         .align(Alignment.CenterStart)
@@ -316,7 +318,7 @@ fun FrostedTopBar(
                     contentAlignment = Alignment.CenterStart,
                 ) {
                     Image(
-                        painter = painterResource(R.drawable.ic_logo),
+                        painter = painterResource(if (isLight) R.drawable.ic_logo_dark else R.drawable.ic_logo),
                         contentDescription = stringResource(R.string.app_name),
                         modifier = Modifier.height(34.dp),
                         contentScale = ContentScale.Fit,
@@ -355,6 +357,7 @@ private fun FloatingAppMark(
     hazeState: HazeState?,
     modifier: Modifier = Modifier,
 ) {
+    val isLight = MaterialTheme.colorScheme.surface.luminance() > 0.5f
     Box(
         modifier = modifier
             .height(44.dp)
@@ -363,7 +366,7 @@ private fun FloatingAppMark(
         contentAlignment = Alignment.Center,
     ) {
         Image(
-            painter = painterResource(R.drawable.ic_logo),
+            painter = painterResource(if (isLight) R.drawable.ic_logo_dark else R.drawable.ic_logo),
             contentDescription = stringResource(R.string.app_name),
             modifier = Modifier.height(28.dp),
             contentScale = ContentScale.Fit,

@@ -96,7 +96,7 @@ fun ExploreScreen(
 }
 
 @Composable
-private fun MoodGenreGrid(
+internal fun MoodGenreGrid(
     section: MoodGenreSection,
     onCategoryClick: (MoodGenre) -> Unit,
 ) {
@@ -126,7 +126,7 @@ private fun MoodGenreGrid(
 }
 
 @Composable
-private fun MoodGenreCard(
+internal fun MoodGenreCard(
     item: MoodGenre,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -176,7 +176,7 @@ private fun MoodGenreCard(
     }
 }
 
-private fun moodColor(title: String): Color = when ((title.hashCode() and Int.MAX_VALUE) % 8) {
+internal fun moodColor(title: String): Color = when ((title.hashCode() and Int.MAX_VALUE) % 8) {
     0 -> Color(0xFFE64A19)
     1 -> Color(0xFFEC0B65)
     2 -> Color(0xFF8664AC)

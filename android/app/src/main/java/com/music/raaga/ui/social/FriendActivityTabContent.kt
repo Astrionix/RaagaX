@@ -27,11 +27,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import android.content.Intent
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.Fingerprint
 import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material.icons.rounded.PersonAdd
 import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Share
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import com.music.raaga.data.blend.BlendEngine
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
@@ -84,6 +91,8 @@ internal fun FriendActivityTabContent(
 
     val activities by FriendActivityEngine.activities.collectAsStateWithLifecycle()
     val isSharingEnabled by FriendActivityEngine.isSharingEnabled.collectAsStateWithLifecycle()
+    val myIdentity = remember { BlendEngine.getMyIdentity(context) }
+    val clipboardManager = LocalClipboardManager.current
     var showAddDialog by remember { mutableStateOf(false) }
     var newFriendTag by remember { mutableStateOf("") }
 
@@ -164,6 +173,143 @@ internal fun FriendActivityTabContent(
                             color = Color.White,
                         )
                     }
+                }
+            }
+        }
+
+        // Your Friend Code Card (Share with friends so they can add you)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(
+                            Color(0xFFFA233B).copy(alpha = 0.15f),
+                            Color(0xFF8B5CF6).copy(alpha = 0.10f),
+                        )
+                    )
+                )
+                .border(1.dp, Color(0xFFFA233B).copy(alpha = 0.25f), RoundedCornerShape(16.dp))
+                .clickable {
+                    haptics.play(Haptic.Select)
+                    val shortCode = myIdentity.userTag.removePrefix("AETH-")
+                    clipboardManager.setText(AnnotatedString(shortCode))
+                    Toast.makeText(context, "Friend code copied: $shortCode! Send this to your friend.", Toast.LENGTH_SHORT).show()
+                }
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFFA233B).copy(alpha = 0.20f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Fingerprint,
+                        contentDescription = null,
+                        tint = Color(0xFFFA233B),
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+                Column {
+                    Text(
+                        text = "YOUR FRIEND CODE",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp,
+                        ),
+                        color = Color.White.copy(alpha = 0.6f),
+                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Text(
+                            text = myIdentity.userTag.removePrefix("AETH-"),
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Black,
+                                fontFamily = FontFamily.Monospace,
+                                letterSpacing = 2.sp,
+                            ),
+                            color = Color(0xFFFA233B),
+                        )
+                        Text(
+                            text = "(${myIdentity.userTag})",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                            ),
+                            color = Color.White.copy(alpha = 0.45f),
+                        )
+                    }
+                }
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color.White.copy(alpha = 0.12f))
+                        .clickable {
+                            haptics.play(Haptic.Select)
+                            val shortCode = myIdentity.userTag.removePrefix("AETH-")
+                            clipboardManager.setText(AnnotatedString(shortCode))
+                            Toast.makeText(context, "Code copied: $shortCode!", Toast.LENGTH_SHORT).show()
+                        }
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.ContentCopy,
+                            contentDescription = "Copy Code",
+                            tint = Color.White,
+                            modifier = Modifier.size(14.dp),
+                        )
+                        Text(
+                            text = "Copy",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = Color.White,
+                        )
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.12f))
+                        .clickable {
+                            haptics.play(Haptic.Tap)
+                            val shortCode = myIdentity.userTag.removePrefix("AETH-")
+                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_TEXT, "Add me on Raaga app to listen along! My Friend Code is: $shortCode (Tag: ${myIdentity.userTag})")
+                            }
+                            context.startActivity(Intent.createChooser(shareIntent, "Share Friend Code"))
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Share,
+                        contentDescription = "Share Code",
+                        tint = Color.White,
+                        modifier = Modifier.size(15.dp),
+                    )
                 }
             }
         }

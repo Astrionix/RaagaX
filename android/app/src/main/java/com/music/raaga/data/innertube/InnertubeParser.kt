@@ -189,15 +189,15 @@ object InnertubeParser {
 
     // ---- Home feed ----------------------------------------------------------
 
-    fun parseHome(response: JsonObject): List<HomeShelf> {
+    fun parseHome(response: JsonObject, allowVideos: Boolean = false): List<HomeShelf> {
         val sections = response.o("contents")
             .o("singleColumnBrowseResultsRenderer").a("tabs")?.firstOrNull()
             .o("tabRenderer").o("content").o("sectionListRenderer").a("contents")
             .orEmpty()
 
         return sections.mapNotNull { section ->
-            section.o("musicCarouselShelfRenderer")?.let(::carouselShelf)
-                ?: section.o("musicShelfRenderer")?.let(::plainShelf)
+            section.o("musicCarouselShelfRenderer")?.let { carouselShelf(it, allowVideos) }
+                ?: section.o("musicShelfRenderer")?.let { plainShelf(it, allowVideos) }
         }
     }
 
@@ -256,18 +256,18 @@ object InnertubeParser {
         return out
     }
 
-    private fun carouselShelf(carousel: JsonObject): HomeShelf? {
+    private fun carouselShelf(carousel: JsonObject, allowVideos: Boolean = false): HomeShelf? {
         val header = carousel.o("header").o("musicCarouselShelfBasicHeaderRenderer")
         val title = header.o("title").runs()
         val strapline = header.o("strapline").runs()
         // Whole shelves like "Video charts" carry nothing but video
         // compilations — each card would fail its own video check on the
         // way to a dead-end page, so the shelf is dropped outright.
-        if (VIDEO_WORD.containsMatchIn(title)) return null
+        if (!allowVideos && VIDEO_WORD.containsMatchIn(title)) return null
         val items = carousel.a("contents").orEmpty().mapNotNull { item ->
             parseTwoRowItem(item.o("musicTwoRowItemRenderer"))
                 ?: parseResponsiveListItem(item.o("musicResponsiveListItemRenderer"))
-                    ?.takeUnless { it.isVideo }
+                    ?.takeUnless { !allowVideos && it.isVideo }
                     ?.let { song ->
                         ShelfItem(song.title, song.artist, song.thumbnailUrl, song.videoId, null)
                     }
@@ -279,12 +279,12 @@ object InnertubeParser {
         return if (items.isEmpty()) null else HomeShelf(title.ifBlank { "For you" }, items, strapline)
     }
 
-    private fun plainShelf(shelf: JsonObject): HomeShelf? {
+    private fun plainShelf(shelf: JsonObject, allowVideos: Boolean = false): HomeShelf? {
         val title = shelf.o("title").runs()
-        if (VIDEO_WORD.containsMatchIn(title)) return null
+        if (!allowVideos && VIDEO_WORD.containsMatchIn(title)) return null
         val items = shelf.a("contents").orEmpty().mapNotNull {
             parseResponsiveListItem(it.o("musicResponsiveListItemRenderer"))
-        }.filterNot { it.isVideo }
+        }.filterNot { !allowVideos && it.isVideo }
             .map { ShelfItem(it.title, it.artist, it.thumbnailUrl, it.videoId, null) }
         return if (items.isEmpty()) null else HomeShelf(title.ifBlank { "For you" }, items)
     }

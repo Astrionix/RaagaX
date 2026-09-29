@@ -72,6 +72,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.music.raaga.R
+import com.music.raaga.data.applemusic.AppleMusicParser
 import com.music.raaga.data.model.PlaylistPrivacy
 import com.music.raaga.data.spotify.SpotifyPlaylistInfo
 import com.music.raaga.data.spotify.SpotifyPlaylistParser
@@ -81,6 +82,7 @@ import kotlinx.coroutines.launch
 import java.util.Locale
 
 private val SpotifyGreen = Color(0xFF1DB954)
+private val AppleRed   = Color(0xFFFC3C44)
 
 private sealed interface ImportState {
     data object Input : ImportState
@@ -103,6 +105,7 @@ fun ImportSpotifyPlaylistSheet(
         onProgress: (Int, Int, String) -> Unit,
         onComplete: (Result<String>) -> Unit,
     ) -> Unit,
+    onCancelImport: () -> Unit = {},
     onOpenPlaylist: (playlistId: String, title: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -115,13 +118,22 @@ fun ImportSpotifyPlaylistSheet(
     var privacy by remember { mutableStateOf(PlaylistPrivacy.PRIVATE) }
     var editableTitle by remember { mutableStateOf("") }
 
-    // Auto-detect Spotify link on clipboard when opening
+    // Auto-detect Spotify OR Apple Music link on clipboard when opening
     LaunchedEffect(Unit) {
         val clipText = clipboardManager.getText()?.text?.trim()
-        if (!clipText.isNullOrBlank() && (clipText.contains("spotify.com") || clipText.contains("spotify:") || clipText.contains("spotify.link"))) {
+        if (!clipText.isNullOrBlank() && (
+            clipText.contains("spotify.com") ||
+            clipText.contains("spotify:") ||
+            clipText.contains("spotify.link") ||
+            clipText.contains("music.apple.com")
+        )) {
             inputUrl = clipText
         }
     }
+
+    // Detect which service the current URL belongs to (drives accent color & labels)
+    val isAppleMusic = AppleMusicParser.looksLikeAppleMusicUrl(inputUrl)
+    val accentColor = if (isAppleMusic) AppleRed else SpotifyGreen
 
     val fetchInfo: (String) -> Unit = { url ->
         focusManager.clearFocus()
@@ -129,30 +141,45 @@ fun ImportSpotifyPlaylistSheet(
         if (targetUrl.isNotBlank()) {
             state = ImportState.Loading
             coroutineScope.launch {
-                val parsed = SpotifyPlaylistParser.parseLink(targetUrl)
-                if (parsed == null) {
-                    state = ImportState.Error("Please enter a valid Spotify playlist or album link")
-                    return@launch
-                }
-                SpotifyPlaylistParser.fetchPlaylist(parsed).fold(
-                    onSuccess = { info ->
-                        editableTitle = info.title
-                        state = ImportState.Preview(info)
-                    },
-                    onFailure = { err ->
-                        state = ImportState.Error(err.message ?: "Failed to load Spotify playlist")
+                if (AppleMusicParser.looksLikeAppleMusicUrl(targetUrl)) {
+                    // Apple Music path
+                    val parsed = AppleMusicParser.parseLink(targetUrl)
+                    if (parsed == null) {
+                        state = ImportState.Error("Please enter a valid Apple Music playlist or album link")
+                        return@launch
                     }
-                )
+                    AppleMusicParser.fetchPlaylist(parsed).fold(
+                        onSuccess = { info ->
+                            editableTitle = info.title
+                            state = ImportState.Preview(info)
+                        },
+                        onFailure = { err ->
+                            state = ImportState.Error(err.message ?: "Failed to load Apple Music playlist")
+                        }
+                    )
+                } else {
+                    // Spotify path
+                    val parsed = SpotifyPlaylistParser.parseLink(targetUrl)
+                    if (parsed == null) {
+                        state = ImportState.Error("Please enter a valid Spotify or Apple Music playlist link")
+                        return@launch
+                    }
+                    SpotifyPlaylistParser.fetchPlaylist(parsed).fold(
+                        onSuccess = { info ->
+                            editableTitle = info.title
+                            state = ImportState.Preview(info)
+                        },
+                        onFailure = { err ->
+                            state = ImportState.Error(err.message ?: "Failed to load Spotify playlist")
+                        }
+                    )
+                }
             }
         }
     }
 
     ModalBottomSheet(
-        onDismissRequest = {
-            if (state !is ImportState.Importing) {
-                onDismiss()
-            }
-        },
+        onDismissRequest = onDismiss,
         containerColor = MaterialTheme.colorScheme.background,
         modifier = modifier,
     ) {
@@ -187,11 +214,14 @@ fun ImportSpotifyPlaylistSheet(
                             modifier = Modifier
                                 .size(8.dp)
                                 .clip(CircleShape)
-                                .background(SpotifyGreen),
+                                .background(accentColor),
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            text = stringResource(R.string.import_spotify_title),
+                            text = if (isAppleMusic)
+                                stringResource(R.string.import_apple_music_title)
+                            else
+                                stringResource(R.string.import_spotify_title),
                             style = MaterialTheme.typography.titleLarge,
                             color = MaterialTheme.colorScheme.onBackground,
                         )
@@ -202,14 +232,19 @@ fun ImportSpotifyPlaylistSheet(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                if (state !is ImportState.Importing) {
-                    IconButton(onClick = onDismiss) {
-                        Icon(
-                            imageVector = Icons.Rounded.Close,
-                            contentDescription = stringResource(R.string.close),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                IconButton(
+                    onClick = {
+                        if (state is ImportState.Importing) {
+                            onCancelImport()
+                        }
+                        onDismiss()
                     }
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Close,
+                        contentDescription = stringResource(R.string.close),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
 
@@ -228,6 +263,7 @@ fun ImportSpotifyPlaylistSheet(
                     is ImportState.Input -> {
                         InputContent(
                             url = inputUrl,
+                            accentColor = accentColor,
                             onUrlChange = { inputUrl = it },
                             onPaste = {
                                 val clip = clipboardManager.getText()?.text?.trim()
@@ -250,13 +286,16 @@ fun ImportSpotifyPlaylistSheet(
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 CircularProgressIndicator(
-                                    color = SpotifyGreen,
+                                    color = accentColor,
                                     strokeWidth = 3.dp,
                                     modifier = Modifier.size(36.dp),
                                 )
                                 Spacer(Modifier.height(16.dp))
                                 Text(
-                                    text = stringResource(R.string.fetching_spotify_playlist),
+                                    text = if (isAppleMusic)
+                                        stringResource(R.string.fetching_apple_music_playlist)
+                                    else
+                                        stringResource(R.string.fetching_spotify_playlist),
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -268,6 +307,7 @@ fun ImportSpotifyPlaylistSheet(
                         PreviewContent(
                             info = currentState.info,
                             title = editableTitle,
+                            accentColor = accentColor,
                             onTitleChange = { editableTitle = it },
                             privacy = privacy,
                             onPrivacyChange = { privacy = it },
@@ -308,6 +348,12 @@ fun ImportSpotifyPlaylistSheet(
                             progress = currentState.progress,
                             total = currentState.total,
                             currentSong = currentState.currentSong,
+                            accentColor = accentColor,
+                            onRunInBackground = onDismiss,
+                            onCancel = {
+                                onCancelImport()
+                                state = ImportState.Input
+                            },
                         )
                     }
 
@@ -315,6 +361,7 @@ fun ImportSpotifyPlaylistSheet(
                         SuccessContent(
                             title = currentState.title,
                             trackCount = currentState.trackCount,
+                            accentColor = accentColor,
                             onOpenPlaylist = {
                                 onOpenPlaylist(currentState.playlistId, currentState.title)
                                 onDismiss()
@@ -344,6 +391,7 @@ fun ImportSpotifyPlaylistSheet(
 @Composable
 private fun InputContent(
     url: String,
+    accentColor: Color,
     onUrlChange: (String) -> Unit,
     onPaste: () -> Unit,
     onClear: () -> Unit,
@@ -372,7 +420,7 @@ private fun InputContent(
             Icon(
                 imageVector = Icons.Rounded.Link,
                 contentDescription = null,
-                tint = SpotifyGreen,
+                tint = accentColor,
                 modifier = Modifier.size(20.dp),
             )
             Spacer(Modifier.width(10.dp))
@@ -393,7 +441,7 @@ private fun InputContent(
                     textStyle = MaterialTheme.typography.bodyMedium.copy(
                         color = MaterialTheme.colorScheme.onBackground,
                     ),
-                    cursorBrush = SolidColor(SpotifyGreen),
+                    cursorBrush = SolidColor(accentColor),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { onSubmit() }),
                     modifier = Modifier.fillMaxWidth(),
@@ -426,7 +474,7 @@ private fun InputContent(
             onClick = onSubmit,
             enabled = url.isNotBlank(),
             colors = ButtonDefaults.buttonColors(
-                containerColor = SpotifyGreen,
+                containerColor = accentColor,
                 contentColor = Color.White,
             ),
             modifier = Modifier.fillMaxWidth(),
@@ -440,6 +488,7 @@ private fun InputContent(
 private fun PreviewContent(
     info: SpotifyPlaylistInfo,
     title: String,
+    accentColor: Color,
     onTitleChange: (String) -> Unit,
     privacy: PlaylistPrivacy,
     onPrivacyChange: (PlaylistPrivacy) -> Unit,
@@ -476,7 +525,7 @@ private fun PreviewContent(
                         color = MaterialTheme.colorScheme.onBackground,
                         fontWeight = FontWeight.Bold,
                     ),
-                    cursorBrush = SolidColor(SpotifyGreen),
+                    cursorBrush = SolidColor(accentColor),
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(4.dp))
@@ -491,7 +540,7 @@ private fun PreviewContent(
                     Text(
                         text = "${info.tracks.size} tracks loaded from link (partial)",
                         style = MaterialTheme.typography.labelSmall,
-                        color = SpotifyGreen,
+                        color = accentColor,
                     )
                 }
             }
@@ -582,7 +631,7 @@ private fun PreviewContent(
         Button(
             onClick = onImport,
             colors = ButtonDefaults.buttonColors(
-                containerColor = SpotifyGreen,
+                containerColor = accentColor,
                 contentColor = Color.White,
             ),
             modifier = Modifier.fillMaxWidth(),
@@ -606,21 +655,24 @@ private fun ImportingContent(
     progress: Int,
     total: Int,
     currentSong: String,
+    accentColor: Color,
+    onRunInBackground: () -> Unit,
+    onCancel: () -> Unit,
 ) {
     val progressFloat = if (total > 0) progress.toFloat() / total.toFloat() else 0f
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 32.dp),
+            .padding(horizontal = 24.dp, vertical = 28.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         CircularProgressIndicator(
             progress = { progressFloat },
-            color = SpotifyGreen,
+            color = accentColor,
             trackColor = MaterialTheme.colorScheme.surfaceVariant,
             modifier = Modifier.size(56.dp),
         )
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(18.dp))
         Text(
             text = stringResource(R.string.matching_songs, progress, total),
             style = MaterialTheme.typography.titleMedium,
@@ -641,13 +693,35 @@ private fun ImportingContent(
         Spacer(Modifier.height(16.dp))
         LinearProgressIndicator(
             progress = { progressFloat },
-            color = SpotifyGreen,
+            color = accentColor,
             trackColor = MaterialTheme.colorScheme.surfaceVariant,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(6.dp)
                 .clip(RoundedCornerShape(3.dp)),
         )
+
+        Spacer(Modifier.height(24.dp))
+
+        Button(
+            onClick = onRunInBackground,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            ),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(R.string.run_in_background), fontWeight = FontWeight.SemiBold)
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        OutlinedButton(
+            onClick = onCancel,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(R.string.cancel_import), color = MaterialTheme.colorScheme.error)
+        }
     }
 }
 
@@ -655,6 +729,7 @@ private fun ImportingContent(
 private fun SuccessContent(
     title: String,
     trackCount: Int,
+    accentColor: Color,
     onOpenPlaylist: () -> Unit,
     onDone: () -> Unit,
 ) {
@@ -667,7 +742,7 @@ private fun SuccessContent(
         Icon(
             imageVector = Icons.Rounded.CheckCircle,
             contentDescription = null,
-            tint = SpotifyGreen,
+            tint = accentColor,
             modifier = Modifier.size(56.dp),
         )
         Spacer(Modifier.height(14.dp))

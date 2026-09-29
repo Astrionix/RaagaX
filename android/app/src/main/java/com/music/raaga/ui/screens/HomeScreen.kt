@@ -913,8 +913,10 @@ internal fun ShelfCard(
                 icon = Icons.Rounded.Storage,
             )
             else -> {
+                val localCovers by AppSettings.playlistLocalCovers.collectAsStateWithLifecycle()
+                val localCoverUri = item.browseId?.let { localCovers[it] }
                 AsyncImage(
-                    model = item.thumbnailUrl.artworkAt(CARD_ART_PX),
+                    model = localCoverUri ?: item.thumbnailUrl.artworkAt(CARD_ART_PX),
                     contentDescription = null,
                     contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                     modifier = Modifier

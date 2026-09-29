@@ -67,6 +67,9 @@ export class ArtworkColorExtractor {
     root.style.setProperty('--chameleon-accent', palette.accent);
     root.style.setProperty('--chameleon-dark', palette.darkAmbient);
     root.style.setProperty('--chameleon-glow', palette.glow);
+    root.style.setProperty('--raaga-accent', palette.accent || palette.primary);
+    root.style.setProperty('--raaga-glow', palette.glow);
+    root.style.setProperty('--raaga-primary', palette.primary);
   }
 
   private processImage(url: string): Promise<ChameleonPalette> {

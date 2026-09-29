@@ -647,6 +647,47 @@ object AppSettings {
     /** How many playlists [pinnedPlaylists] can hold at once. */
     const val MAX_PINNED_PLAYLISTS = 5
 
+    /**
+     * Local gallery image URIs the user has set as playlist covers, keyed by
+     * the playlist's browseId (e.g. "VLxxxxxxxxxx"). Empty map means no custom
+     * covers have been set. Only playlists — albums and artists have no entry here.
+     *
+     * The URI is a content:// URI obtained via the photo-picker / ACTION_OPEN_DOCUMENT,
+     * and is persisted as-is. The app takes a persistable URI permission on it
+     * so it survives restarts — see MainActivity where the picker result is handled.
+     */
+    val playlistLocalCovers = MutableStateFlow<Map<String, String>>(emptyMap())
+
+    /** Returns the local cover URI for [browseId], or null if none was set. */
+    fun getPlaylistLocalCover(browseId: String): String? = playlistLocalCovers.value[browseId]
+
+    /** Persists [uri] as the custom cover for [browseId] and updates the live flow. */
+    fun setPlaylistLocalCover(browseId: String, uri: String) {
+        val updated = playlistLocalCovers.value + (browseId to uri)
+        playlistLocalCovers.value = updated
+        prefs.edit().putString(KEY_PLAYLIST_LOCAL_COVERS, encodeCovers(updated)).apply()
+    }
+
+    /** Removes the custom cover for [browseId], reverting to the remote thumbnail. */
+    fun clearPlaylistLocalCover(browseId: String) {
+        val updated = playlistLocalCovers.value - browseId
+        playlistLocalCovers.value = updated
+        prefs.edit().putString(KEY_PLAYLIST_LOCAL_COVERS, encodeCovers(updated)).apply()
+    }
+
+    private fun encodeCovers(map: Map<String, String>): String =
+        map.entries.joinToString(",") { (k, v) -> "${k}=${v}" }
+
+    private fun readPlaylistLocalCovers(): Map<String, String> {
+        val stored = prefs.getString(KEY_PLAYLIST_LOCAL_COVERS, null) ?: return emptyMap()
+        return stored.split(",")
+            .mapNotNull { entry ->
+                val idx = entry.indexOf('=')
+                if (idx <= 0) null else entry.substring(0, idx) to entry.substring(idx + 1)
+            }
+            .toMap()
+    }
+
     // ── Scrobbling ──────────────────────────────────────────────────────
 
     /** One release gate shared by the settings UI and the playback service. */
@@ -943,6 +984,7 @@ object AppSettings {
             webdavPassword.value,
         )
         pinnedPlaylists.value = readPinnedPlaylists()
+        playlistLocalCovers.value = readPlaylistLocalCovers()
         discordToken.value = authStore.discordToken.orEmpty()
         discordUsername.value = prefs.getString(KEY_DISCORD_USERNAME, "").orEmpty()
         discordName.value = prefs.getString(KEY_DISCORD_NAME, "").orEmpty()
@@ -2003,6 +2045,7 @@ object AppSettings {
     private const val KEY_SMB_BASE_PATH = "smb_base_path"
     private const val KEY_SMB_USERNAME = "smb_username"
     private const val KEY_PINNED_PLAYLISTS = "pinned_playlists"
+    private const val KEY_PLAYLIST_LOCAL_COVERS = "playlist_local_covers"
 
     private const val KEY_LASTFM_ENABLED = "lastfm_enabled"
     private const val KEY_LASTFM_USERNAME = "lastfm_username"

@@ -41,4 +41,16 @@ class SpotifyPlaylistParserTest {
         println("Fetched ${info.tracks.size} tracks for playlist: ${info.title}")
         assertTrue("Expected more than 50 tracks to be imported, found: ${info.tracks.size}", info.tracks.size >= 100)
     }
+
+    @Test
+    fun testFetchLargePlaylistOverTwoHundredTracks() = runBlocking {
+        // "Jazz Classics" has ~245 songs
+        val target = SpotifyPlaylistParser.ParsedTarget(type = "playlist", id = "37i9dQZF1DXbITWG1ZJKYt")
+        val result = SpotifyPlaylistParser.fetchPlaylist(target)
+        assertTrue("fetchPlaylist should succeed: ${result.exceptionOrNull()?.message}", result.isSuccess)
+
+        val info = result.getOrThrow()
+        println("Fetched ${info.tracks.size} tracks for large playlist: ${info.title}")
+        assertTrue("Expected over 200 tracks to be imported, found: ${info.tracks.size}", info.tracks.size >= 200)
+    }
 }

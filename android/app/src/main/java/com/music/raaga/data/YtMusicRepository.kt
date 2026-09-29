@@ -12,6 +12,7 @@ import com.music.raaga.data.model.LibraryPage
 import com.music.raaga.data.model.LibraryState
 import com.music.raaga.data.model.LikeStatus
 import com.music.raaga.data.model.MoodGenreSection
+import com.music.raaga.data.model.NewFeedData
 import com.music.raaga.data.model.PlaylistPrivacy
 import com.music.raaga.data.model.SearchFilter
 import com.music.raaga.data.model.SearchResult
@@ -250,8 +251,27 @@ object YtMusicRepository {
     /** Enough to scroll through, short of turning the shelf into the history page. */
     private const val RECENT_LIMIT = 20
 
-    private suspend fun shelvesOf(browseId: String): List<HomeShelf> =
-        InnertubeParser.parseHome(Innertube.browse(browseId))
+    private suspend fun shelvesOf(browseId: String, allowVideos: Boolean = false): List<HomeShelf> =
+        InnertubeParser.parseHome(Innertube.browse(browseId), allowVideos)
+
+    /**
+     * Combined feed for the "New" tab: new releases (albums & singles),
+     * live trending songs, top charts (songs, videos, artists), and mood/genre categories.
+     */
+    suspend fun newFeed(): Result<NewFeedData> = call("new-feed") {
+        coroutineScope {
+            val newReleasesDeferred = async { runCatching { shelvesOf("FEmusic_new_releases", allowVideos = true) }.getOrDefault(emptyList()) }
+            val chartsDeferred = async { runCatching { shelvesOf("FEmusic_charts", allowVideos = true) }.getOrDefault(emptyList()) }
+            val exploreDeferred = async { runCatching { shelvesOf("FEmusic_explore", allowVideos = true) }.getOrDefault(emptyList()) }
+            val moodGenresDeferred = async { runCatching { InnertubeParser.parseMoodAndGenres(Innertube.browse("FEmusic_moods_and_genres")) }.getOrDefault(emptyList()) }
+            NewFeedData(
+                newReleases = newReleasesDeferred.await(),
+                charts = chartsDeferred.await(),
+                exploreShelves = exploreDeferred.await(),
+                moodGenres = moodGenresDeferred.await(),
+            )
+        }
+    }
 
     /** The server-defined mood and genre categories used by Explore. */
     suspend fun moodAndGenres(): Result<List<MoodGenreSection>> = call("moods-and-genres") {

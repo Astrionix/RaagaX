@@ -57,6 +57,7 @@ import { RecapHistoryView } from '@/components/views/RecapHistoryView';
 import { HistoryView } from '@/components/views/HistoryView';
 import { SplashScreen } from '@/components/modals/SplashScreen';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
+import { ArtworkMeshBackdrop } from '@/components/player/ArtworkMeshBackdrop';
 
 import { useDownloadStore } from '@/context/useDownloadStore';
 import { usePlayerStore } from '@/context/usePlayerStore';
@@ -216,7 +217,10 @@ export default function Page() {
   }, []);
 
   return (
-    <div className="min-h-screen w-full max-w-[100vw] bg-[var(--bg-primary)] text-[var(--text-primary)] flex flex-col md:flex-row md:h-screen md:overflow-hidden selection:bg-[#EF233C] selection:text-white transition-colors duration-300">
+    <div className="relative min-h-screen w-full max-w-[100vw] bg-[var(--bg-primary)] text-[var(--text-primary)] flex flex-col md:flex-row md:h-screen md:overflow-hidden selection:bg-[#EF233C] selection:text-white transition-colors duration-300">
+      {/* Dynamic Raaga Android Living Artwork Atmosphere */}
+      <ArtworkMeshBackdrop intensity="subtle" scrimOpacity={0.90} continuous={isPlaying} />
+
       {/* Audio Engine Controller */}
       <AudioPlayerController />
 

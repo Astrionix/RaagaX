@@ -376,6 +376,15 @@ data class MoodGenre(
     val thumbnailUrl: String? = null,
 )
 
+/** Content for the New feed: new releases, top charts, trending hits, and curated moods & genres. */
+data class NewFeedData(
+    val newReleases: List<HomeShelf> = emptyList(),
+    val charts: List<HomeShelf> = emptyList(),
+    val exploreShelves: List<HomeShelf> = emptyList(),
+    val moodGenres: List<MoodGenreSection> = emptyList(),
+)
+
+
 /**
  * The signed-in library, as YouTube Music splits it: the auto-generated Liked
  * Music playlist, the tracks explicitly added to the library, and a shelf per

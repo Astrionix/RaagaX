@@ -25,6 +25,19 @@
     <string name="home">Home</string>
     <string name="play">Play</string>
     <string name="explore">Explore</string>
+    <string name="tab_new" translatable="false">New</string>
+    <string name="new_screen_subtitle" translatable="false">Fresh drops, charts and new music picks</string>
+    <string name="featured_release" translatable="false">FEATURED RELEASE</string>
+    <string name="trending_charts" translatable="false">Top Charts</string>
+    <string name="explore_moods_genres" translatable="false">Moods &amp; Genres</string>
+    <string name="filter_all" translatable="false">All</string>
+    <string name="filter_trending" translatable="false">🔥 Trending</string>
+    <string name="filter_new_releases" translatable="false">💿 New Albums</string>
+    <string name="filter_charts" translatable="false">📈 Charts</string>
+    <string name="filter_music_videos" translatable="false">🎬 Videos</string>
+    <string name="filter_genres" translatable="false">🎨 Genres</string>
+    <string name="top_trending_title" translatable="false">Top 10 Trending Hits</string>
+    <string name="top_trending_subtitle" translatable="false">The hottest tracks blowing up right now</string>
     <string name="listen_now">Listen Now</string>
     <string name="downloads">Downloads</string>
     <string name="downloaded_songs">Downloaded songs</string>
@@ -35,15 +48,20 @@
     <string name="new_playlist">New playlist</string>
     <string name="saved_to_youtube_music">Saved to YouTube Music</string>
     <string name="import_spotify_playlist" translatable="false">Import playlist</string>
-    <string name="import_spotify_subtitle" translatable="false">From Spotify link</string>
+    <string name="import_spotify_subtitle" translatable="false">Spotify or Apple Music link</string>
     <string name="import_spotify_title" translatable="false">Import from Spotify</string>
-    <string name="import_spotify_description" translatable="false">Paste a Spotify playlist or album link to convert and import it into your library.</string>
-    <string name="spotify_link_placeholder" translatable="false">https://open.spotify.com/playlist/...</string>
+    <string name="import_apple_music_title" translatable="false">Import from Apple Music</string>
+    <string name="import_spotify_description" translatable="false">Paste a Spotify or Apple Music playlist or album link to convert and import it into your library.</string>
+    <string name="spotify_link_placeholder" translatable="false">https://open.spotify.com/... or music.apple.com/...</string>
     <string name="paste_from_clipboard" translatable="false">Paste from clipboard</string>
     <string name="fetch_playlist" translatable="false">Fetch playlist</string>
     <string name="fetching_spotify_playlist" translatable="false">Fetching playlist details…</string>
+    <string name="fetching_apple_music_playlist" translatable="false">Fetching Apple Music playlist…</string>
     <string name="matching_songs" translatable="false">Matching songs on YouTube Music (%1$d/%2$d)…</string>
     <string name="import_playlist_action" translatable="false">Import to Library</string>
+    <string name="run_in_background" translatable="false">Run in background</string>
+    <string name="cancel_import" translatable="false">Cancel import</string>
+    <string name="importing_in_background" translatable="false">Importing \"%1$s\" in background…</string>
     <string name="import_completed" translatable="false">Successfully imported \"%1$s\" with %2$d tracks</string>
     <string name="sign_in">Sign in</string>
     <string name="sign_out">Sign out</string>
@@ -820,6 +838,8 @@
     <string name="pin">Pin</string>
     <string name="unpin">Unpin</string>
     <string name="rename">Rename</string>
+    <string name="playlist_cover_change">Change cover photo</string>
+    <string name="playlist_cover_reset">Reset to original cover</string>
     <string name="downloading">Downloading</string>
     <string name="delete_playlist">Delete playlist</string>
     <string name="delete_download">Delete download</string>

@@ -257,7 +257,16 @@ fun DetailScreen(
         rawSongs.withIndex().associate { (i, s) -> s.videoId to i + 1 }
     }
     val isArtist = page.type == BrowseType.ARTIST
-    val palette = rememberArtworkPalette(page.thumbnailUrl)
+    val isPlaylist = page.type == BrowseType.PLAYLIST
+
+    // For playlists: if the user set a local gallery image as cover, use it
+    // for both the artwork display AND the palette extraction, so the whole
+    // page gradient is derived from their chosen photo.
+    val localCovers by AppSettings.playlistLocalCovers.collectAsStateWithLifecycle()
+    val localCoverUri = if (isPlaylist) localCovers[page.browseId] else null
+    val effectiveThumbnailUrl = localCoverUri ?: page.thumbnailUrl
+
+    val palette = rememberArtworkPalette(effectiveThumbnailUrl)
 
     // Narrowing the running order in place — the release equivalent of the
     // filter box on the Local Music tab, and the one thing a long track list
@@ -358,6 +367,8 @@ fun DetailScreen(
 
                 PageBackground(
                     page = page,
+                    effectiveThumbnailUrl = effectiveThumbnailUrl,
+                    isPlaylist = isPlaylist,
                     palette = palette,
                     canvas = canvas,
                     artHeight = artHeight,
@@ -968,6 +979,10 @@ private fun PageBackground(
     listState: LazyListState,
     hazeState: HazeState,
     modifier: Modifier = Modifier,
+    /** Override URL (e.g. a local gallery URI) that replaces [page.thumbnailUrl] for display. */
+    effectiveThumbnailUrl: String? = null,
+    /** True when the page is a playlist — triggers centered-card art layout instead of full-bleed crop. */
+    isPlaylist: Boolean = false,
 ) {
     Box(
         modifier
@@ -976,53 +991,79 @@ private fun PageBackground(
     ) {
         ArtworkWash(palette = palette, modifier = Modifier.matchParentSize())
 
+        val displayUrl = effectiveThumbnailUrl ?: page.thumbnailUrl
+
         Box(
             Modifier
                 .fillMaxWidth()
                 .height(artHeight)
                 .offset { IntOffset(0, listState.headerTop(artHeight.toPx()).roundToInt()) },
         ) {
-            AsyncImage(
-                model = page.thumbnailUrl.artworkAt(HEADER_ART_PX),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .matchParentSize()
-                    .background(palette.elevated),
-            )
+            if (isPlaylist) {
+                // Playlist: centered artwork card with rounded corners + shadow,
+                // matching the expanded player's sleeve feel.
+                // The gradient backdrop (ArtworkWash above) provides the full-bleed
+                // colour, and the art sits centered on top of it.
+                val horizontalPad = 32.dp
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.radialGradient(
+                                colors = listOf(
+                                    palette.wash.copy(alpha = 0.55f),
+                                    Color.Transparent,
+                                ),
+                            ),
+                        ),
+                )
+                AsyncImage(
+                    model = displayUrl.artworkAt(HEADER_ART_PX),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .padding(horizontal = horizontalPad, vertical = 16.dp)
+                        .aspectRatio(1f)
+                        .align(Alignment.Center)
+                        .clip(RoundedCornerShape(18.dp))
+                        .border(
+                            width = 0.5.dp,
+                            color = palette.onBackground.copy(alpha = 0.12f),
+                            shape = RoundedCornerShape(18.dp),
+                        )
+                        .background(palette.elevated),
+                )
+            } else {
+                AsyncImage(
+                    model = displayUrl.artworkAt(HEADER_ART_PX),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(palette.elevated),
+                )
 
-            // Above the still art but below both gradients, so the scrim and
-            // the wash that blend the header into the page still sit over it.
-            // Always running: unlike the player's sleeve there is no transport
-            // here to follow, and the page is only up while it's being read.
-            canvas?.let { clip ->
-                CanvasArtworkPlayer(
-                    canvas = clip,
-                    isPlaying = true,
-                    modifier = Modifier.matchParentSize(),
+                // Above the still art but below both gradients.
+                canvas?.let { clip ->
+                    CanvasArtworkPlayer(
+                        canvas = clip,
+                        isPlaying = true,
+                        modifier = Modifier.matchParentSize(),
+                    )
+                }
+
+                Box(
+                    Modifier
+                        .matchParentSize()
+                        .background(
+                            Brush.verticalGradient(
+                                0.55f to Color.Transparent,
+                                1.00f to palette.wash.copy(alpha = 0.88f),
+                            ),
+                        ),
                 )
             }
-
-            // Settles the foot of the picture onto the colour the page is made
-            // of, so the two sides of the join are already close before the
-            // glass goes over them — a blur averages what it is given and
-            // cannot invent agreement that isn't there. It matters most on a
-            // monochrome sleeve, where the wash is the only thing with a hue.
-            //
-            // Inside this layer, deliberately: drawn above the glass it would
-            // be a hard-edged rectangle of its own.
-            Box(
-                Modifier
-                    .matchParentSize()
-                    .background(
-                        Brush.verticalGradient(
-                            0.55f to Color.Transparent,
-                            1.00f to palette.wash.copy(alpha = 0.88f),
-                        ),
-                    ),
-            )
         }
-
     }
 }
 

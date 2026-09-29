@@ -1195,3 +1195,58 @@
 .border-subtle     { border-color: var(--border-subtle); }
 .text-crimson      { color: var(--accent-crimson); }
 .bg-crimson        { background-color: var(--accent-crimson); }
+
+/* ══════════════════════════════════════════════════════════════════════════ */
+/* RAAGA ANDROID MATERIAL 3 & HAZE FROSTED GLASS TOKENS                     */
+/* ══════════════════════════════════════════════════════════════════════════ */
+:root {
+  --raaga-m3-surface: #0E1015;
+  --raaga-m3-surface-container: rgba(22, 25, 34, 0.72);
+  --raaga-m3-surface-high: rgba(30, 34, 48, 0.82);
+  --raaga-m3-outline: rgba(255, 255, 255, 0.12);
+  --raaga-haze-glass: rgba(14, 16, 22, 0.68);
+  --raaga-haze-blur: 24px;
+}
+
+@keyframes raagaMeshDrift {
+  0% {
+    transform: scale(1) translate(0%, 0%) rotate(0deg);
+  }
+  33% {
+    transform: scale(1.08) translate(3%, -2%) rotate(2deg);
+  }
+  66% {
+    transform: scale(0.96) translate(-2%, 3%) rotate(-1deg);
+  }
+  100% {
+    transform: scale(1) translate(0%, 0%) rotate(0deg);
+  }
+}
+
+.animate-raaga-mesh-drift {
+  animation: raagaMeshDrift 24s ease-in-out infinite alternate;
+}
+
+/* Apple-style lyric sweep bloom */
+.lyric-sweep-glow {
+  text-shadow: 0 0 16px rgba(255, 255, 255, 0.75), 0 0 32px rgba(255, 255, 255, 0.35);
+}
+
+.lyric-unsung {
+  opacity: 0.45;
+  filter: blur(0.3px);
+  transition: opacity 0.35s cubic-bezier(0.2, 0.8, 0.2, 1), filter 0.35s ease;
+}
+
+.lyric-sung {
+  opacity: 0.95;
+  filter: blur(0px);
+}
+
+.raaga-glass-pill {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+

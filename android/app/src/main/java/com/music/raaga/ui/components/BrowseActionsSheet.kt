@@ -17,6 +17,7 @@ import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Photo
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.HorizontalDivider
@@ -154,6 +155,16 @@ fun BrowseActionsSheet(
     onRename: ((String) -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
     /**
+     * Called when the user wants to pick an image from the gallery to use as
+     * the playlist cover. The caller is responsible for launching the photo
+     * picker and then calling [AppSettings.setPlaylistLocalCover]. Null when
+     * the target is not a playlist, or the sheet was opened from a context
+     * where changing the cover is not offered.
+     */
+    onChangeCover: (() -> Unit)? = null,
+    /** Removes the locally-set cover and reverts to the remote thumbnail. Non-null only when a local cover is already set. */
+    onResetCover: (() -> Unit)? = null,
+    /**
      * Removes the files this release was downloaded as, when it was downloaded
      * whole — see [BrowseTarget.downloadId]. Independent of [onDelete]: that one
      * deletes the playlist from the account, this one only ever touches what's
@@ -253,6 +264,12 @@ fun BrowseActionsSheet(
         }
         if (onRename != null) {
             ActionRow(Icons.Rounded.Edit, stringResource(R.string.rename)) { renaming = true }
+        }
+        if (onChangeCover != null) {
+            ActionRow(Icons.Rounded.Photo, stringResource(R.string.playlist_cover_change), onClick = onChangeCover)
+        }
+        if (onResetCover != null) {
+            ActionRow(Icons.Rounded.Photo, stringResource(R.string.playlist_cover_reset), onClick = onResetCover)
         }
         if (onDelete != null) {
             if (confirmingDelete) {
