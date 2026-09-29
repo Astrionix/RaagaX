@@ -102,6 +102,7 @@ object RaagaSyncClient {
         if (connectionJob?.isActive == true) return
         connectionJob = scope.launch {
             var serverIndex = 0
+            var consecutiveFailures = 0
             while (isActive) {
                 val currentUrl = SERVERS[serverIndex % SERVERS.size]
                 _activeServerUrl.value = currentUrl
@@ -111,6 +112,7 @@ object RaagaSyncClient {
                     client.webSocket(urlString = currentUrl) {
                         webSocketSession = this
                         _isConnected.value = true
+                        consecutiveFailures = 0
                         TrackLog.d(TAG, "✓ Connected to Raaga Sync Server ($currentUrl)")
 
                         // Register this device with the coordinator
@@ -128,7 +130,8 @@ object RaagaSyncClient {
                     }
                 } catch (e: Exception) {
                     if (e is CancellationException) throw e
-                    TrackLog.w(TAG, "Connection lost to $currentUrl: ${e.message}. Trying next coordinator in 4s...")
+                    consecutiveFailures++
+                    TrackLog.w(TAG, "Connection lost to $currentUrl: ${e.message}. Retrying with backoff...")
                 } finally {
                     webSocketSession = null
                     _isConnected.value = false
@@ -136,7 +139,14 @@ object RaagaSyncClient {
                 }
 
                 serverIndex++
-                delay(4000)
+                // Exponential backoff to avoid hammering Cloudflare/coordinators on connection errors
+                val retryDelayMs = when {
+                    consecutiveFailures <= 1 -> 6_000L
+                    consecutiveFailures <= 3 -> 15_000L
+                    consecutiveFailures <= 6 -> 30_000L
+                    else -> 60_000L
+                }
+                delay(retryDelayMs)
             }
         }
     }

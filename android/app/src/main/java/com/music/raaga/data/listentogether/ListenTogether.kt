@@ -461,8 +461,9 @@ object ListenTogether {
     private var resolutionGeneration = 0L
 
     fun setScreenActive(active: Boolean) {
+        val wasActive = isScreenActive
         isScreenActive = active
-        if (active) {
+        if (active && !wasActive) {
             refreshServerHealth(showChecking = false)
         }
     }
@@ -471,9 +472,12 @@ object ListenTogether {
         healthMonitorJob?.cancel()
         healthMonitorJob = scope.launch {
             while (isActive) {
-                val delayMs = if (isScreenActive) 10_000L else 30_000L
+                val delayMs = if (isScreenActive) 60_000L else 180_000L
                 delay(delayMs)
-                refreshServerHealth(showChecking = false)
+                // Only probe if the user is viewing the party screen or currently connected in a party
+                if (isScreenActive || state.value.inParty) {
+                    refreshServerHealth(showChecking = false)
+                }
             }
         }
     }
@@ -571,9 +575,12 @@ object ListenTogether {
             val response = http.get("$raw/healthz") {
                 timeout { requestTimeoutMillis = timeoutMs }
             }
-            if (!response.status.isSuccess()) return@runCatching false
-            val body = runCatching { response.bodyAsText() }.getOrDefault("")
-            body.contains("\"ok\":true")
+            if (response.status.isSuccess()) {
+                val body = runCatching { response.bodyAsText() }.getOrDefault("")
+                body.contains("\"ok\":true") || body.isNotBlank()
+            } else {
+                response.status.value == 426
+            }
         }.getOrElse {
             Log.w(TAG, "health check failed for ${redact(raw)}: ${redact(it.message)}")
             false
@@ -619,6 +626,16 @@ object ListenTogether {
     private var appContext: Context? = null
     private var token: String? = null
     private var localHostServer: LocalJamHostServer? = null
+
+    fun localHostPort(): Int = localHostServer?.takeIf { it.isRunning }?.port ?: -1
+    fun localHostCode(): String? = localHostServer?.takeIf { it.isRunning }?.code
+
+    fun getLocalServerHttpBase(): String? {
+        val port = localHostPort()
+        if (port <= 0) return null
+        val ip = com.music.raaga.data.listentogether.local.LocalJamDiscovery.getLocalIpAddress() ?: "127.0.0.1"
+        return "http://$ip:$port"
+    }
 
     @Volatile
     private var session: DefaultClientWebSocketSession? = null
@@ -846,7 +863,11 @@ object ListenTogether {
     /**
      * Joins a party from the currently active server or real-time Jam coordinator.
      */
-    suspend fun joinParty(code: String, nickname: String = nickname()): Result<String> = switchMutex.withLock {
+    suspend fun joinParty(
+        code: String,
+        nickname: String = nickname(),
+        explicitServerUrl: String? = null,
+    ): Result<String> = switchMutex.withLock {
         val cleaned = code.filter { it.isLetterOrDigit() }.uppercase()
         if (cleaned.length != CODE_LENGTH) {
             val err = PartyException("bad_code", "A party code is six letters or digits.")
@@ -854,8 +875,20 @@ object ListenTogether {
             return@withLock Result.failure(err)
         }
 
-        // 1. Check if the party code is available on the local Wi-Fi subnet
-        val localEndpoint = LocalJamDiscovery.findLocalJam(cleaned, waitTimeoutMs = 600L)
+        // 0. If an explicit server URL was provided (e.g. from invite link or direct join)
+        if (!explicitServerUrl.isNullOrBlank()) {
+            val resolved = resolveHttpBase(explicitServerUrl)
+            val explicitAttempt = runCatching {
+                doJoinOnServer(resolved, cleaned, nickname)
+            }
+            if (explicitAttempt.isSuccess) {
+                return@withLock Result.success(explicitAttempt.getOrThrow())
+            }
+            Log.w(TAG, "Explicit server join failed: ${explicitAttempt.exceptionOrNull()?.message}")
+        }
+
+        // 1. Check if the party code is available on the local Wi-Fi subnet or local device
+        val localEndpoint = LocalJamDiscovery.findLocalJam(cleaned, waitTimeoutMs = 1500L, context = appContext)
         if (localEndpoint != null) {
             Log.i(TAG, "Found party $cleaned on local Wi-Fi at ${localEndpoint.httpBase}")
             val localAttempt = runCatching {
@@ -1610,7 +1643,12 @@ object ListenTogether {
         }
         return runCatching {
             refuseIfRecentlyKicked(cleaned)
-            val base = resolveHttpBase(server ?: effectiveIdleServerBase())
+            val base = if (server != null) {
+                resolveHttpBase(server)
+            } else {
+                val local = LocalJamDiscovery.findLocalJam(cleaned, waitTimeoutMs = 800L, context = appContext)
+                local?.httpBase ?: resolveHttpBase(effectiveIdleServerBase())
+            }
             if (base.isBlank()) throw PartyException("no_server", "Set the party server address first.")
             val response = http.get("$base/api/parties/$cleaned/preview")
             if (!response.status.isSuccess()) {
@@ -1627,7 +1665,7 @@ object ListenTogether {
                 // run themselves — and a party that cannot be *looked at* is a
                 // party that cannot be joined. Without a face to show, the
                 // confirmation is still a confirmation.
-                if (problem.statusCode == 404 && problem.code == "http_404") {
+                if (problem.statusCode in listOf(404, 426) || problem.code in listOf("http_404", "http_426")) {
                     return@runCatching PartyPreview(code = cleaned)
                 }
                 throw problem
@@ -1644,7 +1682,36 @@ object ListenTogether {
             setBody(body)
         }
         if (!response.status.isSuccess()) throw response.toPartyException()
-        return response.body()
+        val text = response.bodyAsText()
+        val parsed = json.decodeFromString(PartyMembership.serializer(), text)
+
+        val resolvedYou = if (parsed.you.memberId.isBlank()) {
+            PartyMember(
+                memberId = "mem_${parsed.token.takeLast(8)}",
+                userId = body.userId,
+                displayName = body.displayName,
+                avatarUrl = body.avatarUrl,
+                isHost = !url.contains("/join"),
+                connected = true,
+                joinedAtMs = System.currentTimeMillis(),
+                lastSeenMs = System.currentTimeMillis(),
+            )
+        } else {
+            parsed.you
+        }
+
+        val resolvedParty = if (parsed.party.code.isBlank()) {
+            PartySnapshot(
+                code = parsed.code,
+                createdAtMs = System.currentTimeMillis(),
+                maxMembers = body.maxMembers ?: 5,
+                members = listOf(resolvedYou),
+            )
+        } else {
+            parsed.party
+        }
+
+        return parsed.copy(you = resolvedYou, party = resolvedParty)
     }
 
     private suspend fun HttpResponse.toPartyException(): PartyException {
@@ -1653,10 +1720,12 @@ object ListenTogether {
         return PartyException(
             code = parsed?.code.orEmpty().ifBlank { "http_${status.value}" },
             message = parsed?.message?.takeIf { it.isNotBlank() }
-                // 422 is the server rejecting an identity, which here can only
-                // mean the account layer handed over something blank.
-                ?: if (status.value == 422) "This account can't be used to jam."
-                else "The party server said ${status.value}.",
+                ?: when (status.value) {
+                    404 -> "Party room not found. If this is a Local Jam, make sure both devices are on the same Wi-Fi or Hotspot."
+                    409 -> "This party room is already full."
+                    422 -> "This account can't be used to jam."
+                    else -> "The party server said ${status.value}."
+                },
             statusCode = status.value,
         )
     }

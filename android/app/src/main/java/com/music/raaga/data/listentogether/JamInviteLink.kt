@@ -53,9 +53,22 @@ object JamInviteLink {
      * 2. https://raaga.app/invite/<CODE>?server=<SERVER>
      */
     fun parseInvite(value: String?): ParsedJamInvite? {
-        val uri = runCatching { URI(value ?: return null) }.getOrNull() ?: return null
-        val scheme = uri.scheme?.lowercase() ?: return null
-        val host = uri.host?.lowercase() ?: return null
+        val raw = value?.trim().orEmpty()
+        if (raw.isBlank()) return null
+
+        // 0. Direct "CODE@IP" or "CODE@IP:PORT" format
+        if (raw.contains("@")) {
+            val parts = raw.split("@", limit = 2)
+            val candidateCode = cleanCode(parts[0])
+            if (candidateCode != null) {
+                val server = sanitizeServerUrl(parts[1])
+                return ParsedJamInvite(code = candidateCode, serverUrl = server)
+            }
+        }
+
+        val uri = runCatching { URI(value ?: return null) }.getOrNull() ?: return cleanCode(raw)?.let { ParsedJamInvite(it) }
+        val scheme = uri.scheme?.lowercase() ?: return cleanCode(raw)?.let { ParsedJamInvite(it) }
+        val host = uri.host?.lowercase() ?: return cleanCode(raw)?.let { ParsedJamInvite(it) }
         val query = uri.rawQuery
         val server = extractQueryParam(query, "server")?.let { sanitizeServerUrl(it) }
 

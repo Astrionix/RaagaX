@@ -316,7 +316,12 @@ class LocalJamHostServer(
             }
 
             method == "GET" && path.matches(Regex("/api/parties/[A-Za-z0-9]+/preview")) -> {
+                val targetCode = path.substringAfter("/api/parties/").substringBefore("/preview").uppercase()
                 stateMutex.withLock {
+                    if (code.isEmpty() || !code.equals(targetCode, ignoreCase = true)) {
+                        sendJsonError(out, 404, "no_such_party", "Party not found on this local server.")
+                        return@withLock
+                    }
                     val now = System.currentTimeMillis()
                     val hostMember = members.values.firstOrNull { it.isHost }
                     val previewMembers = members.values.map {

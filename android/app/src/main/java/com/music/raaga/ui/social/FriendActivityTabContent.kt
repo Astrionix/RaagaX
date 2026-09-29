@@ -39,6 +39,8 @@ import androidx.compose.material.icons.rounded.Share
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import com.music.raaga.data.blend.BlendEngine
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
@@ -87,6 +89,10 @@ internal fun FriendActivityTabContent(
     LaunchedEffect(Unit) {
         FriendActivityEngine.init(context)
         FriendActivityEngine.refreshFriends(context)
+        while (isActive) {
+            delay(30_000L) // Refresh every 30s only while looking at Friends tab
+            FriendActivityEngine.refreshFriends(context)
+        }
     }
 
     val activities by FriendActivityEngine.activities.collectAsStateWithLifecycle()

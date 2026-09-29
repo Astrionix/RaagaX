@@ -745,6 +745,7 @@ private fun JamTabContent(
     val localEndpoints by LocalJamDiscovery.activeLocalEndpoints.collectAsStateWithLifecycle()
 
     var joinCodeInput by remember { mutableStateOf("") }
+    var explicitServerInput by remember { mutableStateOf<String?>(null) }
     var isJoining by remember { mutableStateOf(false) }
     var isCreating by remember { mutableStateOf(false) }
     var preferLocal by remember { mutableStateOf(ListenTogether.isWifiConnected()) }
@@ -1008,8 +1009,15 @@ private fun JamTabContent(
                     BasicTextField(
                         value = joinCodeInput,
                         onValueChange = { input ->
-                            val code = JamInviteLink.parse(input) ?: input.filter { it.isLetterOrDigit() }.take(6).uppercase()
-                            joinCodeInput = code
+                            val parsed = JamInviteLink.parseInvite(input)
+                            if (parsed != null) {
+                                joinCodeInput = parsed.code
+                                explicitServerInput = parsed.serverUrl
+                            } else {
+                                val code = input.filter { it.isLetterOrDigit() }.take(6).uppercase()
+                                joinCodeInput = code
+                                explicitServerInput = null
+                            }
                         },
                         textStyle = TextStyle(
                             color = Color.White,
@@ -1026,7 +1034,7 @@ private fun JamTabContent(
                             if (joinCodeInput.length == 6 && !isJoining) {
                                 isJoining = true
                                 coroutineScope.launch {
-                                    val result = ListenTogether.joinParty(joinCodeInput)
+                                    val result = ListenTogether.joinParty(joinCodeInput, explicitServerUrl = explicitServerInput)
                                     isJoining = false
                                     if (result.isFailure) {
                                         Toast.makeText(
@@ -1056,7 +1064,10 @@ private fun JamTabContent(
                             modifier = Modifier
                                 .size(28.dp)
                                 .clip(CircleShape)
-                                .clickable { joinCodeInput = "" },
+                                .clickable {
+                                    joinCodeInput = ""
+                                    explicitServerInput = null
+                                },
                             contentAlignment = Alignment.Center,
                         ) {
                             Icon(
@@ -1074,8 +1085,15 @@ private fun JamTabContent(
                                 .clickable {
                                     val clip = clipboard.getText()?.text?.trim()
                                     if (!clip.isNullOrBlank()) {
-                                        val code = JamInviteLink.parse(clip) ?: clip.filter { it.isLetterOrDigit() }.take(6).uppercase()
-                                        joinCodeInput = code
+                                        val parsed = JamInviteLink.parseInvite(clip)
+                                        if (parsed != null) {
+                                            joinCodeInput = parsed.code
+                                            explicitServerInput = parsed.serverUrl
+                                        } else {
+                                            val code = clip.filter { it.isLetterOrDigit() }.take(6).uppercase()
+                                            joinCodeInput = code
+                                            explicitServerInput = null
+                                        }
                                     }
                                 },
                             contentAlignment = Alignment.Center,
@@ -1102,7 +1120,7 @@ private fun JamTabContent(
                                 haptics.play(Haptic.Select)
                                 isJoining = true
                                 coroutineScope.launch {
-                                    val result = ListenTogether.joinParty(joinCodeInput)
+                                    val result = ListenTogether.joinParty(joinCodeInput, explicitServerUrl = explicitServerInput)
                                     isJoining = false
                                     if (result.isFailure) {
                                         Toast.makeText(
@@ -1212,7 +1230,8 @@ private fun JamTabContent(
                             .background(Color.White.copy(alpha = 0.10f))
                             .clickable {
                                 haptics.play(Haptic.Tap)
-                                val inviteUrl = JamInviteLink.url(partyState.code.orEmpty())
+                                val localBase = if (partyState.isLocalNetwork) ListenTogether.getLocalServerHttpBase() else null
+                                val inviteUrl = JamInviteLink.url(partyState.code.orEmpty(), customServer = localBase)
                                 val intent = Intent(Intent.ACTION_SEND).apply {
                                     type = "text/plain"
                                     putExtra(Intent.EXTRA_TEXT, "Join my Jam session on Raaga: $inviteUrl")

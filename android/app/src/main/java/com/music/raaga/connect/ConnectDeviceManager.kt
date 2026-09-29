@@ -31,7 +31,7 @@ import java.util.Locale
 object ConnectDeviceManager {
 
     private const val TAG = "ConnectDeviceManager"
-    private const val SERVICE_TYPE = "_raaga-connect._tcp."
+    private const val SERVICE_TYPE = "_raaga-connect._tcp"
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private const val LOCAL_DEVICE_ID = "this_device"

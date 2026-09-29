@@ -37,7 +37,7 @@ data class PartyTrack(
 /** One signed-in device in the party, as every other device sees it. */
 @Serializable
 data class PartyMember(
-    val memberId: String,
+    val memberId: String = "",
     val userId: String = "",
     val displayName: String = "",
     val avatarUrl: String? = null,
@@ -157,8 +157,8 @@ data class PartyPreviewMember(
 data class PartyMembership(
     val code: String,
     val token: String,
-    val you: PartyMember,
-    val party: PartySnapshot,
+    val you: PartyMember = PartyMember(),
+    val party: PartySnapshot = PartySnapshot(),
     val serverMs: Long = 0,
 )
 

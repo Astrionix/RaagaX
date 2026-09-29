@@ -438,7 +438,7 @@ fun ListenTogetherScreen(
                                         switched.targetError
                                 }
                             } else {
-                                ListenTogether.joinParty(open.preview.code, nickname)
+                                ListenTogether.joinParty(open.preview.code, nickname, explicitServerUrl = open.server)
                                     .exceptionOrNull()?.message
                             }
                             failure = problem

@@ -43,14 +43,6 @@ object FriendActivityEngine {
         // Initial sync of followed friends
         refreshFriends(context)
 
-        // Periodic live sync from Supabase every 12 seconds
-        scope.launch(Dispatchers.IO) {
-            while (true) {
-                delay(12_000L)
-                refreshFriends(context)
-            }
-        }
-
         // Listen to real-time ListenTogether Jam room members if party active
         scope.launch {
             ListenTogether.state.collect { partyState ->
@@ -217,6 +209,10 @@ object FriendActivityEngine {
         _activities.value = _activities.value.filter { it.userTag != tag }
     }
 
+    private var lastPublishedVideoId: String? = null
+    private var lastPublishedIsPlaying: Boolean? = null
+    private var lastPublishedTimeMs: Long = 0L
+
     fun updateMyPlayback(song: Song?, isPlaying: Boolean, context: Context) {
         val me = BlendEngine.getMyIdentity(context)
 
@@ -242,6 +238,15 @@ object FriendActivityEngine {
         )
         val filtered = _activities.value.filter { it.userId != me.userId }
         _activities.value = listOf(myActivity) + filtered
+
+        // Deduplicate updates to prevent spamming cloud backend
+        val now = System.currentTimeMillis()
+        if (song.videoId == lastPublishedVideoId && isPlaying == lastPublishedIsPlaying && (now - lastPublishedTimeMs < 15_000L)) {
+            return
+        }
+        lastPublishedVideoId = song.videoId
+        lastPublishedIsPlaying = isPlaying
+        lastPublishedTimeMs = now
 
         // Publish live state to Supabase in the background
         scope.launch(Dispatchers.IO) {
