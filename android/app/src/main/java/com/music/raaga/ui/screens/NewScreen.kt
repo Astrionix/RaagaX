@@ -62,6 +62,7 @@ import com.music.raaga.data.model.MoodGenre
 import com.music.raaga.data.model.NewFeedData
 import com.music.raaga.data.model.ShelfItem
 import com.music.raaga.data.model.UiState
+import com.music.raaga.data.settings.LibraryViewType
 import com.music.raaga.ui.components.MessageState
 import com.music.raaga.ui.components.PAGE_GUTTER
 import com.music.raaga.ui.components.PullToRefresh
@@ -94,6 +95,7 @@ fun NewScreen(
     modifier: Modifier = Modifier,
 ) {
     var selectedFilter by rememberSaveable { mutableStateOf(NewFilterTab.ALL) }
+    var featuredViewType by rememberSaveable { mutableStateOf(LibraryViewType.GRID) }
 
     // Derive shelf groupings at composable scope so they are computed once per
     // feed update and cached across recompositions (not recalculated every frame).
@@ -117,9 +119,49 @@ fun NewScreen(
     val chartShelves = remember(successData) {
         successData?.charts?.filterNot { it.title.contains("video", ignoreCase = true) }.orEmpty()
     }
-    val featuredItems = remember(albumShelves, trendingShelf) {
-        (albumShelves.flatMap { it.items } + (trendingShelf?.items.orEmpty()))
-            .distinctBy { it.videoId ?: it.browseId }.take(5)
+
+    // Check for explicit shelves with "featured", "premiered" or "today" in title/subtitle
+    val explicitFeaturedShelves = remember(allExploreShelves, successData?.newReleases) {
+        (allExploreShelves + (successData?.newReleases.orEmpty())).filter {
+            (it.title.contains("featured", ignoreCase = true) ||
+             it.title.contains("premiered", ignoreCase = true) ||
+             it.subtitle.contains("featured", ignoreCase = true) ||
+             it.subtitle.contains("premiered", ignoreCase = true)) && it.items.isNotEmpty()
+        }.distinctBy { it.title }
+    }
+
+    val fallbackFeaturedShelf = remember(successData, trendingShelf, albumShelves, chartShelves) {
+        val trendingTracks = trendingShelf?.items.orEmpty()
+        val newReleaseTracks = (successData?.newReleases.orEmpty()).flatMap { it.items }
+        val chartTracks = chartShelves.flatMap { it.items }
+        val combined = (trendingTracks + newReleaseTracks + chartTracks)
+            .distinctBy { it.videoId ?: it.browseId }
+            .take(20)
+
+        if (combined.isNotEmpty()) {
+            HomeShelf(
+                title = "Featured today",
+                items = combined,
+                subtitle = "Premiered today",
+            )
+        } else {
+            null
+        }
+    }
+
+    val featuredShelvesToRender = remember(explicitFeaturedShelves, fallbackFeaturedShelf) {
+        if (explicitFeaturedShelves.isNotEmpty()) {
+            explicitFeaturedShelves
+        } else {
+            listOfNotNull(fallbackFeaturedShelf)
+        }
+    }
+
+    val renderedFeaturedTitles = remember(featuredShelvesToRender) {
+        featuredShelvesToRender.map { it.title }.toSet()
+    }
+    val filteredAlbumShelves = remember(albumShelves, renderedFeaturedTitles) {
+        albumShelves.filterNot { it.title in renderedFeaturedTitles }
     }
 
     PullToRefresh(
@@ -192,15 +234,22 @@ fun NewScreen(
                 is UiState.Success -> {
                     val feed = state.data
 
-                    // 1. Featured Spotlight Multi-Card Carousel
+                    // 1. Featured Releases (Recents-style with Maximize/Minimize Hero Card size & layout)
                     if (selectedFilter == NewFilterTab.ALL || selectedFilter == NewFilterTab.NEW_RELEASES) {
-                        if (featuredItems.isNotEmpty()) {
-                            item(key = "new_hero_carousel") {
-                                NewHeroCarousel(
-                                    items = featuredItems,
-                                    onItemClick = { item -> onItemClick(item, "Featured Spotlight") },
+                        featuredShelvesToRender.forEachIndexed { index, shelf ->
+                            item(key = "new_featured_shelf_${shelf.title}_$index") {
+                                RecentShelf(
+                                    shelf = shelf,
+                                    onItemClick = { item -> onItemClick(item, shelf.title) },
                                     onItemLongPress = onItemLongPress,
-                                    modifier = Modifier.padding(bottom = 24.dp),
+                                    viewType = featuredViewType,
+                                    onViewTypeToggle = {
+                                        featuredViewType = if (featuredViewType == LibraryViewType.GRID) {
+                                            LibraryViewType.LIST
+                                        } else {
+                                            LibraryViewType.GRID
+                                        }
+                                    },
                                 )
                             }
                         }
@@ -219,7 +268,7 @@ fun NewScreen(
 
                     // 3. New Releases & Albums Shelves
                     if (selectedFilter == NewFilterTab.ALL || selectedFilter == NewFilterTab.NEW_RELEASES) {
-                        albumShelves.distinctBy { it.title }.forEachIndexed { index, shelf ->
+                        filteredAlbumShelves.distinctBy { it.title }.forEachIndexed { index, shelf ->
                             item(key = "new_album_shelf_${shelf.title}_$index") {
                                 NewHorizontalShelf(
                                     shelf = shelf,
@@ -283,196 +332,7 @@ fun NewScreen(
     }
 }
 
-/** Multi-card swipeable hero spotlight with indicator dots */
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun NewHeroCarousel(
-    items: List<ShelfItem>,
-    onItemClick: (ShelfItem) -> Unit,
-    onItemLongPress: ((ShelfItem) -> Unit)?,
-    modifier: Modifier = Modifier,
-) {
-    if (items.isEmpty()) return
-    val pagerState = rememberPagerState { items.size }
 
-    Column(modifier = modifier.fillMaxWidth()) {
-        HorizontalPager(
-            state = pagerState,
-            pageSpacing = 12.dp,
-            contentPadding = PaddingValues(horizontal = PAGE_GUTTER),
-            modifier = Modifier.fillMaxWidth(),
-        ) { page ->
-            val item = items[page]
-            NewHeroCard(
-                item = item,
-                onClick = { onItemClick(item) },
-                onLongPress = onItemLongPress?.let { { it(item) } },
-            )
-        }
-
-        // Pager indicator dots
-        if (items.size > 1) {
-            Spacer(Modifier.height(12.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                repeat(items.size) { index ->
-                    val isSelected = pagerState.currentPage == index
-                    val dotWidth by androidx.compose.animation.core.animateDpAsState(
-                        targetValue = if (isSelected) 20.dp else 6.dp,
-                        animationSpec = tween(220),
-                        label = "dotWidth",
-                    )
-                    val dotColor by animateColorAsState(
-                        targetValue = if (isSelected) AccentRed else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.24f),
-                        animationSpec = tween(220),
-                        label = "dotColor",
-                    )
-                    Box(
-                        modifier = Modifier
-                            .padding(horizontal = 3.dp)
-                            .height(6.dp)
-                            .width(dotWidth)
-                            .clip(CircleShape)
-                            .background(dotColor),
-                    )
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun NewHeroCard(
-    item: ShelfItem,
-    onClick: () -> Unit,
-    onLongPress: (() -> Unit)?,
-    modifier: Modifier = Modifier,
-) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(215.dp)
-            .clip(RoundedCornerShape(18.dp))
-            .combinedClickable(onClick = onClick, onLongClick = onLongPress),
-    ) {
-        if (item.thumbnailUrl != null) {
-            AsyncImage(
-                model = item.thumbnailUrl,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-            )
-        } else {
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-            )
-        }
-
-        // Smooth vertical dark gradient scrim
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Black.copy(alpha = 0.15f),
-                            Color.Black.copy(alpha = 0.48f),
-                            Color.Black.copy(alpha = 0.94f),
-                        ),
-                    ),
-                ),
-        )
-
-        // Card Content
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(18.dp),
-            verticalArrangement = Arrangement.SpaceBetween,
-        ) {
-            // Top Pill Badge
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(50))
-                    .background(Color.White.copy(alpha = 0.22f))
-                    .border(0.5.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(50))
-                    .padding(horizontal = 10.dp, vertical = 5.dp),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(7.dp)
-                        .clip(CircleShape)
-                        .background(AccentRed),
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    text = stringResource(R.string.featured_release),
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.1.sp,
-                    color = Color.White,
-                )
-            }
-
-            // Bottom Info & Play Button
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Bottom,
-            ) {
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(end = 12.dp),
-                ) {
-                    Text(
-                        text = item.title,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    if (item.subtitle.isNotBlank()) {
-                        Spacer(Modifier.height(3.dp))
-                        Text(
-                            text = item.subtitle,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.White.copy(alpha = 0.82f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
-
-                // Play Button
-                Box(
-                    modifier = Modifier
-                        .size(46.dp)
-                        .clip(CircleShape)
-                        .background(AccentRed),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        RaagaIcons.Play,
-                        contentDescription = stringResource(R.string.play),
-                        tint = Color.White,
-                        modifier = Modifier
-                            .size(20.dp)
-                            .offset(x = 1.dp),
-                    )
-                }
-            }
-        }
-    }
-}
 
 /** Top 10 Numbered Trending Countdown (#01, #02 ... #10) */
 @OptIn(ExperimentalFoundationApi::class)

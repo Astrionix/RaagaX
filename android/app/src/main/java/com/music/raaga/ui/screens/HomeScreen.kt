@@ -245,7 +245,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.itemsIndexedShelves(
     }
 }
 
-private fun List<ShelfItem>.withUniqueKeys(): List<Pair<String, ShelfItem>> {
+internal fun List<ShelfItem>.withUniqueKeys(): List<Pair<String, ShelfItem>> {
     val seen = HashSet<String>(size)
     return mapIndexed { index, item ->
         val raw = item.videoId ?: item.browseId ?: "${item.title}_${item.subtitle}"
@@ -256,7 +256,7 @@ private fun List<ShelfItem>.withUniqueKeys(): List<Pair<String, ShelfItem>> {
 
 /** The same four-rows-per-page treatment used by an artist's Top songs. */
 @Composable
-private fun RecentShelf(
+internal fun RecentShelf(
     shelf: HomeShelf,
     onItemClick: (ShelfItem) -> Unit,
     onItemLongPress: ((ShelfItem) -> Unit)?,
@@ -322,12 +322,14 @@ private fun RecentShelf(
 }
 
 @Composable
-private fun RecentSectionHeader(
+internal fun RecentSectionHeader(
     title: String,
     subtitle: String,
     viewType: LibraryViewType,
     onViewTypeToggle: () -> Unit,
 ) {
+    val displayTitle = localizeShelfTitle(title)
+    val displaySubtitle = localizeShelfSubtitle(subtitle)
     Row(
         modifier = Modifier
             .padding(horizontal = PAGE_GUTTER, vertical = 10.dp)
@@ -336,15 +338,15 @@ private fun RecentSectionHeader(
     ) {
         Column(Modifier.weight(1f)) {
             Text(
-                text = title,
+                text = displayTitle,
                 style = MaterialTheme.typography.headlineMedium,
                 color = MaterialTheme.colorScheme.onBackground,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            if (subtitle.isNotBlank()) {
+            if (displaySubtitle.isNotBlank()) {
                 Text(
-                    text = subtitle,
+                    text = displaySubtitle,
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -382,7 +384,7 @@ private fun RecentSectionHeader(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun RecentTrackRow(
+internal fun RecentTrackRow(
     item: ShelfItem,
     onClick: () -> Unit,
     onLongPress: (() -> Unit)?,
@@ -591,6 +593,12 @@ internal fun localizeShelfTitle(title: String): String {
             trimmed.equals("Thịnh hành", ignoreCase = true) ||
             trimmed.equals("急上昇", ignoreCase = true) ->
             stringResource(R.string.shelf_trending)
+        trimmed.equals("Featured today", ignoreCase = true) ||
+            trimmed.equals("Featured", ignoreCase = true) ->
+            stringResource(R.string.shelf_featured_today)
+        trimmed.equals("Premiered today", ignoreCase = true) ||
+            trimmed.equals("Premiered", ignoreCase = true) ->
+            stringResource(R.string.shelf_premiered_today)
         else -> title
     }
 }
@@ -598,6 +606,12 @@ internal fun localizeShelfTitle(title: String): String {
 internal fun localizeShelfSubtitle(subtitle: String): String {
     val trimmed = subtitle.trim()
     return when {
+        trimmed.equals("Premiered today", ignoreCase = true) ||
+            trimmed.equals("PREMIERED TODAY", ignoreCase = true) ->
+            stringResource(R.string.shelf_premiered_today)
+        trimmed.equals("Featured today", ignoreCase = true) ||
+            trimmed.equals("FEATURED TODAY", ignoreCase = true) ->
+            stringResource(R.string.shelf_featured_today)
         trimmed.equals("TOP TUNES RIGHT NOW", ignoreCase = true) ||
             trimmed.equals("Top tunes right now", ignoreCase = true) ||
             trimmed.equals("Giai điệu hàng đầu hiện nay", ignoreCase = true) ||
@@ -658,7 +672,7 @@ internal fun localizeCardSubtitle(subtitle: String): String {
 }
 
 @Composable
-private fun HeroShelf(
+internal fun HeroShelf(
     shelf: HomeShelf,
     onItemClick: (ShelfItem) -> Unit,
     onItemLongPress: ((ShelfItem) -> Unit)? = null,
@@ -690,7 +704,7 @@ private fun HeroShelf(
 /** Big card: artwork with the caption laid over a scrim, as on Listen Now. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun HeroCard(
+internal fun HeroCard(
     item: ShelfItem,
     onClick: () -> Unit,
     onLongPress: (() -> Unit)? = null,
