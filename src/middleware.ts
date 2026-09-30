@@ -1,7 +1,17 @@
 import { NextResponse, NextRequest } from 'next/server';
 
 export function middleware(request: NextRequest) {
-  // Handle HTTP OPTIONS preflight
+  const { pathname } = request.nextUrl;
+
+  // ─── Admin route: block search engine indexing via X-Robots-Tag ───────────
+  if (pathname.startsWith('/admin')) {
+    const response = NextResponse.next();
+    response.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+    return response;
+  }
+
+  // ─── API routes: CORS preflight ────────────────────────────────────────────
   if (request.method === 'OPTIONS') {
     const response = new NextResponse(null, { status: 200 });
     response.headers.set('Access-Control-Allow-Origin', '*');
@@ -20,5 +30,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: '/api/:path*',
+  matcher: ['/api/:path*', '/admin/:path*', '/admin'],
 };
