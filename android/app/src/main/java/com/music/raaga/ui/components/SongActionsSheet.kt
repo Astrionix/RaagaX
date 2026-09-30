@@ -184,6 +184,9 @@ fun SongActionsSheet(
      * as before — present when the id is there, absent when it never was.
      */
     resolvingLinks: Boolean = false,
+    showLoopOption: Boolean = false,
+    isLooping: Boolean = false,
+    onToggleLoop: (() -> Unit)? = null,
 ) {
     var pickingSleepTimer by remember { mutableStateOf(false) }
     // Read from the thumbnail the row that opened this sheet was already
@@ -311,6 +314,15 @@ fun SongActionsSheet(
             accent = palette.accent,
             onClick = onAddToQueue,
         )
+        if (showLoopOption && onToggleLoop != null) {
+            ActionRow(
+                icon = RaagaIcons.Repeat,
+                label = stringResource(if (isLooping) R.string.loop_playlist_on else R.string.loop_queue),
+                value = if (isLooping) stringResource(R.string.loop_on) else null,
+                accent = palette.accent,
+                onClick = onToggleLoop,
+            )
+        }
         when (val id = song.albumId) {
             null -> if (resolvingLinks) {
                 LoadingActionRow(Icons.Rounded.Album, stringResource(R.string.open_album), palette)

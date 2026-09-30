@@ -134,6 +134,8 @@ fun BrowseActionsSheet(
     modifier: Modifier = Modifier,
     onPlay: (() -> Unit)? = null,
     onShuffle: (() -> Unit)? = null,
+    onLoop: (() -> Unit)? = null,
+    isLooping: Boolean = false,
     /** Null where the sheet was opened from the page it would navigate to. */
     onOpen: (() -> Unit)? = null,
     onDownloadAll: (() -> Unit)? = null,
@@ -194,6 +196,14 @@ fun BrowseActionsSheet(
 
         onPlay?.let { ActionRow(Icons.Rounded.PlayArrow, stringResource(R.string.play), onClick = it) }
         onShuffle?.let { ActionRow(RaagaIcons.Shuffle, stringResource(R.string.shuffle), onClick = it) }
+        onLoop?.let { loop ->
+            ActionRow(
+                icon = RaagaIcons.Repeat,
+                label = stringResource(if (isLooping) R.string.loop_playlist_on else R.string.loop_playlist),
+                value = if (isLooping) stringResource(R.string.loop_on) else null,
+                onClick = loop,
+            )
+        }
         ActionRow(
             Icons.AutoMirrored.Rounded.PlaylistPlay,
             stringResource(R.string.play_next),

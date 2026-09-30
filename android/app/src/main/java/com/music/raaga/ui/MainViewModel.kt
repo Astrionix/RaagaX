@@ -542,6 +542,25 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** Set once per launch if GitHub has a release newer than this build. */
     val updateAvailable: StateFlow<AppUpdateChecker.UpdateInfo?> = AppUpdateChecker.available
 
+    private val _isCheckingForUpdates = MutableStateFlow(false)
+    val isCheckingForUpdates: StateFlow<Boolean> = _isCheckingForUpdates.asStateFlow()
+
+    fun checkForUpdates(
+        force: Boolean = false,
+        onResult: ((AppUpdateChecker.CheckResult) -> Unit)? = null,
+    ) {
+        if (_isCheckingForUpdates.value) return
+        _isCheckingForUpdates.value = true
+        viewModelScope.launch {
+            try {
+                val result = AppUpdateChecker.check(force = force)
+                onResult?.invoke(result)
+            } finally {
+                _isCheckingForUpdates.value = false
+            }
+        }
+    }
+
     // ---- Ratings, library and playlists -------------------------------------
 
     /**

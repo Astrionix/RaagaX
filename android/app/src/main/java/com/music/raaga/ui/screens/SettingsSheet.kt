@@ -67,6 +67,7 @@ import androidx.compose.material.icons.rounded.SmartDisplay
 import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.SurroundSound
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material.icons.rounded.VolumeOff
 import androidx.compose.material.icons.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Waves
@@ -74,8 +75,10 @@ import androidx.compose.material.icons.rounded.Wifi
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatDelegate
+import com.music.raaga.data.AppUpdateChecker
 import com.music.raaga.data.lyrics.translationLanguageName
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -177,6 +180,10 @@ fun SettingsScreen(
     onListenTogether: () -> Unit,
     onSpotifyCanvasAuth: () -> Unit,
     onAppLanguage: () -> Unit,
+    checkingForUpdate: Boolean = false,
+    updateAvailable: AppUpdateChecker.UpdateInfo? = null,
+    onCheckForUpdate: () -> Unit = {},
+    onForceCheckForUpdate: () -> Unit = {},
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
 ) {
@@ -1315,6 +1322,53 @@ fun SettingsScreen(
                     title = appLanguageTitle,
                     subtitle = stringResource(languageDisplayNameRes(selectedLanguage)),
                     onClick = onAppLanguage,
+                )
+            }
+        }
+
+        SearchableSettingsGroup(search, header = stringResource(R.string.software_update)) {
+            val checkForUpdatesTitle = stringResource(R.string.check_for_updates)
+            row(checkForUpdatesTitle, "update", "ota", "version", "software", "download") {
+                SettingsRow(
+                    icon = Icons.Rounded.SystemUpdate,
+                    title = checkForUpdatesTitle,
+                    subtitle = when {
+                        checkingForUpdate -> stringResource(R.string.checking_for_updates)
+                        updateAvailable != null -> stringResource(R.string.update_available, updateAvailable.version)
+                        else -> stringResource(R.string.current_version_tap_check, version)
+                    },
+                    trailing = {
+                        if (checkingForUpdate) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        } else if (updateAvailable != null) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primary),
+                            )
+                        } else {
+                            Icon(
+                                Icons.Rounded.ChevronRight,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                            )
+                        }
+                    },
+                    onClick = onCheckForUpdate,
+                )
+            }
+            val reinstallTitle = stringResource(R.string.reinstall_latest_release)
+            row(reinstallTitle, "reinstall", "download", "apk", "latest", "force") {
+                SettingsRow(
+                    icon = Icons.Rounded.Download,
+                    title = reinstallTitle,
+                    subtitle = stringResource(R.string.reinstall_latest_release_subtitle),
+                    onClick = onForceCheckForUpdate,
                 )
             }
         }

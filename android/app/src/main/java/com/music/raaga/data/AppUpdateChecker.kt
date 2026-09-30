@@ -7,6 +7,8 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.core.content.FileProvider
+import android.widget.Toast
+import com.music.raaga.R
 import com.music.raaga.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -41,6 +43,12 @@ object AppUpdateChecker {
         val notes: String?,
     )
 
+    sealed interface CheckResult {
+        data class UpdateAvailable(val info: UpdateInfo) : CheckResult
+        data class UpToDate(val version: String, val info: UpdateInfo?) : CheckResult
+        data class Error(val message: String) : CheckResult
+    }
+
     private const val CACHE_SUBDIR = "updates"
 
     private const val LATEST_RELEASE_URL =
@@ -66,7 +74,7 @@ object AppUpdateChecker {
     @Volatile
     private var downloadCancelled = false
 
-    suspend fun check() = withContext(Dispatchers.IO) {
+    suspend fun check(force: Boolean = false): CheckResult = withContext(Dispatchers.IO) {
         runCatching {
             val request = Request.Builder()
                 .url(LATEST_RELEASE_URL)
@@ -75,16 +83,26 @@ object AppUpdateChecker {
                 .build()
             val body = Http.client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) null else response.body?.string()
-            } ?: return@runCatching
-            val release = json.parseToJsonElement(body) as? JsonObject ?: return@runCatching
-            val tag = release["tag_name"]?.jsonPrimitive?.contentOrNull ?: return@runCatching
-            val url = release["html_url"]?.jsonPrimitive?.contentOrNull ?: return@runCatching
+            } ?: return@runCatching CheckResult.Error("Network error: failed to fetch release")
+            val release = json.parseToJsonElement(body) as? JsonObject
+                ?: return@runCatching CheckResult.Error("Invalid release response")
+            val tag = release["tag_name"]?.jsonPrimitive?.contentOrNull
+                ?: return@runCatching CheckResult.Error("Missing tag name")
+            val url = release["html_url"]?.jsonPrimitive?.contentOrNull
+                ?: return@runCatching CheckResult.Error("Missing release URL")
             val apkUrl = apkAssetUrl(release)
             val notes = release["body"]?.jsonPrimitive?.contentOrNull
             val latest = tag.removePrefix("v")
-            if (isNewer(latest, BuildConfig.VERSION_NAME)) {
-                _available.value = UpdateInfo(latest, url, apkUrl, notes)
+            val info = UpdateInfo(latest, url, apkUrl, notes)
+            if (isNewer(latest, BuildConfig.VERSION_NAME) || force) {
+                _available.value = info
+                CheckResult.UpdateAvailable(info)
+            } else {
+                _available.value = null
+                CheckResult.UpToDate(BuildConfig.VERSION_NAME, info)
             }
+        }.getOrElse { error ->
+            CheckResult.Error(error.message ?: "Failed to check for updates")
         }
     }
 
@@ -216,11 +234,26 @@ object AppUpdateChecker {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
             !context.packageManager.canRequestPackageInstalls()
         ) {
-            context.startActivity(
-                Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES)
-                    .setData(Uri.parse("package:${context.packageName}"))
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-            )
+            try {
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.allow_install_unknown_apps),
+                    Toast.LENGTH_LONG,
+                ).show()
+                context.startActivity(
+                    Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES)
+                        .setData(Uri.parse("package:${context.packageName}"))
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                )
+            } catch (_: Exception) {
+                try {
+                    context.startActivity(
+                        Intent(Settings.ACTION_SECURITY_SETTINGS)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                    )
+                } catch (_: Exception) {
+                }
+            }
             return
         }
 

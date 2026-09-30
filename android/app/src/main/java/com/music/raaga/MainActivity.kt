@@ -576,6 +576,7 @@ private fun RaagaApp(
     var updateDialogShown by rememberSaveable { mutableStateOf(false) }
     var showUpdateDialog by remember { mutableStateOf(false) }
     val updateAvailable by viewModel.updateAvailable.collectAsStateWithLifecycle()
+    val isCheckingForUpdates by viewModel.isCheckingForUpdates.collectAsStateWithLifecycle()
 
     /**
      * The single gate both surfaces read, so the icon can't announce the update
@@ -2563,6 +2564,52 @@ private fun RaagaApp(
                             onListenTogether = { showListenTogether = true },
                             onSpotifyCanvasAuth = { showSpotifyCanvasAuth = true },
                             onAppLanguage = { showAppLanguage = true },
+                            checkingForUpdate = isCheckingForUpdates,
+                            updateAvailable = updateAvailable,
+                            onCheckForUpdate = {
+                                if (updateAvailable != null) {
+                                    showUpdateDialog = true
+                                } else {
+                                    viewModel.checkForUpdates(force = false) { result ->
+                                        when (result) {
+                                            is AppUpdateChecker.CheckResult.UpdateAvailable -> {
+                                                showUpdateDialog = true
+                                            }
+                                            is AppUpdateChecker.CheckResult.UpToDate -> {
+                                                Toast.makeText(
+                                                    context,
+                                                    context.getString(R.string.up_to_date, result.version),
+                                                    Toast.LENGTH_SHORT,
+                                                ).show()
+                                            }
+                                            is AppUpdateChecker.CheckResult.Error -> {
+                                                Toast.makeText(
+                                                    context,
+                                                    context.getString(R.string.update_check_failed),
+                                                    Toast.LENGTH_SHORT,
+                                                ).show()
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            onForceCheckForUpdate = {
+                                viewModel.checkForUpdates(force = true) { result ->
+                                    when (result) {
+                                        is AppUpdateChecker.CheckResult.UpdateAvailable,
+                                        is AppUpdateChecker.CheckResult.UpToDate -> {
+                                            showUpdateDialog = true
+                                        }
+                                        is AppUpdateChecker.CheckResult.Error -> {
+                                            Toast.makeText(
+                                                context,
+                                                context.getString(R.string.update_check_failed),
+                                                Toast.LENGTH_SHORT,
+                                            ).show()
+                                        }
+                                    }
+                                }
+                            },
                             contentPadding = listPadding,
                         )
                     } else if (page != null && page.browseId.isDeviceFolder()) {
@@ -3670,6 +3717,26 @@ private fun RaagaApp(
                     // whatever ids it's ever going to have.
                     resolvingLinks = fromPlayer && linksLoading,
                     showSleepTimer = fromPlayer,
+                    showLoopOption = fromPlayer,
+                    isLooping = player.repeatMode == Player.REPEAT_MODE_ALL,
+                    onToggleLoop = {
+                        songActions = null
+                        controller?.let { c ->
+                            val next = if (c.repeatMode == Player.REPEAT_MODE_ALL) {
+                                Player.REPEAT_MODE_OFF
+                            } else {
+                                Player.REPEAT_MODE_ALL
+                            }
+                            AppSettings.setRepeatMode(next)
+                            c.repeatMode = next
+                            val msg = if (next == Player.REPEAT_MODE_ALL) {
+                                context.getString(R.string.loop_playlist_enabled)
+                            } else {
+                                context.getString(R.string.loop_playlist_disabled)
+                            }
+                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                        }
+                    },
                     // Offered for every playing track with a YouTube upload
                     // behind it, not only for one an upgrade visibly swapped:
                     // a source ranked above YouTube can be playing its own
@@ -3911,6 +3978,30 @@ private fun RaagaApp(
             val remote = target.browseId?.startsWith("local:") == false
             val pinnedPlaylists by AppSettings.pinnedPlaylists.collectAsStateWithLifecycle()
             val pinnableId = target.browseId?.takeIf { target.type == BrowseType.PLAYLIST }
+            val isCurrentPlaylistPlaying = target.browseId != null &&
+                (player.song?.playbackSourceId == target.browseId || (target.songs.isNotEmpty() && player.song?.videoId in target.songs.map { it.videoId }))
+            val isCurrentlyLooping = isCurrentPlaylistPlaying && player.repeatMode == Player.REPEAT_MODE_ALL
+            val onLoopPlaylist: (() -> Unit)? = if (target.type == BrowseType.PLAYLIST || target.type == BrowseType.ALBUM) {
+                act { songs ->
+                    if (isCurrentlyLooping) {
+                        controller?.let {
+                            it.repeatMode = Player.REPEAT_MODE_OFF
+                            AppSettings.setRepeatMode(Player.REPEAT_MODE_OFF)
+                            Toast.makeText(context, context.getString(R.string.loop_playlist_disabled), Toast.LENGTH_SHORT).show()
+                        }
+                    } else {
+                        AppSettings.setRepeatMode(Player.REPEAT_MODE_ALL)
+                        controller?.repeatMode = Player.REPEAT_MODE_ALL
+                        if (isCurrentPlaylistPlaying) {
+                            Toast.makeText(context, context.getString(R.string.loop_playlist_enabled), Toast.LENGTH_SHORT).show()
+                        } else {
+                            play(songs, 0)
+                            Toast.makeText(context, context.getString(R.string.loop_playlist_enabled), Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            } else null
+
             ModalBottomSheet(
                 onDismissRequest = { browseActions = null },
                 containerColor = MaterialTheme.colorScheme.background,
@@ -3928,6 +4019,8 @@ private fun RaagaApp(
                         QueueShuffle.enableForNextQueue()
                         play(songs, songs.indices.random())
                     }.takeIf { target.fromCard },
+                    onLoop = onLoopPlaylist,
+                    isLooping = isCurrentlyLooping,
                     onOpen = target.browseId
                         ?.takeIf { target.fromCard }
                         ?.let { id ->
