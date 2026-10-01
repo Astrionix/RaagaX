@@ -1,0 +1,110 @@
+{
+  "name": "raaga-desktop",
+  "productName": "Raaga",
+  "version": "1.0.0",
+  "description": "Aesthetic YouTube Music Client for Desktop",
+  "main": "electron/main.js",
+  "author": "Astrionix",
+  "license": "GPL-3.0",
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "lint": "next lint",
+    "electron:dev": "concurrently -k \"next dev -p 3000\" \"wait-on tcp:3000 && electron .\"",
+    "electron:start": "electron .",
+    "build:mac": "next build && mkdir -p .next/standalone/.next && cp -r public .next/standalone/ && cp -r .next/static .next/standalone/.next/ && electron-builder --mac dmg",
+    "build:win": "next build && mkdir -p .next/standalone/.next && cp -r public .next/standalone/ && cp -r .next/static .next/standalone/.next/ && electron-builder --win nsis",
+    "desktop:mac": "npm run build:mac",
+    "desktop:win": "npm run build:win",
+    "desktop:dev": "npm run electron:dev"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.1",
+    "@ybouane/liquidglass": "^1.0.3",
+    "clsx": "^2.1.1",
+    "crypto-js": "^4.2.0",
+    "framer-motion": "^12.4.7",
+    "lucide-react": "^1.16.0",
+    "next": "^15.2.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tailwind-merge": "^3.0.2",
+    "zustand": "^5.0.3"
+  },
+  "devDependencies": {
+    "@types/crypto-js": "^4.2.2",
+    "@types/node": "^22.13.8",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^10.0.5",
+    "electron": "^31.7.7",
+    "electron-builder": "^26.15.3",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.8.2",
+    "wait-on": "^9.5.1"
+  },
+  "build": {
+    "asar": false,
+    "appId": "com.music.raaga.desktop",
+    "productName": "Raaga",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      ".next/**/*",
+      "electron/**/*",
+      "public/**/*",
+      "package.json",
+      "node_modules/**/*"
+    ],
+    "mac": {
+      "icon": "build/icon.icns",
+      "category": "public.app-category.music",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ]
+    },
+    "dmg": {
+      "title": "Raaga Music",
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Raaga Music"
+    }
+  }
+}

@@ -13,9 +13,6 @@ permissions:
 jobs:
   build-android:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: android
 
     steps:
     - name: Checkout Repository
@@ -27,7 +24,7 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
         cache: gradle
-        cache-dependency-path: android/**/*.gradle*
+        cache-dependency-path: '**/*.gradle*'
 
     - name: Setup local.properties & Strip local java home
       env:
@@ -72,11 +69,11 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: raaga-apk
-        path: android/app/build/outputs/apk/**/*.apk
+        path: app/build/outputs/apk/**/*.apk
 
     - name: Create GitHub Release
       if: startsWith(github.ref, 'refs/tags/v')
       uses: softprops/action-gh-release@v2
       with:
-        files: android/app/build/outputs/apk/**/*.apk
+        files: app/build/outputs/apk/**/*.apk
         generate_release_notes: true

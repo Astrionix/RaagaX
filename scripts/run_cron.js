@@ -1,1 +1,0 @@
-require('dotenv').config({ path: '.env.local' }); const { GET } = require('../src/app/api/cron/youtube-discovery/route.ts'); const req = new Request('http://localhost:3000/api/cron/youtube-discovery'); GET(req).then(res => res.json()).then(console.log).catch(console.error);
