@@ -1,6 +1,7 @@
 package com.music.raaga.ui.player
 
 import android.graphics.Bitmap
+import android.os.Build
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationSpec
@@ -142,30 +143,30 @@ fun MeshGradientBackground(
         }
     }
 
-    // Scale up slightly so the blur's clamped edges never show, then blur the
-    // whole layer (RenderEffect, API 31+; a no-op below — the radial falloff
-    // already reads soft there).
-    //
-    // Clipped on the way out, and from a layer of its own rather than by setting
-    // `clip` on the one below: that one clips what is drawn *into* it, in its own
-    // coordinates, and the scale is applied after — so the overhang the scale
-    // creates survives it. This has to sit outside the scale to contain it.
-    //
-    // The overhang is a third of the backdrop's width and it is painted, not
-    // transparent: whatever this is standing in gets it. Off a full-window sheet
-    // that is the far side of the window and nobody ever saw it, which is how it
-    // went unnoticed; in a pane beside a page it was a hand's width of gradient
-    // laid over the feed.
+    // When animated=false the blobs are static after their single settle.  There is
+    // no reason to route a static image through a scaled offscreen layer + a
+    // multi-pass RenderEffect GPU blur every frame.  The radial falloff already
+    // reads soft; skip the blur entirely for static (list-item) surfaces and save
+    // the offscreen allocation + extra shader passes.
+    val useGpuBlur = animated && !reduceAnimation && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+
     Canvas(
         modifier = modifier
             .fillMaxSize()
             .clipToBounds()
-            .graphicsLayer {
-                scaleX = 1.3f
-                scaleY = 1.3f
-            }
-            .background(baseColor)
-            .blur(blurRadius),
+            .then(
+                if (useGpuBlur) {
+                    Modifier
+                        .graphicsLayer {
+                            scaleX = 1.3f
+                            scaleY = 1.3f
+                        }
+                        .background(baseColor)
+                        .blur(blurRadius)
+                } else {
+                    Modifier.background(baseColor)
+                },
+            ),
     ) {
         val anchors = listOf(
             Offset(0.20f, 0.25f),

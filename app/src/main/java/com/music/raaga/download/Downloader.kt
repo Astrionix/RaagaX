@@ -13,6 +13,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Request
 import java.io.OutputStream
 import kotlin.coroutines.coroutineContext
+import android.os.SystemClock
 
 /**
  * Pulls a resolved stream onto disk.
@@ -49,6 +50,19 @@ object Downloader {
     private const val BUFFER_BYTES = 64 * 1024
 
     /**
+     * Minimum wall-clock gap between consecutive onProgress calls, in milliseconds.
+     *
+     * Previously onProgress fired on every 64 KB buffer read — on a 30 MB/s
+     * connection that is ~500 calls/second per worker, and with four workers
+     * running concurrently the Compose snapshot system was receiving over 1,000
+     * StateFlow mutations per second. Gating on both a time floor (250 ms) and a
+     * fractional-change floor (1%) caps emissions at ~4/second per download,
+     * which is more than enough resolution for a progress bar.
+     */
+    private const val PROGRESS_THROTTLE_MS = 250L
+    private const val PROGRESS_THROTTLE_FRACTION = 0.01f
+
+    /**
      * Fetch all of [stream] into [sink].
      *
      * @param maxKbps the ceiling [stream] was resolved under, needed again for
@@ -75,6 +89,9 @@ object Downloader {
         var position = 0L
         var reresolved = false
         val buffer = ByteArray(BUFFER_BYTES)
+        // Throttle tracking: wall-clock timestamp and fraction of the last emission.
+        var lastProgressMs = 0L
+        var lastProgressFraction = 0f
 
         while (position < total) {
             coroutineContext.ensureActive()
@@ -122,7 +139,19 @@ object Downloader {
                     sink.write(buffer, 0, read)
                     readForChunk += read
                     position += read
-                    onProgress(position, total)
+                    // Throttled: emit only when enough time has passed OR enough
+                    // progress has accumulated, to prevent StateFlow storm at high
+                    // bandwidth (was ≥500 emissions/sec per worker at 30 MB/s).
+                    val now = SystemClock.elapsedRealtime()
+                    val fraction = position.toFloat() / total
+                    if (now - lastProgressMs >= PROGRESS_THROTTLE_MS ||
+                        fraction - lastProgressFraction >= PROGRESS_THROTTLE_FRACTION ||
+                        position >= total
+                    ) {
+                        onProgress(position, total)
+                        lastProgressMs = now
+                        lastProgressFraction = fraction
+                    }
                 }
                 // A range that stops short is not fatal on its own — the next
                 // pass simply asks for what is left — but one that yields
@@ -180,6 +209,8 @@ object Downloader {
             val source = body.byteStream()
             val buffer = ByteArray(BUFFER_BYTES)
             var written = 0L
+            var lastProgressMs = 0L
+            var lastProgressFraction = 0f
 
             while (true) {
                 coroutineContext.ensureActive()
@@ -187,7 +218,18 @@ object Downloader {
                 if (read == -1) break
                 sink.write(buffer, 0, read)
                 written += read
-                if (total != null) onProgress(written, total)
+                if (total != null) {
+                    val now = SystemClock.elapsedRealtime()
+                    val fraction = written.toFloat() / total
+                    if (now - lastProgressMs >= PROGRESS_THROTTLE_MS ||
+                        fraction - lastProgressFraction >= PROGRESS_THROTTLE_FRACTION ||
+                        written >= total
+                    ) {
+                        onProgress(written, total)
+                        lastProgressMs = now
+                        lastProgressFraction = fraction
+                    }
+                }
             }
             sink.flush()
 

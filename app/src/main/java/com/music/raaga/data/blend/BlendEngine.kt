@@ -28,7 +28,6 @@ object BlendEngine {
     private var cachedIdentity: RaagaUserIdentity? = null
 
     fun getMyIdentity(context: Context): RaagaUserIdentity {
-        cachedIdentity?.let { return it }
         val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         var userId = prefs.getString(KEY_USER_ID, null)
         if (userId.isNullOrBlank()) {
@@ -44,10 +43,27 @@ object BlendEngine {
             prefs.edit().putString(KEY_USER_TAG, userTag).apply()
         }
 
-        var userName = prefs.getString(KEY_USER_NAME, null)
-        if (userName.isNullOrBlank()) {
-            userName = "Listener ${userTag.removePrefix("AETH-")}"
-            prefs.edit().putString(KEY_USER_NAME, userName).apply()
+        // If user is logged into an account, use their account/profile name as identity
+        val authStore = com.music.raaga.auth.AuthStore(context)
+        val activeSession = authStore.activeSession
+        val activeProfile = activeSession?.profiles?.firstOrNull { it.profileId == authStore.activeProfileId }
+            ?: activeSession?.profiles?.firstOrNull()
+
+        val loggedInName = activeProfile?.name?.takeIf { it.isNotBlank() }
+            ?: activeSession?.name?.takeIf { it.isNotBlank() }
+            ?: activeSession?.email?.substringBefore("@")?.takeIf { it.isNotBlank() }
+
+        val userName = if (!loggedInName.isNullOrBlank()) {
+            loggedInName
+        } else {
+            val saved = prefs.getString(KEY_USER_NAME, null)
+            if (saved.isNullOrBlank()) {
+                val fallback = "Listener ${userTag.removePrefix("AETH-")}"
+                prefs.edit().putString(KEY_USER_NAME, fallback).apply()
+                fallback
+            } else {
+                saved
+            }
         }
 
         val identity = RaagaUserIdentity(userId = userId, userTag = userTag, userName = userName)

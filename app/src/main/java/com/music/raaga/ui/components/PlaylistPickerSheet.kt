@@ -1,7 +1,10 @@
 package com.music.raaga.ui.components
 
+import android.widget.Toast
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -42,7 +45,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.music.raaga.data.settings.AppSettings
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -88,6 +94,22 @@ fun PlaylistPickerSheet(
     onImportSpotify: (() -> Unit)? = null,
 ) {
     var creating by remember { mutableStateOf(startCreating) }
+    val pinnedPlaylists by AppSettings.pinnedPlaylists.collectAsStateWithLifecycle()
+    val sortedPlaylists = remember(playlists, pinnedPlaylists) {
+        if (pinnedPlaylists.isEmpty()) playlists
+        else {
+            val (pinned, unpinned) = playlists.partition { p ->
+                AppSettings.isPlaylistPinned(p.browseId) || AppSettings.isPlaylistPinned(p.playlistId)
+            }
+            val orderedPinned = pinnedPlaylists.mapNotNull { pinId ->
+                val raw = pinId.removePrefix("VL")
+                pinned.firstOrNull { it.playlistId == raw || it.browseId == pinId || it.browseId == "VL$raw" }
+            } + pinned.filterNot { p ->
+                pinnedPlaylists.any { it == p.browseId || it == p.playlistId || it.removePrefix("VL") == p.playlistId }
+            }
+            orderedPinned + unpinned
+        }
+    }
 
     if (creating) {
         NewPlaylistForm(
@@ -151,11 +173,34 @@ fun PlaylistPickerSheet(
                     thickness = 0.5.dp,
                     color = MaterialTheme.colorScheme.outline,
                 )
+                val context = LocalContext.current
                 // Capped so a long list can't push the sheet past the screen;
                 // it scrolls inside the sheet instead.
                 LazyColumn(Modifier.heightIn(max = 320.dp)) {
-                    items(playlists, key = { it.playlistId }) { playlist ->
-                        PlaylistRow(playlist = playlist, onClick = { onPick(playlist) })
+                    items(sortedPlaylists, key = { it.playlistId }) { playlist ->
+                        val isPinned = AppSettings.isPlaylistPinned(playlist.browseId) || AppSettings.isPlaylistPinned(playlist.playlistId)
+                        PlaylistRow(
+                            playlist = playlist,
+                            isPinned = isPinned,
+                            onClick = { onPick(playlist) },
+                            onLongClick = {
+                                val wasPinned = AppSettings.isPlaylistPinned(playlist.browseId) || AppSettings.isPlaylistPinned(playlist.playlistId)
+                                val successOrPinned = AppSettings.togglePinnedPlaylist(playlist.browseId)
+                                if (!wasPinned && !successOrPinned) {
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(R.string.pinned_playlist_limit, AppSettings.MAX_PINNED_PLAYLISTS),
+                                        Toast.LENGTH_SHORT,
+                                    ).show()
+                                } else {
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(if (successOrPinned) R.string.playlist_pinned else R.string.playlist_unpinned),
+                                        Toast.LENGTH_SHORT,
+                                    ).show()
+                                }
+                            },
+                        )
                     }
                 }
             }
@@ -164,12 +209,19 @@ fun PlaylistPickerSheet(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun PlaylistRow(playlist: UserPlaylist, onClick: () -> Unit) {
+private fun PlaylistRow(
+    playlist: UserPlaylist,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null,
+    isPinned: Boolean = false,
+) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .padding(horizontal = 22.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -184,13 +236,25 @@ private fun PlaylistRow(playlist: UserPlaylist, onClick: () -> Unit) {
         )
         Spacer(Modifier.width(16.dp))
         Column(Modifier.weight(1f)) {
-            Text(
-                text = playlist.title,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onBackground,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (isPinned) {
+                    Icon(
+                        imageVector = RaagaIcons.Pin,
+                        contentDescription = stringResource(R.string.pinned),
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(14.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                }
+                Text(
+                    text = playlist.title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+            }
             if (playlist.subtitle.isNotBlank()) {
                 Text(
                     text = playlist.subtitle,

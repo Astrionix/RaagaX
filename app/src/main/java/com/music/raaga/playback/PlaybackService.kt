@@ -1563,35 +1563,6 @@ class PlaybackService : MediaLibraryService() {
         // session's wrapper reports the user's actions to it.
         partySync = PartySync(scope) { player }.also { it.start() }
 
-        // Live Connect to Device & Jam remote playback hooks
-        com.music.raaga.connect.RaagaSyncClient.onRemotePlay = {
-            scope.launch(Dispatchers.Main) { player?.play() }
-        }
-        com.music.raaga.connect.RaagaSyncClient.onRemotePause = {
-            scope.launch(Dispatchers.Main) { player?.pause() }
-        }
-        com.music.raaga.connect.RaagaSyncClient.onRemoteSeek = { pos ->
-            scope.launch(Dispatchers.Main) { player?.seekTo(pos) }
-        }
-        com.music.raaga.connect.RaagaSyncClient.onRemoteVolume = { vol ->
-            scope.launch(Dispatchers.Main) { player?.volume = vol }
-        }
-        com.music.raaga.connect.RaagaSyncClient.onRemoteTransfer = { trackId, title, artist, pos ->
-            if (!trackId.isNullOrBlank()) {
-                scope.launch(Dispatchers.Main) {
-                    val song = com.music.raaga.data.model.Song(
-                        videoId = trackId,
-                        title = title ?: "Remote Track",
-                        artist = artist ?: "Raaga Peer",
-                        thumbnailUrl = null,
-                    )
-                    val p = player ?: return@launch
-                    p.setMediaItem(song.toMediaItem(), pos)
-                    p.prepare()
-                    p.play()
-                }
-            }
-        }
         // AutoPlay has one shared supplier in a party. The host supplies it
         // while connected; if they disappear, the lowest stable connected member
         // ID takes over. That election is deterministic on every phone, so two

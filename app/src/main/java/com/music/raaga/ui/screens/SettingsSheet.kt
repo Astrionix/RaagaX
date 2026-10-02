@@ -30,6 +30,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.ScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Notes
+import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.rounded.Animation
 import androidx.compose.material.icons.rounded.BarChart
@@ -75,6 +76,7 @@ import androidx.compose.material.icons.rounded.Wifi
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatDelegate
+import com.music.raaga.data.settings.AutoDownloadPlaylist
 import com.music.raaga.data.AppUpdateChecker
 import com.music.raaga.data.lyrics.translationLanguageName
 import androidx.compose.material3.AlertDialog
@@ -228,6 +230,7 @@ fun SettingsScreen(
     val downloadQuality by AppSettings.downloadQuality.collectAsStateWithLifecycle()
     val wifiOnlyDownloads by AppSettings.wifiOnlyDownloads.collectAsStateWithLifecycle()
     val exportDownloads by AppSettings.exportDownloads.collectAsStateWithLifecycle()
+    val autoDownloadPlaylists by AppSettings.autoDownloadPlaylists.collectAsStateWithLifecycle()
     val stopOnTaskRemoved by AppSettings.stopOnTaskRemoved.collectAsStateWithLifecycle()
     val hideVolumeBar by AppSettings.hideVolumeBar.collectAsStateWithLifecycle()
     val hideSongStatus by AppSettings.hideSongStatus.collectAsStateWithLifecycle()
@@ -276,6 +279,7 @@ fun SettingsScreen(
     var searchQuery by remember { mutableStateOf("") }
     var picking by remember { mutableStateOf<QualityTarget?>(null) }
     var pickingDownloadQuality by remember { mutableStateOf(false) }
+    var pickingAutoDownloadPlaylists by remember { mutableStateOf(false) }
     var pickingAutomixPerformance by remember { mutableStateOf(false) }
     // What the last export or import did, shown on the row that did it rather
     // than as a toast: a backup is the one action here whose outcome nobody can
@@ -535,6 +539,16 @@ fun SettingsScreen(
                     checked = exportDownloads,
                     onCheckedChange = AppSettings::setExportDownloads,
                     subtitle = "Music/Raaga".takeIf { exportDownloads },
+                )
+            }
+            val autoDownloadPlaylistsTitle = stringResource(R.string.auto_download_playlists)
+            row(autoDownloadPlaylistsTitle, "playlist", "auto download", "offline", divided = false) {
+                SettingsRow(
+                    icon = Icons.AutoMirrored.Rounded.PlaylistAdd,
+                    title = autoDownloadPlaylistsTitle,
+                    subtitle = stringResource(R.string.auto_download_playlists_subtitle),
+                    value = autoDownloadPlaylists.localizedLabel(),
+                    onClick = { pickingAutoDownloadPlaylists = true },
                 )
             }
         }
@@ -1500,6 +1514,21 @@ fun SettingsScreen(
         }
     }
 
+    if (pickingAutoDownloadPlaylists) {
+        ModalBottomSheet(
+            onDismissRequest = { pickingAutoDownloadPlaylists = false },
+            containerColor = MaterialTheme.colorScheme.background,
+        ) {
+            AutoDownloadPlaylistSheet(
+                selected = autoDownloadPlaylists,
+                onSelect = { mode ->
+                    AppSettings.setAutoDownloadPlaylists(mode)
+                    pickingAutoDownloadPlaylists = false
+                },
+            )
+        }
+    }
+
     if (pickingAutomixPerformance) {
         ModalBottomSheet(
             onDismissRequest = { pickingAutomixPerformance = false },
@@ -1736,6 +1765,24 @@ private fun DownloadQuality.localizedLabel(): String = stringResource(
         DownloadQuality.STANDARD -> R.string.standard
         DownloadQuality.HIGH -> R.string.high
         DownloadQuality.LOSSLESS -> R.string.lossless
+    },
+)
+
+@Composable
+private fun AutoDownloadPlaylist.localizedLabel(): String = stringResource(
+    when (this) {
+        AutoDownloadPlaylist.OFF -> R.string.auto_download_off
+        AutoDownloadPlaylist.WIFI_ONLY -> R.string.auto_download_wifi_only
+        AutoDownloadPlaylist.ALWAYS -> R.string.auto_download_always
+    },
+)
+
+@Composable
+private fun AutoDownloadPlaylist.localizedDetail(): String = stringResource(
+    when (this) {
+        AutoDownloadPlaylist.OFF -> R.string.auto_download_off_desc
+        AutoDownloadPlaylist.WIFI_ONLY -> R.string.auto_download_wifi_desc
+        AutoDownloadPlaylist.ALWAYS -> R.string.auto_download_always_desc
     },
 )
 
@@ -2077,6 +2124,77 @@ private fun DownloadQualitySheet(
                     )
                     Text(
                         text = stringResource(R.string.quality_per_track, quality.detail, quality.perTrack),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (chosen) {
+                    Spacer(Modifier.width(12.dp))
+                    Icon(
+                        Icons.Rounded.Check,
+                        contentDescription = stringResource(R.string.selected),
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AutoDownloadPlaylistSheet(
+    selected: AutoDownloadPlaylist,
+    onSelect: (AutoDownloadPlaylist) -> Unit,
+) {
+    val haptics = LocalHapticFeedback.current
+    Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
+        Row(
+            modifier = Modifier.padding(start = 22.dp, end = 22.dp, bottom = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.PlaylistAdd,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.size(22.dp),
+            )
+            Spacer(Modifier.width(14.dp))
+            Column {
+                Text(
+                    text = stringResource(R.string.auto_download_playlists),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
+                Text(
+                    text = stringResource(R.string.auto_download_playlists_subtitle),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline)
+
+        AutoDownloadPlaylist.entries.forEach { mode ->
+            val chosen = mode == selected
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onSelect(mode)
+                    }
+                    .padding(horizontal = 22.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = mode.localizedLabel(),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
+                    Text(
+                        text = mode.localizedDetail(),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

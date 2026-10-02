@@ -343,7 +343,13 @@ private fun ReplayBanner(card: ReplayHeroCard?, onClick: () -> Unit) {
             MeshGradientBackground(
                 palette = palette,
                 trackKey = card?.artworkUrl ?: "replay",
-                continuous = true,
+                // Continuous was previously true here, which caused an infinite
+                // while(isActive) phase.animateTo() loop driving a 28dp GPU blur
+                // at 120Hz even while the user scrolled the Library feed. Setting
+                // it false lets the blobs settle once on open/track-change — the
+                // visual result is indistinguishable at rest — and eliminates the
+                // constant frame invalidation that was causing 32-58ms frame spikes.
+                continuous = false,
                 // A short wide strip: at the backdrop's own radius the four
                 // colours blur into one wash before they reach its ends.
                 blurRadius = 28.dp,
@@ -487,7 +493,7 @@ internal fun LibraryGridShelf(
                     item = item,
                     onClick = { onItemClick(item) },
                     onLongPress = { onItemLongPress(item) },
-                    isPinned = item.browseId != null && item.browseId in pinnedPlaylists,
+                    isPinned = AppSettings.isPlaylistPinned(item.browseId),
                 )
             }
         }
@@ -515,10 +521,8 @@ fun LibraryGridPage(
     // immediately rather than waiting for the row underneath to be revisited.
     val pinnedPlaylists by AppSettings.pinnedPlaylists.collectAsStateWithLifecycle()
     val librarySort by AppSettings.librarySort.collectAsStateWithLifecycle()
-    // Pinning wins over the default order, but an explicit sort is a stronger,
-    // more deliberate signal than a pin and is left to reorder the whole grid,
-    // pinned cards included.
-    val sortedShelf = shelf.pinnedFirst(pinnedPlaylists).sortedForLibrary(librarySort)
+    // Pinned playlists always lead at the top, followed by sorted remainder
+    val sortedShelf = shelf.pinnedAndSorted(pinnedPlaylists, librarySort)
     BoxWithConstraints(modifier.fillMaxSize()) {
         val grid = libraryGrid(maxWidth - PAGE_GUTTER * 2)
         LazyVerticalGrid(
@@ -557,7 +561,7 @@ fun LibraryGridPage(
                     onClick = { onItemClick(item) },
                     onLongPress = { onItemLongPress(item) },
                     modifier = Modifier.fillMaxWidth(),
-                    isPinned = item.browseId != null && item.browseId in pinnedPlaylists,
+                    isPinned = AppSettings.isPlaylistPinned(item.browseId),
                 )
             }
         }
@@ -568,17 +572,53 @@ fun LibraryGridPage(
  * Moves whichever of this shelf's cards are in [pinned] to the front, in the
  * order they were pinned, leaving everything else in its existing order behind
  * them.
- *
- * A no-op on any shelf that isn't Playlists: [pinned] only ever holds playlist
- * browse ids, so an album or artist shelf never has a card that matches.
  */
 private fun HomeShelf.pinnedFirst(pinned: List<String>): HomeShelf {
     if (pinned.isEmpty()) return this
-    val byId = items.filter { it.browseId != null }.associateBy { it.browseId }
-    val pinnedItems = pinned.mapNotNull { byId[it] }
+    val pinnedItems = mutableListOf<ShelfItem>()
+    val seen = mutableSetOf<String>()
+    for (pinId in pinned) {
+        val rawPin = pinId.removePrefix("VL")
+        val match = items.firstOrNull { item ->
+            val bId = item.browseId ?: return@firstOrNull false
+            (bId == pinId || bId == rawPin || bId == "VL$rawPin") && bId !in seen
+        }
+        if (match != null && match.browseId != null) {
+            pinnedItems.add(match)
+            seen.add(match.browseId)
+        }
+    }
     if (pinnedItems.isEmpty()) return this
-    val pinnedSet = pinnedItems.toSet()
-    return copy(items = pinnedItems + items.filter { it !in pinnedSet })
+    val remaining = items.filter { it.browseId !in seen }
+    return copy(items = pinnedItems + remaining)
+}
+
+/**
+ * Pinned playlists always remain first at the top of the grid, with the
+ * remaining unpinned items sorted according to [sort].
+ */
+private fun HomeShelf.pinnedAndSorted(pinned: List<String>, sort: LibrarySort): HomeShelf {
+    if (title != PLAYLISTS) return sortedForLibrary(sort)
+    val pinnedItems = mutableListOf<ShelfItem>()
+    val seen = mutableSetOf<String>()
+    for (pinId in pinned) {
+        val rawPin = pinId.removePrefix("VL")
+        val match = items.firstOrNull { item ->
+            val bId = item.browseId ?: return@firstOrNull false
+            (bId == pinId || bId == rawPin || bId == "VL$rawPin") && bId !in seen
+        }
+        if (match != null && match.browseId != null) {
+            pinnedItems.add(match)
+            seen.add(match.browseId)
+        }
+    }
+    val unpinnedItems = items.filter { it.browseId !in seen }
+    val sortedUnpinned = when (sort) {
+        LibrarySort.DEFAULT -> unpinnedItems
+        LibrarySort.TITLE_ASC -> unpinnedItems.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title })
+        LibrarySort.TITLE_DESC -> unpinnedItems.sortedWith(compareByDescending(String.CASE_INSENSITIVE_ORDER) { it.title })
+    }
+    return copy(items = pinnedItems + sortedUnpinned)
 }
 
 /**

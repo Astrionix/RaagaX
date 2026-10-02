@@ -140,7 +140,6 @@ import com.music.raaga.ui.components.AudioPipelineDialog
 import com.music.raaga.ui.haptics.Haptic
 import com.music.raaga.ui.haptics.rememberHaptics
 import com.music.raaga.ui.icons.RaagaIcons
-import com.music.raaga.ui.connect.DevicePickerSheet
 import com.music.raaga.ui.connect.SocialJamSheet
 import com.music.raaga.ui.connect.ConnectJamSheet
 import com.music.raaga.ui.connect.ConnectJamTab
@@ -633,7 +632,6 @@ fun NowPlayingScreen(
     // source tree, so it needs its own source for the same frosted material as
     // the bottom navigation pill.
     val playerHaze = remember { HazeState() }
-    var showDevicePickerSheet by remember { mutableStateOf(false) }
     var showSocialJamSheet by remember { mutableStateOf(false) }
     var socialJamInitialTab by remember { mutableStateOf(ConnectJamTab.JAM) }
     var showAudioPipeline by remember { mutableStateOf(false) }
@@ -641,7 +639,7 @@ fun NowPlayingScreen(
     var showLyricsProviders by remember { mutableStateOf(false) }
     // Gated on the Bluetooth permission the first time — see [rememberOutputPicker].
     val openAudioOutput = rememberOutputPicker {
-        showDevicePickerSheet = true
+        showAudioOutput = true
     }
     // Listening in a party whose host has taken the controls: the transport
     // keeps only play/pause, which from here moves this device alone.
@@ -874,7 +872,6 @@ fun NowPlayingScreen(
     // drawer, so it is always the topmost of the two when both are up, and
     // back has to close it first rather than taking the drawer out from
     // under it.
-    PlayerBackHandler(enabled = showDevicePickerSheet) { showDevicePickerSheet = false }
     PlayerBackHandler(enabled = showSocialJamSheet) { showSocialJamSheet = false }
     PlayerBackHandler(enabled = showAudioOutput) { showAudioOutput = false }
     PlayerBackHandler(enabled = showLyricsProviders) { showLyricsProviders = false }
@@ -1345,22 +1342,6 @@ fun NowPlayingScreen(
     // whichever layout is on screen — they are overlays over the player, not
     // part of either shape of it.
     val playerOverlays: @Composable () -> Unit = {
-        if (showDevicePickerSheet) {
-            DevicePickerSheet(
-                hazeState = playerHaze,
-                accountName = accountName,
-                currentSong = song,
-                currentPositionMs = position.positionMs,
-                isPlaying = isPlaying,
-                onDismiss = { showDevicePickerSheet = false },
-                onOpenPipeline = { showAudioPipeline = true },
-                onSwitchToJam = {
-                    showDevicePickerSheet = false
-                    socialJamInitialTab = ConnectJamTab.JAM
-                    showSocialJamSheet = true
-                },
-            )
-        }
         if (showSocialJamSheet) {
             SocialJamSheet(
                 hazeState = playerHaze,
@@ -1876,7 +1857,7 @@ fun NowPlayingScreen(
         // A subview replaces that hero with an artwork-derived mesh, so it gets
         // only a modest floor rather than an opaque status-bar surface.
         val playerSubviewOpen = lyricsOpen || queueOpen || lyricsOffsetOpen ||
-            showAudioPipeline || showAudioOutput || showLyricsProviders || showDevicePickerSheet || showSocialJamSheet
+            showAudioPipeline || showAudioOutput || showLyricsProviders || showSocialJamSheet
         val topGradientAlpha = if (playerSubviewOpen) {
             maxOf(artworkStatusScrimAlpha, SUBVIEW_STATUS_SCRIM_MIN_ALPHA)
         } else {

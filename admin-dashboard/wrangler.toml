@@ -1,0 +1,8 @@
+name = "raaga-admin-dashboard"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+routes = [
+  { pattern = "admin.raaga.me/*", zone_name = "raaga.me", custom_domain = true }
+]
+

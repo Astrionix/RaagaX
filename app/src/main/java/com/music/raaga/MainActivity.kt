@@ -2488,7 +2488,12 @@ private fun RaagaApp(
                     } else if (key == "discord") {
                         DiscordScreen(
                             song = player.song,
-                            positionMs = player.position.positionMs,
+                            // Lambda instead of an eager Long read: previously the
+                            // AnimatedContent container recomposed every 500ms because
+                            // positionMs was read eagerly here. The lambda defers the
+                            // read to ProgressLine inside DiscordScreen so only that
+                            // leaf is invalidated, not the whole navigation tree.
+                            positionMs = { player.position.positionMs },
                             durationMs = player.durationMs,
                             onOpenLogin = { showDiscordLogin = true },
                             onOpenDialog = { discordDialog = it },
@@ -4081,16 +4086,26 @@ private fun RaagaApp(
                                 browseActions = null
                             }
                         },
-                    isPinned = pinnableId != null && pinnableId in pinnedPlaylists,
+                    isPinned = AppSettings.isPlaylistPinned(pinnableId),
                     onTogglePin = pinnableId?.let { id ->
                         {
+                            val wasPinned = AppSettings.isPlaylistPinned(id)
                             val nowPinned = AppSettings.togglePinnedPlaylist(id)
-                            if (!nowPinned && id !in pinnedPlaylists) {
+                            if (!wasPinned && !nowPinned) {
                                 Toast.makeText(
                                     context,
                                     context.getString(
                                         R.string.pinned_playlist_limit,
                                         AppSettings.MAX_PINNED_PLAYLISTS,
+                                    ),
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                            } else {
+                                Toast.makeText(
+                                    context,
+                                    context.getString(
+                                        if (nowPinned) R.string.playlist_pinned
+                                        else R.string.playlist_unpinned,
                                     ),
                                     Toast.LENGTH_SHORT,
                                 ).show()

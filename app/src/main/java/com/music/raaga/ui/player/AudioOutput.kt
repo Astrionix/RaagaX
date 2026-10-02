@@ -209,11 +209,15 @@ internal fun rememberOutputPicker(onOpen: () -> Unit): () -> Unit {
     val context = LocalContext.current
     val ask = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
-    ) { granted -> if (granted) onOpen() }
+    ) { _ -> }
     return {
-        if (bluetoothNamesAllowed(context)) onOpen() else ask.launch(BLUETOOTH_CONNECT)
+        onOpen()
+        if (!bluetoothNamesAllowed(context)) {
+            runCatching { ask.launch(BLUETOOTH_CONNECT) }
+        }
     }
 }
+
 
 private fun bluetoothNamesAllowed(context: Context): Boolean =
     Build.VERSION.SDK_INT < 31 ||

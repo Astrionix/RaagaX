@@ -46,6 +46,7 @@ import com.music.raaga.data.model.UiState
 import com.music.raaga.data.model.UserPlaylist
 import com.music.raaga.data.model.SearchHistoryEntity
 import com.music.raaga.data.model.EntityType
+import com.music.raaga.data.settings.AutoDownloadPlaylist
 import com.music.raaga.data.settings.SearchHistory
 import com.music.raaga.download.Downloads
 import android.util.LruCache
@@ -920,6 +921,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     // reachable from a row's own menu on it — so the track goes
                     // into it for the same reason [addSuggestedSong] does.
                     appendToOpenPlaylist(playlist.browseId, song, added[song.videoId])
+                    autoDownloadIfEnabled(song, playlist.title)
                     onResult(false)
                 },
                 onFailure = {},
@@ -976,6 +978,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             ),
                         ) + items.filterNot { it.browseId == created.browseId }
                     }
+                    song?.let { autoDownloadIfEnabled(it, name) }
                 },
                 onFailure = {},
             )
@@ -1192,10 +1195,30 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         }
                     }
                     appendToOpenPlaylist(browseId, song, added[song.videoId])
+                    val playlistTitle = _detailStack.value.firstOrNull { it.browseId == browseId }?.title
+                        ?: _playlists.value.firstOrNull { it.browseId == browseId }?.title
+                        ?: "Playlist"
+                    autoDownloadIfEnabled(song, playlistTitle)
                 },
                 onFailure = {},
             )
         }
+    }
+
+    private fun autoDownloadIfEnabled(song: Song, playlistTitle: String) {
+        val mode = AppSettings.autoDownloadPlaylists.value
+        if (mode == AutoDownloadPlaylist.OFF) return
+        val allowCellular = mode == AutoDownloadPlaylist.ALWAYS
+        if (!allowCellular && AppSettings.meteredConnection.value == true) {
+            return
+        }
+        if (Downloads.verifiedSavedUri(song.videoId) != null) return
+        Downloads.enqueue(
+            getApplication(),
+            song,
+            from = playlistTitle,
+            bypassWifiOnly = allowCellular,
+        )
     }
 
     /**

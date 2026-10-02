@@ -2,7 +2,6 @@
 .gradle/
 /build/
 /app/build/
-!desktop/build/
 gradle-app.setting
 !gradle-wrapper.jar
 !gradle-wrapper.properties
@@ -39,10 +38,3 @@ keystore.properties
 .shots/
 .tmp_verify/
 .debug/
-
-# Desktop / Node
-desktop/node_modules/
-desktop/.next/
-desktop/dist/
-desktop/.env*
-*.tsbuildinfo

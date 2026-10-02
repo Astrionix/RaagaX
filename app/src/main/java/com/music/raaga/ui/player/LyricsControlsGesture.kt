@@ -95,18 +95,19 @@ internal fun Modifier.toggleSpotifyCanvasControlsOnTap(
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
             var dragged = false
-            var claimed = down.isConsumed
             do {
                 val event = awaitPointerEvent(PointerEventPass.Final)
                 val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                claimed = claimed || change.isConsumed
                 if ((change.position - down.position).getDistance() > tapSlop ||
                     event.changes.size > 1
                 ) {
                     dragged = true
                 }
                 if (!change.pressed) {
-                    if (!dragged && !claimed) currentOnToggle.value()
+                    if (!dragged && !change.isConsumed) {
+                        change.consume()
+                        currentOnToggle.value()
+                    }
                     break
                 }
             } while (true)

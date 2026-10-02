@@ -157,7 +157,11 @@ private fun DiscordActivityKind.localizedVerb(): String =
 @Composable
 fun DiscordScreen(
     song: Song?,
-    positionMs: Long,
+    // A lambda rather than a bare Long: reading positionMs() inside the
+    // innermost consumer (ProgressLine) scopes the recomposition there,
+    // instead of propagating up to the AnimatedContent navigation container
+    // in MainActivity which was recomposing every 500ms.
+    positionMs: () -> Long,
     durationMs: Long,
     onOpenLogin: () -> Unit,
     onOpenDialog: (DiscordDialog) -> Unit,
@@ -570,7 +574,7 @@ private fun NoticeCard(text: String, onDismiss: () -> Unit) {
 @Composable
 private fun RichPresencePreview(
     song: Song?,
-    positionMs: Long,
+    positionMs: () -> Long,
     durationMs: Long,
     heading: String,
     verb: String,
@@ -643,7 +647,7 @@ private fun RichPresencePreview(
                     )
                 }
                 Spacer(Modifier.height(8.dp))
-                ProgressLine(positionMs = positionMs, durationMs = durationMs)
+                ProgressLine(positionMs = positionMs(), durationMs = durationMs)
             }
         }
 

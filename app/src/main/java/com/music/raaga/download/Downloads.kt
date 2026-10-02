@@ -175,9 +175,9 @@ object Downloads {
      *   one of many. Carried no further than [DownloadSession], which is the
      *   only thing that has to say *why* forty tracks are in the queue.
      */
-    fun enqueue(context: Context, song: Song, from: String? = null) {
+    fun enqueue(context: Context, song: Song, from: String? = null, bypassWifiOnly: Boolean = false) {
         val id = song.videoId
-        if (!AppSettings.downloadsAllowedNow) {
+        if (!bypassWifiOnly && !AppSettings.downloadsAllowedNow) {
             // Distinct from the duplicate-tap no-op below: nothing is in flight
             // here to leave alone, and a refusal nobody is told about reads as a
             // dead button. A download already queued or running started on a

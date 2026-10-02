@@ -119,6 +119,13 @@ enum class DownloadQuality(
     ),
 }
 
+/** Auto-download mode for songs added to user playlists. */
+enum class AutoDownloadPlaylist(val label: String) {
+    OFF("Off"),
+    WIFI_ONLY("Wi-Fi only"),
+    ALWAYS("Wi-Fi and cellular"),
+}
+
 enum class ThemeMode(val label: String) {
     SYSTEM("System"), LIGHT("Light"), DARK("Dark")
 }
@@ -264,6 +271,9 @@ object AppSettings {
      * not one portable audio file.
      */
     val exportDownloads = MutableStateFlow(false)
+
+    /** Auto-download tracks added to user playlists. */
+    val autoDownloadPlaylists = MutableStateFlow(AutoDownloadPlaylist.OFF)
 
     /** Whether the active network charges for data. `null` while offline. */
     val meteredConnection = MutableStateFlow<Boolean?>(null)
@@ -861,6 +871,11 @@ object AppSettings {
         downloadQuality.value = readDownloadQuality()
         wifiOnlyDownloads.value = prefs.getBoolean(KEY_WIFI_ONLY_DOWNLOADS, true)
         exportDownloads.value = prefs.getBoolean(KEY_EXPORT_DOWNLOADS, false)
+        autoDownloadPlaylists.value = runCatching {
+            AutoDownloadPlaylist.valueOf(
+                prefs.getString(KEY_AUTO_DOWNLOAD_PLAYLISTS, null) ?: AutoDownloadPlaylist.OFF.name,
+            )
+        }.getOrDefault(AutoDownloadPlaylist.OFF)
         crossfadeSeconds.value = prefs.getInt(KEY_CROSSFADE, 0)
         smartFadeEnabled.value = prefs.getBoolean(KEY_SMART_FADE, false)
         automixPerformanceMode.value = runCatching {
@@ -1145,6 +1160,11 @@ object AppSettings {
     fun setWifiOnlyDownloads(value: Boolean) {
         wifiOnlyDownloads.value = value
         prefs.edit().putBoolean(KEY_WIFI_ONLY_DOWNLOADS, value).apply()
+    }
+
+    fun setAutoDownloadPlaylists(value: AutoDownloadPlaylist) {
+        autoDownloadPlaylists.value = value
+        prefs.edit().putString(KEY_AUTO_DOWNLOAD_PLAYLISTS, value.name).apply()
     }
 
     fun setCrossfadeSeconds(value: Int) {
@@ -1843,16 +1863,25 @@ object AppSettings {
      * disappears from the row without them ever having touched it, the moment
      * they pin a sixth. Unpinning always succeeds.
      */
+    fun isPlaylistPinned(browseId: String?): Boolean {
+        if (browseId.isNullOrBlank()) return false
+        val raw = browseId.removePrefix("VL")
+        return pinnedPlaylists.value.any { it == browseId || it == raw || it.removePrefix("VL") == raw }
+    }
+
     fun togglePinnedPlaylist(browseId: String): Boolean {
         val current = pinnedPlaylists.value
+        val raw = browseId.removePrefix("VL")
+        val canonicalId = if (browseId.startsWith("VL") || browseId.startsWith("PL")) "VL$raw" else browseId
+        val existing = current.firstOrNull { it == canonicalId || it == raw || it.removePrefix("VL") == raw }
         val updated = when {
-            browseId in current -> current - browseId
+            existing != null -> current - existing
             current.size >= MAX_PINNED_PLAYLISTS -> return false
-            else -> current + browseId
+            else -> current + canonicalId
         }
         pinnedPlaylists.value = updated
         prefs.edit().putString(KEY_PINNED_PLAYLISTS, updated.joinToString(",")).apply()
-        return browseId in updated
+        return existing == null
     }
 
     private fun readDetailSongSorts(): Map<String, SongSort> =
@@ -1985,6 +2014,7 @@ object AppSettings {
     private const val KEY_QUALITY_DOWNLOAD = "audio_quality_download"
     private const val KEY_WIFI_ONLY_DOWNLOADS = "wifi_only_downloads"
     private const val KEY_EXPORT_DOWNLOADS = "export_downloads"
+    private const val KEY_AUTO_DOWNLOAD_PLAYLISTS = "auto_download_playlists"
     private const val KEY_LOSSLESS = "lossless_audio"
     private const val KEY_CROSSFADE = "crossfade_seconds"
     private const val KEY_SMART_FADE = "smart_fade_enabled"
