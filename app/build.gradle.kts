@@ -49,8 +49,14 @@ val lastfmSecret: String = (
 val listenTogetherServer: String = (
     localProps.getProperty("LISTEN_TOGETHER_SERVER")
         ?: System.getenv("LISTEN_TOGETHER_SERVER")
-        ?: "https://raagasync.chandu3319r.workers.dev"
+        ?: "https://raagax.onrender.com"
     ).trim().trimEnd('/')
+
+val listenTogetherBackupServers: String = (
+    localProps.getProperty("LISTEN_TOGETHER_BACKUP_SERVERS")
+        ?: System.getenv("LISTEN_TOGETHER_BACKUP_SERVERS")
+        ?: "https://raagax-qdfh.onrender.com,https://raagax-y8jx.onrender.com"
+    ).trim()
 
 val supabaseUrl: String = (
     localProps.getProperty("SUPABASE_URL")
@@ -97,8 +103,8 @@ android {
         // Haze falls back to a translucent scrim below that.
         minSdk = 26
         targetSdk = 36
-        versionCode = 32
-        versionName = "1.9.0"
+        versionCode = 33
+        versionName = "1.9.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -109,6 +115,11 @@ android {
             "String",
             "LISTEN_TOGETHER_SERVER",
             "\"${listenTogetherServer.replace("\\", "\\\\").replace("\"", "\\\"")}\"",
+        )
+        buildConfigField(
+            "String",
+            "LISTEN_TOGETHER_BACKUP_SERVERS",
+            "\"${listenTogetherBackupServers.replace("\\", "\\\\").replace("\"", "\\\"")}\"",
         )
         buildConfigField(
             "String",

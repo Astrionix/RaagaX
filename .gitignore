@@ -38,3 +38,7 @@ keystore.properties
 .shots/
 .tmp_verify/
 .debug/
+*.apk
+website/.next/
+website/node_modules/
+portfolio/

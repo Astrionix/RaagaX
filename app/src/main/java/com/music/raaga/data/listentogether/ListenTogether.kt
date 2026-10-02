@@ -371,10 +371,27 @@ object ListenTogether {
      * The default party server this build ships pointed at, from `LISTEN_TOGETHER_SERVER`
      * in `local.properties` or build environment.
      */
-    val defaultServer: String = when (val res = parseAndNormalizeServerUrl(BuildConfig.LISTEN_TOGETHER_SERVER)) {
-        is ServerUrlValidationResult.Valid -> res.normalizedUrl
-        is ServerUrlValidationResult.Invalid -> error("Invalid BuildConfig.LISTEN_TOGETHER_SERVER: ${BuildConfig.LISTEN_TOGETHER_SERVER}")
-    }
+    /**
+     * Default party server pool from `LISTEN_TOGETHER_SERVER` and `LISTEN_TOGETHER_BACKUP_SERVERS`.
+     */
+    val defaultServers: List<String> = buildList {
+        when (val res = parseAndNormalizeServerUrl(BuildConfig.LISTEN_TOGETHER_SERVER)) {
+            is ServerUrlValidationResult.Valid -> add(res.normalizedUrl)
+            is ServerUrlValidationResult.Invalid -> Unit
+        }
+        val backups = runCatching { BuildConfig.LISTEN_TOGETHER_BACKUP_SERVERS }.getOrDefault("")
+        for (candidate in backups.split(",")) {
+            val trimmed = candidate.trim()
+            if (trimmed.isNotBlank()) {
+                when (val res = parseAndNormalizeServerUrl(trimmed)) {
+                    is ServerUrlValidationResult.Valid -> if (!contains(res.normalizedUrl)) add(res.normalizedUrl)
+                    is ServerUrlValidationResult.Invalid -> Unit
+                }
+            }
+        }
+    }.ifEmpty { listOf("https://raagax.onrender.com") }
+
+    val defaultServer: String = defaultServers.first()
 
     /**
      * The dynamic server currently determined to be healthy and available for IDLE operations.
@@ -531,12 +548,23 @@ object ListenTogether {
         }
 
         val custom = _customServer.value
-        val (effectiveServer, state) = resolveServerConnection(
+        var (effectiveServer, state) = resolveServerConnection(
             customServer = custom,
             defaultServer = defaultServer,
             probeCustom = { probeHealthWithLatency(custom, CUSTOM_SERVER_TIMEOUT_MS) },
             probeDefault = { probeHealthWithLatency(defaultServer, DEFAULT_SERVER_TIMEOUT_MS) },
         )
+
+        if (custom.isBlank() && state is ServerConnectionState.Offline && defaultServers.size > 1) {
+            for (backup in defaultServers.drop(1)) {
+                val probe = probeHealthWithLatency(backup, CUSTOM_SERVER_TIMEOUT_MS)
+                if (probe.isOnline) {
+                    effectiveServer = backup
+                    state = ServerConnectionState.DefaultOnline(probe.latencyMs)
+                    break
+                }
+            }
+        }
 
         resolutionMutex.withLock {
             if (targetGeneration == null || targetGeneration == resolutionGeneration) {
@@ -810,14 +838,17 @@ object ListenTogether {
 
         val failure = attempt.exceptionOrNull() ?: IllegalStateException("Unknown create failure")
 
-        if (normalizeServerBase(primary) != defaultServer && isEligibleForFallback(failure)) {
-            Log.w(TAG, "createParty failed on custom server, falling back to default: ${redact(failure.message)}")
-            val fallbackNormalized = resolveHttpBase(defaultServer)
-            val fallbackAttempt = runCatching {
-                doCreateOnServer(fallbackNormalized, nickname, maxMembers)
-            }
-            if (fallbackAttempt.isSuccess) {
-                return@withLock Result.success(fallbackAttempt.getOrThrow())
+        val fallbackCandidates = defaultServers.filter { normalizeServerBase(it) != normalizeServerBase(primary) }
+        if (fallbackCandidates.isNotEmpty() && isEligibleForFallback(failure)) {
+            for (fallbackServer in fallbackCandidates) {
+                Log.w(TAG, "createParty failed on $primary, falling back to $fallbackServer: ${redact(failure.message)}")
+                val fallbackNormalized = resolveHttpBase(fallbackServer)
+                val fallbackAttempt = runCatching {
+                    doCreateOnServer(fallbackNormalized, nickname, maxMembers)
+                }
+                if (fallbackAttempt.isSuccess) {
+                    return@withLock Result.success(fallbackAttempt.getOrThrow())
+                }
             }
         }
 
@@ -900,16 +931,29 @@ object ListenTogether {
             Log.w(TAG, "Local Wi-Fi join attempt failed: ${localAttempt.exceptionOrNull()?.message}, falling back to cloud...")
         }
 
-        // 2. Fall back to Cloud Server
-        val targetServer = resolveHttpBase(effectiveIdleServerBase())
-        val serverAttempt = runCatching {
-            doJoinOnServer(targetServer, cleaned, nickname)
-        }
-        if (serverAttempt.isSuccess) {
-            return@withLock Result.success(serverAttempt.getOrThrow())
+        // 2. Fall back to Cloud Server(s) in the pool
+        val serverCandidates = buildList {
+            val primary = resolveHttpBase(effectiveIdleServerBase())
+            if (primary.isNotBlank()) add(primary)
+            for (srv in defaultServers) {
+                val candidate = resolveHttpBase(srv)
+                if (candidate.isNotBlank() && !contains(candidate)) add(candidate)
+            }
         }
 
-        val failure = serverAttempt.exceptionOrNull() ?: IllegalStateException("Could not enter party")
+        var lastFailure: Throwable? = null
+        for (targetServer in serverCandidates) {
+            val serverAttempt = runCatching {
+                doJoinOnServer(targetServer, cleaned, nickname)
+            }
+            if (serverAttempt.isSuccess) {
+                return@withLock Result.success(serverAttempt.getOrThrow())
+            }
+            lastFailure = serverAttempt.exceptionOrNull()
+            Log.w(TAG, "Join attempt on $targetServer failed: ${lastFailure?.message}")
+        }
+
+        val failure = lastFailure ?: IllegalStateException("Could not enter party")
         Log.w(TAG, "could not enter a party: ${redact(failure.message)}")
         _state.update { it.copy(error = failure.displayMessage()) }
         Result.failure(failure)

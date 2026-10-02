@@ -20,7 +20,7 @@ import uuid
 import websockets
 from urllib.request import Request, urlopen
 
-DEFAULT_SERVER = "https://raaga-67v8.onrender.com"
+DEFAULT_SERVER = "https://raagax.onrender.com"
 
 
 def post(url, body):

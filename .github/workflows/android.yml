@@ -60,9 +60,9 @@ jobs:
         KEYSTORE_DATA: ${{ secrets.KEYSTORE_BASE64 }}
       run: |
         if [ -n "$KEYSTORE_DATA" ]; then
-          ./gradlew assembleProdRelease assembleDevDebug --stacktrace
+          ./gradlew assembleProdRelease assembleProdDebug assembleDevDebug --stacktrace
         else
-          ./gradlew assembleDevDebug --stacktrace
+          ./gradlew assembleProdDebug assembleDevDebug --stacktrace
         fi
 
     - name: Upload APK Artifact
