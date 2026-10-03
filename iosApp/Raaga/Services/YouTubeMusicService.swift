@@ -194,7 +194,6 @@ actor YouTubeMusicService {
         let items = JSON.findAll("musicResponsiveListItemRenderer", in: json)
         for item in items {
             let navEndpoint = JSON.findFirst(["navigationEndpoint", "doubleTapCommand", "playNavigationEndpoint"], in: item)
-            let watchVideoId = JSON.string(navEndpoint, "watchEndpoint", "videoId")
             let browseId = JSON.string(navEndpoint, "browseEndpoint", "browseId")
 
             if let song = parseListItemRenderer(item) {

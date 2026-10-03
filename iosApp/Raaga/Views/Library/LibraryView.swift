@@ -244,7 +244,8 @@ struct LikedSongsView: View {
                                 }
                                 .font(.system(size: 14, weight: .bold))
                                 .foregroundColor(.white)
-                                .frame(maxWidth: .infinity, height: 42)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 42)
                                 .background(AppTheme.Colors.accentGradient)
                                 .clipShape(Capsule())
                             }
@@ -259,7 +260,8 @@ struct LikedSongsView: View {
                                 }
                                 .font(.system(size: 14, weight: .bold))
                                 .foregroundColor(AppTheme.Colors.textPrimary)
-                                .frame(maxWidth: .infinity, height: 42)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 42)
                                 .background(AppTheme.Colors.surface)
                                 .clipShape(Capsule())
                                 .overlay(Capsule().stroke(AppTheme.Colors.border, lineWidth: 1))
@@ -364,7 +366,8 @@ struct UserPlaylistDetailView: View {
                                         }
                                         .font(.system(size: 14, weight: .bold))
                                         .foregroundColor(.white)
-                                        .frame(maxWidth: .infinity, height: 42)
+                                        .frame(maxWidth: .infinity)
+                                        .frame(height: 42)
                                         .background(AppTheme.Colors.accentGradient)
                                         .clipShape(Capsule())
                                     }
@@ -379,7 +382,8 @@ struct UserPlaylistDetailView: View {
                                         }
                                         .font(.system(size: 14, weight: .bold))
                                         .foregroundColor(AppTheme.Colors.textPrimary)
-                                        .frame(maxWidth: .infinity, height: 42)
+                                        .frame(maxWidth: .infinity)
+                                        .frame(height: 42)
                                         .background(AppTheme.Colors.surface)
                                         .clipShape(Capsule())
                                         .overlay(Capsule().stroke(AppTheme.Colors.border, lineWidth: 1))
