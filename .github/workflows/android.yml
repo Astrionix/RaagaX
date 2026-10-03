@@ -32,8 +32,12 @@ jobs:
       run: |
         sed -i '/org.gradle.java.home/d' gradle.properties
         echo "sdk.dir=$ANDROID_HOME" > local.properties
-        echo "LASTFM_API_KEY=${{ secrets.LASTFM_API_KEY }}" >> local.properties
-        echo "LASTFM_SECRET=${{ secrets.LASTFM_SECRET }}" >> local.properties
+        if [ -n "${{ secrets.LASTFM_API_KEY }}" ]; then
+          echo "LASTFM_API_KEY=${{ secrets.LASTFM_API_KEY }}" >> local.properties
+        fi
+        if [ -n "${{ secrets.LASTFM_SECRET }}" ]; then
+          echo "LASTFM_SECRET=${{ secrets.LASTFM_SECRET }}" >> local.properties
+        fi
 
         if [ -n "$KEYSTORE_DATA" ]; then
           echo "$KEYSTORE_DATA" | base64 -d > raaga-release.jks

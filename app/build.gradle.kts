@@ -24,14 +24,14 @@ val localProps = Properties().apply {
     if (file.exists()) file.inputStream().use { load(it) }
 }
 val lastfmApiKey: String = (
-    localProps.getProperty("LASTFM_API_KEY")
-        ?: System.getenv("LASTFM_API_KEY")
-        ?: ""
+    localProps.getProperty("LASTFM_API_KEY")?.takeIf { it.isNotBlank() }
+        ?: System.getenv("LASTFM_API_KEY")?.takeIf { it.isNotBlank() }
+        ?: "a33d8b0fb89c4055e818c6dae3ec535d"
     ).trim()
 val lastfmSecret: String = (
-    localProps.getProperty("LASTFM_SECRET")
-        ?: System.getenv("LASTFM_SECRET")
-        ?: ""
+    localProps.getProperty("LASTFM_SECRET")?.takeIf { it.isNotBlank() }
+        ?: System.getenv("LASTFM_SECRET")?.takeIf { it.isNotBlank() }
+        ?: "2d74351b5d382866d3c88ef779fc94bc"
     ).trim()
 
 /*
@@ -103,8 +103,8 @@ android {
         // Haze falls back to a translucent scrim below that.
         minSdk = 26
         targetSdk = 36
-        versionCode = 34
-        versionName = "1.9.2"
+        versionCode = 35
+        versionName = "1.9.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

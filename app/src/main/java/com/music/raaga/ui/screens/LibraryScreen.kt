@@ -55,6 +55,7 @@ import com.music.raaga.ui.components.MessageState
 import com.music.raaga.ui.components.PAGE_GUTTER
 import com.music.raaga.ui.components.PullToRefresh
 import com.music.raaga.ui.components.SHELF_CARD_WIDTH
+import com.music.raaga.ui.components.ShelfSkeleton
 import com.music.raaga.ui.components.libraryGrid
 import com.music.raaga.ui.components.librarySkeleton
 import com.music.raaga.ui.player.MeshGradientBackground
@@ -163,85 +164,16 @@ fun LibraryScreen(
                     )
                 }
             }
-            item(key = "shelf:$onDevice") {
-                val webdavConfigured by AppSettings.webdavUrl.collectAsStateWithLifecycle()
-                val smbHost by AppSettings.smbHost.collectAsStateWithLifecycle()
-                val smbShare by AppSettings.smbShare.collectAsStateWithLifecycle()
-                // The remote libraries share one card shape; each entry is
-                // title, subtitle and the page it opens.
-                val remotes = listOf(
-                    Triple(
-                        stringResource(R.string.webdav),
-                        if (webdavConfigured.isBlank()) {
-                            stringResource(R.string.webdav_not_configured)
-                        } else {
-                            stringResource(R.string.webdav_subtitle)
-                        },
-                        com.music.raaga.data.webdav.WebDavConfig.BROWSE_ID,
-                    ),
-                    Triple(
-                        stringResource(R.string.smb),
-                        if (smbHost.isBlank() || smbShare.isBlank()) {
-                            stringResource(R.string.smb_not_configured)
-                        } else {
-                            stringResource(R.string.smb_subtitle)
-                        },
-                        com.music.raaga.data.smb.SmbConfig.BROWSE_ID,
-                    ),
-                )
-                val onDeviceShelf = HomeShelf(
-                    title = onDevice,
-                    items = listOf(
-                        ShelfItem(
-                            title = stringResource(R.string.downloads),
-                            subtitle = stringResource(R.string.downloaded_songs),
-                            thumbnailUrl = null,
-                            videoId = null,
-                            browseId = "local:downloads",
-                        ),
-                        ShelfItem(
-                            title = stringResource(R.string.local_music),
-                            subtitle = stringResource(R.string.audio_files_on_device),
-                            thumbnailUrl = null,
-                            videoId = null,
-                            browseId = "local:all",
-                        ),
-                    ) + remotes.map { (title, subtitle, browseId) ->
-                        ShelfItem(
-                            title = title,
-                            subtitle = subtitle,
-                            thumbnailUrl = null,
-                            videoId = null,
-                            browseId = browseId,
-                        )
-                    } + downloadedPlaylists.map { playlist ->
-                        ShelfItem(
-                            title = playlist.title,
-                            // The credit the playlist was downloaded with,
-                            // because this is also what the page it opens
-                            // bills itself by — see `headerLines`, which
-                            // reads the kind and the owner back out of it.
-                            // Saying "Downloaded playlist" here instead would
-                            // make that header read "Downloaded playlist" over
-                            // "PLAYLIST • 12 SONGS", and the shelf this card
-                            // is on already says where it lives.
-                            subtitle = playlist.subtitle.ifBlank {
-                                stringResource(R.string.downloaded_playlist)
-                            },
-                            thumbnailUrl = playlist.thumbnailUrl,
-                            videoId = null,
-                            browseId = Downloads.pageIdFor(playlist.id),
-                        )
-                    },
-                )
-                LibraryGridShelf(
-                    shelf = onDeviceShelf,
-                    onItemClick = onShelfItemClick,
-                    onItemLongPress = onShelfItemLongPress,
-                    onShowAll = { onShowAll(onDeviceShelf) },
-                )
-            }
             if (!signedIn) {
+                item(key = "shelf:$onDevice") {
+                    OnDeviceShelf(
+                        title = onDevice,
+                        downloadedPlaylists = downloadedPlaylists,
+                        onItemClick = onShelfItemClick,
+                        onItemLongPress = onShelfItemLongPress,
+                        onShowAll = onShowAll,
+                    )
+                }
                 item {
                     MessageState(
                         message = stringResource(R.string.library_sign_in_description),
@@ -252,50 +184,70 @@ fun LibraryScreen(
                 return@LazyColumn
             }
             when (state) {
-                is UiState.Loading -> librarySkeleton()
-                is UiState.Error -> item {
-                    MessageState(state.message, actionLabel = stringResource(R.string.retry), onAction = onRetry)
+                is UiState.Loading -> {
+                    item(key = "skeleton:library:playlists") { ShelfSkeleton() }
+                    item(key = "shelf:$onDevice") {
+                        OnDeviceShelf(
+                            title = onDevice,
+                            downloadedPlaylists = downloadedPlaylists,
+                            onItemClick = onShelfItemClick,
+                            onItemLongPress = onShelfItemLongPress,
+                            onShowAll = onShowAll,
+                        )
+                    }
+                    librarySkeleton()
+                }
+                is UiState.Error -> {
+                    item(key = "shelf:$onDevice") {
+                        OnDeviceShelf(
+                            title = onDevice,
+                            downloadedPlaylists = downloadedPlaylists,
+                            onItemClick = onShelfItemClick,
+                            onItemLongPress = onShelfItemLongPress,
+                            onShowAll = onShowAll,
+                        )
+                    }
+                    item {
+                        MessageState(state.message, actionLabel = stringResource(R.string.retry), onAction = onRetry)
+                    }
                 }
                 is UiState.Success -> {
-                    // A fresh account has no Playlists shelf at all, and that
-                    // is exactly the account most in need of the button that
-                    // makes one — so the row is drawn either way, empty but
-                    // for the tile that creates the first playlist.
                     val shelves = state.data.shelves
-                    if (shelves.none { it.title == PLAYLISTS }) {
-                        item(key = "shelf:$PLAYLISTS") {
-                            val emptyPlaylists = HomeShelf(PLAYLISTS, emptyList())
-                            PlaylistShelf(
-                                shelf = emptyPlaylists,
+                    val playlistShelf = shelves.firstOrNull { it.title == PLAYLISTS }
+                        ?: HomeShelf(PLAYLISTS, emptyList())
+                    val otherShelves = shelves.filter { it.title != PLAYLISTS }
+
+                    item(key = "shelf:$PLAYLISTS") {
+                        val pinnedFirst = playlistShelf.pinnedFirst(pinnedPlaylists)
+                        PlaylistShelf(
+                            shelf = pinnedFirst,
+                            onItemClick = onShelfItemClick,
+                            onItemLongPress = onShelfItemLongPress,
+                            onNewPlaylist = onNewPlaylist,
+                            onImportSpotifyPlaylist = onImportSpotifyPlaylist,
+                            onShowAll = { onShowAll(pinnedFirst) },
+                            pinnedPlaylists = pinnedPlaylists,
+                        )
+                    }
+
+                    item(key = "shelf:$onDevice") {
+                        OnDeviceShelf(
+                            title = onDevice,
+                            downloadedPlaylists = downloadedPlaylists,
+                            onItemClick = onShelfItemClick,
+                            onItemLongPress = onShelfItemLongPress,
+                            onShowAll = onShowAll,
+                        )
+                    }
+
+                    otherShelves.forEach { shelf ->
+                        item(key = "shelf:${shelf.title}") {
+                            LibraryGridShelf(
+                                shelf = shelf,
                                 onItemClick = onShelfItemClick,
                                 onItemLongPress = onShelfItemLongPress,
-                                onNewPlaylist = onNewPlaylist,
-                                onImportSpotifyPlaylist = onImportSpotifyPlaylist,
-                                onShowAll = { onShowAll(emptyPlaylists) },
+                                onShowAll = { onShowAll(shelf) },
                             )
-                        }
-                    }
-                    shelves.forEach { shelf ->
-                        item(key = "shelf:${shelf.title}") {
-                            if (shelf.title == PLAYLISTS) {
-                                val pinnedFirst = shelf.pinnedFirst(pinnedPlaylists)
-                                PlaylistShelf(
-                                    shelf = pinnedFirst,
-                                    onItemClick = onShelfItemClick,
-                                    onItemLongPress = onShelfItemLongPress,
-                                    onNewPlaylist = onNewPlaylist,
-                                    onImportSpotifyPlaylist = onImportSpotifyPlaylist,
-                                    onShowAll = { onShowAll(pinnedFirst) },
-                                    pinnedPlaylists = pinnedPlaylists,
-                                )
-                            } else {
-                                LibraryGridShelf(
-                                    shelf = shelf,
-                                    onItemClick = onShelfItemClick,
-                                    onItemLongPress = onShelfItemLongPress,
-                                    onShowAll = { onShowAll(shelf) },
-                                )
-                            }
                         }
                     }
                 }
@@ -409,9 +361,90 @@ private fun ReplayBanner(card: ReplayHeroCard?, onClick: () -> Unit) {
 }
 
 /**
- * The one shelf on this page that can be written to: it leads with the tile
- * that creates a playlist, and holding a card gets rename and delete on top of
- * the queue actions every other shelf's menu offers.
+ * The device's local audio collections and configured remote shares (WebDAV/SMB).
+ */
+@Composable
+private fun OnDeviceShelf(
+    title: String,
+    downloadedPlaylists: List<SavedCollection>,
+    onItemClick: (ShelfItem) -> Unit,
+    onItemLongPress: (ShelfItem) -> Unit,
+    onShowAll: (HomeShelf) -> Unit,
+) {
+    val webdavConfigured by AppSettings.webdavUrl.collectAsStateWithLifecycle()
+    val smbHost by AppSettings.smbHost.collectAsStateWithLifecycle()
+    val smbShare by AppSettings.smbShare.collectAsStateWithLifecycle()
+    val remotes = listOf(
+        Triple(
+            stringResource(R.string.webdav),
+            if (webdavConfigured.isBlank()) {
+                stringResource(R.string.webdav_not_configured)
+            } else {
+                stringResource(R.string.webdav_subtitle)
+            },
+            com.music.raaga.data.webdav.WebDavConfig.BROWSE_ID,
+        ),
+        Triple(
+            stringResource(R.string.smb),
+            if (smbHost.isBlank() || smbShare.isBlank()) {
+                stringResource(R.string.smb_not_configured)
+            } else {
+                stringResource(R.string.smb_subtitle)
+            },
+            com.music.raaga.data.smb.SmbConfig.BROWSE_ID,
+        ),
+    )
+    val onDeviceShelf = HomeShelf(
+        title = title,
+        items = listOf(
+            ShelfItem(
+                title = stringResource(R.string.downloads),
+                subtitle = stringResource(R.string.downloaded_songs),
+                thumbnailUrl = null,
+                videoId = null,
+                browseId = "local:downloads",
+            ),
+            ShelfItem(
+                title = stringResource(R.string.local_music),
+                subtitle = stringResource(R.string.audio_files_on_device),
+                thumbnailUrl = null,
+                videoId = null,
+                browseId = "local:all",
+            ),
+        ) + remotes.map { (remTitle, subtitle, browseId) ->
+            ShelfItem(
+                title = remTitle,
+                subtitle = subtitle,
+                thumbnailUrl = null,
+                videoId = null,
+                browseId = browseId,
+            )
+        } + downloadedPlaylists.map { playlist ->
+            ShelfItem(
+                title = playlist.title,
+                subtitle = playlist.subtitle.ifBlank {
+                    stringResource(R.string.downloaded_playlist)
+                },
+                thumbnailUrl = playlist.thumbnailUrl,
+                videoId = null,
+                browseId = Downloads.pageIdFor(playlist.id),
+            )
+        },
+    )
+    LibraryGridShelf(
+        shelf = onDeviceShelf,
+        onItemClick = onItemClick,
+        onItemLongPress = onItemLongPress,
+        onShowAll = { onShowAll(onDeviceShelf) },
+    )
+}
+
+/**
+ * The one shelf on this page that can be written to: holding a card gets rename
+ * and delete on top of the queue actions every other shelf's menu offers.
+ *
+ * Cards begin with pinned playlists followed by remaining playlists, and
+ * conclude with the "+ New playlist" and "Import Spotify playlist" action cards.
  */
 @Composable
 private fun PlaylistShelf(
@@ -429,7 +462,7 @@ private fun PlaylistShelf(
         onItemLongPress = onItemLongPress,
         onShowAll = onShowAll,
         pinnedPlaylists = pinnedPlaylists,
-        leadingCards = listOf(
+        trailingCards = listOf(
             {
                 NewShelfCard(
                     icon = RaagaIcons.Plus,
@@ -460,8 +493,8 @@ private const val LIBRARY_ROW_MAX_ITEMS = 5
  * title whenever there's more than that, opening the rest as a
  * vertically-scrolling grid instead. See [LibraryGridPage].
  *
- * [leadingCard], if given, occupies the first slot and counts against that
- * cap — see [PlaylistShelf].
+ * [leadingCards] ride at the front of the row, and [trailingCards] ride at the
+ * tail of the row.
  */
 @Composable
 internal fun LibraryGridShelf(
@@ -471,6 +504,7 @@ internal fun LibraryGridShelf(
     onShowAll: () -> Unit,
     leadingCard: (@Composable () -> Unit)? = null,
     leadingCards: List<@Composable () -> Unit> = listOfNotNull(leadingCard),
+    trailingCards: List<@Composable () -> Unit> = emptyList(),
     pinnedPlaylists: List<String> = emptyList(),
 ) {
     val leadingCount = leadingCards.size
@@ -495,6 +529,9 @@ internal fun LibraryGridShelf(
                     onLongPress = { onItemLongPress(item) },
                     isPinned = AppSettings.isPlaylistPinned(item.browseId),
                 )
+            }
+            trailingCards.forEachIndexed { index, card ->
+                item(key = "trailing_$index") { card() }
             }
         }
     }
@@ -533,8 +570,17 @@ fun LibraryGridPage(
             verticalArrangement = Arrangement.spacedBy(20.dp),
             modifier = Modifier.padding(horizontal = PAGE_GUTTER),
         ) {
+            items(sortedShelf.items, key = { it.browseId ?: it.title }) { item ->
+                ShelfCard(
+                    item = item,
+                    onClick = { onItemClick(item) },
+                    onLongPress = { onItemLongPress(item) },
+                    modifier = Modifier.fillMaxWidth(),
+                    isPinned = AppSettings.isPlaylistPinned(item.browseId),
+                )
+            }
             if (onNewPlaylist != null) {
-                item(key = "leading_new") {
+                item(key = "trailing_new") {
                     NewShelfCard(
                         icon = RaagaIcons.Plus,
                         label = stringResource(R.string.new_playlist),
@@ -545,7 +591,7 @@ fun LibraryGridPage(
                 }
             }
             if (onImportSpotifyPlaylist != null) {
-                item(key = "leading_import") {
+                item(key = "trailing_import") {
                     NewShelfCard(
                         icon = RaagaIcons.Download,
                         label = stringResource(R.string.import_spotify_playlist),
@@ -554,15 +600,6 @@ fun LibraryGridPage(
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
-            }
-            items(sortedShelf.items, key = { it.browseId ?: it.title }) { item ->
-                ShelfCard(
-                    item = item,
-                    onClick = { onItemClick(item) },
-                    onLongPress = { onItemLongPress(item) },
-                    modifier = Modifier.fillMaxWidth(),
-                    isPinned = AppSettings.isPlaylistPinned(item.browseId),
-                )
             }
         }
     }
