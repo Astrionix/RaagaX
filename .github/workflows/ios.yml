@@ -13,15 +13,24 @@ permissions:
 
 jobs:
   build-ios:
-    runs-on: macos-14
+    runs-on: macos-15
 
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v4
 
-    - name: Select Xcode
+    - name: Select Xcode 16
       run: |
-        sudo xcode-select -s /Applications/Xcode_16.0.app/Contents/Developer || sudo xcode-select -s /Applications/Xcode_16.app/Contents/Developer || sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+        echo "Available Xcode installations:"
+        ls -d /Applications/Xcode*
+        XCODE_DIR=$(ls -d /Applications/Xcode_16*.app 2>/dev/null | tail -n 1)
+        if [ -n "$XCODE_DIR" ] && [ -d "$XCODE_DIR/Contents/Developer" ]; then
+          echo "Selecting $XCODE_DIR"
+          sudo xcode-select -s "$XCODE_DIR/Contents/Developer"
+        else
+          echo "Selecting default Xcode"
+          sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+        fi
         xcodebuild -version
 
     - name: Install XcodeGen
