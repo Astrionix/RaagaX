@@ -15,11 +15,20 @@ enum AppTheme {
         static let accent       = Color(hex: "#E040FB")
         static let accentBlue   = Color(hex: "#40C4FF")
 
+        static let textPrimary   = Color.white
+        static let textSecondary = Color(hex: "#A0A0B2")
+        static let textTertiary  = Color(hex: "#6C6C80")
+
         static let onBackground   = Color.white
         static let onSurface      = Color(hex: "#E8E8F0")
         static let onSurfaceMuted = Color(hex: "#8E8EA3")
         static let onSurfaceFaint = Color(hex: "#4A4A60")
 
+        static let accentGradient = LinearGradient(
+            colors: [Color(hex: "#7B5CF0"), Color(hex: "#E040FB")],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
         static let primaryGradient = LinearGradient(
             colors: [primary, accent],
             startPoint: .topLeading,
@@ -30,6 +39,24 @@ enum AppTheme {
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
+    }
+
+    enum Spacing {
+        static let xs: CGFloat = 4
+        static let sm: CGFloat = 8
+        static let md: CGFloat = 12
+        static let lg: CGFloat = 16
+        static let xl: CGFloat = 24
+        static let xxl: CGFloat = 32
+    }
+
+    enum CornerRadius {
+        static let sm: CGFloat = 8
+        static let md: CGFloat = 12
+        static let lg: CGFloat = 16
+        static let xl: CGFloat = 20
+        static let xxl: CGFloat = 28
+        static let full: CGFloat = 9999
     }
 
     enum Typography {
@@ -53,11 +80,6 @@ enum AppTheme {
 
 // MARK: - Player geometry
 
-/// Sizes shared by the floating player and the Now Playing screen so the one
-/// YouTube player view can move between them without being recreated.
-///
-/// YouTube's embedded-player rules require a viewport of at least 200×200,
-/// so neither state ever shrinks the player below that.
 enum PlayerLayout {
     static let headerHeight: CGFloat = 56
     static let mini: CGFloat = 200
