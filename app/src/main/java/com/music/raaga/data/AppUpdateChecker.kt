@@ -145,6 +145,7 @@ object AppUpdateChecker {
                 }
             }
             if (lower.contains("universal")) s += 30
+            if (!isDevFlavor && lower.contains("release")) s += 10
             return s
         }
 

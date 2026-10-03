@@ -237,7 +237,6 @@ import com.music.raaga.data.YtMusicRepository
 import com.music.raaga.ui.player.NowPlayingScreen
 import com.music.raaga.ui.screens.DetailScreen
 import com.music.raaga.ui.screens.ExploreScreen
-import com.music.raaga.ui.screens.NewScreen
 import com.music.raaga.ui.screens.LocalMusicScreen
 import com.music.raaga.ui.screens.HomeScreen
 import com.music.raaga.ui.screens.LibraryGridPage
@@ -594,7 +593,6 @@ private fun RaagaApp(
     val query by viewModel.query.collectAsStateWithLifecycle()
     val results by viewModel.results.collectAsStateWithLifecycle()
     val exploreState by viewModel.explore.collectAsStateWithLifecycle()
-    val newFeedState by viewModel.newFeed.collectAsStateWithLifecycle()
     val selectedMoodGenre by viewModel.selectedMoodGenre.collectAsStateWithLifecycle()
     val moodGenreShelves by viewModel.moodGenreShelves.collectAsStateWithLifecycle()
     val libraryState by viewModel.library.collectAsStateWithLifecycle()
@@ -881,7 +879,7 @@ private fun RaagaApp(
     val currentFeed = when {
         showSettings || showAccountScrobbling || detail != null -> null
         selectedTab == TAB_HOME -> MainViewModel.Feed.HOME
-        selectedTab == TAB_EXPLORE -> MainViewModel.Feed.NEW
+        selectedTab == TAB_EXPLORE -> MainViewModel.Feed.EXPLORE
         selectedTab == TAB_LIBRARY -> MainViewModel.Feed.LIBRARY
         else -> null
     }
@@ -896,9 +894,9 @@ private fun RaagaApp(
 
     val currentPull = when (currentFeed) {
         MainViewModel.Feed.HOME -> homePull
-        MainViewModel.Feed.EXPLORE, MainViewModel.Feed.NEW -> explorePull
+        MainViewModel.Feed.EXPLORE -> explorePull
         MainViewModel.Feed.LIBRARY -> libraryPull
-        null -> null
+        else -> null
     }
     val scrolled by remember(currentListState) {
         derivedStateOf {
@@ -942,17 +940,17 @@ private fun RaagaApp(
     // a fold. Keyed on the labels so a locale change still rebuilds it.
     val homeLabel = stringResource(R.string.home)
     val playLabel = stringResource(R.string.play)
-    val newLabel = stringResource(R.string.tab_new)
+    val exploreLabel = stringResource(R.string.explore)
     val libraryLabel = stringResource(R.string.library)
     val searchLabel = stringResource(R.string.search)
     val historyLabel = stringResource(R.string.history)
     val replayLabel = stringResource(R.string.replay)
     val queueLabel = stringResource(R.string.queue)
     val sharedLinkLabel = stringResource(R.string.shared_link)
-    val tabs = remember(homeLabel, newLabel, libraryLabel, searchLabel) {
+    val tabs = remember(homeLabel, exploreLabel, libraryLabel, searchLabel) {
         listOf(
             BottomTab(homeLabel, RaagaIcons.Home),
-            BottomTab(newLabel, RaagaIcons.NewMusic),
+            BottomTab(exploreLabel, RaagaIcons.Explore),
             BottomTab(libraryLabel, RaagaIcons.Library),
             BottomTab(searchLabel, RaagaIcons.Search),
         )
@@ -2873,64 +2871,17 @@ private fun RaagaApp(
                                 onRetry = { viewModel.openMoodGenre(category) },
                                 contentPadding = listPadding,
                             )
-                        } ?: NewScreen(
-                            state = newFeedState,
+                        } ?: ExploreScreen(
+                            state = exploreState,
                             listState = exploreListState,
-                            onItemClick = { item, shelfTitle ->
-                                val song = shelfSong(item)
-                                when {
-                                    song != null -> playRadio(
-                                        song,
-                                        QueueSource(shelfTitle, PlaybackSourceType.EXPLORE),
-                                    )
-                                    item.browseId != null -> viewModel.openDetail(
-                                        browseId = item.browseId,
-                                        title = item.title,
-                                        subtitle = item.subtitle,
-                                        thumbnailUrl = item.thumbnailUrl,
-                                    )
-                                }
-                            },
-                            onItemLongPress = onShelfLongPress,
                             onCategoryClick = viewModel::openMoodGenre,
-                            onRetry = viewModel::loadNewFeed,
-                            refreshing = MainViewModel.Feed.NEW in refreshing,
-                            onRefresh = { viewModel.refresh(MainViewModel.Feed.NEW) },
+                            onRetry = viewModel::loadExplore,
+                            refreshing = MainViewModel.Feed.EXPLORE in refreshing,
+                            onRefresh = { viewModel.refresh(MainViewModel.Feed.EXPLORE) },
                             pullState = explorePull,
                             contentPadding = listPadding,
                         )
-                        TAB_SEARCH -> selectedMoodGenre?.let { category ->
-                            MoodGenrePlaylistsScreen(
-                                title = category.title,
-                                state = moodGenreShelves,
-                                listState = moodGenreListState,
-                                onItemClick = { item ->
-                                    when {
-                                        item.videoId != null -> playRadio(
-                                            Song(
-                                                videoId = item.videoId,
-                                                title = item.title,
-                                                artist = InnertubeParser.artistFromSubtitle(item.subtitle),
-                                                thumbnailUrl = item.thumbnailUrl,
-                                            ),
-                                            QueueSource(
-                                                category.title,
-                                                PlaybackSourceType.SEARCH,
-                                                category.browseId,
-                                            ),
-                                        )
-                                        item.browseId != null -> viewModel.openDetail(
-                                            browseId = item.browseId,
-                                            title = item.title,
-                                            subtitle = item.subtitle,
-                                            thumbnailUrl = item.thumbnailUrl,
-                                        )
-                                    }
-                                },
-                                onRetry = { viewModel.openMoodGenre(category) },
-                                contentPadding = listPadding,
-                            )
-                        } ?: SearchScreen(
+                        TAB_SEARCH -> SearchScreen(
                             query = query,
                             onQueryChange = viewModel::onQueryChange,
                             filter = filter,
@@ -3051,8 +3002,6 @@ private fun RaagaApp(
                             onHistoryRemove = viewModel::removeSearch,
                             onHistoryClear = viewModel::clearSearchHistory,
                             onTypeaheadLongPress = openSongMenu,
-                            exploreState = exploreState,
-                            onCategoryClick = viewModel::openMoodGenre,
                             contentPadding = listPadding,
                         )
                         else -> LibraryScreen(
@@ -4826,8 +4775,7 @@ private const val SEEK_END_GUARD_MS = 1_000L
 private val DETAIL_TITLE_DROP = 320.dp
 
 private const val TAB_HOME = 0
-private const val TAB_NEW = 1
-private const val TAB_EXPLORE = TAB_NEW
+private const val TAB_EXPLORE = 1
 private const val TAB_LIBRARY = 2
 private const val TAB_SEARCH = 3
 
