@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DownloadDone
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.GraphicEq
@@ -330,19 +331,27 @@ fun SongRow(
     activeTint: Color = MaterialTheme.colorScheme.primary,
     /** True while a Downloads row belongs to the current multi-selection. */
     selected: Boolean = false,
+    /** Action when swiping Left-to-Right (e.g. remove from playlist or delete download). */
+    onSwipeDelete: (() -> Unit)? = null,
+    /** Label to show on Left-to-Right swipe (defaults to Delete). */
+    swipeDeleteLabel: String? = null,
 ) {
     val haptics = rememberHaptics()
     val swipeStateHolder = remember { mutableStateOf<SwipeToDismissBoxState?>(null) }
     var boxWidth by remember { mutableFloatStateOf(0f) }
 
     val currentOnSwipeToQueue by rememberUpdatedState(onSwipeToQueue)
+    val currentOnSwipeDelete by rememberUpdatedState(onSwipeDelete)
 
     val swipeState = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
-            if (value != SwipeToDismissBoxValue.Settled && currentOnSwipeToQueue != null) {
-                val offset = try { swipeStateHolder.value?.requireOffset() ?: 0f } catch (e: Exception) { 0f }
-                // Only queue if the physical drag reached half the box width, ignoring short accidental flings.
-                if (abs(offset) >= boxWidth * 0.45f) {
+            val offset = try { swipeStateHolder.value?.requireOffset() ?: 0f } catch (e: Exception) { 0f }
+            val armAt = boxWidth * 0.45f
+            if (abs(offset) >= armAt) {
+                if ((value == SwipeToDismissBoxValue.StartToEnd || offset > 0f) && currentOnSwipeDelete != null) {
+                    haptics.play(Haptic.Select)
+                    currentOnSwipeDelete?.invoke()
+                } else if ((value == SwipeToDismissBoxValue.EndToStart || offset < 0f) && currentOnSwipeToQueue != null) {
                     haptics.play(Haptic.Select)
                     currentOnSwipeToQueue?.invoke()
                 }
@@ -353,7 +362,7 @@ fun SongRow(
     )
     swipeStateHolder.value = swipeState
 
-    if (onSwipeToQueue == null) {
+    if (onSwipeToQueue == null && onSwipeDelete == null) {
         SongRowContent(
             song = song,
             onClick = onClick,
@@ -371,25 +380,26 @@ fun SongRow(
         return
     }
 
-    // The row reveals "Queue" from the first pixel of the drag, but it only
+    // The row reveals its action from the first pixel of the drag, but it only
     // *commits* past 45% of the width — so without this the label is a promise
     // the finger can't check. One light tick at the crossing is the whole point:
-    // let go now and it queues.
+    // let go now and it triggers.
     LaunchedEffect(swipeState, boxWidth) {
         if (boxWidth <= 0f) return@LaunchedEffect
         val armAt = boxWidth * 0.45f
         var armed = false
         snapshotFlow { try { swipeState.requireOffset() } catch (e: Exception) { 0f } }
             .collect { offset ->
+                val canAct = (offset > 0f && currentOnSwipeDelete != null) || (offset < 0f && currentOnSwipeToQueue != null)
                 val travelled = abs(offset)
                 when {
-                    !armed && travelled >= armAt -> {
+                    canAct && !armed && travelled >= armAt -> {
                         armed = true
                         haptics.play(Haptic.Tick)
                     }
                     // Silent, and with hysteresis: dragging back under the line
                     // re-arms, but so does the spring-back after a successful
-                    // queue, and that must not buzz the same gesture twice.
+                    // trigger, and that must not buzz the same gesture twice.
                     armed && travelled < armAt * 0.8f -> armed = false
                 }
             }
@@ -398,7 +408,16 @@ fun SongRow(
     SwipeToDismissBox(
         state = swipeState,
         modifier = modifier.onSizeChanged { boxWidth = it.width.toFloat() },
-        backgroundContent = { QueueSwipeBackground(swipeState) },
+        enableDismissFromStartToEnd = (currentOnSwipeDelete != null),
+        enableDismissFromEndToStart = (currentOnSwipeToQueue != null),
+        backgroundContent = {
+            SongSwipeBackground(
+                swipeState = swipeState,
+                canDelete = currentOnSwipeDelete != null,
+                deleteLabel = swipeDeleteLabel,
+                canQueue = currentOnSwipeToQueue != null,
+            )
+        },
     ) {
         SongRowContent(
             song = song,
@@ -419,30 +438,73 @@ fun SongRow(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun QueueSwipeBackground(swipeState: SwipeToDismissBoxState) {
+private fun SongSwipeBackground(
+    swipeState: SwipeToDismissBoxState,
+    canDelete: Boolean,
+    deleteLabel: String?,
+    canQueue: Boolean,
+) {
     val playNext by AppSettings.swipeToPlayNext.collectAsStateWithLifecycle()
+    val defaultDeleteText = stringResource(R.string.delete)
+    val resolvedDeleteLabel = deleteLabel ?: defaultDeleteText
+
+    val offset = try { swipeState.requireOffset() } catch (e: Exception) { 0f }
+    val isLeftToRight = offset > 0f
+    val bgColor = if (isLeftToRight) {
+        if (canDelete) Color(0xFFEF4444).copy(alpha = 0.22f) else Color.Transparent
+    } else {
+        if (canQueue) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f) else Color.Transparent
+    }
+
     Row(
         modifier = Modifier
             .fillMaxSize()
             .drawWithContent {
-                val offset = try { swipeState.requireOffset() } catch (e: Exception) { 0f }
-                if (offset > 0f) {
-                    clipRect(left = 0f, top = 0f, right = offset, bottom = size.height) {
+                val currentOffset = try { swipeState.requireOffset() } catch (e: Exception) { 0f }
+                if (currentOffset > 0f && canDelete) {
+                    clipRect(left = 0f, top = 0f, right = currentOffset, bottom = size.height) {
                         this@drawWithContent.drawContent()
                     }
-                } else if (offset < 0f) {
-                    clipRect(left = size.width + offset, top = 0f, right = size.width, bottom = size.height) {
+                } else if (currentOffset < 0f && canQueue) {
+                    clipRect(left = size.width + currentOffset, top = 0f, right = size.width, bottom = size.height) {
                         this@drawWithContent.drawContent()
                     }
                 }
             }
-            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.18f))
+            .background(bgColor)
             .padding(horizontal = PAGE_GUTTER + 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        QueueSwipeLabel(playNext)
-        QueueSwipeLabel(playNext)
+        if (canDelete) {
+            DeleteSwipeLabel(resolvedDeleteLabel)
+        } else {
+            Spacer(Modifier.width(1.dp))
+        }
+
+        if (canQueue) {
+            QueueSwipeLabel(playNext)
+        } else {
+            Spacer(Modifier.width(1.dp))
+        }
+    }
+}
+
+@Composable
+private fun DeleteSwipeLabel(label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+            Icons.Rounded.Delete,
+            contentDescription = null,
+            tint = Color(0xFFEF4444),
+            modifier = Modifier.size(20.dp),
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = Color(0xFFEF4444),
+        )
     }
 }
 

@@ -238,6 +238,10 @@ fun LocalMusicScreen(
     }
     BackHandler(enabled = inDrillDown && !selectingDownloads) { leaveDrillDown() }
 
+    val onSongDeleteDownload: ((Song) -> Unit)? = if (isDownloads && onDeleteDownloads != null) {
+        { song -> onDeleteDownloads(listOf(song)) }
+    } else null
+
     // The tab row is fixed above the scrolling content, so its own top
     // padding has to clear the frosted top bar / status bar that the
     // LazyColumns beneath it would otherwise scroll under.
@@ -400,6 +404,7 @@ fun LocalMusicScreen(
                         // carry the actions sheet itself or the page loses it.
                         onSongMore = onSongLongPress,
                         onSongSwipe = onSongSwipe,
+                        onDeleteSong = onSongDeleteDownload,
                         onShuffle = onShuffle,
                         onMore = onCollectionLongPress?.let { more ->
                             { more(drillDownLabel ?: "", drillDownSongs) }
@@ -435,6 +440,7 @@ fun LocalMusicScreen(
                         // carry the actions sheet itself or the page loses it.
                         onSongMore = onSongLongPress,
                         onSongSwipe = onSongSwipe,
+                        onDeleteSong = onSongDeleteDownload,
                         contentPadding = bodyContentPadding,
                     )
                 }
@@ -509,6 +515,7 @@ private fun SongsTab(
     /** The row's ⋮, where holding it does something else — see [SongRow]. */
     onSongMore: ((Song) -> Unit)? = null,
     onSongSwipe: (Song) -> Unit,
+    onDeleteSong: ((Song) -> Unit)? = null,
     contentPadding: PaddingValues,
 ) {
     if (viewType == LibraryViewType.GRID) {
@@ -566,6 +573,8 @@ private fun SongsTab(
                     onLongPress = { onSongLongPress(song) },
                     onMore = onSongMore?.let { more -> { more(song) } },
                     onSwipeToQueue = { onSongSwipe(song) },
+                    onSwipeDelete = onDeleteSong?.let { del -> { del(song) } },
+                    swipeDeleteLabel = stringResource(R.string.delete),
                 )
                 if (index < songs.lastIndex) {
                     HorizontalDivider(
@@ -1346,6 +1355,7 @@ private fun DrillDownSongList(
     /** The row's ⋮, where holding it does something else — see [SongRow]. */
     onSongMore: ((Song) -> Unit)? = null,
     onSongSwipe: (Song) -> Unit,
+    onDeleteSong: ((Song) -> Unit)? = null,
     onShuffle: (List<Song>) -> Unit,
     /** The ⋮ in the header, acting on the whole artist or album. */
     onMore: (() -> Unit)?,
@@ -1427,6 +1437,8 @@ private fun DrillDownSongList(
                     onLongPress = { onSongLongPress(song) },
                     onMore = onSongMore?.let { more -> { more(song) } },
                     onSwipeToQueue = { onSongSwipe(song) },
+                    onSwipeDelete = onDeleteSong?.let { del -> { del(song) } },
+                    swipeDeleteLabel = stringResource(R.string.delete),
                 )
                 if (index < songs.lastIndex) {
                     HorizontalDivider(

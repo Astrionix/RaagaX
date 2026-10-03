@@ -248,6 +248,11 @@ fun DetailScreen(
      * photo, not in this header.
      */
     songSort: SongSort = SongSort.DEFAULT,
+    /**
+     * Drops a track from an editable playlist on swipe. Null on pages that are not
+     * owned/editable playlists.
+     */
+    onRemoveSongFromPlaylist: ((Song) -> Unit)? = null,
 ) {
     val rawSongs = (page.songs as? UiState.Success)?.data.orEmpty()
     val songs = remember(rawSongs, songSort) { rawSongs.sortedForDetail(songSort) }
@@ -525,6 +530,7 @@ fun DetailScreen(
                     ) { position, entry ->
                         val song = entry.value
                         val isCurrent = song.isSameTrackAs(currentSong)
+                        val removeAction = onRemoveSongFromPlaylist?.takeIf { song.setVideoId != null }
                         SongRow(
                             song = if (numbered) {
                                 song
@@ -536,6 +542,8 @@ fun DetailScreen(
                             },
                             onLongPress = { onSongLongPress(song) },
                             onSwipeToQueue = { onSongSwipe(song) },
+                            onSwipeDelete = removeAction?.let { remove -> { remove(song) } },
+                            swipeDeleteLabel = stringResource(R.string.remove),
                             rowBackground = Color.Transparent,
                             // The track's place on the release, not its place in
                             // what the filter — or a sort — left standing.

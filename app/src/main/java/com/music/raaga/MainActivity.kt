@@ -2651,6 +2651,12 @@ private fun RaagaApp(
                             onDeleteDownloads = { selected ->
                                 scope.launch {
                                     selected.forEach { song -> Downloads.delete(context, song.videoId) }
+                                    val msg = if (selected.size == 1) {
+                                        context.getString(R.string.delete_download)
+                                    } else {
+                                        context.getString(R.string.delete)
+                                    }
+                                    showQueueNotice(msg)
                                 }
                             },
                             onUploadToWebDav =
@@ -2716,6 +2722,7 @@ private fun RaagaApp(
                                 song
                             }
                         }
+                        val isEditablePlaylist = page.type == BrowseType.PLAYLIST && viewModel.editablePlaylist(page.browseId) != null
                         DetailScreen(
                             page = page,
                             currentSong = player.song,
@@ -2732,6 +2739,12 @@ private fun RaagaApp(
                             },
                             onSongLongPress = { openSongMenu(withAlbum(it)) },
                             onSongSwipe = onSongSwipe,
+                            onRemoveSongFromPlaylist = if (isEditablePlaylist) {
+                                { song ->
+                                    viewModel.removeFromPlaylist(page.browseId, song)
+                                    showQueueNotice(context.getString(R.string.remove_from_playlist))
+                                }
+                            } else null,
                             onShuffle = { songs ->
                                 // Shuffle goes on first so the queue is built shuffled
                                 // as it is set — the random pick here only decides
