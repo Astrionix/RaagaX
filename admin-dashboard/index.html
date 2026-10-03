@@ -441,6 +441,25 @@
       color: #fbbf24;
     }
 
+    .user-role-badge {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 2px 6px;
+      border-radius: 4px;
+      letter-spacing: 0.5px;
+    }
+    .user-role-badge.member {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #34d399;
+    }
+    .user-role-badge.guest {
+      background: rgba(148, 163, 184, 0.12);
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      color: #94a3b8;
+    }
+
     .track-sleeve {
       display: flex;
       gap: 14px;
@@ -713,6 +732,10 @@
           <i data-feather="refresh-cw" style="width: 14px; height: 14px;"></i>
           Refresh
         </button>
+        <button id="btnCleanStale" class="btn btn-secondary" onclick="cleanStaleSessions()" title="Clear inactive sessions stuck in Playing state (> 15m)">
+          <i data-feather="clock" style="width: 14px; height: 14px;"></i>
+          Clean Stale
+        </button>
         <button class="btn btn-secondary" onclick="exportDataJson()">
           <i data-feather="download" style="width: 14px; height: 14px;"></i>
           Export
@@ -910,6 +933,39 @@
       }
     }
 
+    // Helper: A session is only actively playing if is_playing is true AND updated within last 15 minutes
+    function isActivelyPlaying(item) {
+      if (!item || !item.is_playing) return false;
+      const updatedTime = new Date(item.updated_at).getTime();
+      const diffMinutes = (Date.now() - updatedTime) / (1000 * 60);
+      return diffMinutes <= 15;
+    }
+
+    // Clean stale sessions stuck in is_playing = true older than 15 minutes
+    async function cleanStaleSessions() {
+      const btn = document.getElementById("btnCleanStale");
+      if (btn) btn.classList.add("loading");
+      try {
+        const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+        const { error } = await supabaseClient
+          .from("user_activity")
+          .update({ is_playing: false })
+          .eq("is_playing", true)
+          .lt("updated_at", fifteenMinutesAgo);
+
+        if (error) {
+          console.error("Failed to clean stale sessions:", error);
+          alert("Error: " + error.message);
+        } else {
+          await fetchLiveActivity();
+        }
+      } catch (err) {
+        console.error("Clean stale failed:", err);
+      } finally {
+        if (btn) btn.classList.remove("loading");
+      }
+    }
+
     // Subscribe to Supabase Realtime WebSocket
     function subscribeToRealtime() {
       supabaseClient
@@ -977,11 +1033,12 @@
       const filtered = activityData.filter(item => {
         const updatedTime = new Date(item.updated_at).getTime();
         const diffMinutes = (now - updatedTime) / (1000 * 60);
+        const isLive = isActivelyPlaying(item);
 
         // Filter condition
-        if (currentFilter === "playing" && !item.is_playing) return false;
-        if (currentFilter === "paused" && item.is_playing) return false;
-        if (currentFilter === "recent" && diffMinutes > 10) return false;
+        if (currentFilter === "playing" && !isLive) return false;
+        if (currentFilter === "paused" && isLive) return false;
+        if (currentFilter === "recent" && diffMinutes > 15) return false;
 
         // Search condition
         if (query) {
@@ -1008,7 +1065,7 @@
         const diffMinutes = (now - new Date(item.updated_at).getTime()) / (1000 * 60);
         return diffMinutes <= 15;
       });
-      const playingNow = activityData.filter(item => item.is_playing);
+      const playingNow = activityData.filter(isActivelyPlaying);
 
       document.getElementById("statActiveUsers").textContent = active15m.length;
       document.getElementById("statCurrentlyPlaying").textContent = playingNow.length;
@@ -1018,7 +1075,7 @@
       document.getElementById("countAll").textContent = activityData.length;
       document.getElementById("countPlaying").textContent = playingNow.length;
       document.getElementById("countRecent").textContent = active15m.length;
-      document.getElementById("countPaused").textContent = activityData.filter(i => !i.is_playing).length;
+      document.getElementById("countPaused").textContent = activityData.filter(i => !isActivelyPlaying(i)).length;
 
       applyFilterAndSearch();
     }
@@ -1040,21 +1097,27 @@
       grid.innerHTML = items.map(item => {
         const fallbackCover = "https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=150&auto=format&fit=crop&q=80";
         const cover = item.cover_url || fallbackCover;
-        const initial = (item.user_name || "L").charAt(0).toUpperCase();
+        const rawName = (item.user_name || "").trim();
+        const isRegistered = rawName && !rawName.startsWith("Listener ");
+        const initial = (rawName || item.user_tag || "L").charAt(0).toUpperCase();
         const timeAgo = formatTimeAgo(item.updated_at);
+        const isLive = isActivelyPlaying(item);
 
         return `
           <div class="user-card">
             <div class="user-header">
               <div class="user-identity">
-                <div class="avatar">${initial}</div>
+                <div class="avatar" style="${isRegistered ? 'background: linear-gradient(135deg, #10b981, #06b6d4);' : ''}">${initial}</div>
                 <div class="user-name-box">
-                  <h4>${escapeHtml(item.user_name || "Unknown Listener")}</h4>
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <h4>${escapeHtml(rawName || "Listener " + (item.user_tag ? item.user_tag.replace('AETH-', '') : 'Guest'))}</h4>
+                    <span class="user-role-badge ${isRegistered ? 'member' : 'guest'}">${isRegistered ? 'Verified' : 'Guest'}</span>
+                  </div>
                   <span class="user-tag">${escapeHtml(item.user_tag || "AETH-????")}</span>
                 </div>
               </div>
-              <div class="activity-badge ${item.is_playing ? 'badge-playing' : 'badge-paused'}">
-                ${item.is_playing ? `
+              <div class="activity-badge ${isLive ? 'badge-playing' : 'badge-paused'}">
+                ${isLive ? `
                   <div class="equalizer">
                     <span class="eq-bar"></span>
                     <span class="eq-bar"></span>
@@ -1099,11 +1162,17 @@
         const fallbackCover = "https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?w=100&auto=format&fit=crop&q=80";
         const cover = item.cover_url || fallbackCover;
         const timeAgo = formatTimeAgo(item.updated_at);
+        const rawName = (item.user_name || "").trim();
+        const isRegistered = rawName && !rawName.startsWith("Listener ");
+        const isLive = isActivelyPlaying(item);
 
         return `
           <tr>
             <td>
-              <div style="font-weight: 700; color: #fff;">${escapeHtml(item.user_name || "Unknown")}</div>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="font-weight: 700; color: #fff;">${escapeHtml(rawName || "Listener " + (item.user_tag ? item.user_tag.replace('AETH-', '') : 'Guest'))}</span>
+                <span class="user-role-badge ${isRegistered ? 'member' : 'guest'}">${isRegistered ? 'Verified' : 'Guest'}</span>
+              </div>
               <span class="user-tag">${escapeHtml(item.user_tag || "AETH-????")}</span>
             </td>
             <td>
@@ -1117,8 +1186,8 @@
             </td>
             <td style="color: var(--text-muted);">${escapeHtml(item.album_name || "—")}</td>
             <td>
-              <span class="activity-badge ${item.is_playing ? 'badge-playing' : 'badge-paused'}">
-                ${item.is_playing ? 'Playing' : 'Paused'}
+              <span class="activity-badge ${isLive ? 'badge-playing' : 'badge-paused'}">
+                ${isLive ? 'Playing' : 'Paused'}
               </span>
             </td>
             <td>${escapeHtml(item.duration_text || "—")}</td>
