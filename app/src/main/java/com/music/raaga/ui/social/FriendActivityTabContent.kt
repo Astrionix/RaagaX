@@ -41,11 +41,17 @@ import androidx.compose.ui.text.AnnotatedString
 import com.music.raaga.data.blend.BlendEngine
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -101,6 +107,7 @@ internal fun FriendActivityTabContent(
     val clipboardManager = LocalClipboardManager.current
     var showAddDialog by remember { mutableStateOf(false) }
     var newFriendTag by remember { mutableStateOf("") }
+    var friendToRemove by remember { mutableStateOf<FriendActivityState?>(null) }
 
     Column(
         modifier = modifier
@@ -494,23 +501,78 @@ internal fun FriendActivityTabContent(
             }
         } else {
             activities.forEach { friend ->
+                val isMe = (friend.userId == myIdentity.userId || friend.userTag == myIdentity.userTag)
                 FriendActivityRow(
                     activity = friend,
+                    isMe = isMe,
                     onListenAlong = {
                         haptics.play(Haptic.Select)
                         onPlaySong(friend.toSong())
                         Toast.makeText(context, "Listening along with ${friend.userName}", Toast.LENGTH_SHORT).show()
                     },
+                    onRemoveFriend = {
+                        friendToRemove = friend
+                    },
                 )
             }
         }
+    }
+
+    // Confirmation Dialog to Remove Friend
+    friendToRemove?.let { friend ->
+        AlertDialog(
+            onDismissRequest = { friendToRemove = null },
+            title = {
+                Text(
+                    text = "Remove Friend",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = Color.White,
+                )
+            },
+            text = {
+                Text(
+                    text = "Remove ${friend.userName} (${friend.userTag}) from your friends list? You will no longer receive their listening activity.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White.copy(alpha = 0.8f),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        haptics.play(Haptic.Select)
+                        FriendActivityEngine.removeFriend(context, friend.userTag)
+                        Toast.makeText(context, "Removed ${friend.userName}", Toast.LENGTH_SHORT).show()
+                        friendToRemove = null
+                    }
+                ) {
+                    Text(
+                        text = "Remove",
+                        color = Color(0xFFEF4444),
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { friendToRemove = null }
+                ) {
+                    Text(
+                        text = "Cancel",
+                        color = Color.White.copy(alpha = 0.7f),
+                    )
+                }
+            },
+            containerColor = Color(0xFF1E1E1E),
+        )
     }
 }
 
 @Composable
 private fun FriendActivityRow(
     activity: FriendActivityState,
+    isMe: Boolean,
     onListenAlong: () -> Unit,
+    onRemoveFriend: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -626,6 +688,55 @@ private fun FriendActivityRow(
                 tint = Color.White,
                 modifier = Modifier.size(16.dp),
             )
+        }
+
+        // More options (Remove Friend)
+        if (!isMe) {
+            var menuOpen by remember { mutableStateOf(false) }
+            Box(contentAlignment = Alignment.Center) {
+                Box(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.08f))
+                        .clickable { menuOpen = true }
+                        .padding(8.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.MoreVert,
+                        contentDescription = "Options",
+                        tint = Color.White.copy(alpha = 0.65f),
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+
+                DropdownMenu(
+                    expanded = menuOpen,
+                    onDismissRequest = { menuOpen = false },
+                ) {
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = "Remove Friend",
+                                color = Color(0xFFEF4444),
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Rounded.Delete,
+                                contentDescription = null,
+                                tint = Color(0xFFEF4444),
+                                modifier = Modifier.size(18.dp),
+                            )
+                        },
+                        onClick = {
+                            menuOpen = false
+                            onRemoveFriend()
+                        },
+                    )
+                }
+            }
         }
     }
 }
