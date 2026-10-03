@@ -42,3 +42,11 @@ keystore.properties
 website/.next/
 website/node_modules/
 portfolio/
+
+# iOS / Xcode
+*.ipa
+iosApp/*.xcodeproj
+iosApp/*.xcworkspace
+iosApp/DerivedData/
+iosApp/build/
+iosApp/**/.DS_Store
