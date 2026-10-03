@@ -56,13 +56,13 @@ jobs:
           CODE_SIGN_ENTITLEMENTS="" \
           CODE_SIGN_STYLE="Manual" \
           DEVELOPMENT_TEAM="" \
-          ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS=NO \
           2>&1 | tee xcodebuild.log || (echo "=== BUILD ERROR TAIL ===" && tail -n 150 xcodebuild.log && exit 1)
 
     - name: Package Unsigned IPA for AltStore / SideStore
       run: |
         mkdir -p build/ipa/Payload
         cp -r build/Build/Products/Release-iphoneos/Raaga.app build/ipa/Payload/
+        cp iosApp/Raaga/Icons/*.png build/ipa/Payload/Raaga.app/ || true
         cd build/ipa
         zip -r -y ../../Raaga.ipa Payload
 
