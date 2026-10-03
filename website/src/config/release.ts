@@ -41,7 +41,7 @@ export const RAAGAX_CONFIG: ReleaseConfig = {
   targetAndroid: "Android 15+ (Vanilla Ice Cream, API 36)",
   ndkVersion: "27.2.12479018",
   cmakeVersion: "3.22.1",
-  fileSize: "~38.4 MB",
+  fileSize: "~54 MB",
   releaseDate: "October 2026",
   buildType: "Release Signed (R8 Minified, NDK 27)",
   // Direct APK file served locally on the website
