@@ -2,6 +2,7 @@ import Foundation
 import Combine
 import MediaPlayer
 import AVFoundation
+import UIKit
 
 enum PlaybackState: Equatable {
     case idle

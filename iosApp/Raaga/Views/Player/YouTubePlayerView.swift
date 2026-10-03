@@ -29,9 +29,9 @@ struct YouTubePlayerView: UIViewRepresentable {
         context.coordinator.webView = webView
 
         // Wire up outbound player commands
-        playerManager.onCommand = { [weak context] command in
-            guard let coord = context?.coordinator else { return }
-            coord.handleCommand(command)
+        let coordinator = context.coordinator
+        playerManager.onCommand = { [weak coordinator] command in
+            coordinator?.handleCommand(command)
         }
 
         // Load the official IFrame player template
@@ -170,7 +170,7 @@ struct YouTubePlayerView: UIViewRepresentable {
 
     // MARK: - Coordinator
 
-    class Coordinator: NSObject, WKScriptMessageHandler {
+    final class Coordinator: NSObject, WKScriptMessageHandler {
         private let playerManager: AudioPlayerManager
         weak var webView: WKWebView?
 
@@ -195,11 +195,11 @@ struct YouTubePlayerView: UIViewRepresentable {
         }
 
         // WKScriptMessageHandler
-        func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        nonisolated func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
             guard let dict = message.body as? [String: Any],
                   let type = dict["type"] as? String else { return }
 
-            DispatchQueue.main.async { [weak self] in
+            Task { @MainActor [weak self] in
                 guard let self = self else { return }
                 switch type {
                 case "ready":
