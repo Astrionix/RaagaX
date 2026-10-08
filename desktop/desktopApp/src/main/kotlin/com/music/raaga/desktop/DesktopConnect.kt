@@ -34,6 +34,8 @@ object DesktopConnect {
             val engine = playbackEngine
             val state = engine?.state?.value
             val song = state?.song
+            val dur = state?.durationMs?.takeIf { it > 0L }
+                ?: com.music.raaga.data.connect.parseDurationTextToMs(song?.durationText)
             ConnectDeviceStatus(
                 deviceId = "",
                 deviceName = "",
@@ -50,7 +52,7 @@ object DesktopConnect {
                     )
                 },
                 positionMs = state?.positionMs ?: 0L,
-                durationMs = state?.durationMs ?: 0L,
+                durationMs = dur,
                 volume = state?.volume ?: 1.0f,
             )
         },
@@ -107,6 +109,10 @@ object DesktopConnect {
             }
         },
     )
+
+    fun disconnectController() {
+        controlledByDeviceName.value = null
+    }
 
     fun start() {
         manager.start()

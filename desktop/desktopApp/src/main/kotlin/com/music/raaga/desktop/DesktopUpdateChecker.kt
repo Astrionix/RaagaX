@@ -1,42 +1,47 @@
 package com.music.raaga.desktop
 
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
+import java.io.File
+import java.io.FileOutputStream
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
 
-
-
-
 /**
- * Looks at the repo's "latest release" on GitHub once per launch and says whether it is newer
- * than the running build. The installer is not run from here: the dialog opens the asset in the
- * browser, so the user installs it the way they installed the first one.
- *
- * GitHub's "latest" skips pre-releases and drafts, so a `-beta` desktop build is only ever
- * nudged toward a published release.
+ * Handles checking, in-app downloading, and installing OTA updates for Desktop.
  */
 internal object DesktopUpdateChecker {
+
+    sealed interface DownloadState {
+        object Idle : DownloadState
+        data class Downloading(val progress: Float, val downloadedBytes: Long, val totalBytes: Long) : DownloadState
+        data class Ready(val file: File, val version: String) : DownloadState
+        data class Failed(val message: String) : DownloadState
+    }
 
     data class UpdateInfo(
         val version: String,
         val releaseUrl: String,
-        /** The installer for this platform, or null when the release has none. */
         val downloadUrl: String?,
         val notes: String?,
+        val fileName: String? = null,
     )
 
-    val currentVersion: String = System.getProperty("raaga.version")
-        ?: "1.9.3"
+    val currentVersion: String = System.getProperty("raaga.version") ?: "1.9.4"
 
     private const val LATEST_RELEASE_URL =
         "https://api.github.com/repos/Astrionix/RaagaX/releases/latest"
@@ -49,6 +54,12 @@ internal object DesktopUpdateChecker {
             .followRedirects(HttpClient.Redirect.NORMAL)
             .build()
     }
+
+    private val _downloadState = MutableStateFlow<DownloadState>(DownloadState.Idle)
+    val downloadState: StateFlow<DownloadState> = _downloadState.asStateFlow()
+
+    private var downloadJob: Job? = null
+    private val scope = CoroutineScope(Dispatchers.IO)
 
     suspend fun check(): UpdateInfo? = withContext(Dispatchers.IO) {
         runCatching {
@@ -73,17 +84,18 @@ internal object DesktopUpdateChecker {
                 return@runCatching null
             }
 
-            val downloadUrl = findPlatformAssetUrl(root) ?: return@runCatching null
+            val asset = findPlatformAsset(root) ?: return@runCatching null
             UpdateInfo(
                 version = latest,
                 releaseUrl = htmlUrl,
-                downloadUrl = downloadUrl,
+                downloadUrl = asset.first,
+                fileName = asset.second,
                 notes = notes,
             )
         }.getOrNull()
     }
 
-    private fun findPlatformAssetUrl(release: JsonObject): String? {
+    private fun findPlatformAsset(release: JsonObject): Pair<String, String>? {
         val os = System.getProperty("os.name").lowercase()
         val assets = release["assets"]?.jsonArray?.mapNotNull { it as? JsonObject } ?: return null
 
@@ -101,14 +113,109 @@ internal object DesktopUpdateChecker {
             }
         }
 
-        return assets.firstOrNull { asset ->
+        val found = assets.firstOrNull { asset ->
             val name = asset["name"]?.jsonPrimitive?.contentOrNull.orEmpty()
             val state = asset["state"]?.jsonPrimitive?.contentOrNull
             (state == null || state == "uploaded") && matchPredicate(name)
-        }?.get("browser_download_url")?.jsonPrimitive?.contentOrNull
+        } ?: return null
+
+        val url = found["browser_download_url"]?.jsonPrimitive?.contentOrNull ?: return null
+        val name = found["name"]?.jsonPrimitive?.contentOrNull ?: "update-installer.exe"
+        return url to name
     }
 
+    fun startDownload(update: UpdateInfo) {
+        val url = update.downloadUrl ?: return
+        downloadJob?.cancel()
+        _downloadState.value = DownloadState.Downloading(0f, 0L, 0L)
 
+        downloadJob = scope.launch {
+            try {
+                val tempDir = File(System.getProperty("java.io.tmpdir"), "RaagaUpdates")
+                tempDir.mkdirs()
+                val targetFile = File(tempDir, update.fileName ?: "Raaga-Setup-${update.version}.exe")
+
+                val request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .header("User-Agent", "RaagaDesktop")
+                    .timeout(Duration.ofMinutes(10))
+                    .GET()
+                    .build()
+
+                val response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream())
+                if (response.statusCode() !in 200..299) {
+                    _downloadState.value = DownloadState.Failed("Server returned HTTP ${response.statusCode()}")
+                    return@launch
+                }
+
+                val contentLength = response.headers().firstValueAsLong("Content-Length").orElse(0L)
+                var downloaded = 0L
+
+                response.body().use { input ->
+                    FileOutputStream(targetFile).use { output ->
+                        val buffer = ByteArray(64 * 1024)
+                        var read: Int
+                        var lastReportTime = System.currentTimeMillis()
+
+                        while (input.read(buffer).also { read = it } != -1) {
+                            output.write(buffer, 0, read)
+                            downloaded += read
+
+                            val now = System.currentTimeMillis()
+                            if (now - lastReportTime > 150) {
+                                val progress = if (contentLength > 0) downloaded.toFloat() / contentLength.toFloat() else 0f
+                                _downloadState.value = DownloadState.Downloading(progress.coerceIn(0f, 1f), downloaded, contentLength)
+                                lastReportTime = now
+                            }
+                        }
+                    }
+                }
+
+                if (targetFile.exists() && targetFile.length() > 0) {
+                    _downloadState.value = DownloadState.Ready(targetFile, update.version)
+                } else {
+                    _downloadState.value = DownloadState.Failed("Downloaded file is empty")
+                }
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) {
+                    _downloadState.value = DownloadState.Idle
+                } else {
+                    _downloadState.value = DownloadState.Failed(e.message ?: "Download failed")
+                }
+            }
+        }
+    }
+
+    fun cancelDownload() {
+        downloadJob?.cancel()
+        downloadJob = null
+        _downloadState.value = DownloadState.Idle
+    }
+
+    fun installUpdate(file: File) {
+        try {
+            val os = System.getProperty("os.name").lowercase()
+            when {
+                os.contains("win") -> {
+                    if (file.name.endsWith(".msi", ignoreCase = true)) {
+                        ProcessBuilder("msiexec", "/i", file.absolutePath).start()
+                    } else {
+                        ProcessBuilder(file.absolutePath).start()
+                    }
+                }
+                os.contains("mac") -> {
+                    ProcessBuilder("open", file.absolutePath).start()
+                }
+                else -> {
+                    file.setExecutable(true)
+                    ProcessBuilder(file.absolutePath).start()
+                }
+            }
+            kotlin.system.exitProcess(0)
+        } catch (e: Exception) {
+            _downloadState.value = DownloadState.Failed("Failed to launch installer: ${e.message}")
+        }
+    }
 
     private class Parsed(val parts: List<Int>, val preRelease: Boolean)
 
@@ -118,7 +225,6 @@ internal object DesktopUpdateChecker {
         return Parsed(base.split('.').map { it.toIntOrNull() ?: 0 }, dash >= 0)
     }
 
-    /** Numeric comparison, with a `-betaN` build counted as older than the plain release it leads up to. */
     internal fun isNewer(latest: String, current: String): Boolean {
         val l = parse(latest)
         val c = parse(current)

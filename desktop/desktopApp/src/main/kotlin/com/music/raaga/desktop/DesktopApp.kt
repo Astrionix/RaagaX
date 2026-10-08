@@ -125,6 +125,7 @@ import androidx.compose.material.icons.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.Devices
@@ -157,6 +158,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -501,26 +503,175 @@ fun RaagaDesktopApp() {
     var personalPlayingStash by remember { mutableStateOf(false) }
     val persistence = remember { DesktopPersistence() }
     var availableUpdate by remember { mutableStateOf<DesktopUpdateChecker.UpdateInfo?>(null) }
+    var manualCheckMessage by remember { mutableStateOf<String?>(null) }
+    val updateDownloadState by DesktopUpdateChecker.downloadState.collectAsState()
     LaunchedEffect(Unit) { availableUpdate = DesktopUpdateChecker.check() }
     availableUpdate?.let { update ->
         AlertDialog(
-            onDismissRequest = { availableUpdate = null },
-            title = { Text(DesktopStrings["d_update_available", "Update available"]) },
+            onDismissRequest = {
+                if (updateDownloadState !is DesktopUpdateChecker.DownloadState.Downloading) {
+                    availableUpdate = null
+                }
+            },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Rounded.Download,
+                        contentDescription = null,
+                        tint = Color(0xFF1DB954),
+                        modifier = Modifier.size(20.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("Raaga Update Available: v${update.version}")
+                }
+            },
             text = {
-                Text(
-                    "Raaga ${update.version} is out — you have ${DesktopUpdateChecker.currentVersion}." +
-                        (update.notes?.takeIf { it.isNotBlank() }?.let { "\n\n${it.take(600)}" } ?: ""),
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    when (val state = updateDownloadState) {
+                        is DesktopUpdateChecker.DownloadState.Idle -> {
+                            Text(
+                                "Raaga ${update.version} is out — you have ${DesktopUpdateChecker.currentVersion}." +
+                                    (update.notes?.takeIf { it.isNotBlank() }?.let { "\n\n${it.take(500)}" } ?: ""),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                        is DesktopUpdateChecker.DownloadState.Downloading -> {
+                            Text(
+                                "Downloading update in background...",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            LinearProgressIndicator(
+                                progress = { state.progress },
+                                modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                                color = Color(0xFF1DB954),
+                                trackColor = Color.White.copy(alpha = 0.15f),
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                val dl = String.format(java.util.Locale.US, "%.1f MB", state.downloadedBytes.toDouble() / (1024.0 * 1024.0))
+                                val tot = if (state.totalBytes > 0) String.format(java.util.Locale.US, "%.1f MB", state.totalBytes.toDouble() / (1024.0 * 1024.0)) else "--"
+                                Text(
+                                    "$dl / $tot",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = DesktopSecondary,
+                                )
+                                Text(
+                                    "${(state.progress * 100).toInt()}%",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF1DB954),
+                                )
+                            }
+                        }
+                        is DesktopUpdateChecker.DownloadState.Ready -> {
+                            Text(
+                                "Update downloaded successfully! Restart Raaga now to apply the new version.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color.White,
+                            )
+                        }
+                        is DesktopUpdateChecker.DownloadState.Failed -> {
+                            Text(
+                                "Download failed: ${state.message}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        }
+                    }
+                }
             },
             confirmButton = {
-                TextButton(onClick = {
-                    DesktopExternalLinks.open(update.downloadUrl ?: update.releaseUrl)
-                    availableUpdate = null
-                }) { Text(DesktopStrings["d_download", "Download"]) }
+                when (val state = updateDownloadState) {
+                    is DesktopUpdateChecker.DownloadState.Idle -> {
+                        Button(
+                            onClick = {
+                                if (update.downloadUrl != null) {
+                                    DesktopUpdateChecker.startDownload(update)
+                                } else {
+                                    DesktopExternalLinks.open(update.releaseUrl)
+                                    availableUpdate = null
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1DB954)),
+                        ) {
+                            Text("Download & Install OTA", color = Color.Black, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    is DesktopUpdateChecker.DownloadState.Downloading -> {
+                        TextButton(
+                            onClick = { DesktopUpdateChecker.cancelDownload() },
+                        ) {
+                            Text("Cancel", color = Color.White)
+                        }
+                    }
+                    is DesktopUpdateChecker.DownloadState.Ready -> {
+                        Button(
+                            onClick = { DesktopUpdateChecker.installUpdate(state.file) },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1DB954)),
+                        ) {
+                            Text("Restart & Install", color = Color.Black, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    is DesktopUpdateChecker.DownloadState.Failed -> {
+                        Button(
+                            onClick = { DesktopUpdateChecker.startDownload(update) },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1DB954)),
+                        ) {
+                            Text("Retry", color = Color.Black)
+                        }
+                    }
+                }
             },
             dismissButton = {
-                TextButton(onClick = { availableUpdate = null }) {
-                    Text(DesktopStrings["d_later", "Later"])
+                when (updateDownloadState) {
+                    is DesktopUpdateChecker.DownloadState.Idle -> {
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            TextButton(onClick = {
+                                DesktopExternalLinks.open(update.downloadUrl ?: update.releaseUrl)
+                                availableUpdate = null
+                            }) {
+                                Text("Browser", color = DesktopSecondary)
+                            }
+                            TextButton(onClick = { availableUpdate = null }) {
+                                Text(DesktopStrings["d_later", "Later"], color = DesktopSecondary)
+                            }
+                        }
+                    }
+                    is DesktopUpdateChecker.DownloadState.Failed -> {
+                        TextButton(onClick = {
+                            DesktopExternalLinks.open(update.downloadUrl ?: update.releaseUrl)
+                            availableUpdate = null
+                        }) {
+                            Text("Browser", color = DesktopSecondary)
+                        }
+                    }
+                    else -> {}
+                }
+            },
+        )
+    }
+    manualCheckMessage?.let { msg ->
+        AlertDialog(
+            onDismissRequest = { manualCheckMessage = null },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Rounded.CheckCircle,
+                        contentDescription = null,
+                        tint = Color(0xFF1DB954),
+                        modifier = Modifier.size(20.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("Updates")
+                }
+            },
+            text = { Text(msg) },
+            confirmButton = {
+                TextButton(onClick = { manualCheckMessage = null }) {
+                    Text("OK", color = Color(0xFF1DB954))
                 }
             },
         )
@@ -861,6 +1012,7 @@ fun RaagaDesktopApp() {
     /** A song played on its own — from a search row, a shelf card, history. */
     fun playSong(song: Song, startPlaying: Boolean = true, source: DesktopQueueSource? = null) {
         if (partyTrackChangeBlocked()) return
+        DesktopConnect.disconnectController()
         val tapped = canonicalSong(song).withSource(source)
         val songs = if (DesktopListenTogether.state.value.inParty) {
             partyPlaybackQueue(tapped)
@@ -1755,17 +1907,80 @@ fun RaagaDesktopApp() {
         }
     }
     val playback by playbackEngine.state.collectAsState()
+    val activeRemoteDeviceState by DesktopConnect.manager.activeRemoteDevice.collectAsState()
+    val remoteStatusState by DesktopConnect.manager.remoteStatus.collectAsState()
+
+    val effectiveSong = remember(selectedSong, activeRemoteDeviceState, remoteStatusState?.track) {
+        if (activeRemoteDeviceState != null && remoteStatusState?.track != null) {
+            val t = remoteStatusState!!.track!!
+            Song(
+                videoId = t.videoId,
+                title = t.title,
+                artist = t.artist,
+                thumbnailUrl = t.thumbnailUrl,
+                durationText = t.durationText,
+                albumName = t.albumName,
+            )
+        } else {
+            selectedSong
+        }
+    }
+
+    val effectivePlayback = remember(playback, activeRemoteDeviceState, remoteStatusState, effectiveSong) {
+        if (activeRemoteDeviceState != null && remoteStatusState != null) {
+            playback.copy(
+                song = effectiveSong,
+                isPlaying = remoteStatusState!!.isPlaying,
+                positionMs = remoteStatusState!!.positionMs,
+                durationMs = remoteStatusState!!.durationMs,
+                volume = remoteStatusState!!.volume,
+            )
+        } else {
+            playback
+        }
+    }
 
     // The shared player reads the playhead off this one object, and only where it
     // draws it — see PlaybackPosition — so a tick never recomposes the player.
     val playerPosition = remember { PlaybackPosition() }
-    LaunchedEffect(playbackEngine) {
-        playbackEngine.state.collect {
-            // The audio thread's own timestamp, not this collector's: it runs on the UI thread and
-            // gets to a reading as late as the UI is busy.
-            playerPosition.report(it.positionMs, it.positionSampledAtNanos)
-            playerPosition.seeks = it.seeks
-            playerPosition.advancing = !it.awaitingAudio
+    LaunchedEffect(playbackEngine, activeRemoteDeviceState) {
+        if (activeRemoteDeviceState == null) {
+            playbackEngine.state.collect {
+                // The audio thread's own timestamp, not this collector's: it runs on the UI thread and
+                // gets to a reading as late as the UI is busy.
+                playerPosition.report(it.positionMs, it.positionSampledAtNanos)
+                playerPosition.seeks = it.seeks
+                playerPosition.advancing = !it.awaitingAudio
+            }
+        }
+    }
+    LaunchedEffect(
+        activeRemoteDeviceState,
+        remoteStatusState?.isPlaying,
+        remoteStatusState?.positionMs,
+        remoteStatusState?.durationMs,
+        remoteStatusState?.track?.videoId,
+    ) {
+        if (activeRemoteDeviceState != null && remoteStatusState != null) {
+            val status = remoteStatusState!!
+            val basePos = status.positionMs
+            val baseTime = System.currentTimeMillis()
+            val isPlaying = status.isPlaying
+            val duration = status.durationMs
+            playerPosition.report(basePos, System.nanoTime())
+            playerPosition.advancing = isPlaying
+            if (isPlaying) {
+                while (isActive) {
+                    delay(250)
+                    val elapsed = System.currentTimeMillis() - baseTime
+                    val estimatedPos = if (duration > 0) {
+                        (basePos + elapsed).coerceAtMost(duration)
+                    } else {
+                        basePos + elapsed
+                    }
+                    playerPosition.report(estimatedPos, System.nanoTime())
+                }
+            }
         }
     }
 
@@ -1776,7 +1991,7 @@ fun RaagaDesktopApp() {
     // and a track half a minute in then showed a skeleton and arrived mid-song.
     var lyrics by remember { mutableStateOf<DesktopLyrics?>(null) }
     // The provider picked for this track in the player's lyrics drawer, if any.
-    var lyricsOnly by remember(selectedSong?.videoId) { mutableStateOf<String?>(null) }
+    var lyricsOnly by remember(effectiveSong?.videoId) { mutableStateOf<String?>(null) }
     var lyricsLoading by remember { mutableStateOf(false) }
     var lyricsError by remember { mutableStateOf<String?>(null) }
     var canvas by remember { mutableStateOf<DesktopCanvasArtwork?>(null) }
@@ -1786,16 +2001,20 @@ fun RaagaDesktopApp() {
     // on the live duration, every such upgrade threw away the lyrics on screen and fetched them
     // all over again. Only the playing track's own report counts: right after a skip, [playback]
     // still describes the track before.
-    var lyricsLengthMs by remember(selectedSong?.videoId) { mutableStateOf(0L) }
-    val playingLengthMs = playback.durationMs.takeIf { playback.song?.videoId == selectedSong?.videoId } ?: 0L
-    LaunchedEffect(selectedSong?.videoId, playingLengthMs > 0L) {
+    var lyricsLengthMs by remember(effectiveSong?.videoId) { mutableStateOf(0L) }
+    val playingLengthMs = if (activeRemoteDeviceState != null && remoteStatusState != null) {
+        remoteStatusState!!.durationMs
+    } else {
+        playback.durationMs.takeIf { playback.song?.videoId == effectiveSong?.videoId } ?: 0L
+    }
+    LaunchedEffect(effectiveSong?.videoId, playingLengthMs > 0L) {
         if (lyricsLengthMs <= 0L && playingLengthMs > 0L) lyricsLengthMs = playingLengthMs
     }
 
     // Keyed on the duration too: it lands a beat after the track, and a database match needs it,
     // so looking up against a length of zero would settle on the wrong recording.
     LaunchedEffect(
-        selectedSong?.videoId,
+        effectiveSong?.videoId,
         lyricsLengthMs,
         syncedLyrics,
         prioritizeSyllables,
@@ -1803,7 +2022,7 @@ fun RaagaDesktopApp() {
         lyricsOrder,
         lyricsOnly,
     ) {
-        val current = selectedSong
+        val current = effectiveSong
         lyrics = null
         lyricsError = null
         if (current == null) {
@@ -1831,8 +2050,8 @@ fun RaagaDesktopApp() {
         lyricsLoading = false
     }
 
-    LaunchedEffect(selectedSong?.videoId, animatedCanvas) {
-        val current = selectedSong
+    LaunchedEffect(effectiveSong?.videoId, animatedCanvas) {
+        val current = effectiveSong
         if (current == null || !animatedCanvas) {
             canvas = null
             return@LaunchedEffect
@@ -1841,34 +2060,6 @@ fun RaagaDesktopApp() {
         // resolved a minute ago should not go dark on its way back to the same clip.
         canvas = DesktopCanvasClient.cached(current)
         canvas = withContext(Dispatchers.IO) { DesktopCanvasClient.lookup(current) }
-    }
-
-    val activeRemoteDeviceState by DesktopConnect.manager.activeRemoteDevice.collectAsState()
-    val remoteStatusState by DesktopConnect.manager.remoteStatus.collectAsState()
-
-    val effectivePlayback = remember(playback, activeRemoteDeviceState, remoteStatusState) {
-        if (activeRemoteDeviceState != null && remoteStatusState != null) {
-            val rTrack = remoteStatusState!!.track
-            val remoteSong = if (rTrack != null) {
-                Song(
-                    videoId = rTrack.videoId,
-                    title = rTrack.title,
-                    artist = rTrack.artist,
-                    thumbnailUrl = rTrack.thumbnailUrl,
-                    durationText = rTrack.durationText,
-                    albumName = rTrack.albumName,
-                )
-            } else playback.song
-            playback.copy(
-                song = remoteSong,
-                isPlaying = remoteStatusState!!.isPlaying,
-                positionMs = remoteStatusState!!.positionMs,
-                durationMs = remoteStatusState!!.durationMs,
-                volume = remoteStatusState!!.volume,
-            )
-        } else {
-            playback
-        }
     }
 
     LaunchedEffect(
@@ -1902,9 +2093,9 @@ fun RaagaDesktopApp() {
         if (destination != DesktopDestination.HISTORY || !youtubeSignedIn) return@LaunchedEffect
         DesktopSearchClient.history().onSuccess { remoteHistory = it }
     }
-    LaunchedEffect(selectedSong?.videoId, overlays.nowPlaying) {
+    LaunchedEffect(effectiveSong?.videoId, overlays.nowPlaying) {
         trackLinks = null
-        val current = selectedSong ?: return@LaunchedEffect
+        val current = effectiveSong ?: return@LaunchedEffect
         // Only while the player is up, so playing from the mini player costs
         // nothing, and only when something is actually missing.
         if (!overlays.nowPlaying) return@LaunchedEffect
@@ -1913,8 +2104,8 @@ fun RaagaDesktopApp() {
     }
     // Keyed on the same things, plus the rate: Discord counts the bar down on
     // its own clock, so only a change to what it was told is worth another push.
-    LaunchedEffect(playback.song?.videoId, playback.isPlaying, playback.durationMs, playbackSpeed) {
-        DesktopDiscordRpc.onPlaybackStateChanged(playback, playbackSpeed)
+    LaunchedEffect(effectivePlayback.song?.videoId, effectivePlayback.isPlaying, effectivePlayback.durationMs, playbackSpeed) {
+        DesktopDiscordRpc.onPlaybackStateChanged(effectivePlayback, playbackSpeed)
     }
     // The account's own history on YouTube Music, which is what the home feed is built out of.
     DisposableEffect(playback.song?.videoId) {
@@ -2394,7 +2585,7 @@ fun RaagaDesktopApp() {
                 DesktopWindowVisibility.show()
                 overlays.nowPlaying = true
             },
-            onPlayPause = { if (selectedSong != null) togglePlayPauseFromUser() },
+            onPlayPause = { if (effectiveSong != null) togglePlayPauseFromUser() },
         )
     }
     DisposableEffect(tray, trayIconEnabled) {
@@ -2432,7 +2623,7 @@ fun RaagaDesktopApp() {
     }
     LaunchedEffect(tray) {
         DesktopTrayMenu.bind(
-            onPlayPause = { if (selectedSong != null) togglePlayPauseFromUser() },
+            onPlayPause = { if (effectiveSong != null) togglePlayPauseFromUser() },
             onNext = ::playNext,
             onPrevious = ::playPrevious,
             onOpenPlayer = {
@@ -2449,10 +2640,10 @@ fun RaagaDesktopApp() {
             },
         )
     }
-    LaunchedEffect(selectedSong, playback.isPlaying) {
-        val title = selectedSong?.let { "${it.title} — ${it.artist}" }
-        tray.update(title = title, isPlaying = playback.isPlaying)
-        DesktopTrayMenu.publish(title = title, playing = playback.isPlaying)
+    LaunchedEffect(effectiveSong, effectivePlayback.isPlaying) {
+        val title = effectiveSong?.let { "${it.title} — ${it.artist}" }
+        tray.update(title = title, isPlaying = effectivePlayback.isPlaying)
+        DesktopTrayMenu.publish(title = title, playing = effectivePlayback.isPlaying)
     }
 
     LaunchedEffect(Unit) {
@@ -2799,7 +2990,7 @@ fun RaagaDesktopApp() {
     }
 
     // The menu the shared player's "…" opens.
-    var playerMenuOpen by remember(selectedSong?.videoId) { mutableStateOf(false) }
+    var playerMenuOpen by remember(effectiveSong?.videoId) { mutableStateOf(false) }
 
     /** The song menu's verbs for [song], as the player sheet offers them. */
     fun playerSongActions(song: Song) = DesktopSongActions(
@@ -2846,10 +3037,23 @@ fun RaagaDesktopApp() {
         DesktopPlayerSettings.smartTransitionWindow.value = playback.transitionWindow
         DesktopPlayerSettings.lyricsSourceOrder.value =
             DesktopLyricsClient.enabledSources(lyricsOrder, lyricsOn).mapNotNull(::lyricsSourceNamed)
-        DesktopPlayerHost.volumeLevel.value = volume
+        DesktopPlayerHost.volumeLevel.value = if (activeRemoteDeviceState != null && remoteStatusState != null) {
+            remoteStatusState!!.volume
+        } else {
+            volume
+        }
         DesktopPlayerHost.onVolumeChange = {
             volume = it
             persistence.saveString("volume", it.toString())
+            val remote = DesktopConnect.manager.activeRemoteDevice.value
+            if (remote != null) {
+                DesktopConnect.manager.sendVolume(it)
+            }
+        }
+    }
+    LaunchedEffect(activeRemoteDeviceState, remoteStatusState?.volume) {
+        if (activeRemoteDeviceState != null && remoteStatusState != null) {
+            DesktopPlayerHost.volumeLevel.value = remoteStatusState!!.volume
         }
     }
 
@@ -2867,8 +3071,8 @@ fun RaagaDesktopApp() {
             )
         }
     }
-    LaunchedEffect(playback.searchingBetter, selectedSong?.videoId) {
-        NerdStats.racingLossless.value = selectedSong?.videoId
+    LaunchedEffect(playback.searchingBetter, effectiveSong?.videoId) {
+        NerdStats.racingLossless.value = effectiveSong?.videoId
             ?.takeIf { playback.searchingBetter }
             ?.let(::setOf)
             .orEmpty()
@@ -2938,6 +3142,7 @@ fun RaagaDesktopApp() {
     fun seekPlayer(target: Long) {
         val remote = DesktopConnect.manager.activeRemoteDevice.value
         if (remote != null) {
+            playerPosition.report(target, System.nanoTime())
             DesktopConnect.manager.sendSeek(target)
             return
         }
@@ -2957,7 +3162,7 @@ fun RaagaDesktopApp() {
         val windowActions = LocalDesktopWindowActions.current
         CompositionLocalProvider(
             LocalContentColor provides Color.White,
-            LocalNowPlaying provides selectedSong,
+            LocalNowPlaying provides effectiveSong,
         ) {
             DesktopFrame(
                 // The phone's page is black, not the near-black of its cards.
@@ -2966,7 +3171,7 @@ fun RaagaDesktopApp() {
                 backdrop = { transparentBase ->
                     val ambientArtworkUrl = replaySummary.songs.firstOrNull()?.song?.thumbnailUrl
                         .takeIf { overlays.replay }
-                        ?: selectedSong?.thumbnailUrl.takeIf { ambientBackdrop }
+                        ?: effectiveSong?.thumbnailUrl.takeIf { ambientBackdrop }
                     DesktopPageBackdrop(
                         artworkUrl = ambientArtworkUrl,
                         transparentBase = transparentBase,
@@ -2976,7 +3181,7 @@ fun RaagaDesktopApp() {
                     if (event.type != KeyEventType.KeyUp) return@onPreviewKeyEvent false
                     when {
                         event.key == Key.MediaPlayPause -> {
-                            if (selectedSong != null) togglePlayPauseFromUser()
+                            if (effectiveSong != null) togglePlayPauseFromUser()
                             true
                         }
                         event.key == Key.MediaNext -> {
@@ -3042,24 +3247,13 @@ fun RaagaDesktopApp() {
                     }
                 },
                 topBar = { compact ->
-                    val activeRemoteDevice by DesktopConnect.manager.activeRemoteDevice.collectAsState()
-                    val remoteStatus by DesktopConnect.manager.remoteStatus.collectAsState()
-                    val effectiveSong = if (activeRemoteDevice != null && remoteStatus?.track != null) {
-                        val t = remoteStatus!!.track!!
-                        Song(
-                            videoId = t.videoId,
-                            title = t.title,
-                            artist = t.artist,
-                            thumbnailUrl = t.thumbnailUrl,
-                            durationText = t.durationText,
-                            albumName = t.albumName,
-                        )
-                    } else selectedSong
-                    val effectiveIsPlaying = if (activeRemoteDevice != null && remoteStatus != null) {
-                        remoteStatus!!.isPlaying
-                    } else playback.isPlaying
-                    val effectiveProgress = if (activeRemoteDevice != null && remoteStatus != null && remoteStatus!!.durationMs > 0) {
-                        remoteStatus!!.positionMs.toFloat() / remoteStatus!!.durationMs.toFloat()
+                    val effectiveProgress = if (activeRemoteDeviceState != null && remoteStatusState != null) {
+                        val dur = if (remoteStatusState!!.durationMs > 0L) {
+                            remoteStatusState!!.durationMs
+                        } else {
+                            com.music.raaga.data.connect.parseDurationTextToMs(remoteStatusState!!.track?.durationText)
+                        }
+                        if (dur > 0L) (playerPosition.positionMs.toFloat() / dur.toFloat()).coerceIn(0f, 1f) else 0f
                     } else if (playback.durationMs > 0L) {
                         playback.positionMs.toFloat() / playback.durationMs.toFloat()
                     } else {
@@ -3068,12 +3262,12 @@ fun RaagaDesktopApp() {
                     DesktopTopBar(
                         compact = compact,
                         song = effectiveSong,
-                        isPlaying = effectiveIsPlaying,
-                        isLoading = playback.isLoading,
-                        previousEnabled = liveQueue.hasPrevious ||
-                            playback.positionMs > BACK_RESTARTS_AFTER_MS,
+                        isPlaying = effectivePlayback.isPlaying,
+                        isLoading = if (activeRemoteDeviceState != null) false else playback.isLoading,
+                        previousEnabled = if (activeRemoteDeviceState != null) true else (liveQueue.hasPrevious ||
+                            playback.positionMs > BACK_RESTARTS_AFTER_MS),
                         progress = effectiveProgress,
-                        volume = if (activeRemoteDevice != null && remoteStatus != null) remoteStatus!!.volume else playback.volume,
+                        volume = if (activeRemoteDeviceState != null && remoteStatusState != null) remoteStatusState!!.volume else playback.volume,
                         shuffle = shuffle,
                         repeatMode = repeatMode,
                         onPlayPause = { if (effectiveSong != null) togglePlayPauseFromUser() },
@@ -3133,17 +3327,17 @@ fun RaagaDesktopApp() {
                     DesktopBottomChrome(
                         compact = compact,
                         destination = destination,
-                        song = selectedSong,
-                        isPlaying = playback.isPlaying,
+                        song = effectiveSong,
+                        isPlaying = effectivePlayback.isPlaying,
                         onDestinationSelected = ::selectDestination,
                         onExpand = { overlays.nowPlaying = true },
-                        onPlayPause = { if (selectedSong != null) togglePlayPauseFromUser() },
+                        onPlayPause = { if (effectiveSong != null) togglePlayPauseFromUser() },
                         onNext = ::playNext,
                         onOpenConnectDevice = { overlays.toggleSidePanel(DesktopSidePanel.CONNECT) },
                     )
                 },
                 trailing = {
-                    val current = selectedSong
+                    val current = effectiveSong
                     DesktopSidePanelColumn(
                         panel = overlays.sidePanel.takeIf { current != null || it == DesktopSidePanel.CONNECT },
                         onClose = { overlays.sidePanel = null },
@@ -3153,7 +3347,7 @@ fun RaagaDesktopApp() {
                                 if (current != null) {
                                     LyricsSidePanel(
                                         song = current,
-                                        isPlaying = playback.isPlaying,
+                                        isPlaying = effectivePlayback.isPlaying,
                                         position = playerPosition,
                                         lyrics = sharedLyrics,
                                         lyricsSource = sharedLyricsSource,
@@ -3183,13 +3377,13 @@ fun RaagaDesktopApp() {
                 },
                 overlay = {
                     DesktopPlayerSheet(
-                        visible = overlays.nowPlaying && selectedSong != null,
+                        visible = overlays.nowPlaying && effectiveSong != null,
                         onDismiss = {
                             DesktopWindowMode.exit()
                             overlays.nowPlaying = false
                         },
                     ) { windowWidth, windowHeight ->
-                        val current = selectedSong ?: return@DesktopPlayerSheet
+                        val current = effectiveSong ?: return@DesktopPlayerSheet
                         val playerSong = trackLinks?.takeIf { it.videoId == current.videoId }
                             ?.let { extra ->
                                 current.copy(
@@ -3206,16 +3400,16 @@ fun RaagaDesktopApp() {
                             ?: current
                         NowPlayingScreen(
                             song = playerSong,
-                            isPlaying = playback.isPlaying,
-                            isLoading = playback.isLoading,
+                            isPlaying = effectivePlayback.isPlaying,
+                            isLoading = if (activeRemoteDeviceState != null) false else playback.isLoading,
                             position = playerPosition,
-                            durationMs = playback.durationMs,
+                            durationMs = effectivePlayback.durationMs,
                             audioVersionSwitching = false,
                             qualityUpgraded = false,
                             queue = liveQueue.songs,
                             queueIndex = liveQueue.index,
-                            hasPrevious = liveQueue.hasPrevious,
-                            hasNext = liveQueue.hasNext,
+                            hasPrevious = if (activeRemoteDeviceState != null) true else liveQueue.hasPrevious,
+                            hasNext = if (activeRemoteDeviceState != null) true else liveQueue.hasNext,
                             repeatMode = when (repeatMode) {
                                 DesktopRepeatMode.OFF -> RepeatModes.OFF
                                 DesktopRepeatMode.ONE -> RepeatModes.ONE
@@ -3239,7 +3433,11 @@ fun RaagaDesktopApp() {
                             },
                             onSeek = ::seekPlayer,
                             onSeekFraction = { fraction ->
-                                val duration = playbackEngine.state.value.durationMs
+                                val duration = if (activeRemoteDeviceState != null && remoteStatusState != null) {
+                                    remoteStatusState!!.durationMs
+                                } else {
+                                    playbackEngine.state.value.durationMs
+                                }
                                 if (duration > 0) seekPlayer((fraction * duration).toLong())
                             },
                             onToggleShuffle = { setShuffle(!shuffle) },
@@ -3320,7 +3518,8 @@ fun RaagaDesktopApp() {
                                         DesktopOriginalVersion.pin(current.videoId)
                                         playbackEngine.reloadCurrent()
                                     }.takeIf {
-                                        playback.streamSourceId != null &&
+                                        activeRemoteDeviceState == null &&
+                                            playback.streamSourceId != null &&
                                             playback.streamSourceId != "youtube" &&
                                             DesktopMusicSources.hasYouTubeOriginal(current) &&
                                             !DesktopOriginalVersion.isPinned(current.videoId)
@@ -3328,7 +3527,10 @@ fun RaagaDesktopApp() {
                                     onUpgradeQuality = {
                                         DesktopOriginalVersion.clear(current.videoId)
                                         playbackEngine.reloadCurrent(forceSourceRefresh = true)
-                                    }.takeIf { DesktopOriginalVersion.isPinned(current.videoId) },
+                                    }.takeIf {
+                                        activeRemoteDeviceState == null &&
+                                            DesktopOriginalVersion.isPinned(current.videoId)
+                                    },
                                     onDismiss = { playerMenuOpen = false },
                                 )
                             }
@@ -3748,6 +3950,16 @@ fun RaagaDesktopApp() {
                                     },
                                     onOpenIntegrations = { overlays.settingsPage = DesktopSettingsPage.INTEGRATIONS },
                                     onOpenLicenses = { overlays.settingsPage = DesktopSettingsPage.LICENSES },
+                                    onCheckForUpdates = {
+                                        scope.launch {
+                                            val u = DesktopUpdateChecker.check()
+                                            if (u != null) {
+                                                availableUpdate = u
+                                            } else {
+                                                manualCheckMessage = "You are using the latest version of Raaga (v${DesktopUpdateChecker.currentVersion})."
+                                            }
+                                        }
+                                    },
                                 )
                                 DesktopSettingsPage.EQUALIZER -> DesktopEqualizerDialog(onDismiss = ::goBack)
                                 DesktopSettingsPage.AUDIO_OUTPUT -> DesktopAudioOutputDialog(onDismiss = ::goBack)
@@ -5629,6 +5841,7 @@ private fun DesktopSettingsScreen(
     onTestSource: (DesktopSourceConfig) -> Unit,
     onOpenIntegrations: () -> Unit,
     onOpenLicenses: () -> Unit,
+    onCheckForUpdates: (() -> Unit)? = null,
 ) {
     var editingSource by remember { mutableStateOf<DesktopSourceConfig?>(null) }
     val sourceProbeKey = sourceConfigs
@@ -6255,7 +6468,10 @@ private fun DesktopSettingsScreen(
             }
             }
             item {
-                DesktopSettingsFooter(onLicenses = onOpenLicenses)
+                DesktopSettingsFooter(
+                    onLicenses = onOpenLicenses,
+                    onCheckForUpdates = onCheckForUpdates,
+                )
             }
         }
         }
@@ -6284,17 +6500,26 @@ private fun DesktopSettingsScreen(
 
 /** The line at the foot of the settings sheet, as Android has it. */
 @Composable
-private fun DesktopSettingsFooter(onLicenses: () -> Unit) {
+private fun DesktopSettingsFooter(
+    onLicenses: () -> Unit,
+    onCheckForUpdates: (() -> Unit)? = null,
+) {
     val version = remember {
         System.getProperty("raaga.version")
-            ?: "1.9.3"
+            ?: "1.9.4"
     }
     val linkStyles = TextLinkStyles(
         style = SpanStyle(color = DesktopAccent, textDecoration = TextDecoration.Underline),
     )
     Text(
         text = buildAnnotatedString {
-            append("Raaga $version  ")
+            append("Raaga $version  •  ")
+            if (onCheckForUpdates != null) {
+                withLink(LinkAnnotation.Clickable("updates", linkStyles) { onCheckForUpdates() }) {
+                    append("Check for updates")
+                }
+                append("  •  ")
+            }
             withLink(LinkAnnotation.Clickable("licenses", linkStyles) { onLicenses() }) {
                 append("Licenses")
             }

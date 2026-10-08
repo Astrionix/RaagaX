@@ -40,6 +40,7 @@ object AndroidConnect {
     private val playerListener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) {
             updateStatusFromPlayer(player)
+            manager.broadcastLocalStatusToCloud()
         }
     }
 
@@ -58,6 +59,8 @@ object AndroidConnect {
         } catch (_: Exception) {
             1.0f
         }
+        val dur = player.duration.takeIf { it > 0L }
+            ?: parseDurationTextToMs(currentMedia?.durationText)
         cachedStatus = ConnectDeviceStatus(
             deviceId = "",
             deviceName = "",
@@ -74,7 +77,7 @@ object AndroidConnect {
                 )
             },
             positionMs = player.currentPosition,
-            durationMs = player.duration.coerceAtLeast(0L),
+            durationMs = dur,
             volume = currentVolume,
         )
     }

@@ -417,24 +417,55 @@ internal fun ConnectDeviceContent(
                             )
                         }
                     }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Rounded.GraphicEq,
-                            contentDescription = null,
-                            tint = ConnectGreen,
-                            modifier = Modifier.size(14.dp),
-                        )
-                        Spacer(Modifier.width(5.dp))
-                        val statusDesc = if (controlledByDevice != null) {
-                            "Listening on this computer • Controlled by $controlledByDevice"
-                        } else {
-                            "Listening on this computer"
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f, fill = false),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.GraphicEq,
+                                contentDescription = null,
+                                tint = ConnectGreen,
+                                modifier = Modifier.size(14.dp),
+                            )
+                            Spacer(Modifier.width(5.dp))
+                            val statusDesc = if (controlledByDevice != null) {
+                                "Listening on this computer • Controlled by $controlledByDevice"
+                            } else {
+                                "Listening on this computer"
+                            }
+                            Text(
+                                text = statusDesc,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = ConnectGreen,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
                         }
-                        Text(
-                            text = statusDesc,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = ConnectGreen,
-                        )
+                        if (controlledByDevice != null) {
+                            Spacer(Modifier.width(8.dp))
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(Color.White.copy(alpha = 0.12f))
+                                    .clickable {
+                                        DesktopConnect.disconnectController()
+                                    }
+                                    .padding(horizontal = 8.dp, vertical = 3.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    text = "Disconnect",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color.White,
+                                )
+                            }
+                        }
                     }
                 }
             }

@@ -50,3 +50,7 @@ iosApp/*.xcworkspace
 iosApp/DerivedData/
 iosApp/build/
 iosApp/**/.DS_Store
+
+# Desktop build artifacts
+desktop/dist/
+*.exe

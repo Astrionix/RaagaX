@@ -92,3 +92,18 @@ data class PairedDeviceWithStatus(
 ) {
     val isOnline: Boolean get() = onlineDevice != null
 }
+
+fun parseDurationTextToMs(text: String?): Long {
+    if (text.isNullOrBlank()) return 0L
+    return try {
+        val parts = text.split(":").map { it.trim().toLong() }
+        when (parts.size) {
+            2 -> (parts[0] * 60 + parts[1]) * 1000L
+            3 -> (parts[0] * 3600 + parts[1] * 60 + parts[2]) * 1000L
+            else -> 0L
+        }
+    } catch (_: Exception) {
+        0L
+    }
+}
+

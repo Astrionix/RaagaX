@@ -90,13 +90,27 @@ class RaagaConnectManager(
         onTransferReceived = { transfer ->
             _activeRemoteDevice.value = null
             onPlaybackTransferredToMe(transfer)
+            scope.launch {
+                delay(300)
+                broadcastLocalStatusToCloud()
+            }
         },
         onControlReceived = { cmd ->
-            onRemoteControlCommand(cmd)
+            if (cmd.action == "QUERY_STATUS") {
+                broadcastLocalStatusToCloud()
+            } else {
+                onRemoteControlCommand(cmd)
+                scope.launch {
+                    delay(200)
+                    broadcastLocalStatusToCloud()
+                }
+            }
         },
         onStatusReceived = { status ->
-            if (_activeRemoteDevice.value?.id == status.deviceId) {
-                _remoteStatus.value = status
+            val active = _activeRemoteDevice.value
+            if (active != null && (active.id == status.deviceId || status.deviceId.isBlank())) {
+                val dur = if (status.durationMs > 0L) status.durationMs else parseDurationTextToMs(status.track?.durationText)
+                _remoteStatus.value = status.copy(durationMs = dur)
             }
         },
         onPairRequestReceived = { req ->
@@ -281,13 +295,56 @@ class RaagaConnectManager(
         }
     }
 
+    private var cloudStatusBroadcastJob: Job? = null
+
+    fun broadcastLocalStatusToCloud() {
+        val base = getLocalPlaybackStatus()
+        val dur = if (base.durationMs > 0L) base.durationMs else parseDurationTextToMs(base.track?.durationText)
+        val fullStatus = base.copy(
+            deviceId = deviceId,
+            deviceName = deviceName,
+            deviceType = deviceType,
+            durationMs = dur,
+        )
+        supabaseRelay.sendStatus(fullStatus)
+    }
+
+    private fun startCloudStatusBroadcast() {
+        cloudStatusBroadcastJob?.cancel()
+        cloudStatusBroadcastJob = scope.launch {
+            var lastTrackId: String? = null
+            var lastIsPlaying: Boolean? = null
+            var idleTicks = 0
+            while (isActive) {
+                // Broadcast local status when this device is the speaker (not controlling a remote device)
+                if (_activeRemoteDevice.value == null) {
+                    val status = getLocalPlaybackStatus()
+                    val track = status.track
+                    if (track != null) {
+                        val trackChanged = track.videoId != lastTrackId
+                        val playStateChanged = status.isPlaying != lastIsPlaying
+                        if (status.isPlaying || trackChanged || playStateChanged || idleTicks % 3 == 0) {
+                            broadcastLocalStatusToCloud()
+                        }
+                        lastTrackId = track.videoId
+                        lastIsPlaying = status.isPlaying
+                        if (!status.isPlaying) idleTicks++ else idleTicks = 0
+                    }
+                }
+                delay(1000)
+            }
+        }
+    }
+
     fun start() {
         serverPort = server.start()
         discovery.start()
         supabaseRelay.start()
+        startCloudStatusBroadcast()
     }
 
     fun stop() {
+        cloudStatusBroadcastJob?.cancel()
         statusPollJob?.cancel()
         discovery.stop()
         supabaseRelay.stop()
@@ -333,6 +390,19 @@ class RaagaConnectManager(
             )
 
             if (target.isCloud) {
+                val initialDur = if (currentTrack.durationText != null) {
+                    parseDurationTextToMs(currentTrack.durationText)
+                } else 0L
+                _remoteStatus.value = ConnectDeviceStatus(
+                    deviceId = target.id,
+                    deviceName = target.name,
+                    deviceType = target.type,
+                    isPlaying = isPlaying,
+                    track = currentTrack,
+                    positionMs = positionMs,
+                    durationMs = initialDur,
+                    volume = volume ?: 1.0f,
+                )
                 supabaseRelay.sendTransfer(target.id, payload)
                 _activeRemoteDevice.value = target
                 startRemoteStatusPolling(target)
@@ -520,8 +590,17 @@ class RaagaConnectManager(
         if (!target.isCloud) {
             val res = RaagaConnectClient.queryStatus(target)
             if (res.isSuccess) {
-                _remoteStatus.value = res.getOrNull()
+                val s = res.getOrNull()
+                if (s != null) {
+                    val dur = if (s.durationMs > 0L) s.durationMs else parseDurationTextToMs(s.track?.durationText)
+                    _remoteStatus.value = s.copy(durationMs = dur)
+                }
             }
+        } else {
+            supabaseRelay.sendControl(
+                target.id,
+                ConnectControlCommand(action = "QUERY_STATUS", targetDeviceId = target.id),
+            )
         }
     }
 
