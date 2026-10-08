@@ -73,7 +73,7 @@ internal object DesktopUpdateChecker {
                 return@runCatching null
             }
 
-            val downloadUrl = findPlatformAssetUrl(root)
+            val downloadUrl = findPlatformAssetUrl(root) ?: return@runCatching null
             UpdateInfo(
                 version = latest,
                 releaseUrl = htmlUrl,

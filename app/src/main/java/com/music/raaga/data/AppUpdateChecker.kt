@@ -94,7 +94,7 @@ object AppUpdateChecker {
             val notes = release["body"]?.jsonPrimitive?.contentOrNull
             val latest = tag.removePrefix("v")
             val info = UpdateInfo(latest, url, apkUrl, notes)
-            if (isNewer(latest, BuildConfig.VERSION_NAME) || force) {
+            if ((isNewer(latest, BuildConfig.VERSION_NAME) || force) && apkUrl != null) {
                 _available.value = info
                 CheckResult.UpdateAvailable(info)
             } else {
