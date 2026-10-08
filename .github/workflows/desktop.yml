@@ -167,8 +167,9 @@ jobs:
           echo "value=$version" >> "$GITHUB_OUTPUT"
 
       - name: Build Windows Installer
+        shell: bash
         run: |
-          .\gradlew.bat :desktopApp:packageExe -Praaga.version=${{ steps.version.outputs.value }} --stacktrace
+          ./gradlew :desktopApp:packageExe -Praaga.version=${{ steps.version.outputs.value }} --stacktrace
 
       - name: Upload Windows Installer to Release
         env:
