@@ -12,11 +12,10 @@ import {
   Monitor,
   Laptop,
   Terminal,
-  Layers,
   Sparkles,
 } from "lucide-react";
 import { GithubIcon } from "./icons/GithubIcon";
-import { RAAGAX_CONFIG } from "@/config/release";
+import { RAAGAX_CONFIG } from "../config/release";
 import { FeatureStatusBadge } from "./FeatureStatusBadge";
 
 type TabKey = "android" | "windows" | "macos" | "linux";

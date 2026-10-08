@@ -68,7 +68,7 @@ export const RAAGAX_CONFIG: ReleaseConfig = {
   releaseDate: "October 2026",
   buildType: "Release Signed (R8 Minified, NDK 27)",
   // Mobile APK configurations preserved 100% untouched
-  directApkUrl: "/raaga-v1.9.3.apk",
+  directApkUrl: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.3/app-prod-universal-release.apk",
   apkDownloadUrl: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.3/app-prod-arm64-v8a-release.apk",
   releaseNotesUrl: "https://github.com/Astrionix/RaagaX/releases/tag/v1.9.3",
   githubRepoUrl: "https://github.com/Astrionix/RaagaX",

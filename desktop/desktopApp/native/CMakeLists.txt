@@ -21,7 +21,13 @@ project(raaga_analysis LANGUAGES CXX)
 
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
-get_filename_component(REPO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../../../native/analyzer")
+    get_filename_component(REPO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../.." ABSOLUTE)
+elseif(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../../native/analyzer")
+    get_filename_component(REPO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
+else()
+    get_filename_component(REPO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
+endif()
 
 foreach(suffix "" _DEBUG _RELEASE _RELWITHDEBINFO _MINSIZEREL)
     set(CMAKE_LIBRARY_OUTPUT_DIRECTORY${suffix} ${CMAKE_BINARY_DIR})
