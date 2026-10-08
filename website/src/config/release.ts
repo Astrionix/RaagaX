@@ -58,8 +58,8 @@ export interface ReleaseConfig {
 export const RAAGAX_CONFIG: ReleaseConfig = {
   appName: "RaagaX",
   tagline: "Music playback, engineered beyond the surface.",
-  versionName: "v1.9.3",
-  versionCode: 35,
+  versionName: "v1.9.4",
+  versionCode: 36,
   minAndroid: "Android 8.0+ (Oreo, API 26)",
   targetAndroid: "Android 15+ (Vanilla Ice Cream, API 36)",
   ndkVersion: "27.2.12479018",
@@ -67,10 +67,10 @@ export const RAAGAX_CONFIG: ReleaseConfig = {
   fileSize: "~54 MB",
   releaseDate: "October 2026",
   buildType: "Release Signed (R8 Minified, NDK 27)",
-  // Mobile APK configurations preserved 100% untouched
-  directApkUrl: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.3/app-prod-universal-release.apk",
-  apkDownloadUrl: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.3/app-prod-arm64-v8a-release.apk",
-  releaseNotesUrl: "https://github.com/Astrionix/RaagaX/releases/tag/v1.9.3",
+  // Mobile APK configurations
+  directApkUrl: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.4/app-prod-universal-release.apk",
+  apkDownloadUrl: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.4/app-prod-arm64-v8a-release.apk",
+  releaseNotesUrl: "https://github.com/Astrionix/RaagaX/releases/tag/v1.9.4",
   githubRepoUrl: "https://github.com/Astrionix/RaagaX",
   liveDomainUrl: "https://raaga.me",
   authorName: "Chandra Reddy",

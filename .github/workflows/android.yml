@@ -1,6 +1,7 @@
 name: Android CI & Release
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     tags: ['v*']
@@ -78,7 +79,8 @@ jobs:
         files: |
           app/build/outputs/apk/prod/release/*.apk
           app/build/outputs/apk/dev/debug/*.apk
-        generate_release_notes: true
+        make_latest: "true"
+        generate_release_notes: false
 
   build-desktop:
     name: Build Desktop Windows Installer
