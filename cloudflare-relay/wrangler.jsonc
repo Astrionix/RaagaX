@@ -1,0 +1,23 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "raaga-connect-relay",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-01",
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "ROOMS",
+        "class_name": "ConnectRoom"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_classes": ["ConnectRoom"]
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}

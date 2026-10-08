@@ -523,28 +523,39 @@ class RaagaConnectManager(
         }
     }
 
+    private var volumeJob: Job? = null
+    private var lastSkipTimestamp: Long = 0L
+
     fun sendNext() {
         val target = _activeRemoteDevice.value ?: return
+        val now = System.currentTimeMillis()
+        if (now - lastSkipTimestamp < 350L) return
+        lastSkipTimestamp = now
+
         scope.launch {
             if (target.isCloud) {
                 supabaseRelay.sendControl(target.id, ConnectControlCommand(action = "NEXT", targetDeviceId = target.id))
             } else {
                 RaagaConnectClient.sendControl(target, ConnectControlCommand(action = "NEXT"))
             }
-            delay(200)
+            delay(800)
             pollRemoteStatusNow(target)
         }
     }
 
     fun sendPrevious() {
         val target = _activeRemoteDevice.value ?: return
+        val now = System.currentTimeMillis()
+        if (now - lastSkipTimestamp < 350L) return
+        lastSkipTimestamp = now
+
         scope.launch {
             if (target.isCloud) {
                 supabaseRelay.sendControl(target.id, ConnectControlCommand(action = "PREV", targetDeviceId = target.id))
             } else {
                 RaagaConnectClient.sendControl(target, ConnectControlCommand(action = "PREV"))
             }
-            delay(200)
+            delay(800)
             pollRemoteStatusNow(target)
         }
     }
@@ -558,20 +569,22 @@ class RaagaConnectManager(
                 RaagaConnectClient.sendControl(target, ConnectControlCommand(action = "SEEK", positionMs = positionMs))
             }
             updateRemoteStatusOptimistically { it.copy(positionMs = positionMs) }
-            delay(150)
+            delay(250)
             pollRemoteStatusNow(target)
         }
     }
 
     fun sendVolume(volume: Float) {
         val target = _activeRemoteDevice.value ?: return
-        scope.launch {
+        updateRemoteStatusOptimistically { it.copy(volume = volume) }
+        volumeJob?.cancel()
+        volumeJob = scope.launch {
+            delay(50)
             if (target.isCloud) {
                 supabaseRelay.sendControl(target.id, ConnectControlCommand(action = "VOLUME", volume = volume, targetDeviceId = target.id))
             } else {
                 RaagaConnectClient.sendControl(target, ConnectControlCommand(action = "VOLUME", volume = volume))
             }
-            updateRemoteStatusOptimistically { it.copy(volume = volume) }
         }
     }
 
