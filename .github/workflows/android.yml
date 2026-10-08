@@ -81,32 +81,3 @@ jobs:
           app/build/outputs/apk/dev/debug/*.apk
         make_latest: "true"
         generate_release_notes: false
-
-  build-desktop:
-    name: Build Desktop Windows Installer
-    runs-on: windows-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: build-android
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-          cache: gradle
-          cache-dependency-path: 'desktop/**/*.gradle*'
-
-      - name: Build Windows Installer
-        working-directory: desktop
-        run: |
-          .\gradlew.bat :desktopApp:packageExe --stacktrace
-
-      - name: Attach Windows Installer to Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            desktop/desktopApp/build/compose/binaries/main/exe/*.exe
-            desktop/desktopApp/build/compose/binaries/main/msi/*.msi
