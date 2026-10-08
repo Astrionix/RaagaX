@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import Image from "next/image";
-import { Download, ChevronDown, Sparkles, Play, Pause, Disc3, Radio } from "lucide-react";
+import { Download, ChevronDown, Sparkles, Play, Pause, Disc3, Radio, Monitor } from "lucide-react";
 import { GithubIcon } from "./icons/GithubIcon";
 import { RAAGAX_CONFIG } from "@/config/release";
 import { FeatureStatusBadge } from "./FeatureStatusBadge";
@@ -98,7 +98,7 @@ export const Hero: React.FC = () => {
 
             {/* CTAs */}
             <div className="flex flex-wrap items-center gap-4 pt-2 w-full sm:w-auto">
-              {/* Primary CTA */}
+              {/* Primary CTA (Mobile APK) */}
               <a
                 href={RAAGAX_CONFIG.apkDownloadUrl}
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-7 py-3.5 rounded-2xl text-base font-semibold text-white bg-gradient-to-r from-red-600 via-rose-600 to-red-600 hover:from-red-500 hover:to-rose-500 shadow-[0_0_30px_rgba(239,68,68,0.45)] hover:shadow-[0_0_40px_rgba(239,68,68,0.6)] active:scale-95 transition-all"
@@ -107,12 +107,21 @@ export const Hero: React.FC = () => {
                 <span>Download APK ({RAAGAX_CONFIG.versionName})</span>
               </a>
 
-              {/* Secondary CTA */}
+              {/* Desktop Apps CTA */}
+              <a
+                href="#download"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl text-sm font-semibold text-zinc-200 hover:text-white glass-panel hover:bg-white/[0.08] border border-white/[0.1] transition-all"
+              >
+                <Monitor className="w-4 h-4 text-red-400" />
+                <span>Desktop (Windows / Mac / Linux)</span>
+              </a>
+
+              {/* GitHub CTA */}
               <a
                 href={RAAGAX_CONFIG.githubRepoUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl text-sm font-semibold text-zinc-300 hover:text-white glass-panel hover:bg-white/[0.08] transition-all"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl text-sm font-semibold text-zinc-400 hover:text-white bg-transparent hover:bg-white/[0.04] transition-all"
               >
                 <GithubIcon className="w-4 h-4" />
                 <span>View on GitHub</span>

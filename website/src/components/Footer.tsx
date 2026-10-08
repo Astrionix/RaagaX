@@ -87,6 +87,30 @@ export const Footer: React.FC = () => {
               </li>
               <li>
                 <a
+                  href={RAAGAX_CONFIG.desktop.windows.setupExe}
+                  className="hover:text-white transition-colors"
+                >
+                  Windows Setup (.exe)
+                </a>
+              </li>
+              <li>
+                <a
+                  href={RAAGAX_CONFIG.desktop.macOS.arm64Dmg}
+                  className="hover:text-white transition-colors"
+                >
+                  macOS Package (.dmg)
+                </a>
+              </li>
+              <li>
+                <a
+                  href={RAAGAX_CONFIG.desktop.linux.appImage}
+                  className="hover:text-white transition-colors"
+                >
+                  Linux Edition (.AppImage)
+                </a>
+              </li>
+              <li>
+                <a
                   href={RAAGAX_CONFIG.releaseNotesUrl}
                   target="_blank"
                   rel="noopener noreferrer"
