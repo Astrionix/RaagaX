@@ -63,6 +63,19 @@
     <string name="cancel_import" translatable="false">Cancel import</string>
     <string name="importing_in_background" translatable="false">Importing \"%1$s\" in background…</string>
     <string name="import_completed" translatable="false">Successfully imported \"%1$s\" with %2$d tracks</string>
+    <string name="spotify_account_tab" translatable="false">Spotify Account</string>
+    <string name="import_by_link_tab" translatable="false">Paste Link</string>
+    <string name="spotify_account_sync_title" translatable="false">Spotify Library Sync</string>
+    <string name="spotify_account_sync_subtitle" translatable="false">Sync Liked Songs &amp; Import Library</string>
+    <string name="spotify_sync_liked_title" translatable="false">Liked Songs Direct Sync</string>
+    <string name="spotify_sync_liked_desc" translatable="false">Directly sync all your Liked Songs from Spotify into Raaga Favorites &amp; playlist.</string>
+    <string name="spotify_sync_liked_button" translatable="false">Sync Liked Songs Now</string>
+    <string name="spotify_import_library_title" translatable="false">Import Full Library</string>
+    <string name="spotify_import_library_desc" translatable="false">Import your Spotify profile playlists all at once.</string>
+    <string name="spotify_load_playlists" translatable="false">Load Spotify Playlists</string>
+    <string name="spotify_web_login_btn" translatable="false">1-Tap Spotify Login</string>
+    <string name="spotify_oauth_login_btn" translatable="false">Official OAuth (PKCE)</string>
+    <string name="spotify_connected_as" translatable="false">Connected as %1$s</string>
     <string name="sign_in">Sign in</string>
     <string name="sign_out">Sign out</string>
     <string name="signed_in">Signed in</string>
@@ -966,6 +979,7 @@
     <string name="switch_profile_hint">Switch using the avatar, then use this profile.</string>
     <string name="profile_unavailable">No signed-in profile is available on this page yet.</string>
     <string name="open_lyrics">Lyrics</string>
+    <string name="connect_to_device">Connect to a device</string>
     <string name="audio_output">Audio output</string>
     <string name="audio_output_playing">Playing here</string>
     <string name="wired_headphones">Wired headphones</string>

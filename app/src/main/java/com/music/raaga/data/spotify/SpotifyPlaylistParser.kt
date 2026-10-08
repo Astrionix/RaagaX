@@ -23,6 +23,26 @@ data class SpotifyTrack(
     val title: String,
     val artist: String,
     val durationMs: Long? = null,
+    val id: String? = null,
+    val isrc: String? = null,
+)
+
+data class SpotifyUserProfile(
+    val id: String,
+    val displayName: String,
+    val email: String? = null,
+    val avatarUrl: String? = null,
+    val product: String? = null,
+)
+
+data class SpotifyUserPlaylistSummary(
+    val id: String,
+    val name: String,
+    val description: String? = null,
+    val coverArtUrl: String? = null,
+    val trackCount: Int = 0,
+    val isOwner: Boolean = true,
+    val ownerName: String? = null,
 )
 
 data class SpotifyPlaylistInfo(

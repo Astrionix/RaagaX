@@ -221,9 +221,12 @@ class LocalJamHostServer(
         headers: Map<String, String>,
     ) {
         when {
-            method == "GET" && (path == "/healthz" || path == "/api/time") -> {
+            method == "GET" && (path == "/healthz" || path == "/api/time" || path == "/api/parties/active") -> {
                 val now = System.currentTimeMillis()
-                sendJson(out, 200, "OK", """{"ok":true,"serverMs":$now}""")
+                val activePartyJson = if (code.isNotEmpty()) {
+                    """, "code":"$code", "members":${members.size}, "maxMembers":$maxMembers"""
+                } else ""
+                sendJson(out, 200, "OK", """{"ok":true,"serverMs":$now$activePartyJson}""")
             }
 
             method == "POST" && path == "/api/parties" -> {

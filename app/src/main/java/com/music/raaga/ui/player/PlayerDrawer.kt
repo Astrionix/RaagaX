@@ -176,7 +176,7 @@ internal fun PlayerDrawer(
             modifier = Modifier
                 // Capped so a phone full of rows scrolls inside the drawer
                 // rather than growing one into a full-screen page.
-                .heightIn(max = 560.dp)
+                .heightIn(max = 640.dp)
                 // Capped before the fill, so [Modifier.fillMaxWidth] fills to
                 // the cap rather than to the window. Centred by the parent's
                 // own BottomCenter alignment once it is narrower.

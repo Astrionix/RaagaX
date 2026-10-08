@@ -54,8 +54,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.VolumeDown
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
+import androidx.compose.material.icons.rounded.Devices
 import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material.icons.rounded.Person
+import com.music.raaga.data.connect.AndroidConnect
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -942,6 +944,38 @@ internal fun OutputCaption(
     /** Who's in it, before the settings page — see [ListenTogetherMembersSheet]. */
     onOpenMembers: () -> Unit,
 ) {
+    val activeRemoteDevice by AndroidConnect.manager.activeRemoteDevice.collectAsStateWithLifecycle()
+    if (activeRemoteDevice != null) {
+        val captionModifier = Modifier
+            .fillMaxWidth(0.75f)
+            .clickable { onOpenOutput() }
+        Row(
+            modifier = captionModifier,
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Devices,
+                contentDescription = null,
+                tint = Color(0xFF1DB954),
+                modifier = Modifier.size(13.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = "Playing on ${activeRemoteDevice?.name}",
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                ),
+                color = Color(0xFF1DB954),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+            )
+        }
+        return
+    }
+
     val badge = rememberPartyBadge()
     val outputName = rememberAudioOutputName(accountName)
     val outputStatus by AudioOutputStatus.current.collectAsStateWithLifecycle()

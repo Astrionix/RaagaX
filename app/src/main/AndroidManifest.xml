@@ -232,6 +232,16 @@
                     android:host="blend" />
             </intent-filter>
 
+            <!-- Custom scheme for Spotify OAuth callback. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="raaga"
+                    android:host="spotify-callback" />
+            </intent-filter>
+
             <!--
               Share → Raaga, from YT Music's own share sheet or from
               anywhere a link can be sent. The text is whatever the sending app

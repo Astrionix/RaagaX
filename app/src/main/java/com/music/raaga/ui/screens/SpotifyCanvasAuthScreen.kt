@@ -353,7 +353,7 @@ private fun extractSpDcFromCookieManager(cookieManager: CookieManager): String? 
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SpotifyLoginDialog(
+internal fun SpotifyLoginDialog(
     onDismiss: () -> Unit,
     onSuccess: (spDc: String) -> Unit,
 ) {

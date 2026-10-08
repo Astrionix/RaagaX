@@ -33,6 +33,7 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ContentPaste
 import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Public
@@ -47,10 +48,12 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -114,6 +117,7 @@ fun ImportSpotifyPlaylistSheet(
     val focusManager = LocalFocusManager.current
 
     var state by remember { mutableStateOf<ImportState>(ImportState.Input) }
+    var selectedTab by remember { mutableIntStateOf(0) }
     var inputUrl by remember { mutableStateOf("") }
     var privacy by remember { mutableStateOf(PlaylistPrivacy.PRIVATE) }
     var editableTitle by remember { mutableStateOf("") }
@@ -254,11 +258,38 @@ fun ImportSpotifyPlaylistSheet(
                 modifier = Modifier.padding(top = 8.dp),
             )
 
-            AnimatedContent(
-                targetState = state,
-                transitionSpec = { fadeIn() togetherWith fadeOut() },
-                label = "ImportSpotifyContent",
-            ) { currentState ->
+            if (state is ImportState.Input) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    TabPill(
+                        text = stringResource(R.string.import_by_link_tab),
+                        icon = Icons.Rounded.Link,
+                        selected = selectedTab == 0,
+                        onClick = { selectedTab = 0 },
+                        modifier = Modifier.weight(1f),
+                    )
+                    TabPill(
+                        text = stringResource(R.string.spotify_account_tab),
+                        icon = Icons.Rounded.LibraryMusic,
+                        selected = selectedTab == 1,
+                        onClick = { selectedTab = 1 },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+
+            if (selectedTab == 1 && state is ImportState.Input) {
+                SpotifyAccountSyncContent()
+            } else {
+                AnimatedContent(
+                    targetState = state,
+                    transitionSpec = { fadeIn() togetherWith fadeOut() },
+                    label = "ImportSpotifyContent",
+                ) { currentState ->
                 when (currentState) {
                     is ImportState.Input -> {
                         InputContent(
@@ -386,6 +417,7 @@ fun ImportSpotifyPlaylistSheet(
             }
         }
     }
+}
 }
 
 @Composable
@@ -840,3 +872,42 @@ private fun PrivacyPill(
         )
     }
 }
+
+@Composable
+private fun TabPill(
+    text: String,
+    icon: ImageVector,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val bgColor = if (selected) SpotifyGreen else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+    val contentColor = if (selected) Color.Black else MaterialTheme.colorScheme.onSurfaceVariant
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(12.dp),
+        color = bgColor,
+        modifier = modifier,
+    ) {
+        Row(
+            modifier = Modifier.padding(vertical = 10.dp, horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = contentColor,
+                modifier = Modifier.size(16.dp),
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                color = contentColor,
+            )
+        }
+    }
+}
+

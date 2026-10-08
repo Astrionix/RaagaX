@@ -3,6 +3,7 @@ package com.music.raaga.ui.player
 import kotlinx.coroutines.flow.first
 import androidx.compose.runtime.snapshotFlow
 import com.music.raaga.playback.PlaybackPosition
+import com.music.raaga.data.connect.AndroidConnect
 import android.content.Context
 import android.database.ContentObserver
 import android.media.AudioManager
@@ -296,11 +297,16 @@ internal class PlayerVolume(
         dragging = true
         // Follow the finger exactly; only external changes tween.
         scope.launch { level.snapTo(to) }
-        audioManager?.setStreamVolume(
-            AudioManager.STREAM_MUSIC,
-            (to * maxVolume).roundToInt(),
-            0,
-        )
+        val remote = AndroidConnect.manager.activeRemoteDevice.value
+        if (remote != null) {
+            AndroidConnect.manager.sendVolume(to)
+        } else {
+            audioManager?.setStreamVolume(
+                AudioManager.STREAM_MUSIC,
+                (to * maxVolume).roundToInt(),
+                0,
+            )
+        }
     }
 
     fun release() {

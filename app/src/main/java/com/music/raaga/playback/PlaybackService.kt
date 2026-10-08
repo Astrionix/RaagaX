@@ -21,6 +21,7 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.Format
+import androidx.media3.common.FlagSet
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
@@ -669,6 +670,7 @@ class PlaybackService : MediaLibraryService() {
      * being backgrounded and the screen going off — see [PartySync].
      */
     private var partySync: PartySync? = null
+    private var activeSessionPlayer: SessionPlayer? = null
 
     /** Commands exposed as the secondary buttons on the media notification. */
     private val favoriteCommand = SessionCommand(ACTION_TOGGLE_FAVORITE, Bundle.EMPTY)
@@ -1203,6 +1205,19 @@ class PlaybackService : MediaLibraryService() {
             }
         }
 
+        scope.launch {
+            combine(
+                com.music.raaga.data.connect.AndroidConnect.manager.activeRemoteDevice,
+                com.music.raaga.data.connect.AndroidConnect.manager.remoteStatus,
+            ) { remote, status ->
+                Pair(remote, status)
+            }.collectLatest {
+                activeSessionPlayer?.notifyRemoteStateChanged()
+                refreshCustomLayouts()
+                publishWidgetState()
+            }
+        }
+
         val streamResolver = ResolvingDataSource.Resolver { dataSpec ->
             // Which track everything below is for, said once, because none of
             // it would otherwise know: this runs on ExoPlayer's loader thread
@@ -1640,8 +1655,14 @@ class PlaybackService : MediaLibraryService() {
 
     /** Favorite and Shuffle: the only actions shown on the phone notification. */
     private fun notificationButtons(): List<CommandButton> {
+        val remote = com.music.raaga.data.connect.AndroidConnect.manager.activeRemoteDevice.value
+        val trackId = if (remote != null) {
+            com.music.raaga.data.connect.AndroidConnect.manager.remoteStatus.value?.track?.videoId
+        } else {
+            player?.currentMediaItem?.mediaId
+        }
         val favorite = CommandButton.Builder(
-            if (LikeState.overrides.value[player?.currentMediaItem?.mediaId] == LikeStatus.LIKE) {
+            if (LikeState.overrides.value[trackId] == LikeStatus.LIKE) {
                 CommandButton.ICON_HEART_FILLED
             } else {
                 CommandButton.ICON_HEART_UNFILLED
@@ -4950,8 +4971,22 @@ class PlaybackService : MediaLibraryService() {
      * play right up to the moment it is released.
      */
     private fun publishWidgetState(playing: Boolean? = null) {
+        val remoteDevice = com.music.raaga.data.connect.AndroidConnect.manager.activeRemoteDevice.value
+        val remoteStatus = com.music.raaga.data.connect.AndroidConnect.manager.remoteStatus.value
         val exoPlayer = player ?: return
-        val song = exoPlayer.currentMediaItem?.toSong() ?: return
+        val song = if (remoteDevice != null && remoteStatus?.track != null) {
+            com.music.raaga.data.model.Song(
+                videoId = remoteStatus.track.videoId,
+                title = remoteStatus.track.title,
+                artist = remoteStatus.track.artist,
+                thumbnailUrl = remoteStatus.track.thumbnailUrl,
+                durationText = remoteStatus.track.durationText,
+                albumName = remoteStatus.track.albumName,
+            )
+        } else {
+            exoPlayer.currentMediaItem?.toSong() ?: return
+        }
+        val isRemotePlaying = if (remoteDevice != null && remoteStatus != null) remoteStatus.isPlaying else (playing ?: exoPlayer.playWhenReady)
         // LikeState only knows ratings this process has seen: a fresh service
         // started from the widget or a restart has none until something seeds
         // it. Unknown is not "not liked", so keep what was last published for
@@ -4967,9 +5002,9 @@ class PlaybackService : MediaLibraryService() {
                 artist = song.artist,
                 artworkUrl = song.thumbnailUrl,
                 // playWhenReady, not isPlaying — see MediaWidgetSnapshot.isPlaying.
-                isPlaying = playing ?: exoPlayer.playWhenReady,
-                hasPrevious = exoPlayer.hasPreviousMediaItem(),
-                hasNext = exoPlayer.hasNextMediaItem(),
+                isPlaying = isRemotePlaying,
+                hasPrevious = if (remoteDevice != null) true else exoPlayer.hasPreviousMediaItem(),
+                hasNext = if (remoteDevice != null) true else exoPlayer.hasNextMediaItem(),
                 isLiked = liked,
                 shuffleEnabled = QueueShuffle.enabled.value,
             ),
@@ -6333,7 +6368,49 @@ class PlaybackService : MediaLibraryService() {
      * stays inert on those surfaces, exactly as it already was. In the app it
      * restarts, since that path asks for `COMMAND_SEEK_TO_PREVIOUS`.
      */
-    private class SessionPlayer(
+    private class SingleItemTimeline(
+        private val item: MediaItem,
+        private val durationUs: Long,
+    ) : Timeline() {
+        override fun getWindowCount(): Int = 1
+        override fun getPeriodCount(): Int = 1
+
+        override fun getWindow(windowIndex: Int, window: Window, defaultPositionProjectionUs: Long): Window {
+            window.set(
+                Window.SINGLE_WINDOW_UID,
+                item,
+                null,
+                C.TIME_UNSET,
+                C.TIME_UNSET,
+                C.TIME_UNSET,
+                true,
+                false,
+                null,
+                0L,
+                durationUs,
+                0,
+                0,
+                0L,
+            )
+            return window
+        }
+
+        override fun getPeriod(periodIndex: Int, period: Period, setIds: Boolean): Period {
+            period.set(
+                0,
+                item.mediaId,
+                0,
+                durationUs,
+                0L,
+            )
+            return period
+        }
+
+        override fun getIndexOfPeriod(uid: Any): Int = if (uid == item.mediaId || uid == 0) 0 else C.INDEX_UNSET
+        override fun getUidOfPeriod(periodIndex: Int): Any = item.mediaId
+    }
+
+    private inner class SessionPlayer(
         player: Player,
         private val crossfade: CrossfadeController,
         /**
@@ -6353,22 +6430,228 @@ class PlaybackService : MediaLibraryService() {
         private val getSubtitle: () -> String?,
     ) : ForwardingPlayer(player) {
 
+        private val listeners = java.util.concurrent.CopyOnWriteArraySet<Player.Listener>()
+
+        init {
+            activeSessionPlayer = this
+        }
+
+        override fun addListener(listener: Player.Listener) {
+            listeners.add(listener)
+            super.addListener(listener)
+        }
+
+        override fun removeListener(listener: Player.Listener) {
+            listeners.remove(listener)
+            super.removeListener(listener)
+        }
+
+        private fun isRemoteConnected(): Boolean =
+            com.music.raaga.data.connect.AndroidConnect.manager.activeRemoteDevice.value != null
+
+        fun notifyRemoteStateChanged() {
+            val isRemote = isRemoteConnected()
+            val playing = isPlaying
+            val state = playbackState
+            val mediaItem = currentMediaItem
+            val metadata = mediaMetadata
+            val commands = availableCommands
+            val timeline = currentTimeline
+
+            val flags = FlagSet.Builder()
+                .add(Player.EVENT_IS_PLAYING_CHANGED)
+                .add(Player.EVENT_PLAY_WHEN_READY_CHANGED)
+                .add(Player.EVENT_PLAYBACK_STATE_CHANGED)
+                .add(Player.EVENT_AVAILABLE_COMMANDS_CHANGED)
+                .add(Player.EVENT_TIMELINE_CHANGED)
+                .add(Player.EVENT_POSITION_DISCONTINUITY)
+
+            if (mediaItem != null) {
+                flags.add(Player.EVENT_MEDIA_ITEM_TRANSITION)
+                flags.add(Player.EVENT_MEDIA_METADATA_CHANGED)
+            }
+
+            val position = Player.PositionInfo(
+                null,
+                0,
+                mediaItem,
+                null,
+                0,
+                currentPosition,
+                contentPosition,
+                C.INDEX_UNSET,
+                C.INDEX_UNSET,
+            )
+
+            val events = Player.Events(flags.build())
+
+            for (listener in listeners) {
+                listener.onIsPlayingChanged(playing)
+                listener.onPlayWhenReadyChanged(playing, Player.PLAY_WHEN_READY_CHANGE_REASON_REMOTE)
+                listener.onPlaybackStateChanged(state)
+                listener.onAvailableCommandsChanged(commands)
+                listener.onTimelineChanged(timeline, Player.TIMELINE_CHANGE_REASON_SOURCE_UPDATE)
+                listener.onPositionDiscontinuity(position, position, Player.DISCONTINUITY_REASON_SEEK)
+                if (mediaItem != null) {
+                    listener.onMediaItemTransition(mediaItem, Player.MEDIA_ITEM_TRANSITION_REASON_AUTO)
+                    listener.onMediaMetadataChanged(metadata)
+                }
+                listener.onEvents(this, events)
+            }
+        }
+
+        override fun getCurrentTimeline(): Timeline {
+            if (isRemoteConnected()) {
+                val item = currentMediaItem
+                if (item != null) {
+                    val durationMs = duration
+                    val durationUs = if (durationMs > 0 && durationMs != C.TIME_UNSET) durationMs * 1000L else C.TIME_UNSET
+                    return SingleItemTimeline(item, durationUs)
+                }
+            }
+            return super.currentTimeline
+        }
+
+        override fun isPlaying(): Boolean {
+            val remote = com.music.raaga.data.connect.AndroidConnect.manager.activeRemoteDevice.value
+            if (remote != null) {
+                return com.music.raaga.data.connect.AndroidConnect.manager.remoteStatus.value?.isPlaying == true
+            }
+            return super.isPlaying
+        }
+
+        override fun getPlayWhenReady(): Boolean {
+            val remote = com.music.raaga.data.connect.AndroidConnect.manager.activeRemoteDevice.value
+            if (remote != null) {
+                return com.music.raaga.data.connect.AndroidConnect.manager.remoteStatus.value?.isPlaying == true
+            }
+            return super.playWhenReady
+        }
+
+        override fun getPlaybackState(): Int {
+            val remote = com.music.raaga.data.connect.AndroidConnect.manager.activeRemoteDevice.value
+            if (remote != null) {
+                val track = com.music.raaga.data.connect.AndroidConnect.manager.remoteStatus.value?.track
+                return if (track != null) Player.STATE_READY else Player.STATE_IDLE
+            }
+            return super.playbackState
+        }
+
+        override fun getCurrentPosition(): Long {
+            val remote = com.music.raaga.data.connect.AndroidConnect.manager.activeRemoteDevice.value
+            if (remote != null) {
+                return com.music.raaga.data.connect.AndroidConnect.manager.remoteStatus.value?.positionMs ?: 0L
+            }
+            return super.currentPosition
+        }
+
+        override fun getContentPosition(): Long =
+            if (isRemoteConnected()) currentPosition else super.contentPosition
+
+        override fun getBufferedPosition(): Long =
+            if (isRemoteConnected()) currentPosition else super.bufferedPosition
+
+        override fun getContentBufferedPosition(): Long =
+            if (isRemoteConnected()) currentPosition else super.contentBufferedPosition
+
+        override fun getDuration(): Long {
+            val remote = com.music.raaga.data.connect.AndroidConnect.manager.activeRemoteDevice.value
+            if (remote != null) {
+                val d = com.music.raaga.data.connect.AndroidConnect.manager.remoteStatus.value?.durationMs ?: 0L
+                return if (d > 0) d else C.TIME_UNSET
+            }
+            return super.duration
+        }
+
+        override fun getContentDuration(): Long =
+            if (isRemoteConnected()) duration else super.contentDuration
+
+        override fun getCurrentMediaItem(): MediaItem? {
+            val remote = com.music.raaga.data.connect.AndroidConnect.manager.activeRemoteDevice.value
+            if (remote != null) {
+                val rTrack = com.music.raaga.data.connect.AndroidConnect.manager.remoteStatus.value?.track
+                if (rTrack != null) {
+                    val remoteName = remote.name.ifBlank { "Connected Device" }
+                    val artUri = rTrack.thumbnailUrl?.artworkAt(NOTIFICATION_ART_PX)?.let(Uri::parse)
+                        ?: rTrack.thumbnailUrl?.let(Uri::parse)
+                    return MediaItem.Builder()
+                        .setMediaId(rTrack.videoId)
+                        .setUri(rTrack.videoId)
+                        .setMediaMetadata(
+                            MediaMetadata.Builder()
+                                .setTitle(rTrack.title)
+                                .setArtist(rTrack.artist)
+                                .setAlbumTitle(rTrack.albumName)
+                                .setSubtitle("Playing on $remoteName")
+                                .setArtworkUri(artUri)
+                                .build(),
+                        )
+                        .build()
+                }
+            }
+            return super.currentMediaItem
+        }
+
+        override fun getCurrentMediaItemIndex(): Int =
+            if (isRemoteConnected()) 0 else super.currentMediaItemIndex
+
+        override fun getCurrentPeriodIndex(): Int =
+            if (isRemoteConnected()) 0 else super.currentPeriodIndex
+
+        override fun getMediaItemCount(): Int =
+            if (isRemoteConnected()) 1 else super.mediaItemCount
+
+        override fun hasNextMediaItem(): Boolean =
+            if (isRemoteConnected()) true else super.hasNextMediaItem()
+
+        override fun hasPreviousMediaItem(): Boolean =
+            if (isRemoteConnected()) true else super.hasPreviousMediaItem()
+
+        override fun isCommandAvailable(command: Int): Boolean {
+            if (isRemoteConnected()) {
+                when (command) {
+                    Player.COMMAND_PLAY_PAUSE,
+                    Player.COMMAND_SEEK_TO_NEXT,
+                    Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM,
+                    Player.COMMAND_SEEK_TO_PREVIOUS,
+                    Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM,
+                    Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM,
+                    Player.COMMAND_GET_CURRENT_MEDIA_ITEM,
+                    Player.COMMAND_GET_METADATA,
+                    Player.COMMAND_GET_TIMELINE -> return true
+                }
+            }
+            return super.isCommandAvailable(command)
+        }
+
+        override fun getAvailableCommands(): Player.Commands {
+            if (isRemoteConnected()) {
+                return super.getAvailableCommands().buildUpon()
+                    .add(Player.COMMAND_PLAY_PAUSE)
+                    .add(Player.COMMAND_SEEK_TO_NEXT)
+                    .add(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
+                    .add(Player.COMMAND_SEEK_TO_PREVIOUS)
+                    .add(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
+                    .add(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM)
+                    .add(Player.COMMAND_GET_CURRENT_MEDIA_ITEM)
+                    .add(Player.COMMAND_GET_METADATA)
+                    .add(Player.COMMAND_GET_TIMELINE)
+                    .build()
+            }
+            return super.getAvailableCommands()
+        }
+
         /**
          * Whether this device is a listener in a party its host has taken
          * control of — see [ListenTogether.State.controlsLocked].
-         *
-         * Checked here, at the door, rather than only in the app: the
-         * notification, a headset button and Android Auto all arrive through
-         * this wrapper too, and a listener who can skip the party's track from
-         * their lock screen is not restricted at all.
-         *
-         * What this is not is the enforcement. The server refuses these actions
-         * from a listener independently; this is what stops a surface from
-         * appearing to work and then being silently overruled.
          */
         private fun locked(): Boolean = ListenTogether.state.value.controlsLocked
 
         override fun play() {
+            if (isRemoteConnected()) {
+                com.music.raaga.data.connect.AndroidConnect.manager.sendPlay()
+                return
+            }
             // Locked, this plays only here — the party carries on untouched and
             // this device rejoins it wherever it has got to. See
             // [PartySync.onLockedTransport], which owns that catch-up.
@@ -6383,6 +6666,14 @@ class PlaybackService : MediaLibraryService() {
         }
 
         override fun pause() {
+            if (com.music.raaga.data.connect.AndroidConnect.isHandoffPausing) {
+                super.pause()
+                return
+            }
+            if (isRemoteConnected()) {
+                com.music.raaga.data.connect.AndroidConnect.manager.sendPause()
+                return
+            }
             if (lockedTransport(false)) return
             onUserIntent()
             super.pause()
@@ -6392,12 +6683,25 @@ class PlaybackService : MediaLibraryService() {
         // is the listener's own business, and the lifecycle paths that call it
         // are not asking to move the party.
         override fun stop() {
+            if (isRemoteConnected()) {
+                com.music.raaga.data.connect.AndroidConnect.manager.sendPause()
+                return
+            }
             if (locked()) { super.stop(); return }
             onUserIntent()
             super.stop()
         }
 
         override fun setPlayWhenReady(playWhenReady: Boolean) {
+            if (com.music.raaga.data.connect.AndroidConnect.isHandoffPausing) {
+                super.setPlayWhenReady(playWhenReady)
+                return
+            }
+            if (isRemoteConnected()) {
+                if (playWhenReady) com.music.raaga.data.connect.AndroidConnect.manager.sendPlay()
+                else com.music.raaga.data.connect.AndroidConnect.manager.sendPause()
+                return
+            }
             if (lockedTransport(playWhenReady)) return
             onUserIntent()
             if (playWhenReady && deferPlayToParty()) return
@@ -6408,36 +6712,62 @@ class PlaybackService : MediaLibraryService() {
         // host puts it, and a local seek would only be dragged back by the next
         // reconcile anyway.
         override fun seekTo(positionMs: Long) {
+            if (isRemoteConnected()) {
+                com.music.raaga.data.connect.AndroidConnect.manager.sendSeek(positionMs)
+                return
+            }
             if (locked()) return
             onUserIntent()
             super.seekTo(positionMs)
         }
 
         override fun seekBack() {
+            if (isRemoteConnected()) {
+                val cur = currentPosition
+                com.music.raaga.data.connect.AndroidConnect.manager.sendSeek((cur - 10000L).coerceAtLeast(0L))
+                return
+            }
             if (locked()) return
             onUserIntent()
             super.seekBack()
         }
 
         override fun seekForward() {
+            if (isRemoteConnected()) {
+                val cur = currentPosition
+                com.music.raaga.data.connect.AndroidConnect.manager.sendSeek(cur + 10000L)
+                return
+            }
             if (locked()) return
             onUserIntent()
             super.seekForward()
         }
 
         override fun seekToPrevious() {
+            if (isRemoteConnected()) {
+                com.music.raaga.data.connect.AndroidConnect.manager.sendPrevious()
+                return
+            }
             if (locked()) return
             onUserIntent()
             super.seekToPrevious()
         }
 
         override fun seekToDefaultPosition() {
+            if (isRemoteConnected()) {
+                com.music.raaga.data.connect.AndroidConnect.manager.sendSeek(0L)
+                return
+            }
             if (locked()) return
             onUserIntent()
             super.seekToDefaultPosition()
         }
 
         override fun seekToDefaultPosition(mediaItemIndex: Int) {
+            if (isRemoteConnected()) {
+                com.music.raaga.data.connect.AndroidConnect.manager.sendSeek(0L)
+                return
+            }
             if (locked()) return
             onUserIntent()
             super.seekToDefaultPosition(mediaItemIndex)
@@ -6519,6 +6849,22 @@ class PlaybackService : MediaLibraryService() {
         }
 
         override fun getMediaMetadata(): MediaMetadata {
+            val remote = com.music.raaga.data.connect.AndroidConnect.manager.activeRemoteDevice.value
+            if (remote != null) {
+                val rTrack = com.music.raaga.data.connect.AndroidConnect.manager.remoteStatus.value?.track
+                if (rTrack != null) {
+                    val remoteName = remote.name.ifBlank { "Connected Device" }
+                    val artUri = rTrack.thumbnailUrl?.artworkAt(NOTIFICATION_ART_PX)?.let(Uri::parse)
+                        ?: rTrack.thumbnailUrl?.let(Uri::parse)
+                    return MediaMetadata.Builder()
+                        .setTitle(rTrack.title)
+                        .setArtist(rTrack.artist)
+                        .setAlbumTitle(rTrack.albumName)
+                        .setSubtitle("Playing on $remoteName")
+                        .setArtworkUri(artUri)
+                        .build()
+                }
+            }
             val base = wrappedPlayer.mediaMetadata
             val subtitle = getSubtitle()
             return if (!subtitle.isNullOrBlank()) {
@@ -6529,6 +6875,10 @@ class PlaybackService : MediaLibraryService() {
         }
 
         override fun seekTo(mediaItemIndex: Int, positionMs: Long) {
+            if (isRemoteConnected()) {
+                com.music.raaga.data.connect.AndroidConnect.manager.sendSeek(positionMs)
+                return
+            }
             if (locked()) return
             onUserIntent()
             crossfade.onSkipRequested()
@@ -6575,6 +6925,10 @@ class PlaybackService : MediaLibraryService() {
         }
 
         override fun seekToPreviousMediaItem() {
+            if (isRemoteConnected()) {
+                com.music.raaga.data.connect.AndroidConnect.manager.sendPrevious()
+                return
+            }
             if (locked()) return
             onUserIntent()
             crossfade.onSkipRequested()
@@ -6582,6 +6936,10 @@ class PlaybackService : MediaLibraryService() {
         }
 
         override fun seekToNextMediaItem() {
+            if (isRemoteConnected()) {
+                com.music.raaga.data.connect.AndroidConnect.manager.sendNext()
+                return
+            }
             if (locked()) return
             onUserIntent()
             crossfade.onSkipRequested()
@@ -6589,6 +6947,10 @@ class PlaybackService : MediaLibraryService() {
         }
 
         override fun seekToNext() {
+            if (isRemoteConnected()) {
+                com.music.raaga.data.connect.AndroidConnect.manager.sendNext()
+                return
+            }
             if (locked()) return
             onUserIntent()
             crossfade.onSkipRequested()

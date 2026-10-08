@@ -193,6 +193,9 @@ import com.music.raaga.ui.components.ImportSpotifyPlaylistSheet
 import com.music.raaga.ui.components.PlaylistPickerSheet
 import com.music.raaga.ui.components.SongActionsSheet
 import androidx.media3.session.MediaController
+import android.view.KeyEvent
+import com.music.raaga.data.connect.AndroidConnect
+import com.music.raaga.data.connect.ConnectTrack
 import com.music.raaga.playback.QualityUpgrade
 import com.music.raaga.playback.rememberMediaController
 import com.music.raaga.playback.rememberPlayerState
@@ -278,6 +281,7 @@ internal fun shouldSkipAfterDislike(
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        AndroidConnect.appContext = applicationContext
         enableEdgeToEdge()
         // Before the composition, so a cold launch from a widget's artwork has
         // the request already standing by the time RaagaApp first reads it.
@@ -285,6 +289,7 @@ class MainActivity : AppCompatActivity() {
         JamInviteLink.consume(intent)
         // Likewise for a link tapped or shared from another app — see [MusicLink].
         MusicLink.consume(intent)
+        com.music.raaga.data.spotify.SpotifyAuthManager.consumeIntent(intent)
         setContent {
             val theme by AppSettings.themeMode.collectAsStateWithLifecycle()
             val highPerformance by AppSettings.highPerformanceMode.collectAsStateWithLifecycle()
@@ -383,6 +388,27 @@ class MainActivity : AppCompatActivity() {
         PlayerDeepLink.consume(intent)
         JamInviteLink.consume(intent)
         MusicLink.consume(intent)
+        com.music.raaga.data.spotify.SpotifyAuthManager.consumeIntent(intent)
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if (AndroidConnect.manager.activeRemoteDevice.value != null) {
+            when (keyCode) {
+                KeyEvent.KEYCODE_VOLUME_UP -> {
+                    val cur = AndroidConnect.manager.remoteStatus.value?.volume ?: 0.5f
+                    val next = (cur + 0.05f).coerceIn(0f, 1f)
+                    AndroidConnect.manager.sendVolume(next)
+                    return true
+                }
+                KeyEvent.KEYCODE_VOLUME_DOWN -> {
+                    val cur = AndroidConnect.manager.remoteStatus.value?.volume ?: 0.5f
+                    val next = (cur - 0.05f).coerceIn(0f, 1f)
+                    AndroidConnect.manager.sendVolume(next)
+                    return true
+                }
+            }
+        }
+        return super.onKeyDown(keyCode, event)
     }
 }
 
@@ -747,6 +773,13 @@ private fun RaagaApp(
     }
     val controller = rememberMediaController()
     val player = rememberPlayerState(controller)
+
+    LaunchedEffect(controller) {
+        AndroidConnect.controller = controller
+        if (controller != null) {
+            AndroidConnect.start()
+        }
+    }
     // A resume in a party is performed on the instant the server schedules, not
     // when it was pressed, and nothing about the player moves in between — so
     // the transport spends that round trip drawn as though the tap never landed.
@@ -801,14 +834,19 @@ private fun RaagaApp(
      * of starting a second of audio that [PartySync] then has to stop.
      */
     val togglePlayPause: () -> Unit = {
-        controller?.let { c ->
-            val party = ListenTogether.state.value
-            if (party.controlsLocked && !party.playback.isPlaying && !c.isPlaying) {
-                showHostOnlyNotice()
-            } else if (c.isPlaying) {
-                c.pause()
-            } else {
-                c.play()
+        val remoteDevice = AndroidConnect.manager.activeRemoteDevice.value
+        if (remoteDevice != null) {
+            AndroidConnect.manager.sendToggle()
+        } else {
+            controller?.let { c ->
+                val party = ListenTogether.state.value
+                if (party.controlsLocked && !party.playback.isPlaying && !c.isPlaying) {
+                    showHostOnlyNotice()
+                } else if (c.isPlaying) {
+                    c.pause()
+                } else {
+                    c.play()
+                }
             }
         }
     }
@@ -1122,40 +1160,59 @@ private fun RaagaApp(
     val playFrom: (List<Song>, Int, QueueSource) -> Unit = { songs, index, source ->
         playRequestGeneration++
         activeRadioSeed = null
-        scope.launch {
-            if (refusedByHost()) return@launch
-            val c = controller ?: return@launch
-            val currentTimeline = player.queue.takeIf { it.size == c.mediaItemCount }
-                ?: (0 until c.mediaItemCount).map { c.getMediaItemAt(it).toSong() }
-            val currentIndex = c.currentMediaItemIndex
-
-            if (ListenTogether.state.value.inParty) {
-                val selectedSong = songs.getOrNull(index) ?: return@launch
-                val party = ListenTogether.state.value
-                val partyQueue = party.queue.items
-                val partyIndex = partyQueue.indexOfFirst { it.videoId == party.playback.track?.videoId }
-                val upcomingPartyTracks = if (partyIndex >= 0) {
-                    partyQueue.drop(partyIndex + 1)
-                } else {
-                    emptyList()
+        val remoteDevice = AndroidConnect.manager.activeRemoteDevice.value
+        if (remoteDevice != null) {
+            val selectedSong = songs.getOrNull(index)
+            if (selectedSong != null) {
+                scope.launch {
+                    val connectTrack = ConnectTrack(
+                        videoId = selectedSong.videoId,
+                        title = selectedSong.title,
+                        artist = selectedSong.artist,
+                        thumbnailUrl = selectedSong.thumbnailUrl,
+                        durationText = selectedSong.durationText,
+                        albumName = selectedSong.albumName,
+                    )
+                    controller?.pause()
+                    AndroidConnect.manager.transferTo(remoteDevice, connectTrack, 0L, true)
                 }
-                val timeline = QueueCoordinator.buildPartyPlaybackQueue(
-                    tappedSong = selectedSong,
-                    source = source,
-                    upcomingPartyTracks = upcomingPartyTracks,
-                )
-                c.playSongs(timeline, 0)
-            } else {
-                val result = QueueCoordinator.buildContextQueue(
-                    currentTimeline = currentTimeline,
-                    currentIndex = currentIndex,
-                    newContextSongs = songs,
-                    selectedIndex = index,
-                    contextSource = source,
-                )
-                c.playSongs(result.timeline, result.startIndex)
             }
-            // Start playback in the mini-player; the user opens the full view by tapping it.
+        } else {
+            scope.launch {
+                if (refusedByHost()) return@launch
+                val c = controller ?: return@launch
+                val currentTimeline = player.queue.takeIf { it.size == c.mediaItemCount }
+                    ?: (0 until c.mediaItemCount).map { c.getMediaItemAt(it).toSong() }
+                val currentIndex = c.currentMediaItemIndex
+
+                if (ListenTogether.state.value.inParty) {
+                    val selectedSong = songs.getOrNull(index) ?: return@launch
+                    val party = ListenTogether.state.value
+                    val partyQueue = party.queue.items
+                    val partyIndex = partyQueue.indexOfFirst { it.videoId == party.playback.track?.videoId }
+                    val upcomingPartyTracks = if (partyIndex >= 0) {
+                        partyQueue.drop(partyIndex + 1)
+                    } else {
+                        emptyList()
+                    }
+                    val timeline = QueueCoordinator.buildPartyPlaybackQueue(
+                        tappedSong = selectedSong,
+                        source = source,
+                        upcomingPartyTracks = upcomingPartyTracks,
+                    )
+                    c.playSongs(timeline, 0)
+                } else {
+                    val result = QueueCoordinator.buildContextQueue(
+                        currentTimeline = currentTimeline,
+                        currentIndex = currentIndex,
+                        newContextSongs = songs,
+                        selectedIndex = index,
+                        contextSource = source,
+                    )
+                    c.playSongs(result.timeline, result.startIndex)
+                }
+                // Start playback in the mini-player; the user opens the full view by tapping it.
+            }
         }
     }
     // Kept for entry points whose rows already carry their origin (notably a
@@ -1246,20 +1303,36 @@ private fun RaagaApp(
     val playRadio: (Song, QueueSource) -> Unit = { song, source ->
         playRequestGeneration++
         activeRadioSeed = null
-        scope.launch {
-            if (refusedByHost()) return@launch
-            val c = controller ?: return@launch
-            val currentTimeline = player.queue.takeIf { it.size == c.mediaItemCount }
-                ?: (0 until c.mediaItemCount).map { c.getMediaItemAt(it).toSong() }
-            val currentIndex = c.currentMediaItemIndex
-            val oneOffQueue = QueueCoordinator.buildOneOffQueue(
-                currentTimeline = currentTimeline,
-                currentIndex = currentIndex,
-                tappedSong = song,
-                source = source,
-            )
-            c.playSongs(oneOffQueue, 0)
-            // Start radio in the mini-player; the user opens the full view by tapping it.
+        val remoteDevice = AndroidConnect.manager.activeRemoteDevice.value
+        if (remoteDevice != null) {
+            scope.launch {
+                val connectTrack = ConnectTrack(
+                    videoId = song.videoId,
+                    title = song.title,
+                    artist = song.artist,
+                    thumbnailUrl = song.thumbnailUrl,
+                    durationText = song.durationText,
+                    albumName = song.albumName,
+                )
+                controller?.pause()
+                AndroidConnect.manager.transferTo(remoteDevice, connectTrack, 0L, true)
+            }
+        } else {
+            scope.launch {
+                if (refusedByHost()) return@launch
+                val c = controller ?: return@launch
+                val currentTimeline = player.queue.takeIf { it.size == c.mediaItemCount }
+                    ?: (0 until c.mediaItemCount).map { c.getMediaItemAt(it).toSong() }
+                val currentIndex = c.currentMediaItemIndex
+                val oneOffQueue = QueueCoordinator.buildOneOffQueue(
+                    currentTimeline = currentTimeline,
+                    currentIndex = currentIndex,
+                    tappedSong = song,
+                    source = source,
+                )
+                c.playSongs(oneOffQueue, 0)
+                // Start radio in the mini-player; the user opens the full view by tapping it.
+            }
         }
     }
 
@@ -1272,7 +1345,22 @@ private fun RaagaApp(
      * replaced in one Media3 operation.
      */
     val startRadio: (Song) -> Unit = { song ->
-        val originalController = controller
+        val remoteDevice = AndroidConnect.manager.activeRemoteDevice.value
+        if (remoteDevice != null) {
+            scope.launch {
+                val connectTrack = ConnectTrack(
+                    videoId = song.videoId,
+                    title = song.title,
+                    artist = song.artist,
+                    thumbnailUrl = song.thumbnailUrl,
+                    durationText = song.durationText,
+                    albumName = song.albumName,
+                )
+                controller?.pause()
+                AndroidConnect.manager.transferTo(remoteDevice, connectTrack, 0L, true)
+            }
+        } else {
+            val originalController = controller
         if (originalController != null && !refusedByHost()) {
             val request = ++playRequestGeneration
             // Ignore AutoPlay's tail: it may legitimately grow while the
@@ -1343,6 +1431,7 @@ private fun RaagaApp(
             }
         }
     }
+}
     val addToQueue: (Song) -> Unit = { song ->
         scope.launch {
             if (refusedByHost()) return@launch
@@ -1986,13 +2075,38 @@ private fun RaagaApp(
         links = YtMusicRepository.trackLinks(current.videoId).getOrNull()
         linksLoading = false
     }
-    val playerSong = player.song?.let { current ->
-        val extra = links?.takeIf { it.videoId == current.videoId } ?: return@let current
-        current.copy(
-            artistId = current.artistId ?: extra.artistId,
-            albumId = current.albumId ?: extra.albumId,
-            albumName = current.albumName ?: extra.albumName,
-        )
+    val activeRemoteDevice by AndroidConnect.manager.activeRemoteDevice.collectAsStateWithLifecycle()
+    val remoteStatus by AndroidConnect.manager.remoteStatus.collectAsStateWithLifecycle()
+
+    val remotePlaybackPosition = remember { com.music.raaga.playback.PlaybackPosition() }
+    LaunchedEffect(remoteStatus?.positionMs) {
+        remotePlaybackPosition.positionMs = remoteStatus?.positionMs ?: 0L
+    }
+
+    val remoteSong = remember(remoteStatus?.track) {
+        remoteStatus?.track?.let { t ->
+            Song(
+                videoId = t.videoId,
+                title = t.title,
+                artist = t.artist,
+                thumbnailUrl = t.thumbnailUrl,
+                durationText = t.durationText,
+                albumName = t.albumName,
+            )
+        }
+    }
+
+    val playerSong = if (activeRemoteDevice != null && remoteSong != null) {
+        remoteSong
+    } else {
+        player.song?.let { current ->
+            val extra = links?.takeIf { it.videoId == current.videoId } ?: return@let current
+            current.copy(
+                artistId = current.artistId ?: extra.artistId,
+                albumId = current.albumId ?: extra.albumId,
+                albumName = current.albumName ?: extra.albumName,
+            )
+        }
     }
     // The three-dot menu snapshots the track into songActions when it's opened,
     // so a menu opened before the lookup above resolves would otherwise be
@@ -2034,63 +2148,89 @@ private fun RaagaApp(
                         it.memberId == playback.startedBy
                     }?.displayName?.takeIf(String::isNotBlank)
             }
+        val effectiveIsPlaying = if (activeRemoteDevice != null && remoteStatus != null) {
+            remoteStatus!!.isPlaying
+        } else {
+            player.isPlaying
+        }
+        val effectivePosition = if (activeRemoteDevice != null && remoteStatus != null) {
+            remotePlaybackPosition
+        } else {
+            player.position
+        }
+        val effectiveDurationMs = if (activeRemoteDevice != null && remoteStatus != null && remoteStatus!!.durationMs > 0) {
+            remoteStatus!!.durationMs
+        } else {
+            player.durationMs
+        }
         NowPlayingScreen(
             song = displayedSong,
             playedBy = playedBy,
             accountName = account?.name,
             windowWidth = windowWidth,
             windowHeight = windowHeight,
-            isPlaying = player.isPlaying,
+            isPlaying = effectiveIsPlaying,
             isLoading = playPauseBusy,
-            position = player.position,
-            durationMs = player.durationMs,
+            position = effectivePosition,
+            durationMs = effectiveDurationMs,
             audioVersionSwitching = switchingAudioVersion,
             qualityUpgraded = player.isQualityUpgraded,
             onPlayPause = {
                 togglePlayPause()
             },
-            onNext = { controller?.seekToNextMediaItem() },
-            onPrevious = { controller?.seekToPrevious() },
+            onNext = {
+                if (activeRemoteDevice != null) {
+                    AndroidConnect.manager.sendNext()
+                } else {
+                    controller?.seekToNextMediaItem()
+                }
+            },
+            onPrevious = {
+                if (activeRemoteDevice != null) {
+                    AndroidConnect.manager.sendPrevious()
+                } else {
+                    controller?.seekToPrevious()
+                }
+            },
             onBlockedControl = showHostOnlyNotice,
             onSeekFraction = { fraction ->
-                controller?.let { player ->
-                    // Read at the moment of the seek, not from the
-                    // polled snapshot the screen draws with: a track
-                    // change updates the current item before it updates
-                    // the duration, so a fraction dropped seconds after
-                    // a transition would otherwise be scaled by the
-                    // previous song's length.
-                    val duration = player.duration
-                    if (duration > 0) {
-                        player.seekTo(
-                            (fraction * duration).toLong()
-                                .coerceIn(0L, (duration - SEEK_END_GUARD_MS).coerceAtLeast(0L)),
-                        )
+                if (activeRemoteDevice != null) {
+                    val dur = remoteStatus?.durationMs ?: 0L
+                    if (dur > 0) {
+                        AndroidConnect.manager.sendSeek((fraction * dur).toLong())
+                    }
+                } else {
+                    controller?.let { player ->
+                        // Read at the moment of the seek, not from the
+                        // polled snapshot the screen draws with: a track
+                        // change updates the current item before it updates
+                        // the duration, so a fraction dropped seconds after
+                        // a transition would otherwise be scaled by the
+                        // previous song's length.
+                        val duration = player.duration
+                        if (duration > 0) {
+                            player.seekTo(
+                                (fraction * duration).toLong()
+                                    .coerceIn(0L, (duration - SEEK_END_GUARD_MS).coerceAtLeast(0L)),
+                            )
+                        }
                     }
                 }
             },
             onSeek = { target ->
-                controller?.let { player ->
-                    // Clamped here rather than at each caller because
-                    // not every caller can clamp. The scrubber's target
-                    // is a fraction of the duration and cannot overrun,
-                    // but a tapped lyric line seeks to a timestamp from
-                    // whichever transcription matched on title, artist
-                    // and duration — and a match against a slightly
-                    // longer master puts every line late, so a tap near
-                    // the end asks for a position past the end of this
-                    // stream. Media3 answers that by clamping to the
-                    // final millisecond, which ends the track and starts
-                    // the next one: tapping the last line of a song
-                    // skipped it.
-                    val duration = player.duration
-                    player.seekTo(
-                        if (duration > 0) {
-                            target.coerceIn(0L, (duration - SEEK_END_GUARD_MS).coerceAtLeast(0L))
-                        } else {
-                            target.coerceAtLeast(0L)
-                        },
-                    )
+                if (activeRemoteDevice != null) {
+                    AndroidConnect.manager.sendSeek(target)
+                } else {
+                    controller?.let { player ->
+                        val duration = player.duration
+                        player.seekTo(
+                            if (duration > 0) {
+                                target.coerceIn(0L, (duration - SEEK_END_GUARD_MS).coerceAtLeast(0L))
+                            } else {
+                                target.coerceAtLeast(0L)
+                            },
+                        )
+                    }
                 }
             },
             queue = player.queue,
@@ -3300,8 +3440,10 @@ private fun RaagaApp(
                 )
 
                 // Drawn before the bars so their own glass reads on top of it.
+                val miniPlayerSong = if (activeRemoteDevice != null && remoteSong != null) remoteSong else player.song
+                val miniPlayerIsPlaying = if (activeRemoteDevice != null && remoteStatus != null) remoteStatus!!.isPlaying else player.isPlaying
                 BottomFadeScrim(
-                    withMiniPlayer = player.song != null,
+                    withMiniPlayer = miniPlayerSong != null,
                     // Not the wash: by the foot of the screen the page has finished
                     // easing out of it and into this, so this is what is actually
                     // under the tab bar.
@@ -3347,14 +3489,18 @@ private fun RaagaApp(
                         selectedIndex = selectedTab,
                         onTabSelected = onTabSelected,
                         scrollConnection = navBarScroll,
-                        song = player.song,
-                        isPlaying = player.isPlaying,
+                        song = miniPlayerSong,
+                        isPlaying = miniPlayerIsPlaying,
                         isLoading = playPauseBusy,
                         onPlayPause = {
                             togglePlayPause()
                         },
-                        onNext = { controller?.seekToNextMediaItem() },
-                        onPrevious = { controller?.seekToPrevious() },
+                        onNext = {
+                            if (activeRemoteDevice != null) AndroidConnect.manager.sendNext() else controller?.seekToNextMediaItem()
+                        },
+                        onPrevious = {
+                            if (activeRemoteDevice != null) AndroidConnect.manager.sendPrevious() else controller?.seekToPrevious()
+                        },
                         onExpand = { showNowPlaying = true },
                         controlsLocked = controlsLocked,
                         onBlockedControl = showHostOnlyNotice,
@@ -3374,17 +3520,21 @@ private fun RaagaApp(
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     QueueActionNoticeHost(queueNotice)
-                    player.song?.let { song ->
+                    miniPlayerSong?.let { song ->
                         MiniPlayer(
                             song = song,
-                            isPlaying = player.isPlaying,
+                            isPlaying = miniPlayerIsPlaying,
                             isLoading = playPauseBusy,
                             hazeState = hazeState,
                             onPlayPause = {
                                 togglePlayPause()
                             },
-                            onNext = { controller?.seekToNextMediaItem() },
-                            onPrevious = { controller?.seekToPrevious() },
+                            onNext = {
+                                if (activeRemoteDevice != null) AndroidConnect.manager.sendNext() else controller?.seekToNextMediaItem()
+                            },
+                            onPrevious = {
+                                if (activeRemoteDevice != null) AndroidConnect.manager.sendPrevious() else controller?.seekToPrevious()
+                            },
                             onExpand = { showNowPlaying = true },
                             controlsLocked = controlsLocked,
                             onBlockedControl = showHostOnlyNotice,
@@ -3403,7 +3553,7 @@ private fun RaagaApp(
 
         }
 
-        val playerRaised = showNowPlaying && playerSong != null
+        val playerRaised = showNowPlaying && (playerSong != null || (activeRemoteDevice != null && remoteSong != null))
 
         // ---- Now Playing ----
         if (playerRaised) {
@@ -3431,7 +3581,7 @@ private fun RaagaApp(
                 // Keeps a sheet still "settling" after a lyrics or queue
                 // scroll from taking the next touch meant for that list.
                 Box(Modifier.guardSheetFromContentTouches(nowPlayingSheetState)) {
-                    nowPlaying(playerSong)
+                    playerSong?.let { nowPlaying(it) }
                 }
             }
         }

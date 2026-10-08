@@ -172,6 +172,7 @@ fun LibraryScreen(
                         onItemClick = onShelfItemClick,
                         onItemLongPress = onShelfItemLongPress,
                         onShowAll = onShowAll,
+                        onImportSpotifyPlaylist = onImportSpotifyPlaylist,
                     )
                 }
                 item {
@@ -193,6 +194,7 @@ fun LibraryScreen(
                             onItemClick = onShelfItemClick,
                             onItemLongPress = onShelfItemLongPress,
                             onShowAll = onShowAll,
+                            onImportSpotifyPlaylist = onImportSpotifyPlaylist,
                         )
                     }
                     librarySkeleton()
@@ -205,6 +207,7 @@ fun LibraryScreen(
                             onItemClick = onShelfItemClick,
                             onItemLongPress = onShelfItemLongPress,
                             onShowAll = onShowAll,
+                            onImportSpotifyPlaylist = onImportSpotifyPlaylist,
                         )
                     }
                     item {
@@ -237,6 +240,7 @@ fun LibraryScreen(
                             onItemClick = onShelfItemClick,
                             onItemLongPress = onShelfItemLongPress,
                             onShowAll = onShowAll,
+                            onImportSpotifyPlaylist = onImportSpotifyPlaylist,
                         )
                     }
 
@@ -370,6 +374,7 @@ private fun OnDeviceShelf(
     onItemClick: (ShelfItem) -> Unit,
     onItemLongPress: (ShelfItem) -> Unit,
     onShowAll: (HomeShelf) -> Unit,
+    onImportSpotifyPlaylist: () -> Unit = {},
 ) {
     val webdavConfigured by AppSettings.webdavUrl.collectAsStateWithLifecycle()
     val smbHost by AppSettings.smbHost.collectAsStateWithLifecycle()
@@ -436,6 +441,14 @@ private fun OnDeviceShelf(
         onItemClick = onItemClick,
         onItemLongPress = onItemLongPress,
         onShowAll = { onShowAll(onDeviceShelf) },
+        trailingCards = listOf {
+            NewShelfCard(
+                icon = RaagaIcons.Download,
+                label = stringResource(R.string.import_spotify_playlist),
+                subtitle = stringResource(R.string.import_spotify_subtitle),
+                onClick = onImportSpotifyPlaylist,
+            )
+        },
     )
 }
 

@@ -23,7 +23,7 @@ object RaagaIcons {
     /** Compact list and quotation-bubble shapes used by the player controls. */
     val Queue: ImageVector by lazy {
         ImageVector.Builder(
-            name = "bc_queue", defaultWidth = 24.dp, defaultHeight = 24.dp,
+            name = "raaga_queue", defaultWidth = 24.dp, defaultHeight = 24.dp,
             viewportWidth = 24f, viewportHeight = 24f,
         ).apply {
             path(stroke = stroke, strokeLineWidth = 2f, strokeLineCap = StrokeCap.Round) {
@@ -45,7 +45,7 @@ object RaagaIcons {
 
     val LyricsQuote: ImageVector by lazy {
         ImageVector.Builder(
-            name = "bc_lyrics_quote", defaultWidth = 24.dp, defaultHeight = 24.dp,
+            name = "raaga_lyrics_quote", defaultWidth = 24.dp, defaultHeight = 24.dp,
             viewportWidth = 24f, viewportHeight = 24f,
         ).apply {
             path(
@@ -82,7 +82,7 @@ object RaagaIcons {
 
     val Play: ImageVector by lazy {
         ImageVector.Builder(
-            name = "bc_play",
+            name = "raaga_play",
             defaultWidth = 24.dp, defaultHeight = 24.dp,
             viewportWidth = 24f, viewportHeight = 24f,
         ).apply {
@@ -119,7 +119,7 @@ object RaagaIcons {
      */
     val Home: ImageVector by lazy {
         ImageVector.Builder(
-            name = "bc_home",
+            name = "raaga_home",
             defaultWidth = 24.dp, defaultHeight = 24.dp,
             viewportWidth = 24f, viewportHeight = 24f,
         ).apply {
@@ -152,7 +152,7 @@ object RaagaIcons {
 
     val Search: ImageVector by lazy {
         ImageVector.Builder(
-            name = "bc_search",
+            name = "raaga_search",
             defaultWidth = 24.dp, defaultHeight = 24.dp,
             viewportWidth = 24f, viewportHeight = 24f,
         ).apply {
@@ -175,7 +175,7 @@ object RaagaIcons {
 
     val Explore: ImageVector by lazy {
         ImageVector.Builder(
-            name = "bc_explore",
+            name = "raaga_explore",
             defaultWidth = 24.dp, defaultHeight = 24.dp,
             viewportWidth = 24f, viewportHeight = 24f,
         ).apply {
@@ -201,7 +201,7 @@ object RaagaIcons {
 
     val NewMusic: ImageVector by lazy {
         ImageVector.Builder(
-            name = "bc_new_flame",
+            name = "raaga_new_flame",
             defaultWidth = 24.dp, defaultHeight = 24.dp,
             viewportWidth = 24f, viewportHeight = 24f,
         ).apply {
@@ -239,7 +239,7 @@ object RaagaIcons {
 
     val Shuffle: ImageVector by lazy {
         ImageVector.Builder(
-            name = "bc_shuffle",
+            name = "raaga_shuffle",
             defaultWidth = 24.dp, defaultHeight = 24.dp,
             viewportWidth = 24f, viewportHeight = 24f,
         ).apply {
@@ -260,7 +260,7 @@ object RaagaIcons {
         }.build()
     }
 
-    val Repeat: ImageVector by lazy { repeatLoop("bc_repeat") }
+    val Repeat: ImageVector by lazy { repeatLoop("raaga_repeat") }
 
     /**
      * Two straight runs joined by semicircles, with the arrow heads lying flat
@@ -294,7 +294,7 @@ object RaagaIcons {
     /** AutoPlay's lemniscate. */
     val Infinity: ImageVector by lazy {
         ImageVector.Builder(
-            name = "bc_infinity",
+            name = "raaga_infinity",
             defaultWidth = 24.dp, defaultHeight = 24.dp,
             viewportWidth = 24f, viewportHeight = 24f,
         ).apply {
@@ -318,7 +318,7 @@ object RaagaIcons {
     /** Beamed pair of notes, for instrumental stretches in the lyrics. */
     val MusicNote: ImageVector by lazy {
         ImageVector.Builder(
-            name = "bc_music_note",
+            name = "raaga_music_note",
             defaultWidth = 24.dp, defaultHeight = 24.dp,
             viewportWidth = 24f, viewportHeight = 24f,
         ).apply {
@@ -349,7 +349,7 @@ object RaagaIcons {
     /** Speech bubble with two lines of words. */
     val Lyrics: ImageVector by lazy {
         ImageVector.Builder(
-            name = "bc_lyrics",
+            name = "raaga_lyrics",
             defaultWidth = 24.dp, defaultHeight = 24.dp,
             viewportWidth = 24f, viewportHeight = 24f,
         ).apply {
@@ -381,7 +381,7 @@ object RaagaIcons {
     /** Plain chevron — a disclosure hint, not a directional arrow. */
     val ChevronRight: ImageVector by lazy {
         ImageVector.Builder(
-            name = "bc_chevron_right",
+            name = "raaga_chevron_right",
             defaultWidth = 24.dp, defaultHeight = 24.dp,
             viewportWidth = 24f, viewportHeight = 24f,
         ).apply {
@@ -405,9 +405,9 @@ object RaagaIcons {
      * white on artwork, where a colour change alone is the one signal the
      * backdrop can swallow. A shape change survives any album cover.
      */
-    val Heart: ImageVector by lazy { heart("bc_heart", filled = false) }
+    val Heart: ImageVector by lazy { heart("raaga_heart", filled = false) }
 
-    val HeartFilled: ImageVector by lazy { heart("bc_heart_filled", filled = true) }
+    val HeartFilled: ImageVector by lazy { heart("raaga_heart_filled", filled = true) }
 
     private fun heart(name: String, filled: Boolean): ImageVector =
         ImageVector.Builder(
@@ -435,7 +435,7 @@ object RaagaIcons {
     /** Adding something — a new playlist, on the library shelf. */
     val Plus: ImageVector by lazy {
         ImageVector.Builder(
-            name = "bc_plus",
+            name = "raaga_plus",
             defaultWidth = 24.dp, defaultHeight = 24.dp,
             viewportWidth = 24f, viewportHeight = 24f,
         ).apply {
@@ -458,7 +458,7 @@ object RaagaIcons {
      */
     val Check: ImageVector by lazy {
         ImageVector.Builder(
-            name = "bc_check",
+            name = "raaga_check",
             defaultWidth = 24.dp, defaultHeight = 24.dp,
             viewportWidth = 24f, viewportHeight = 24f,
         ).apply {
@@ -476,7 +476,7 @@ object RaagaIcons {
     /** Arrow pointing down into a tray — offline download. */
     val Download: ImageVector by lazy {
         ImageVector.Builder(
-            name = "bc_download",
+            name = "raaga_download",
             defaultWidth = 24.dp, defaultHeight = 24.dp,
             viewportWidth = 24f, viewportHeight = 24f,
         ).apply {
@@ -507,7 +507,7 @@ object RaagaIcons {
      */
     val Clock: ImageVector by lazy {
         ImageVector.Builder(
-            name = "bc_clock",
+            name = "raaga_clock",
             defaultWidth = 24.dp, defaultHeight = 24.dp,
             viewportWidth = 24f, viewportHeight = 24f,
         ).apply {
@@ -535,7 +535,7 @@ object RaagaIcons {
      */
     val Pin: ImageVector by lazy {
         ImageVector.Builder(
-            name = "bc_pin",
+            name = "raaga_pin",
             defaultWidth = 24.dp, defaultHeight = 24.dp,
             viewportWidth = 24f, viewportHeight = 24f,
         ).apply {
@@ -559,7 +559,7 @@ object RaagaIcons {
     /** Speed gauge used by high-performance display settings. */
     val Performance: ImageVector by lazy {
         ImageVector.Builder(
-            name = "bc_performance",
+            name = "raaga_performance",
             defaultWidth = 24.dp, defaultHeight = 24.dp,
             viewportWidth = 24f, viewportHeight = 24f,
         ).apply {
@@ -588,7 +588,7 @@ object RaagaIcons {
     /** Four frame-time bars, used by refresh-rate selection. */
     val FrameRate: ImageVector by lazy {
         ImageVector.Builder(
-            name = "bc_frame_rate",
+            name = "raaga_frame_rate",
             defaultWidth = 24.dp, defaultHeight = 24.dp,
             viewportWidth = 24f, viewportHeight = 24f,
         ).apply {
@@ -607,7 +607,7 @@ object RaagaIcons {
 
     val Library: ImageVector by lazy {
         ImageVector.Builder(
-            name = "bc_library",
+            name = "raaga_library",
             defaultWidth = 24.dp, defaultHeight = 24.dp,
             viewportWidth = 24f, viewportHeight = 24f,
         ).apply {
@@ -629,7 +629,7 @@ object RaagaIcons {
     /** 2x2 grid icon (4 rounded squares) for switching layout to grid view. */
     val GridView: ImageVector by lazy {
         ImageVector.Builder(
-            name = "bc_grid_view",
+            name = "raaga_grid_view",
             defaultWidth = 24.dp, defaultHeight = 24.dp,
             viewportWidth = 24f, viewportHeight = 24f,
         ).apply {
@@ -693,7 +693,7 @@ object RaagaIcons {
     /** List view icon (horizontal rows) for switching layout to list view. */
     val ListView: ImageVector by lazy {
         ImageVector.Builder(
-            name = "bc_list_view",
+            name = "raaga_list_view",
             defaultWidth = 24.dp, defaultHeight = 24.dp,
             viewportWidth = 24f, viewportHeight = 24f,
         ).apply {
