@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
@@ -23,6 +24,9 @@ import java.time.Duration
 
 /**
  * Handles checking, in-app downloading, and installing OTA updates for Desktop.
+ *
+ * Isolated to desktop assets only (.exe / .msi / .dmg / .AppImage). Mobile APK releases
+ * are completely ignored so desktop is never disturbed by mobile updates.
  */
 internal object DesktopUpdateChecker {
 
@@ -43,8 +47,8 @@ internal object DesktopUpdateChecker {
 
     val currentVersion: String = System.getProperty("raaga.version") ?: "1.9.4"
 
-    private const val LATEST_RELEASE_URL =
-        "https://api.github.com/repos/Astrionix/RaagaX/releases/latest"
+    private const val RELEASES_URL =
+        "https://api.github.com/repos/Astrionix/RaagaX/releases"
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -64,7 +68,7 @@ internal object DesktopUpdateChecker {
     suspend fun check(): UpdateInfo? = withContext(Dispatchers.IO) {
         runCatching {
             val request = HttpRequest.newBuilder()
-                .uri(URI.create(LATEST_RELEASE_URL))
+                .uri(URI.create(RELEASES_URL))
                 .header("User-Agent", "RaagaDesktop")
                 .header("Accept", "application/vnd.github.v3+json")
                 .timeout(Duration.ofSeconds(15))
@@ -74,24 +78,27 @@ internal object DesktopUpdateChecker {
             val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
             if (response.statusCode() !in 200..299) return@runCatching null
 
-            val root = json.parseToJsonElement(response.body()) as? JsonObject ?: return@runCatching null
-            val tagName = root["tag_name"]?.jsonPrimitive?.contentOrNull ?: return@runCatching null
-            val htmlUrl = root["html_url"]?.jsonPrimitive?.contentOrNull ?: return@runCatching null
-            val notes = root["body"]?.jsonPrimitive?.contentOrNull
-            val latest = tagName.removePrefix("v").trim()
+            val jsonElement = json.parseToJsonElement(response.body())
+            val releases = (jsonElement as? JsonArray)?.mapNotNull { it as? JsonObject }
+                ?: listOfNotNull(jsonElement as? JsonObject)
 
-            if (!isNewer(latest, currentVersion)) {
-                return@runCatching null
+            // Strictly filter for releases that have a desktop binary for this platform
+            val candidate = releases.firstNotNullOfOrNull { release ->
+                val tagName = release["tag_name"]?.jsonPrimitive?.contentOrNull ?: return@firstNotNullOfOrNull null
+                val htmlUrl = release["html_url"]?.jsonPrimitive?.contentOrNull ?: return@firstNotNullOfOrNull null
+                val notes = release["body"]?.jsonPrimitive?.contentOrNull
+                val latest = tagName.removePrefix("v").trim()
+                if (!isNewer(latest, currentVersion)) return@firstNotNullOfOrNull null
+                val asset = findPlatformAsset(release) ?: return@firstNotNullOfOrNull null
+                UpdateInfo(
+                    version = latest,
+                    releaseUrl = htmlUrl,
+                    downloadUrl = asset.first,
+                    fileName = asset.second,
+                    notes = notes,
+                )
             }
-
-            val asset = findPlatformAsset(root) ?: return@runCatching null
-            UpdateInfo(
-                version = latest,
-                releaseUrl = htmlUrl,
-                downloadUrl = asset.first,
-                fileName = asset.second,
-                notes = notes,
-            )
+            candidate
         }.getOrNull()
     }
 

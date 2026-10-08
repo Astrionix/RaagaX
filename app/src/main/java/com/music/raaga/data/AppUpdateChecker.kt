@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
@@ -25,13 +26,10 @@ import java.io.File
 /**
  * Raaga ships as a sideloaded APK off GitHub Releases rather than through
  * a store, so there's nothing to push an update notice on its own — this
- * polls the repo's "latest release" once per launch and compares its tag
- * against the running build.
+ * polls the repo's releases and compares against the running build.
  *
- * The update itself is also handled here: the release's `.apk` asset is
- * downloaded into the app's cache and handed to the system package installer,
- * so the whole round trip stays inside the app instead of bouncing out to a
- * browser.
+ * Isolated to Android APK assets only: Desktop releases (exe/dmg/AppImage)
+ * are completely ignored so mobile users are never prompted for desktop updates.
  */
 object AppUpdateChecker {
 
@@ -51,8 +49,8 @@ object AppUpdateChecker {
 
     private const val CACHE_SUBDIR = "updates"
 
-    private const val LATEST_RELEASE_URL =
-        "https://api.github.com/repos/Astrionix/RaagaX/releases/latest"
+    private const val RELEASES_URL =
+        "https://api.github.com/repos/Astrionix/RaagaX/releases"
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -77,29 +75,35 @@ object AppUpdateChecker {
     suspend fun check(force: Boolean = false): CheckResult = withContext(Dispatchers.IO) {
         runCatching {
             val request = Request.Builder()
-                .url(LATEST_RELEASE_URL)
+                .url(RELEASES_URL)
                 .header("User-Agent", "RaagaX-Android")
                 .header("Accept", "application/vnd.github.v3+json")
                 .build()
             val body = Http.client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) null else response.body?.string()
             } ?: return@runCatching CheckResult.Error("Network error: failed to fetch release")
-            val release = json.parseToJsonElement(body) as? JsonObject
-                ?: return@runCatching CheckResult.Error("Invalid release response")
-            val tag = release["tag_name"]?.jsonPrimitive?.contentOrNull
-                ?: return@runCatching CheckResult.Error("Missing tag name")
-            val url = release["html_url"]?.jsonPrimitive?.contentOrNull
-                ?: return@runCatching CheckResult.Error("Missing release URL")
-            val apkUrl = apkAssetUrl(release)
-            val notes = release["body"]?.jsonPrimitive?.contentOrNull
-            val latest = tag.removePrefix("v")
-            val info = UpdateInfo(latest, url, apkUrl, notes)
-            if ((isNewer(latest, BuildConfig.VERSION_NAME) || force) && apkUrl != null) {
-                _available.value = info
-                CheckResult.UpdateAvailable(info)
+
+            val jsonElement = json.parseToJsonElement(body)
+            val releases = (jsonElement as? JsonArray)?.mapNotNull { it as? JsonObject }
+                ?: listOfNotNull(jsonElement as? JsonObject)
+
+            // Strictly filter for releases that actually contain an Android APK
+            val candidate = releases.firstNotNullOfOrNull { release ->
+                val tag = release["tag_name"]?.jsonPrimitive?.contentOrNull ?: return@firstNotNullOfOrNull null
+                val url = release["html_url"]?.jsonPrimitive?.contentOrNull ?: return@firstNotNullOfOrNull null
+                val notes = release["body"]?.jsonPrimitive?.contentOrNull
+                val latest = tag.removePrefix("v")
+                val apkUrl = apkAssetUrl(release) ?: return@firstNotNullOfOrNull null
+                if (!isNewer(latest, BuildConfig.VERSION_NAME) && !force) return@firstNotNullOfOrNull null
+                UpdateInfo(latest, url, apkUrl, notes)
+            }
+
+            if (candidate != null) {
+                _available.value = candidate
+                CheckResult.UpdateAvailable(candidate)
             } else {
                 _available.value = null
-                CheckResult.UpToDate(BuildConfig.VERSION_NAME, info)
+                CheckResult.UpToDate(BuildConfig.VERSION_NAME, null)
             }
         }.getOrElse { error ->
             CheckResult.Error(error.message ?: "Failed to check for updates")
