@@ -266,7 +266,7 @@ export const DownloadPanel: React.FC = () => {
                   className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-xs font-semibold text-zinc-400 hover:text-zinc-200 bg-transparent hover:bg-white/[0.03] border border-white/[0.06] transition-all"
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
-                  <span>View v1.9.4 Release on GitHub</span>
+                  <span>View {RAAGAX_CONFIG.desktop.version} Release on GitHub</span>
                 </a>
 
                 <button

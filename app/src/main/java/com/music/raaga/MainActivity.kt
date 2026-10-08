@@ -290,6 +290,13 @@ class MainActivity : AppCompatActivity() {
         // Likewise for a link tapped or shared from another app — see [MusicLink].
         MusicLink.consume(intent)
         com.music.raaga.data.spotify.SpotifyAuthManager.consumeIntent(intent)
+        if (AppSettings.shouldShowConnectAnnouncement()) {
+            Toast.makeText(
+                applicationContext,
+                "Connect to device was developed and windows app was developed visit from raaga.me and download",
+                Toast.LENGTH_LONG
+            ).show()
+        }
         setContent {
             val theme by AppSettings.themeMode.collectAsStateWithLifecycle()
             val highPerformance by AppSettings.highPerformanceMode.collectAsStateWithLifecycle()

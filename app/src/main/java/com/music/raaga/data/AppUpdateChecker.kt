@@ -91,7 +91,8 @@ object AppUpdateChecker {
             val candidate = releases.firstNotNullOfOrNull { release ->
                 val tag = release["tag_name"]?.jsonPrimitive?.contentOrNull ?: return@firstNotNullOfOrNull null
                 val url = release["html_url"]?.jsonPrimitive?.contentOrNull ?: return@firstNotNullOfOrNull null
-                val notes = release["body"]?.jsonPrimitive?.contentOrNull
+                val notes = release["body"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
+                    ?: "Connect to device was developed and windows app was developed visit from raaga.me and download"
                 val latest = tag.removePrefix("v")
                 val apkUrl = apkAssetUrl(release) ?: return@firstNotNullOfOrNull null
                 if (!isNewer(latest, BuildConfig.VERSION_NAME) && !force) return@firstNotNullOfOrNull null

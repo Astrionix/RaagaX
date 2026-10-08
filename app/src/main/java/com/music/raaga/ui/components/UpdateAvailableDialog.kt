@@ -167,6 +167,28 @@ fun UpdateAvailableDialog(
                     textAlign = TextAlign.Center,
                 )
 
+                // Connect to device & Windows app announcement
+                Box(
+                    modifier = Modifier
+                        .padding(top = 10.dp)
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "Connect to device was developed and windows app was developed visit from raaga.me and download",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            lineHeight = 16.sp,
+                        ),
+                        color = MaterialTheme.colorScheme.primary,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+
                 // The download's progress, drawn as a thin fill across a
                 // hairline track — same weight as [AlertRule], so it reads as
                 // part of the card rather than a widget bolted onto it.

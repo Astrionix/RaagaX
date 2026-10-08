@@ -1044,6 +1044,19 @@ object AppSettings {
     }
 
     /**
+     * Shows one-time welcome announcement for the Connect & Windows app feature.
+     */
+    fun shouldShowConnectAnnouncement(): Boolean {
+        val key = "has_shown_connect_windows_announcement_195"
+        val shown = prefs.getBoolean(key, false)
+        if (!shown) {
+            prefs.edit().putBoolean(key, true).apply()
+            return true
+        }
+        return false
+    }
+
+    /**
      * A ceiling saved when there was only one applies to both connections.
      * Someone who picked Low to protect a data plan would not thank us for
      * quietly putting Wi-Fi *and* mobile back on High.

@@ -8,7 +8,7 @@ val appVersion: String = (providers.gradleProperty("raaga.version").orNull
     ?: providers.gradleProperty("raaga.version").orNull)
     ?.removePrefix("v")
     ?.takeIf { it.isNotBlank() }
-    ?: "1.9.4"
+    ?: "1.9.5"
 
 /** Which platform this build is *for*, which is the host unless told otherwise. */
 val hostIsWindows = System.getProperty("os.name").contains("Windows", ignoreCase = true)
