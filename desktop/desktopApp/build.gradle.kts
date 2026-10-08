@@ -233,12 +233,20 @@ val buildAnalysisNative by tasks.registering {
     val outputDir = analysisNativeDir.get().asFile
     val crossing = crossBuildingForWindows
     val toolchain = project.file("native/mingw-w64.cmake")
-    inputs.dir(rootProject.file("native/analyzer"))
-    inputs.dir(rootProject.file("app/src/main/cpp/jni"))
+    val analyzerDir = rootProject.file("native/analyzer").takeIf { it.isDirectory }
+        ?: rootProject.file("../native/analyzer").takeIf { it.isDirectory }
+    val jniDir = rootProject.file("../app/src/main/cpp/jni").takeIf { it.isDirectory }
+        ?: rootProject.file("app/src/main/cpp/jni").takeIf { it.isDirectory }
+    if (analyzerDir != null) inputs.dir(analyzerDir)
+    if (jniDir != null) inputs.dir(jniDir)
     inputs.dir(project.file("native"))
     inputs.property("target", targetOs)
     outputs.dir(outputDir)
     onlyIf {
+        if (analyzerDir == null || jniDir == null) {
+            logger.lifecycle("native analyser sources not found — building without Automix analyser.")
+            return@onlyIf false
+        }
         val cmake = findOnPath("cmake")
         if (cmake == null) {
             logger.lifecycle(

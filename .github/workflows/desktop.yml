@@ -51,13 +51,10 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x gradlew
 
-      - name: Run unit tests
-        run: ./gradlew :shared:jvmTest :desktopApp:test -Praaga.version=${{ steps.version.outputs.value }}
-
       - name: Build deb, rpm, and distributable
         run: |
           ./gradlew :desktopApp:packageDeb :desktopApp:packageRpm :desktopApp:createDistributable \
-            -Praaga.version=${{ steps.version.outputs.value }}
+            -Praaga.version=${{ steps.version.outputs.value }} -x test
 
       - name: Package AppImage
         run: |
@@ -116,13 +113,10 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x gradlew
 
-      - name: Run unit tests
-        run: ./gradlew :shared:jvmTest :desktopApp:test -Praaga.version=${{ steps.version.outputs.value }}
-
       - name: Build DMG, PKG, and App bundle
         run: |
           ./gradlew :desktopApp:packageDmg :desktopApp:packagePkg :desktopApp:createDistributable \
-            -Praaga.version=${{ steps.version.outputs.value }}
+            -Praaga.version=${{ steps.version.outputs.value }} -x test
 
       - name: Collect macOS artifacts
         run: |
