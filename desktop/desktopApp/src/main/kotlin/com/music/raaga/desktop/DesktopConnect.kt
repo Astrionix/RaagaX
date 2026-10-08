@@ -22,6 +22,8 @@ object DesktopConnect {
 
     var playbackEngine: DesktopPlaybackEngine? = null
     var onPlaySong: ((Song, Long, Boolean) -> Unit)? = null
+    var onPlaySongsWithQueue: ((List<Song>, Int, Long, Boolean) -> Unit)? = null
+    var liveQueueProvider: (() -> List<Song>)? = null
     var onNext: (() -> Unit)? = null
     var onPrevious: (() -> Unit)? = null
 
@@ -56,6 +58,18 @@ object DesktopConnect {
                 volume = state?.volume ?: 1.0f,
             )
         },
+        getLocalPlaybackQueue = {
+            liveQueueProvider?.invoke()?.map { s ->
+                ConnectTrack(
+                    videoId = s.videoId,
+                    title = s.title,
+                    artist = s.artist,
+                    thumbnailUrl = s.thumbnailUrl,
+                    durationText = s.durationText,
+                    albumName = s.albumName,
+                )
+            } ?: emptyList()
+        },
         onPlaybackTransferredToMe = { transfer ->
             scope.launch {
                 controlledByDeviceName.value = transfer.sourceDeviceName.ifBlank { "Mobile Phone" }
@@ -68,7 +82,30 @@ object DesktopConnect {
                     durationText = transfer.track.durationText,
                     albumName = transfer.track.albumName,
                 )
-                onPlaySong?.invoke(song, transfer.positionMs, transfer.isPlaying)
+                val songs = if (transfer.queue.isNotEmpty()) {
+                    transfer.queue.map { t ->
+                        Song(
+                            videoId = t.videoId,
+                            title = t.title,
+                            artist = t.artist,
+                            thumbnailUrl = t.thumbnailUrl,
+                            durationText = t.durationText,
+                            albumName = t.albumName,
+                        )
+                    }
+                } else {
+                    listOf(song)
+                }
+                val startIdx = if (transfer.queue.isNotEmpty()) {
+                    val foundIdx = transfer.queue.indexOfFirst { it.videoId == transfer.track.videoId }
+                    if (foundIdx >= 0) foundIdx else transfer.queueIndex.coerceIn(songs.indices)
+                } else 0
+
+                if (onPlaySongsWithQueue != null) {
+                    onPlaySongsWithQueue?.invoke(songs, startIdx, transfer.positionMs, transfer.isPlaying)
+                } else {
+                    onPlaySong?.invoke(song, transfer.positionMs, transfer.isPlaying)
+                }
             }
         },
         onRemoteControlCommand = { cmd ->

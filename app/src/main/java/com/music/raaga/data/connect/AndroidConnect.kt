@@ -124,6 +124,22 @@ object AndroidConnect {
             }
             cachedStatus
         },
+        getLocalPlaybackQueue = {
+            val c = controller
+            if (c != null && c.mediaItemCount > 0) {
+                (0 until c.mediaItemCount).mapNotNull { idx ->
+                    val s = c.getMediaItemAt(idx).toSong()
+                    ConnectTrack(
+                        videoId = s.videoId,
+                        title = s.title,
+                        artist = s.artist,
+                        thumbnailUrl = s.thumbnailUrl,
+                        durationText = s.durationText,
+                        albumName = s.albumName,
+                    )
+                }
+            } else emptyList()
+        },
         onPlaybackTransferredToMe = { transfer ->
             scope.launch {
                 val c = controller ?: return@launch
@@ -141,7 +157,7 @@ object AndroidConnect {
                         }
                     } catch (_: Exception) {}
                 }
-                val song = Song(
+                val currentSong = Song(
                     videoId = transfer.track.videoId,
                     title = transfer.track.title,
                     artist = transfer.track.artist,
@@ -149,8 +165,26 @@ object AndroidConnect {
                     durationText = transfer.track.durationText,
                     albumName = transfer.track.albumName,
                 )
-                val mediaItem = song.toMediaItem()
-                c.setMediaItems(listOf(mediaItem), 0, transfer.positionMs)
+                val mediaItems = if (transfer.queue.isNotEmpty()) {
+                    transfer.queue.map { t ->
+                        Song(
+                            videoId = t.videoId,
+                            title = t.title,
+                            artist = t.artist,
+                            thumbnailUrl = t.thumbnailUrl,
+                            durationText = t.durationText,
+                            albumName = t.albumName,
+                        ).toMediaItem()
+                    }
+                } else {
+                    listOf(currentSong.toMediaItem())
+                }
+                val startIdx = if (transfer.queue.isNotEmpty()) {
+                    val foundIdx = transfer.queue.indexOfFirst { it.videoId == transfer.track.videoId }
+                    if (foundIdx >= 0) foundIdx else transfer.queueIndex.coerceIn(mediaItems.indices)
+                } else 0
+
+                c.setMediaItems(mediaItems, startIdx, transfer.positionMs)
                 c.prepare()
                 if (transfer.isPlaying) {
                     c.play()
@@ -168,8 +202,20 @@ object AndroidConnect {
                     "TOGGLE" -> {
                         if (c.isPlaying) c.pause() else c.play()
                     }
-                    "NEXT" -> c.seekToNextMediaItem()
-                    "PREV" -> c.seekToPreviousMediaItem()
+                    "NEXT" -> {
+                        if (c.hasNextMediaItem()) {
+                            c.seekToNextMediaItem()
+                        } else {
+                            c.seekToNextMediaItem()
+                        }
+                    }
+                    "PREV" -> {
+                        if (c.hasPreviousMediaItem()) {
+                            c.seekToPreviousMediaItem()
+                        } else {
+                            c.seekTo(0L)
+                        }
+                    }
                     "SEEK" -> cmd.positionMs?.let { c.seekTo(it) }
                     "VOLUME" -> {
                         cmd.volume?.let { v ->

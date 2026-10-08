@@ -1173,8 +1173,24 @@ private fun RaagaApp(
                         durationText = selectedSong.durationText,
                         albumName = selectedSong.albumName,
                     )
+                    val connectQueue = songs.map { s ->
+                        ConnectTrack(
+                            videoId = s.videoId,
+                            title = s.title,
+                            artist = s.artist,
+                            thumbnailUrl = s.thumbnailUrl,
+                            durationText = s.durationText,
+                            albumName = s.albumName,
+                        )
+                    }
                     controller?.pause()
-                    AndroidConnect.manager.transferTo(remoteDevice, connectTrack, 0L, true)
+                    AndroidConnect.manager.transferTo(
+                        target = remoteDevice,
+                        currentTrack = connectTrack,
+                        positionMs = 0L,
+                        isPlaying = true,
+                        queue = connectQueue,
+                    )
                 }
             }
         } else {
@@ -2235,8 +2251,8 @@ private fun RaagaApp(
             },
             queue = player.queue,
             queueIndex = player.queueIndex,
-            hasPrevious = player.hasPrevious,
-            hasNext = player.hasNext,
+            hasPrevious = if (activeRemoteDevice != null) true else (player.hasPrevious || player.queueIndex > 0),
+            hasNext = if (activeRemoteDevice != null) true else (player.hasNext || autoplayEnabled || player.queueIndex < player.queue.size - 1),
             repeatMode = player.repeatMode,
             shuffleEnabled = shuffleEnabled,
             autoplayEnabled = autoplayEnabled,

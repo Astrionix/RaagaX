@@ -979,8 +979,25 @@ fun RaagaDesktopApp() {
                 durationText = song.durationText,
                 albumName = song.albumName,
             )
+            val queueTracks = liveQueue.songs.map { s ->
+                com.music.raaga.data.connect.ConnectTrack(
+                    videoId = s.videoId,
+                    title = s.title,
+                    artist = s.artist,
+                    thumbnailUrl = s.thumbnailUrl,
+                    durationText = s.durationText,
+                    albumName = s.albumName,
+                )
+            }
             playbackEngine.pause()
-            DesktopConnect.manager.transferTo(remote, connectTrack, 0L, startPlaying)
+            DesktopConnect.manager.transferTo(
+                target = remote,
+                currentTrack = connectTrack,
+                positionMs = 0L,
+                isPlaying = startPlaying,
+                volume = null,
+                queue = queueTracks,
+            )
             return
         }
         playbackEngine.load(song, startPlaying)
@@ -1657,10 +1674,23 @@ fun RaagaDesktopApp() {
     }
     LaunchedEffect(playbackEngine) {
         DesktopConnect.playbackEngine = playbackEngine
+        DesktopConnect.liveQueueProvider = { liveQueue.songs }
         DesktopConnect.onPlaySong = { song, positionMs, isPlaying ->
             selectedSong = song
             liveQueue = DesktopQueue(listOf(song), 0)
             playbackEngine.load(song, playWhenReady = isPlaying)
+            if (positionMs > 0) {
+                scope.launch {
+                    delay(200)
+                    playbackEngine.seekTo(positionMs)
+                }
+            }
+        }
+        DesktopConnect.onPlaySongsWithQueue = { songs, index, positionMs, isPlaying ->
+            val cur = songs.getOrElse(index) { songs.first() }
+            selectedSong = cur
+            liveQueue = DesktopQueue(songs, index)
+            playbackEngine.load(cur, playWhenReady = isPlaying)
             if (positionMs > 0) {
                 scope.launch {
                     delay(200)

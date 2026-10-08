@@ -6932,7 +6932,11 @@ class PlaybackService : MediaLibraryService() {
             if (locked()) return
             onUserIntent()
             crossfade.onSkipRequested()
-            wrappedPlayer.seekToPrevious()
+            if (wrappedPlayer.hasPreviousMediaItem()) {
+                wrappedPlayer.seekToPrevious()
+            } else {
+                wrappedPlayer.seekTo(0L)
+            }
         }
 
         override fun seekToNextMediaItem() {
@@ -6943,7 +6947,11 @@ class PlaybackService : MediaLibraryService() {
             if (locked()) return
             onUserIntent()
             crossfade.onSkipRequested()
-            wrappedPlayer.seekToNextMediaItem()
+            if (wrappedPlayer.hasNextMediaItem()) {
+                wrappedPlayer.seekToNextMediaItem()
+            } else {
+                loadAutoplayForCurrentTrack()
+            }
         }
 
         override fun seekToNext() {
@@ -6954,7 +6962,11 @@ class PlaybackService : MediaLibraryService() {
             if (locked()) return
             onUserIntent()
             crossfade.onSkipRequested()
-            wrappedPlayer.seekToNext()
+            if (wrappedPlayer.hasNextMediaItem()) {
+                wrappedPlayer.seekToNext()
+            } else {
+                loadAutoplayForCurrentTrack()
+            }
         }
     }
 

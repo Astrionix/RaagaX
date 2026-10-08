@@ -26,6 +26,7 @@ class RaagaConnectManager(
     initialDeviceName: String,
     val deviceType: ConnectDeviceType,
     private val getLocalPlaybackStatus: () -> ConnectDeviceStatus,
+    private val getLocalPlaybackQueue: () -> List<ConnectTrack> = { emptyList() },
     private val onPlaybackTransferredToMe: (ConnectPlaybackTransfer) -> Unit,
     private val onRemoteControlCommand: (ConnectControlCommand) -> Unit,
     private val onTransferBackRequested: (ConnectTrack?, Long, Boolean) -> Unit = { _, _, _ -> },
@@ -434,12 +435,14 @@ class RaagaConnectManager(
         onError: (Throwable) -> Unit = {},
     ) {
         val status = getLocalPlaybackStatus()
+        val queue = getLocalPlaybackQueue()
         transferTo(
             target = target,
             currentTrack = status.track,
             positionMs = status.positionMs,
             isPlaying = status.isPlaying,
             volume = status.volume,
+            queue = queue,
             onSuccess = onSuccess,
             onError = onError,
         )
