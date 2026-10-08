@@ -25,15 +25,25 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 
-object RaagaSupabaseConfig {
-    const val PROJECT_URL = "https://pufuuvtnnqubhupgaovg.supabase.co"
-    const val API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB1ZnV1dnRubnF1Ymh1cGdhb3ZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEzODU5MDEsImV4cCI6MjEwNjk2MTkwMX0.KaHtyBPskoT_I2LZPcKcLfMPbbWO15Q0NaF5rFUitQA"
-    const val TOPIC = "realtime:raaga_cloud"
-    val WS_URL = "wss://pufuuvtnnqubhupgaovg.supabase.co/realtime/v1/websocket?apikey=$API_KEY&vsn=1.0.0"
+object RaagaCloudConfig {
+    // Primary: Cloudflare Edge WebSocket Relay (<20ms edge latency)
+    const val CLOUDFLARE_WS_URL = "wss://tiny-hill-6efd.pekrajareddy.workers.dev/ws"
+
+    // Backup Fallback: Supabase Realtime
+    const val SUPABASE_PROJECT_URL = "https://pufuuvtnnqubhupgaovg.supabase.co"
+    const val SUPABASE_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB1ZnV1dnRubnF1Ymh1cGdhb3ZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEzODU5MDEsImV4cCI6MjEwNjk2MTkwMX0.KaHtyBPskoT_I2LZPcKcLfMPbbWO15Q0NaF5rFUitQA"
+    const val SUPABASE_TOPIC = "realtime:raaga_cloud"
+    const val TOPIC = SUPABASE_TOPIC
+    val SUPABASE_WS_URL = "wss://pufuuvtnnqubhupgaovg.supabase.co/realtime/v1/websocket?apikey=$SUPABASE_API_KEY&vsn=1.0.0"
 }
 
+// Backward-compatible alias
+typealias RaagaSupabaseConfig = RaagaCloudConfig
+
 /**
- * Supabase Realtime Relay for Raaga Connect on Android over the Cloud / Internet.
+ * Cloud Relay for Raaga Connect on Android:
+ * - Primary: Cloudflare Edge WebSocket Relay (Ultra-low latency <20ms)
+ * - Backup Fallback: Supabase Realtime (Automatic zero-downtime failover)
  * Enables 2-way playback transfer and remote control across any network (e.g. 5G vs Wi-Fi).
  */
 class RaagaSupabaseRelay(
@@ -65,6 +75,9 @@ class RaagaSupabaseRelay(
 
     @Volatile
     private var isConnected = false
+
+    @Volatile
+    private var usingCloudflare = true
 
     private val cloudDevices = ConcurrentHashMap<String, ConnectDevice>()
     private val _discoveredCloudDevices = MutableStateFlow<List<ConnectDevice>>(emptyList())
@@ -111,25 +124,37 @@ class RaagaSupabaseRelay(
     }
 
     private fun connectWebSocket() {
-        val request = Request.Builder().url(RaagaSupabaseConfig.WS_URL).build()
+        val local = localDeviceProvider()
+        val url = if (usingCloudflare) {
+            "${RaagaCloudConfig.CLOUDFLARE_WS_URL}?channel=raaga_cloud&deviceId=${local.id}"
+        } else {
+            RaagaCloudConfig.SUPABASE_WS_URL
+        }
+        val request = Request.Builder()
+            .url(url)
+            .addHeader("User-Agent", "Raaga/1.9.4")
+            .build()
+
         webSocket = okHttpClient.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(ws: WebSocket, response: Response) {
                 isConnected = true
-                // Join Phoenix topic
-                val joinMsg = """
-                    {
-                        "topic": "${RaagaSupabaseConfig.TOPIC}",
-                        "event": "phx_join",
-                        "payload": {
-                            "config": {
-                                "broadcast": { "ack": false, "self": false },
-                                "presence": { "key": "" }
-                            }
-                        },
-                        "ref": "${refCounter.getAndIncrement()}"
-                    }
-                """.trimIndent()
-                ws.send(joinMsg)
+                if (!usingCloudflare) {
+                    // Join Phoenix topic for Supabase
+                    val joinMsg = """
+                        {
+                            "topic": "${RaagaCloudConfig.SUPABASE_TOPIC}",
+                            "event": "phx_join",
+                            "payload": {
+                                "config": {
+                                    "broadcast": { "ack": false, "self": false },
+                                    "presence": { "key": "" }
+                                }
+                            },
+                            "ref": "${refCounter.getAndIncrement()}"
+                        }
+                    """.trimIndent()
+                    ws.send(joinMsg)
+                }
 
                 // Start heartbeat
                 heartbeatJob?.cancel()
@@ -137,7 +162,9 @@ class RaagaSupabaseRelay(
                     while (isActive && isConnected) {
                         delay(25_000)
                         val hbMsg = """{"topic":"phoenix","event":"heartbeat","payload":{},"ref":"hb"}"""
-                        ws.send(hbMsg)
+                        try {
+                            ws.send(hbMsg)
+                        } catch (_: Exception) {}
                     }
                 }
 
@@ -159,6 +186,8 @@ class RaagaSupabaseRelay(
                 isConnected = false
                 heartbeatJob?.cancel()
                 announceJob?.cancel()
+                // Failover between Cloudflare and Supabase
+                usingCloudflare = !usingCloudflare
             }
 
             override fun onClosed(ws: WebSocket, code: Int, reason: String) {

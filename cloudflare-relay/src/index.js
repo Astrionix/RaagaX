@@ -5,6 +5,9 @@
  * Uses Cloudflare Workers WebSocket Hibernation for zero idle CPU usage and instant message fan-out.
  */
 
+// Fallback in-memory socket set if Durable Object binding 'ROOMS' is not configured
+const inMemorySockets = new Set();
+
 export default {
   /**
    * Handle incoming HTTP requests and WebSocket upgrades.
@@ -18,6 +21,7 @@ export default {
         status: "ok",
         service: "Raaga Connect Cloudflare Relay",
         region: request.cf?.colo || "global",
+        durableObjects: !!env.ROOMS,
         timestamp: new Date().toISOString()
       }), {
         headers: { "Content-Type": "application/json" }
@@ -34,10 +38,42 @@ export default {
       const channel = url.searchParams.get("channel") || "raaga_cloud";
       const deviceId = url.searchParams.get("deviceId") || "unknown";
 
-      // Forward to the Channel Room Durable Object or in-memory Room Manager
-      const id = env.ROOMS.idFromName(channel);
-      const room = env.ROOMS.get(id);
-      return room.fetch(request);
+      // 1. If Durable Objects binding ROOMS is available, use it (recommended)
+      if (env.ROOMS) {
+        try {
+          const id = env.ROOMS.idFromName(channel);
+          const room = env.ROOMS.get(id);
+          return room.fetch(request);
+        } catch (e) {
+          console.error("Durable Object error, falling back to in-memory:", e);
+        }
+      }
+
+      // 2. Direct Worker WebSocket fallback (works even without Durable Objects binding)
+      const webSocketPair = new WebSocketPair();
+      const [client, server] = Object.values(webSocketPair);
+
+      server.accept();
+      inMemorySockets.add(server);
+
+      server.addEventListener("message", (event) => {
+        for (const sock of inMemorySockets) {
+          if (sock !== server && sock.readyState === 1 /* OPEN */) {
+            try {
+              sock.send(event.data);
+            } catch (err) {}
+          }
+        }
+      });
+
+      const cleanup = () => inMemorySockets.delete(server);
+      server.addEventListener("close", cleanup);
+      server.addEventListener("error", cleanup);
+
+      return new Response(null, {
+        status: 101,
+        webSocket: client
+      });
     }
 
     return new Response("Not Found", { status: 404 });
@@ -69,22 +105,13 @@ export class ConnectRoom {
     });
   }
 
-  /**
-   * Called when a client sends a message. Broadcasts instantly to all other devices in this room.
-   */
   async webSocketMessage(ws, message) {
-    const senderTags = this.state.getTags(ws);
-    const senderId = senderTags[0] || "";
-
-    // Broadcast to all other active WebSockets in this room
     const sockets = this.state.getWebSockets();
     for (const client of sockets) {
       if (client !== ws) {
         try {
           client.send(message);
-        } catch (e) {
-          // Socket closed or errored
-        }
+        } catch (e) {}
       }
     }
   }
