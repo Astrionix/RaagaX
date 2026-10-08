@@ -48,8 +48,10 @@ jobs:
             https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
           chmod +x appimagetool.AppImage
 
-      - name: Make gradlew executable
-        run: chmod +x gradlew
+      - name: Make scripts executable
+        run: |
+          chmod +x gradlew
+          chmod +x desktopApp/packaging/appimage.sh || true
 
       - name: Build deb, rpm, and distributable
         run: |
@@ -58,7 +60,7 @@ jobs:
 
       - name: Package AppImage
         run: |
-          desktopApp/packaging/appimage.sh \
+          bash desktopApp/packaging/appimage.sh \
             desktopApp/build/compose/binaries/main/app/Raaga \
             dist/Raaga-${{ steps.version.outputs.value }}-linux-x86_64.AppImage \
             "$PWD/appimagetool.AppImage"
