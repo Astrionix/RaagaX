@@ -4,9 +4,27 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+    paths-ignore:
+      - 'desktop/**'
+      - 'website/**'
+      - 'cloudflare-relay/**'
+      - '.github/workflows/desktop.yml'
+      - '.github/workflows/ios.yml'
+      - '.github/workflows/update-contributors.yml'
+      - 'README.md'
+      - '**.md'
     tags: ['v*']
   pull_request:
     branches: [main]
+    paths-ignore:
+      - 'desktop/**'
+      - 'website/**'
+      - 'cloudflare-relay/**'
+      - '.github/workflows/desktop.yml'
+      - '.github/workflows/ios.yml'
+      - '.github/workflows/update-contributors.yml'
+      - 'README.md'
+      - '**.md'
 
 permissions:
   contents: write
