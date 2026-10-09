@@ -320,6 +320,13 @@ internal object DesktopBrowserCookies {
             .orEmpty()
     }.getOrDefault(emptyMap())
 
+    private val MAC_FIREFOX_ROOTS = listOf(
+        "Firefox" to "Library/Application Support/Firefox/Profiles",
+        "LibreWolf" to "Library/Application Support/librewolf/Profiles",
+        "Waterfox" to "Library/Application Support/Waterfox/Profiles",
+        "Zen" to "Library/Application Support/zen/Profiles",
+    )
+
     private val LINUX_FIREFOX_ROOTS = listOf(
         "Firefox" to ".mozilla/firefox",
         "Firefox" to ".var/app/org.mozilla.firefox/.mozilla/firefox",
@@ -344,16 +351,22 @@ internal object DesktopBrowserCookies {
 
     private data class ChromiumRoot(val browser: String, val root: Path, val secretAttribute: String?)
 
-    private fun firefoxRoots(): List<Pair<String, Path>> = if (DesktopPlatform.isWindows) {
-        val roaming = System.getenv("APPDATA")?.let(Paths::get) ?: home.resolve("AppData/Roaming")
-        listOf(
-            "Firefox" to roaming.resolve("Mozilla/Firefox/Profiles"),
-            "LibreWolf" to roaming.resolve("librewolf/Profiles"),
-            "Waterfox" to roaming.resolve("Waterfox/Profiles"),
-            "Zen" to roaming.resolve("zen/Profiles"),
-        )
-    } else {
-        LINUX_FIREFOX_ROOTS.map { (name, relative) -> name to home.resolve(relative) }
+    private fun firefoxRoots(): List<Pair<String, Path>> = when {
+        DesktopPlatform.isWindows -> {
+            val roaming = System.getenv("APPDATA")?.let(Paths::get) ?: home.resolve("AppData/Roaming")
+            listOf(
+                "Firefox" to roaming.resolve("Mozilla/Firefox/Profiles"),
+                "LibreWolf" to roaming.resolve("librewolf/Profiles"),
+                "Waterfox" to roaming.resolve("Waterfox/Profiles"),
+                "Zen" to roaming.resolve("zen/Profiles"),
+            )
+        }
+        DesktopPlatform.isMac -> {
+            MAC_FIREFOX_ROOTS.map { (name, relative) -> name to home.resolve(relative) }
+        }
+        else -> {
+            LINUX_FIREFOX_ROOTS.map { (name, relative) -> name to home.resolve(relative) }
+        }
     }
 
     private fun chromiumRoots(): List<ChromiumRoot> = if (DesktopPlatform.isWindows) {

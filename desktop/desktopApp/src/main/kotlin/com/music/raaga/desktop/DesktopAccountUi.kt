@@ -26,6 +26,7 @@ import androidx.compose.material.icons.rounded.ContentPaste
 import androidx.compose.material.icons.rounded.ManageAccounts
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -284,7 +285,7 @@ internal fun DesktopSignInDialog(
     LaunchedEffect(Unit) {
         profiles = withContext(Dispatchers.IO) {
             DesktopBrowserCookies.profiles().filterNot {
-                DesktopPlatform.isWindows && it.family == DesktopBrowserCookies.Family.CHROMIUM
+                (DesktopPlatform.isWindows || DesktopPlatform.isMac) && it.family == DesktopBrowserCookies.Family.CHROMIUM
             }
         }
     }
@@ -401,16 +402,29 @@ internal fun DesktopSignInDialog(
                                     Text(browser.label, color = Color.White)
                                     Text(
                                         if (busy == browser.label) {
-                                            "Finish signing in, then close Chrome"
+                                            if (DesktopPlatform.isMac) {
+                                                "Finish signing in, then click Done or quit ${browser.name}"
+                                            } else {
+                                                "Finish signing in, then click Done or close ${browser.name}"
+                                            }
                                         } else {
-                                            "Opens normal Chrome; close it when signed in"
+                                            "Opens ${browser.name}; finish sign-in to continue"
                                         },
                                         style = MaterialTheme.typography.bodySmall,
                                         color = DesktopSecondary,
                                     )
                                 }
                                 if (busy == browser.label) {
-                                    CircularProgressIndicator(color = DesktopAccent, modifier = Modifier.size(14.dp))
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        TextButton(
+                                            onClick = { DesktopBrowserSignIn.finishSignIn() },
+                                            colors = ButtonDefaults.textButtonColors(contentColor = DesktopAccent),
+                                        ) {
+                                            Text(DesktopStrings["done", "Done"])
+                                        }
+                                        Spacer(Modifier.width(4.dp))
+                                        CircularProgressIndicator(color = DesktopAccent, modifier = Modifier.size(14.dp))
+                                    }
                                 }
                             }
                         }

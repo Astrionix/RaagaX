@@ -39,30 +39,95 @@ internal object DesktopBrowserSignIn {
 
     private val json = Json { ignoreUnknownKeys = true }
 
-    /** The first installed browser we can use for the interactive Windows path. */
+    private val finishSignal = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    /** Allows the UI to signal that the user has completed sign-in in the browser window. */
+    fun finishSignIn() {
+        finishSignal.set(true)
+    }
+
+    private val MAC_CANDIDATES = listOf(
+        "Chrome" to listOf(
+            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+            "${System.getProperty("user.home")}/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        ),
+        "Brave" to listOf(
+            "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+            "${System.getProperty("user.home")}/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+        ),
+        "Edge" to listOf(
+            "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+            "${System.getProperty("user.home")}/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+        ),
+        "Arc" to listOf(
+            "/Applications/Arc.app/Contents/MacOS/Arc",
+            "${System.getProperty("user.home")}/Applications/Arc.app/Contents/MacOS/Arc",
+        ),
+        "Vivaldi" to listOf(
+            "/Applications/Vivaldi.app/Contents/MacOS/Vivaldi",
+            "${System.getProperty("user.home")}/Applications/Vivaldi.app/Contents/MacOS/Vivaldi",
+        ),
+        "Chromium" to listOf(
+            "/Applications/Chromium.app/Contents/MacOS/Chromium",
+            "${System.getProperty("user.home")}/Applications/Chromium.app/Contents/MacOS/Chromium",
+        ),
+        "Opera" to listOf(
+            "/Applications/Opera.app/Contents/MacOS/Opera",
+            "${System.getProperty("user.home")}/Applications/Opera.app/Contents/MacOS/Opera",
+        ),
+    )
+
+    private val LINUX_CANDIDATES = listOf(
+        "Chrome" to listOf("/usr/bin/google-chrome", "/usr/bin/google-chrome-stable"),
+        "Chromium" to listOf("/usr/bin/chromium", "/usr/bin/chromium-browser", "/snap/bin/chromium"),
+        "Brave" to listOf("/usr/bin/brave-browser", "/snap/bin/brave"),
+        "Edge" to listOf("/usr/bin/microsoft-edge", "/usr/bin/microsoft-edge-stable"),
+        "Vivaldi" to listOf("/usr/bin/vivaldi"),
+    )
+
+    private fun signInProfileDir(browser: Browser): Path {
+        val base = when {
+            DesktopPlatform.isWindows -> environmentPath("LOCALAPPDATA", "AppData/Local")
+                .resolve("Raaga")
+            DesktopPlatform.isMac -> Paths.get(System.getProperty("user.home"))
+                .resolve("Library/Application Support/Raaga")
+            else -> System.getenv("XDG_DATA_HOME")?.takeIf(String::isNotBlank)?.let(Paths::get)
+                ?: Paths.get(System.getProperty("user.home")).resolve(".local/share/raaga")
+        }
+        return base.resolve("Browser Sign In").resolve(browser.name)
+    }
+
+    /** The first installed browser we can use for the interactive sign-in path. */
     fun preferred(): Browser? {
-        if (!DesktopPlatform.isWindows) return null
-        val local = environmentPath("LOCALAPPDATA", "AppData/Local")
-        val programFiles = System.getenv("ProgramFiles")?.let(Paths::get)
-        val programFilesX86 = System.getenv("ProgramFiles(x86)")?.let(Paths::get)
-        return listOfNotNull(
-            candidate("Chrome", local.resolve("Google/Chrome/Application/chrome.exe")),
-            programFiles?.resolve("Google/Chrome/Application/chrome.exe")?.let { candidate("Chrome", it) },
-            programFilesX86?.resolve("Google/Chrome/Application/chrome.exe")?.let { candidate("Chrome", it) },
-            candidate("Edge", local.resolve("Microsoft/Edge/Application/msedge.exe")),
-            programFiles?.resolve("Microsoft/Edge/Application/msedge.exe")?.let { candidate("Edge", it) },
-            programFilesX86?.resolve("Microsoft/Edge/Application/msedge.exe")?.let { candidate("Edge", it) },
-            candidate("Brave", local.resolve("BraveSoftware/Brave-Browser/Application/brave.exe")),
-            candidate("Vivaldi", local.resolve("Vivaldi/Application/vivaldi.exe")),
-        ).firstOrNull()
+        if (DesktopPlatform.isWindows) {
+            val local = environmentPath("LOCALAPPDATA", "AppData/Local")
+            val programFiles = System.getenv("ProgramFiles")?.let(Paths::get)
+            val programFilesX86 = System.getenv("ProgramFiles(x86)")?.let(Paths::get)
+            return listOfNotNull(
+                candidate("Chrome", local.resolve("Google/Chrome/Application/chrome.exe")),
+                programFiles?.resolve("Google/Chrome/Application/chrome.exe")?.let { candidate("Chrome", it) },
+                programFilesX86?.resolve("Google/Chrome/Application/chrome.exe")?.let { candidate("Chrome", it) },
+                candidate("Edge", local.resolve("Microsoft/Edge/Application/msedge.exe")),
+                programFiles?.resolve("Microsoft/Edge/Application/msedge.exe")?.let { candidate("Edge", it) },
+                programFilesX86?.resolve("Microsoft/Edge/Application/msedge.exe")?.let { candidate("Edge", it) },
+                candidate("Brave", local.resolve("BraveSoftware/Brave-Browser/Application/brave.exe")),
+                candidate("Vivaldi", local.resolve("Vivaldi/Application/vivaldi.exe")),
+            ).firstOrNull()
+        }
+        if (DesktopPlatform.isMac) {
+            return MAC_CANDIDATES.firstNotNullOfOrNull { (name, paths) ->
+                paths.firstNotNullOfOrNull { candidate(name, Paths.get(it)) }
+            }
+        }
+        return LINUX_CANDIDATES.firstNotNullOfOrNull { (name, paths) ->
+            paths.firstNotNullOfOrNull { candidate(name, Paths.get(it)) }
+        }
     }
 
     /** Opens [browser] normally for sign-in, then reads the finished session in a headless pass. */
     suspend fun capture(browser: Browser): String = withContext(kotlinx.coroutines.Dispatchers.IO) {
-        val profile = environmentPath("LOCALAPPDATA", "AppData/Local")
-            .resolve("Raaga")
-            .resolve("Browser Sign In")
-            .resolve(browser.name)
+        finishSignal.set(false)
+        val profile = signInProfileDir(browser)
         Files.createDirectories(profile)
         val portFile = profile.resolve(DEVTOOLS_ACTIVE_PORT)
         Files.deleteIfExists(portFile)
@@ -79,9 +144,15 @@ internal object DesktopBrowserSignIn {
         var captureProcess: Process? = null
         var cdp: DevTools? = null
         try {
-            // Google sees an ordinary Chrome launch here. The close is the listener's explicit
-            // signal that login is finished and the cookie database has been flushed to disk.
-            while (signInProcess?.isAlive == true) delay(BROWSER_CLOSE_POLL_MS)
+            // Google sees an ordinary Chrome launch here. The close or finish signal indicates
+            // that login is finished and the cookie database has been flushed to disk.
+            while (signInProcess?.isAlive == true && !finishSignal.get()) {
+                delay(BROWSER_CLOSE_POLL_MS)
+            }
+            if (signInProcess?.isAlive == true) {
+                signInProcess.stop()
+                delay(500L)
+            }
             signInProcess = null
             Files.deleteIfExists(portFile)
 
@@ -102,7 +173,7 @@ internal object DesktopBrowserSignIn {
                 if (DesktopBrowserCookies.hasSigningSecret(header)) return@withContext header
                 delay(POLL_INTERVAL_MS)
             }
-            error("Chrome did not contain a signed-in YouTube session. Try again and close Chrome only after YouTube Music has opened.")
+            error("${browser.name} did not contain a signed-in YouTube session. Try again and close ${browser.name} only after YouTube Music has opened.")
         } catch (cancelled: CancellationException) {
             throw cancelled
         } finally {
