@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version tag (without leading v, e.g. 1.9.4)'
+        description: 'Version tag (without leading v, e.g. 1.9.5)'
         required: true
-        default: '1.9.4'
+        default: '1.9.5'
   push:
     tags:
       - 'v*'
@@ -83,11 +83,12 @@ jobs:
   macos:
     name: macOS · dmg, pkg, zip (${{ matrix.arch }})
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: macos-14
             arch: arm64
-          - os: macos-13
+          - os: macos-15-intel
             arch: x64
     runs-on: ${{ matrix.os }}
     defaults:
@@ -118,7 +119,8 @@ jobs:
       - name: Build DMG, PKG, and App bundle
         run: |
           ./gradlew :desktopApp:packageDmg :desktopApp:packagePkg :desktopApp:createDistributable \
-            -Praaga.version=${{ steps.version.outputs.value }} -x test
+            -Praaga.version=${{ steps.version.outputs.value }} \
+            -Praaga.arch=${{ matrix.arch }} -x test
 
       - name: Collect macOS artifacts
         run: |

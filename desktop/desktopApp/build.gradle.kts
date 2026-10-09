@@ -14,16 +14,16 @@ val appVersion: String = (providers.gradleProperty("raaga.version").orNull
 val hostIsWindows = System.getProperty("os.name").contains("Windows", ignoreCase = true)
 val hostIsLinux = System.getProperty("os.name").contains("Linux", ignoreCase = true)
 val hostIsMac = System.getProperty("os.name").contains("Mac", ignoreCase = true)
-val targetOs: String = ((providers.gradleProperty("raaga.target").orNull
-    ?: providers.gradleProperty("raaga.target").orNull) ?: when {
+val targetOs: String = (providers.gradleProperty("raaga.target").orNull ?: when {
     hostIsWindows -> "windows"
     hostIsLinux -> "linux"
     hostIsMac -> "macos"
     else -> error("Raaga desktop supports Linux, Windows, and macOS only")
 }).lowercase()
 
-val hostArch = System.getProperty("os.arch").lowercase()
-val isArm64 = hostArch == "aarch64" || hostArch == "arm64"
+val targetArch: String = (providers.gradleProperty("raaga.arch").orNull
+    ?: System.getProperty("os.arch")).lowercase()
+val isArm64 = targetArch == "aarch64" || targetArch == "arm64"
 
 // Windows installer metadata requires MAJOR.MINOR.BUILD even though the app's public version is
 // intentionally displayed without a patch number (1.7 rather than 1.7.0).
