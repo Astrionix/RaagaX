@@ -108,9 +108,10 @@ internal object DesktopUpdateChecker {
 
         val matchPredicate: (String) -> Boolean = when {
             os.contains("windows") || os.contains("win") -> { name ->
-                name.endsWith("-windows-x64-setup.exe", ignoreCase = true) ||
-                    name.endsWith(".exe", ignoreCase = true) ||
-                    name.endsWith(".msi", ignoreCase = true)
+                name.endsWith("-windows-setup.msi", ignoreCase = true) ||
+                    name.endsWith(".msi", ignoreCase = true) ||
+                    name.endsWith("-windows-setup.exe", ignoreCase = true) ||
+                    name.endsWith(".exe", ignoreCase = true)
             }
             os.contains("mac") -> { name ->
                 name.endsWith(".dmg", ignoreCase = true) || name.endsWith(".pkg", ignoreCase = true)
@@ -204,11 +205,13 @@ internal object DesktopUpdateChecker {
             val os = System.getProperty("os.name").lowercase()
             when {
                 os.contains("win") -> {
-                    if (file.name.endsWith(".msi", ignoreCase = true)) {
-                        ProcessBuilder("msiexec", "/i", file.absolutePath).start()
+                    val filePath = file.absolutePath
+                    val cmd = if (file.name.endsWith(".msi", ignoreCase = true)) {
+                        "timeout /t 2 /nobreak >nul & start \"\" msiexec /i \"$filePath\" MSIRESTARTMANAGERCONTROL=Disable"
                     } else {
-                        ProcessBuilder(file.absolutePath).start()
+                        "timeout /t 2 /nobreak >nul & start \"\" \"$filePath\""
                     }
+                    ProcessBuilder("cmd.exe", "/c", cmd).start()
                 }
                 os.contains("mac") -> {
                     ProcessBuilder("open", file.absolutePath).start()

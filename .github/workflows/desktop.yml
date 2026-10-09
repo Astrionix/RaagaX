@@ -173,19 +173,25 @@ jobs:
       - name: Build Windows Installer
         shell: bash
         run: |
-          ./gradlew :desktopApp:packageExe -Praaga.version=${{ steps.version.outputs.value }} --stacktrace
+          ./gradlew :desktopApp:packageExe :desktopApp:packageMsi -Praaga.version=${{ steps.version.outputs.value }} --stacktrace
 
       - name: Upload Windows Installer to Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
+        shell: pwsh
         run: |
-          v="${{ steps.version.outputs.value }}"
-          mkdir -p dist
-          for f in desktopApp/build/compose/binaries/main/exe/*.exe; do
-            [ -f "$f" ] && cp "$f" "dist/Raaga-$v-windows-setup.exe"
-          done
-          for f in desktopApp/build/compose/binaries/main/msi/*.msi; do
-            [ -f "$f" ] && cp "$f" "dist/Raaga-$v-windows-setup.msi"
-          done
+          $v = "${{ steps.version.outputs.value }}"
+          New-Item -ItemType Directory -Force -Path dist
+          Get-ChildItem -Path "desktopApp/build/compose/binaries/main/exe/*.exe" | ForEach-Object { Copy-Item $_.FullName -Destination "dist/Raaga-$v-windows-setup.exe" -Force }
+          Get-ChildItem -Path "desktopApp/build/compose/binaries/main/msi/*.msi" | ForEach-Object { Copy-Item $_.FullName -Destination "dist/Raaga-$v-windows-setup.msi" -Force }
+          
+          # Inject MSIRESTARTMANAGERCONTROL=Disable into MSI to prevent Restart Manager dialogs
+          $msi = "dist/Raaga-$v-windows-setup.msi"
+          if (Test-Path $msi) {
+            $installer = New-Object -ComObject WindowsInstaller.Installer
+            $database = $installer.GetType().InvokeMember("OpenDatabase", "InvokeMethod", $null, $installer, @((Resolve-Path $msi).Path, 1))
+            $view = $database.GetType().InvokeMember("OpenView", "InvokeMethod", $null, $database, @("INSERT INTO Property (Property, Value) VALUES ('MSIRESTARTMANAGERCONTROL', 'Disable')"))
+            $view.GetType().InvokeMember("Execute", "InvokeMethod", $null, $view, $null)
+            $database.GetType().InvokeMember("Commit", "InvokeMethod", $null, $database, $null)
+          }
           gh release upload "v$v" dist/* --clobber --repo "${{ github.repository }}"

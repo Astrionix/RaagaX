@@ -101,11 +101,12 @@ jobs:
         body: |
           ### Raaga ${{ github.ref_name }}
 
-          **Connect to Device security update with private account rooms and PIN pairing.**
+          **Connect to Device security update and seamless Windows installer improvements.**
 
           #### Highlights & New Features:
           - **Connect to Device Security**: Private account discovery rooms, end-to-end sync key authorization, and secure 6-digit PIN device pairing.
           - **Ultra-Fast Edge Sync**: Cloudflare Edge WebSocket Relay (<20ms) with Supabase Realtime fallback.
-          - **Windows App**: Raaga for Windows updated to 1.9.6. Download latest installers from https://raaga.me.
+          - **Seamless Installer (Windows)**: Suppressed Restart Manager dialogs and added graceful process exit on update.
+          - **Cross-Platform**: Latest releases available for Android, iOS, Windows, macOS, and Linux at https://raaga.me.
         make_latest: "true"
         generate_release_notes: false
