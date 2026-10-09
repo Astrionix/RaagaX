@@ -13,7 +13,6 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -22,6 +21,7 @@ import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
+import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
@@ -33,8 +33,6 @@ object RaagaCloudConfig {
     // Backup Fallback: Supabase Realtime
     const val SUPABASE_PROJECT_URL = "https://pufuuvtnnqubhupgaovg.supabase.co"
     const val SUPABASE_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB1ZnV1dnRubnF1Ymh1cGdhb3ZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEzODU5MDEsImV4cCI6MjEwNjk2MTkwMX0.KaHtyBPskoT_I2LZPcKcLfMPbbWO15Q0NaF5rFUitQA"
-    const val SUPABASE_TOPIC = "realtime:raaga_cloud"
-    const val TOPIC = SUPABASE_TOPIC
     val SUPABASE_WS_URL = "wss://pufuuvtnnqubhupgaovg.supabase.co/realtime/v1/websocket?apikey=$SUPABASE_API_KEY&vsn=1.0.0"
 }
 
@@ -45,10 +43,17 @@ typealias RaagaSupabaseConfig = RaagaCloudConfig
  * Cloud Relay for Raaga Connect over the Cloud / Internet:
  * - Primary: Cloudflare Edge WebSocket Relay (Ultra-low latency <20ms)
  * - Backup Fallback: Supabase Realtime (Automatic zero-downtime failover)
- * Enables 2-way playback transfer and remote control when devices are on different networks (e.g. 5G vs Wi-Fi).
+ *
+ * Security & Isolation:
+ * - Automatically scoped to the active Google/user account ID (raaga_acc_<hash>)
+ * - If not logged in, scopes to a verified private sync key (raaga_sync_<hash>)
+ * - During PIN pairing, temporarily scopes to the 6-digit pair code (raaga_pair_<code>)
+ * - Strangers in other locations/networks will NEVER discover or control this device.
  */
 class RaagaSupabaseRelay(
     private val localDeviceProvider: () -> ConnectDevice,
+    private val accountIdProvider: () -> String? = { null },
+    private val syncKeyProvider: () -> String? = { null },
     private val onTransferReceived: (ConnectPlaybackTransfer) -> Unit,
     private val onControlReceived: (ConnectControlCommand) -> Unit,
     private val onStatusReceived: (ConnectDeviceStatus) -> Unit,
@@ -80,16 +85,76 @@ class RaagaSupabaseRelay(
     @Volatile
     private var usingCloudflare = true
 
+    @Volatile
+    private var activeChannel: String? = null
+
+    @Volatile
+    private var temporaryPairCode: String? = null
+
     private val cloudDevices = ConcurrentHashMap<String, ConnectDevice>()
     private val _discoveredCloudDevices = MutableStateFlow<List<ConnectDevice>>(emptyList())
     val discoveredCloudDevices: StateFlow<List<ConnectDevice>> = _discoveredCloudDevices.asStateFlow()
+
+    fun setTemporaryPairCode(code: String?) {
+        val clean = code?.filter { it.isDigit() }?.takeIf { it.length == 6 }
+        if (temporaryPairCode != clean) {
+            temporaryPairCode = clean
+            checkChannel()
+        }
+    }
+
+    fun computeCurrentChannel(): String? {
+        val pairCode = temporaryPairCode
+        if (!pairCode.isNullOrBlank()) {
+            return "raaga_pair_$pairCode"
+        }
+        val account = accountIdProvider()?.trim()
+        if (!account.isNullOrBlank()) {
+            return "raaga_acc_" + sha256Hex(account).take(16)
+        }
+        val sync = syncKeyProvider()?.trim()
+        if (!sync.isNullOrBlank()) {
+            return "raaga_sync_" + sha256Hex(sync).take(16)
+        }
+        return null
+    }
+
+    private fun sha256Hex(input: String): String {
+        return try {
+            val md = MessageDigest.getInstance("SHA-256")
+            val bytes = md.digest(input.toByteArray(Charsets.UTF_8))
+            bytes.joinToString("") { "%02x".format(it) }
+        } catch (_: Exception) {
+            input.hashCode().toString()
+        }
+    }
+
+    fun checkChannel() {
+        scope.launch {
+            val target = computeCurrentChannel()
+            if (target != activeChannel) {
+                cloudDevices.clear()
+                _discoveredCloudDevices.value = emptyList()
+                disconnectWebSocket()
+                if (target != null) {
+                    delay(100)
+                    try {
+                        connectWebSocket()
+                    } catch (_: Exception) {}
+                }
+            }
+        }
+    }
 
     fun start() {
         if (connectJob != null) return
         connectJob = scope.launch {
             while (isActive) {
                 try {
-                    connectWebSocket()
+                    val expected = computeCurrentChannel()
+                    if (expected != null && (!isConnected || expected != activeChannel)) {
+                        connectWebSocket()
+                    }
                 } catch (_: Exception) {}
                 delay(6000) // Reconnect delay if disconnected
             }
@@ -113,21 +178,29 @@ class RaagaSupabaseRelay(
         connectJob?.cancel()
         connectJob = null
         cleanupJob?.cancel()
-        heartbeatJob?.cancel()
-        announceJob?.cancel()
-        try {
-            webSocket?.close(1000, "App closed")
-        } catch (_: Exception) {}
-        webSocket = null
-        isConnected = false
+        disconnectWebSocket()
         cloudDevices.clear()
         _discoveredCloudDevices.value = emptyList()
     }
 
+    private fun disconnectWebSocket() {
+        isConnected = false
+        activeChannel = null
+        heartbeatJob?.cancel()
+        announceJob?.cancel()
+        try {
+            webSocket?.close(1000, "Channel changed or stopped")
+        } catch (_: Exception) {}
+        webSocket = null
+    }
+
     private fun connectWebSocket() {
+        val channel = computeCurrentChannel() ?: return
+        activeChannel = channel
+
         val local = localDeviceProvider()
         val url = if (usingCloudflare) {
-            "${RaagaCloudConfig.CLOUDFLARE_WS_URL}?channel=raaga_cloud&deviceId=${local.id}"
+            "${RaagaCloudConfig.CLOUDFLARE_WS_URL}?channel=$channel&deviceId=${local.id}"
         } else {
             RaagaCloudConfig.SUPABASE_WS_URL
         }
@@ -140,10 +213,10 @@ class RaagaSupabaseRelay(
             override fun onOpen(ws: WebSocket, response: Response) {
                 isConnected = true
                 if (!usingCloudflare) {
-                    // Join Phoenix topic for Supabase
+                    // Join Phoenix topic for Supabase Realtime
                     val joinMsg = """
                         {
-                            "topic": "${RaagaCloudConfig.SUPABASE_TOPIC}",
+                            "topic": "realtime:$channel",
                             "event": "phx_join",
                             "payload": {
                                 "config": {
@@ -169,12 +242,14 @@ class RaagaSupabaseRelay(
                     }
                 }
 
-                // Start periodic announcement
+                // Start periodic announcement (only if not an ephemeral pair-request channel)
                 announceJob?.cancel()
-                announceJob = scope.launch {
-                    while (isActive && isConnected) {
-                        sendAnnounce()
-                        delay(5000)
+                if (!channel.startsWith("raaga_pair_")) {
+                    announceJob = scope.launch {
+                        while (isActive && isConnected) {
+                            sendAnnounce()
+                            delay(5000)
+                        }
                     }
                 }
             }
@@ -230,8 +305,12 @@ class RaagaSupabaseRelay(
     }
 
     fun sendPairRequest(request: ConnectPairRequest) {
-        val jsonPayload = json.encodeToString(ConnectPairRequest.serializer(), request)
-        broadcastEvent("pair_request", jsonPayload)
+        setTemporaryPairCode(request.code)
+        scope.launch {
+            delay(150)
+            val jsonPayload = json.encodeToString(ConnectPairRequest.serializer(), request)
+            broadcastEvent("pair_request", jsonPayload)
+        }
     }
 
     fun sendPairResponse(response: ConnectPairResponse) {
@@ -242,10 +321,12 @@ class RaagaSupabaseRelay(
     private fun broadcastEvent(eventName: String, jsonInnerPayload: String) {
         val ws = webSocket ?: return
         if (!isConnected) return
+        val channel = activeChannel ?: return
+        val topic = if (usingCloudflare) channel else "realtime:$channel"
         val ref = refCounter.getAndIncrement().toString()
         val msg = """
             {
-                "topic": "${RaagaSupabaseConfig.TOPIC}",
+                "topic": "$topic",
                 "event": "broadcast",
                 "payload": {
                     "type": "broadcast",

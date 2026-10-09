@@ -31,6 +31,7 @@ class RaagaConnectManager(
     private val onRemoteControlCommand: (ConnectControlCommand) -> Unit,
     private val onTransferBackRequested: (ConnectTrack?, Long, Boolean) -> Unit = { _, _, _ -> },
     private val onLocalPlaybackHandoffCompleted: () -> Unit = {},
+    private val accountIdProvider: () -> String? = { null },
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     val deviceId: String = RaagaPairingStore.deviceId
@@ -88,6 +89,8 @@ class RaagaConnectManager(
 
     private val supabaseRelay = RaagaSupabaseRelay(
         localDeviceProvider = { localDevice },
+        accountIdProvider = accountIdProvider,
+        syncKeyProvider = { RaagaPairingStore.getSyncKey() },
         onTransferReceived = { transfer ->
             _activeRemoteDevice.value = null
             onPlaybackTransferredToMe(transfer)
@@ -201,12 +204,14 @@ class RaagaConnectManager(
         activePairCode.value = code
         activePairCodeExpiresAt.value = System.currentTimeMillis() + 5 * 60 * 1000L
         pairingFeedback.value = null
+        supabaseRelay.setTemporaryPairCode(code)
         return code
     }
 
     fun cancelPairCode() {
         activePairCode.value = null
         pairingFeedback.value = null
+        supabaseRelay.setTemporaryPairCode(null)
     }
 
     fun submitPairCode(rawCode: String, onResult: (Boolean, String) -> Unit = { _, _ -> }) {
@@ -219,6 +224,7 @@ class RaagaConnectManager(
         }
         isPairingSubmitting.value = true
         pairingFeedback.value = "Connecting to device..."
+        supabaseRelay.setTemporaryPairCode(clean)
         supabaseRelay.sendPairRequest(ConnectPairRequest(code = clean, fromDevice = localDevice))
 
         pendingPairJob?.cancel()
@@ -232,6 +238,7 @@ class RaagaConnectManager(
             }
             if (isPairingSubmitting.value) {
                 isPairingSubmitting.value = false
+                supabaseRelay.setTemporaryPairCode(null)
                 val timeoutMsg = "Device not found or code expired. Try again."
                 pairingFeedback.value = timeoutMsg
                 onResult(false, timeoutMsg)
@@ -267,7 +274,13 @@ class RaagaConnectManager(
                 pairedAt = System.currentTimeMillis(),
             )
             RaagaPairingStore.addPairedDevice(paired)
+            var syncKey = RaagaPairingStore.getSyncKey()
+            if (syncKey.isNullOrBlank()) {
+                syncKey = UUID.randomUUID().toString()
+                RaagaPairingStore.saveSyncKey(syncKey)
+            }
             activePairCode.value = null
+            supabaseRelay.setTemporaryPairCode(null)
             pairingFeedback.value = "Successfully paired with $cleanName!"
             supabaseRelay.sendPairResponse(
                 ConnectPairResponse(
@@ -276,8 +289,10 @@ class RaagaConnectManager(
                     message = "Paired with $deviceName",
                     fromDevice = localDevice,
                     targetDeviceId = request.fromDevice.id,
+                    syncKey = syncKey,
                 )
             )
+            supabaseRelay.checkChannel()
         }
     }
 
@@ -291,8 +306,13 @@ class RaagaConnectManager(
                 pairedAt = System.currentTimeMillis(),
             )
             RaagaPairingStore.addPairedDevice(paired)
+            if (!response.syncKey.isNullOrBlank()) {
+                RaagaPairingStore.saveSyncKey(response.syncKey)
+            }
             isPairingSubmitting.value = false
+            supabaseRelay.setTemporaryPairCode(null)
             pairingFeedback.value = "Successfully paired with $cleanName!"
+            supabaseRelay.checkChannel()
         }
     }
 
@@ -353,6 +373,7 @@ class RaagaConnectManager(
     }
 
     fun refreshDiscovery() {
+        supabaseRelay.checkChannel()
         discovery.sendDiscover()
         supabaseRelay.sendAnnounce()
     }

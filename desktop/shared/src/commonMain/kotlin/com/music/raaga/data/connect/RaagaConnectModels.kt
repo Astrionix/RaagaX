@@ -84,6 +84,7 @@ data class ConnectPairResponse(
     val message: String = "",
     val fromDevice: ConnectDevice,
     val targetDeviceId: String,
+    val syncKey: String? = null,
 )
 
 data class PairedDeviceWithStatus(

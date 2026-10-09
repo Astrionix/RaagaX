@@ -145,6 +145,9 @@ object DesktopConnect {
                 playbackEngine?.pause()
             }
         },
+        accountIdProvider = {
+            DesktopAccounts.active()?.accountId ?: DesktopAccounts.activeAccountId()
+        },
     )
 
     fun disconnectController() {

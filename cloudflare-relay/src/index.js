@@ -5,8 +5,8 @@
  * Uses Cloudflare Workers WebSocket Hibernation for zero idle CPU usage and instant message fan-out.
  */
 
-// Fallback in-memory socket set if Durable Object binding 'ROOMS' is not configured
-const inMemorySockets = new Set();
+// Fallback in-memory socket map (channel -> Set<WebSocket>) if Durable Object binding 'ROOMS' is not configured
+const inMemoryChannels = new Map();
 
 export default {
   /**
@@ -49,15 +49,21 @@ export default {
         }
       }
 
-      // 2. Direct Worker WebSocket fallback (works even without Durable Objects binding)
+      // 2. Direct Worker WebSocket fallback (scoped strictly by channel)
       const webSocketPair = new WebSocketPair();
       const [client, server] = Object.values(webSocketPair);
 
       server.accept();
-      inMemorySockets.add(server);
+      if (!inMemoryChannels.has(channel)) {
+        inMemoryChannels.set(channel, new Set());
+      }
+      const channelSockets = inMemoryChannels.get(channel);
+      channelSockets.add(server);
 
       server.addEventListener("message", (event) => {
-        for (const sock of inMemorySockets) {
+        const sockets = inMemoryChannels.get(channel);
+        if (!sockets) return;
+        for (const sock of sockets) {
           if (sock !== server && sock.readyState === 1 /* OPEN */) {
             try {
               sock.send(event.data);
@@ -66,7 +72,15 @@ export default {
         }
       });
 
-      const cleanup = () => inMemorySockets.delete(server);
+      const cleanup = () => {
+        const sockets = inMemoryChannels.get(channel);
+        if (sockets) {
+          sockets.delete(server);
+          if (sockets.size === 0) {
+            inMemoryChannels.delete(channel);
+          }
+        }
+      };
       server.addEventListener("close", cleanup);
       server.addEventListener("error", cleanup);
 

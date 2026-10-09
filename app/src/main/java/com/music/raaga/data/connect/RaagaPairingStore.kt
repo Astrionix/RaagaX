@@ -97,6 +97,21 @@ object RaagaPairingStore {
         prefs?.edit()?.putString(KEY_CUSTOM_DEVICE_NAME, name)?.apply()
     }
 
+    private const val KEY_SYNC_KEY = "connect_sync_key"
+
+    fun getSyncKey(): String? {
+        return prefs?.getString(KEY_SYNC_KEY, null)?.takeIf { it.isNotBlank() }
+    }
+
+    @Synchronized
+    fun saveSyncKey(key: String?) {
+        if (key.isNullOrBlank()) {
+            prefs?.edit()?.remove(KEY_SYNC_KEY)?.apply()
+        } else {
+            prefs?.edit()?.putString(KEY_SYNC_KEY, key.trim())?.apply()
+        }
+    }
+
     private fun save(list: List<PairedDevice>) {
         _pairedDevices.value = list
         prefs?.edit()?.putString(KEY_PAIRED_DEVICES, json.encodeToString(list))?.apply()

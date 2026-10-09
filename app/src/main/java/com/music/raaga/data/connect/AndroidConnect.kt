@@ -265,6 +265,16 @@ object AndroidConnect {
                 }
             }
         },
+        accountIdProvider = {
+            appContext?.let { ctx ->
+                try {
+                    val authStore = com.music.raaga.auth.AuthStore(ctx)
+                    authStore.activeSession?.accountId ?: authStore.activeAccountId
+                } catch (_: Exception) {
+                    null
+                }
+            }
+        },
     )
 
     @Volatile
