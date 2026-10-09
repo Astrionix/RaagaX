@@ -206,10 +206,13 @@ internal object DesktopUpdateChecker {
             when {
                 os.contains("win") -> {
                     val filePath = file.absolutePath
+                    val appExe = ProcessHandle.current().info().command().orElse(
+                        File(System.getenv("LOCALAPPDATA") ?: "", "Raaga\\Raaga.exe").absolutePath
+                    )
                     val cmd = if (file.name.endsWith(".msi", ignoreCase = true)) {
-                        "timeout /t 2 /nobreak >nul & start \"\" msiexec /i \"$filePath\" MSIRESTARTMANAGERCONTROL=Disable"
+                        "timeout /t 2 /nobreak >nul & start /wait \"\" msiexec /i \"$filePath\" MSIRESTARTMANAGERCONTROL=Disable & start \"\" \"$appExe\""
                     } else {
-                        "timeout /t 2 /nobreak >nul & start \"\" \"$filePath\""
+                        "timeout /t 2 /nobreak >nul & start /wait \"\" \"$filePath\" & start \"\" \"$appExe\""
                     }
                     ProcessBuilder("cmd.exe", "/c", cmd).start()
                 }

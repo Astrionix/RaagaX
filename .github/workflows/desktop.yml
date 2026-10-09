@@ -185,13 +185,9 @@ jobs:
           Get-ChildItem -Path "desktopApp/build/compose/binaries/main/exe/*.exe" | ForEach-Object { Copy-Item $_.FullName -Destination "dist/Raaga-$v-windows-setup.exe" -Force }
           Get-ChildItem -Path "desktopApp/build/compose/binaries/main/msi/*.msi" | ForEach-Object { Copy-Item $_.FullName -Destination "dist/Raaga-$v-windows-setup.msi" -Force }
           
-          # Inject MSIRESTARTMANAGERCONTROL=Disable into MSI to prevent Restart Manager dialogs
+          # Patch MSI: disable Restart Manager and enable auto-launch after install
           $msi = "dist/Raaga-$v-windows-setup.msi"
           if (Test-Path $msi) {
-            $installer = New-Object -ComObject WindowsInstaller.Installer
-            $database = $installer.GetType().InvokeMember("OpenDatabase", "InvokeMethod", $null, $installer, @((Resolve-Path $msi).Path, 1))
-            $view = $database.GetType().InvokeMember("OpenView", "InvokeMethod", $null, $database, @("INSERT INTO Property (Property, Value) VALUES ('MSIRESTARTMANAGERCONTROL', 'Disable')"))
-            $view.GetType().InvokeMember("Execute", "InvokeMethod", $null, $view, $null)
-            $database.GetType().InvokeMember("Commit", "InvokeMethod", $null, $database, $null)
+            & pwsh -ExecutionPolicy Bypass -File "desktopApp/packaging/patch-msi.ps1" -MsiPath $msi
           }
           gh release upload "v$v" dist/* --clobber --repo "${{ github.repository }}"
