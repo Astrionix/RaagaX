@@ -46,7 +46,7 @@ export const Navbar: React.FC = () => {
           <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
         </span>
         <span className="text-[11px] sm:text-xs text-zinc-200">
-          <strong>RaagaX {RAAGAX_CONFIG.versionName}</strong> is live for Android!
+          <strong>RaagaX {RAAGAX_CONFIG.versionName}</strong> is live for Android &amp; Desktop (Windows, Mac, Linux)!
         </span>
         <a
           href={RAAGAX_CONFIG.directApkUrl}

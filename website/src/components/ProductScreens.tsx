@@ -90,6 +90,15 @@ export const ProductScreens: React.FC = () => {
       highlight: "OAuth2 authentication with cloud profile persistence",
       meta: "Instant Account Switching • Cloud Sync",
     },
+    {
+      num: "10",
+      title: "Liquid Glass Audio Output (v1.9.7)",
+      tag: "IMPLEMENTED" as const,
+      desc: "Instant audio router sheet available from both Home and expanded player. Dynamic frosted refraction with real-time Bluetooth, USB DAC, and internal speaker routing.",
+      preview: "/screenshots/now_playing.png",
+      highlight: "Real-time audio device enumeration with dynamic specular refraction",
+      meta: "v1.9.7 Feature • Android & Desktop",
+    },
   ];
 
   const current = screens[selectedIdx];

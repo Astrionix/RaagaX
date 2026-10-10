@@ -107,3 +107,47 @@ export const RAAGAX_CONFIG: ReleaseConfig = {
 };
 
 export type FeatureStatus = "IMPLEMENTED" | "BETA" | "EXPERIMENTAL" | "PLANNED / SPECIFICATION";
+
+export interface ChangelogItem {
+  category: string;
+  badge: string;
+  badgeColor: string;
+  title: string;
+  description: string;
+  platforms: string[];
+}
+
+export const V197_CHANGELOG: ChangelogItem[] = [
+  {
+    category: "Audio Experience",
+    badge: "Liquid Glass",
+    badgeColor: "bg-red-500/20 text-red-300 border-red-500/30",
+    title: "Liquid Glass Audio Output Sheet",
+    description: "Frosted liquid glass output selector accessible on both Home and expanded Now Playing screens. Switch on-the-fly between Speakers, Bluetooth devices, USB DACs, and wired headphones.",
+    platforms: ["Android", "Windows", "macOS", "Linux"],
+  },
+  {
+    category: "Desktop UX",
+    badge: "Work Area",
+    badgeColor: "bg-blue-500/20 text-blue-300 border-blue-500/30",
+    title: "Taskbar & Dock Work Area Preservation",
+    description: "Maximized and full-screen window states now strictly preserve the Windows 10/11 taskbar and macOS Dock work area, ensuring system taskbars remain completely accessible without overlap.",
+    platforms: ["Windows", "macOS"],
+  },
+  {
+    category: "Updates & Delivery",
+    badge: "OTA Engine",
+    badgeColor: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
+    title: "Silent Background In-App OTA Updates",
+    description: "Automatic background update verification across Android (universal/arm64 APKs) and Desktop (Windows setup & portable, macOS ARM64/x64 DMG, Linux AppImage/deb/rpm) with seamless installation and auto-relaunch.",
+    platforms: ["Android", "Windows", "macOS", "Linux"],
+  },
+  {
+    category: "Cloud Telemetry",
+    badge: "Supabase Live",
+    badgeColor: "bg-purple-500/20 text-purple-300 border-purple-500/30",
+    title: "Real-Time Activity & Auto-Pruning",
+    description: "Graceful player lifecycle teardown on app exit prevents ghost playing sessions in Supabase. Admin dashboard auto-prunes stale sessions (>15 min) continuously so live listener counts reflect real-time active users.",
+    platforms: ["Android", "Cloud"],
+  },
+];

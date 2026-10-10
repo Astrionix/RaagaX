@@ -1,6 +1,7 @@
 import React from "react";
 import { Navbar } from "@/components/Navbar";
 import { Hero } from "@/components/Hero";
+import { WhatsNew197 } from "@/components/WhatsNew197";
 import { DownloadPanel } from "@/components/DownloadPanel";
 import { ProductIntro } from "@/components/ProductIntro";
 import { FeatureShowcase } from "@/components/FeatureShowcase";
@@ -27,6 +28,9 @@ export default function Home() {
 
       {/* Section 01: Hero Product Launch */}
       <Hero />
+
+      {/* Latest Release Highlights: What's New in v1.9.7 */}
+      <WhatsNew197 />
 
       {/* Primary APK Download Action Card */}
       <DownloadPanel />

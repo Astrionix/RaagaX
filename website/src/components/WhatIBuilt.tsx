@@ -7,12 +7,12 @@ import { RAAGAX_CONFIG } from "@/config/release";
 export const WhatIBuilt: React.FC = () => {
   const tiers = [
     {
-      name: "Android UI & Composition",
+      name: "Android & Desktop UI",
       icon: Sparkles,
       color: "text-rose-400 border-rose-500/30 bg-rose-500/10",
       points: [
-        "10 core screens in declarative Jetpack Compose with Material 3 styling",
-        "Custom Haze frosted-glass blur shaders running at 120Hz without stutter",
+        "10 core screens in Jetpack Compose & Compose Multiplatform (Windows/Mac/Linux)",
+        "Liquid Glass Audio Output Sheet with real-time routing on Home & Expanded Player",
         "Sub-millisecond word and syllable karaoke lyrics highlighting canvas",
       ],
     },

@@ -40,7 +40,7 @@ export const Hero: React.FC = () => {
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
                 </span>
                 <span className="text-xs font-mono text-zinc-300">
-                  {RAAGAX_CONFIG.versionName} • Android 8.0+
+                  {RAAGAX_CONFIG.versionName} • Liquid Glass Output • Android &amp; Desktop
                 </span>
                 <span className="text-zinc-600">|</span>
                 <FeatureStatusBadge status="IMPLEMENTED" size="sm" />
@@ -55,8 +55,8 @@ export const Hero: React.FC = () => {
                   <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
                 </span>
                 <div>
-                  <span className="text-xs font-bold text-white block">Download Android APK Now</span>
-                  <span className="text-[11px] text-zinc-400 font-mono">{RAAGAX_CONFIG.versionName} Signed • {RAAGAX_CONFIG.fileSize} • Android 8.0+</span>
+                  <span className="text-xs font-bold text-white block">Download RaagaX {RAAGAX_CONFIG.versionName}</span>
+                  <span className="text-[11px] text-zinc-400 font-mono">Liquid Glass Audio Router • In-App OTA • Android &amp; Desktop</span>
                 </div>
               </div>
               <div className="flex items-center gap-2">
