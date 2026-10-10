@@ -27,8 +27,8 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 
 object RaagaCloudConfig {
-    // Primary: Cloudflare Edge WebSocket Relay (<20ms edge latency)
-    const val CLOUDFLARE_WS_URL = "wss://tiny-hill-6efd.pekrajareddy.workers.dev/ws"
+    // Primary: Cloudflare Edge WebSocket Relay (<20ms edge latency, Durable Objects)
+    const val CLOUDFLARE_WS_URL = "wss://raaga-connect-relay.pekrajareddy.workers.dev/ws"
 
     // Backup Fallback: Supabase Realtime
     const val SUPABASE_PROJECT_URL = "https://pufuuvtnnqubhupgaovg.supabase.co"
@@ -41,7 +41,7 @@ typealias RaagaSupabaseConfig = RaagaCloudConfig
 
 /**
  * Cloud Relay for Raaga Connect over the Cloud / Internet:
- * - Primary: Cloudflare Edge WebSocket Relay (Ultra-low latency <20ms)
+ * - Primary: Cloudflare Edge WebSocket Relay (Ultra-low latency <20ms, Durable Objects)
  * - Backup Fallback: Supabase Realtime (Automatic zero-downtime failover)
  *
  * Security & Isolation:
@@ -83,7 +83,7 @@ class RaagaSupabaseRelay(
     private var isConnected = false
 
     @Volatile
-    private var usingCloudflare = false
+    private var usingCloudflare = true
 
     @Volatile
     private var lastCloudflareFailureTime: Long = 0L
