@@ -92,7 +92,7 @@ object AppUpdateChecker {
                 val tag = release["tag_name"]?.jsonPrimitive?.contentOrNull ?: return@firstNotNullOfOrNull null
                 val url = release["html_url"]?.jsonPrimitive?.contentOrNull ?: return@firstNotNullOfOrNull null
                 val notes = release["body"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
-                    ?: "Raaga 1.9.6: Connect to Device security update with private account rooms, PIN pairing, and seamless installer improvements. Download latest at raaga.me"
+                    ?: "Raaga 1.9.7: Liquid Glass Audio Output Sheet, Windows Taskbar & macOS Dock preservation. Download latest at raaga.me"
                 val latest = tag.removePrefix("v")
                 val apkUrl = apkAssetUrl(release) ?: return@firstNotNullOfOrNull null
                 if (!isNewer(latest, BuildConfig.VERSION_NAME) && !force) return@firstNotNullOfOrNull null

@@ -101,12 +101,12 @@ jobs:
         body: |
           ### Raaga ${{ github.ref_name }}
 
-          **Connect to Device security update and seamless Windows installer improvements.**
+          **Aether Liquid Glass Audio Output Sheet & Intelligent Window Work-Area Protection.**
 
           #### Highlights & New Features:
-          - **Connect to Device Security**: Private account discovery rooms, end-to-end sync key authorization, and secure 6-digit PIN device pairing.
-          - **Ultra-Fast Edge Sync**: Cloudflare Edge WebSocket Relay (<20ms) with Supabase Realtime fallback.
-          - **Seamless Installer (Windows)**: Suppressed Restart Manager dialogs and added graceful process exit on update.
-          - **Cross-Platform**: Latest releases available for Android, iOS, Windows, macOS, and Linux at https://raaga.me.
+          - **Liquid Glass Audio Output Sheet**: True localized optical refraction with tactile droplet pods and specular highlights on both Home and Expanded Player.
+          - **Intelligent Window Protection**: Custom work-area insets on Windows & macOS ensure the Windows Taskbar, macOS Dock, and Menu Bar remain visible when maximized.
+          - **Native macOS Controls**: Direct AppKit `- [NSWindow miniaturize:]` Dock animations and zoom handling.
+          - **Cross-Platform Availability**: Installers and OTA updates available for Android, Windows, macOS, and Linux at https://raaga.me.
         make_latest: "true"
         generate_release_notes: false

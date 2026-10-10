@@ -8,7 +8,7 @@ val appVersion: String = (providers.gradleProperty("raaga.version").orNull
     ?: providers.gradleProperty("raaga.version").orNull)
     ?.removePrefix("v")
     ?.takeIf { it.isNotBlank() }
-    ?: "1.9.6"
+    ?: "1.9.7"
 
 /** Which platform this build is *for*, which is the host unless told otherwise. */
 val hostIsWindows = System.getProperty("os.name").contains("Windows", ignoreCase = true)
@@ -28,7 +28,7 @@ val isArm64 = targetArch == "aarch64" || targetArch == "arm64"
 // Windows installer metadata requires MAJOR.MINOR.BUILD even though the app's public version is
 // intentionally displayed without a patch number (1.7 rather than 1.7.0).
 // The build number is the desktop version code; it also keeps "-beta1" out of the numeric installer version.
-val desktopVersionCode = 38
+val desktopVersionCode = 39
 val nativePackageVersion = if (appVersion.substringBefore('-').count { it == '.' } >= 2) {
     appVersion.substringBefore('-')
 } else {
