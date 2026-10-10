@@ -161,4 +161,35 @@ class ConnectScopeIsolationTest {
         assertTrue(!cleared.contains("raaga_pair_123456"))
         assertEquals(2, cleared.size)
     }
+
+    @Test
+    fun testPairedDevices_oneWithAccountOneWithout_joinSameSyncChannel() {
+        val sharedSyncKey = "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+
+        val deviceAWithAccount = RaagaSupabaseRelay(
+            localDeviceProvider = { createDummyDevice("dev_phone", "Phone with Account") },
+            accountIdProvider = { "google_phone_account_123" },
+            syncKeyProvider = { sharedSyncKey },
+            onTransferReceived = {},
+            onControlReceived = {},
+            onStatusReceived = {},
+        )
+        val deviceBWithoutAccount = RaagaSupabaseRelay(
+            localDeviceProvider = { createDummyDevice("dev_pc", "Desktop without Account") },
+            accountIdProvider = { null },
+            syncKeyProvider = { sharedSyncKey },
+            onTransferReceived = {},
+            onControlReceived = {},
+            onStatusReceived = {},
+        )
+
+        val chanA = deviceAWithAccount.computeCurrentChannel()
+        val chanB = deviceBWithoutAccount.computeCurrentChannel()
+
+        assertNotNull(chanA)
+        assertNotNull(chanB)
+        assertTrue(chanA!!.startsWith("raaga_sync_"))
+        assertEquals("Paired devices MUST join the exact same sync channel even if one is logged in and the other is not", chanA, chanB)
+    }
 }
+

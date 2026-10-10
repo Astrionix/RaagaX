@@ -130,13 +130,13 @@ class RaagaSupabaseRelay(
         if (!pairCode.isNullOrBlank()) {
             return "raaga_pair_$pairCode"
         }
-        val account = accountIdProvider()?.trim()
-        if (!account.isNullOrBlank()) {
-            return "raaga_acc_" + sha256Hex(account).take(16)
-        }
         val sync = syncKeyProvider()?.trim()
         if (!sync.isNullOrBlank()) {
             return "raaga_sync_" + sha256Hex(sync).take(16)
+        }
+        val account = accountIdProvider()?.trim()
+        if (!account.isNullOrBlank()) {
+            return "raaga_acc_" + sha256Hex(account).take(16)
         }
         return null
     }
