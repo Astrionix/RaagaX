@@ -210,6 +210,9 @@ class RaagaConnectManager(
 
     fun cancelPairCode() {
         activePairCode.value = null
+        isPairingSubmitting.value = false
+        pendingPairJob?.cancel()
+        pendingPairJob = null
         pairingFeedback.value = null
         supabaseRelay.setTemporaryPairCode(null)
     }
@@ -225,16 +228,15 @@ class RaagaConnectManager(
         isPairingSubmitting.value = true
         pairingFeedback.value = "Connecting to device..."
         supabaseRelay.setTemporaryPairCode(clean)
-        supabaseRelay.sendPairRequest(ConnectPairRequest(code = clean, fromDevice = localDevice))
 
         pendingPairJob?.cancel()
         pendingPairJob = scope.launch {
-            val start = System.currentTimeMillis()
-            while (isActive && System.currentTimeMillis() - start < 10_000L) {
-                delay(300)
-                if (!isPairingSubmitting.value) {
-                    return@launch
-                }
+            val pairReq = ConnectPairRequest(code = clean, fromDevice = localDevice)
+            val startTime = System.currentTimeMillis()
+            // Active pairing retry loop: broadcast every 600ms for up to 12s to ensure delivery across internet
+            while (isActive && isPairingSubmitting.value && System.currentTimeMillis() - startTime < 12_000L) {
+                supabaseRelay.sendPairRequest(pairReq)
+                delay(600)
             }
             if (isPairingSubmitting.value) {
                 isPairingSubmitting.value = false
@@ -248,6 +250,10 @@ class RaagaConnectManager(
 
     fun unpairDevice(deviceId: String) {
         RaagaPairingStore.removePairedDevice(deviceId)
+        if (RaagaPairingStore.pairedDevices.value.isEmpty()) {
+            RaagaPairingStore.saveSyncKey(null)
+            supabaseRelay.checkChannel()
+        }
     }
 
     fun pairDeviceDirectly(device: ConnectDevice) {
@@ -279,20 +285,34 @@ class RaagaConnectManager(
                 syncKey = UUID.randomUUID().toString()
                 RaagaPairingStore.saveSyncKey(syncKey)
             }
-            activePairCode.value = null
-            supabaseRelay.setTemporaryPairCode(null)
-            pairingFeedback.value = "Successfully paired with $cleanName!"
-            supabaseRelay.sendPairResponse(
-                ConnectPairResponse(
-                    code = request.code,
-                    success = true,
-                    message = "Paired with $deviceName",
-                    fromDevice = localDevice,
-                    targetDeviceId = request.fromDevice.id,
-                    syncKey = syncKey,
-                )
+
+            val response = ConnectPairResponse(
+                code = request.code,
+                success = true,
+                message = "Paired with $deviceName",
+                fromDevice = localDevice,
+                targetDeviceId = request.fromDevice.id,
+                syncKey = syncKey,
             )
-            supabaseRelay.checkChannel()
+
+            // Immediately send pair response on pair channel
+            supabaseRelay.sendPairResponse(response)
+            pairingFeedback.value = "Successfully paired with $cleanName!"
+
+            // Send redundant responses to ensure delivery over WAN,
+            // then smoothly switch to sync channel without dropping connection
+            scope.launch {
+                delay(300)
+                supabaseRelay.sendPairResponse(response)
+                delay(300)
+                supabaseRelay.sendPairResponse(response)
+                delay(1500)
+                activePairCode.value = null
+                supabaseRelay.setTemporaryPairCode(null)
+                supabaseRelay.checkChannel()
+                delay(300)
+                supabaseRelay.sendAnnounce()
+            }
         }
     }
 
@@ -310,9 +330,17 @@ class RaagaConnectManager(
                 RaagaPairingStore.saveSyncKey(response.syncKey)
             }
             isPairingSubmitting.value = false
-            supabaseRelay.setTemporaryPairCode(null)
+            pendingPairJob?.cancel()
+            pendingPairJob = null
             pairingFeedback.value = "Successfully paired with $cleanName!"
-            supabaseRelay.checkChannel()
+
+            scope.launch {
+                delay(600)
+                supabaseRelay.setTemporaryPairCode(null)
+                supabaseRelay.checkChannel()
+                delay(300)
+                supabaseRelay.sendAnnounce()
+            }
         }
     }
 

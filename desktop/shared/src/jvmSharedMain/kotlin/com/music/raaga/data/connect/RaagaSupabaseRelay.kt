@@ -83,7 +83,7 @@ class RaagaSupabaseRelay(
     private var isConnected = false
 
     @Volatile
-    private var usingCloudflare = true
+    private var usingCloudflare = false
 
     @Volatile
     private var lastCloudflareFailureTime: Long = 0L
@@ -93,6 +93,8 @@ class RaagaSupabaseRelay(
 
     @Volatile
     private var temporaryPairCode: String? = null
+
+    private val joinedChannels = ConcurrentHashMap.newKeySet<String>()
 
     private val cloudDevices = ConcurrentHashMap<String, ConnectDevice>()
     private val _discoveredCloudDevices = MutableStateFlow<List<ConnectDevice>>(emptyList())
@@ -104,6 +106,23 @@ class RaagaSupabaseRelay(
             temporaryPairCode = clean
             checkChannel()
         }
+    }
+
+    fun computeActiveChannels(): Set<String> {
+        val set = mutableSetOf<String>()
+        val pairCode = temporaryPairCode
+        if (!pairCode.isNullOrBlank()) {
+            set.add("raaga_pair_$pairCode")
+        }
+        val sync = syncKeyProvider()?.trim()
+        if (!sync.isNullOrBlank()) {
+            set.add("raaga_sync_" + sha256Hex(sync).take(16))
+        }
+        val account = accountIdProvider()?.trim()
+        if (!account.isNullOrBlank()) {
+            set.add("raaga_acc_" + sha256Hex(account).take(16))
+        }
+        return set
     }
 
     fun computeCurrentChannel(): String? {
@@ -134,16 +153,57 @@ class RaagaSupabaseRelay(
 
     fun checkChannel() {
         scope.launch {
-            val target = computeCurrentChannel()
-            if (target != activeChannel) {
-                cloudDevices.clear()
-                _discoveredCloudDevices.value = emptyList()
+            val desired = computeActiveChannels()
+            if (desired.isEmpty()) {
                 disconnectWebSocket()
-                if (target != null) {
-                    delay(100)
-                    try {
-                        connectWebSocket()
-                    } catch (_: Exception) {}
+                return@launch
+            }
+            val ws = webSocket
+            if (!isConnected || ws == null) {
+                connectWebSocket()
+                return@launch
+            }
+            if (!usingCloudflare) {
+                // Dynamically subscribe to newly added channels without tearing down socket
+                val toJoin = desired - joinedChannels
+                for (chan in toJoin) {
+                    val topic = "realtime:$chan"
+                    val joinMsg = """
+                        {
+                            "topic": "$topic",
+                            "event": "phx_join",
+                            "payload": {
+                                "config": {
+                                    "broadcast": { "ack": false, "self": false },
+                                    "presence": { "key": "" }
+                                }
+                            },
+                            "ref": "${refCounter.getAndIncrement()}"
+                        }
+                    """.trimIndent()
+                    try { ws.send(joinMsg) } catch (_: Exception) {}
+                    joinedChannels.add(chan)
+                }
+                // Leave unneeded channels
+                val toLeave = joinedChannels - desired
+                for (chan in toLeave) {
+                    val topic = "realtime:$chan"
+                    val leaveMsg = """
+                        {
+                            "topic": "$topic",
+                            "event": "phx_leave",
+                            "payload": {},
+                            "ref": "${refCounter.getAndIncrement()}"
+                        }
+                    """.trimIndent()
+                    try { ws.send(leaveMsg) } catch (_: Exception) {}
+                    joinedChannels.remove(chan)
+                }
+            } else {
+                val primary = computeCurrentChannel()
+                if (primary != activeChannel) {
+                    disconnectWebSocket()
+                    connectWebSocket()
                 }
             }
         }
@@ -154,8 +214,8 @@ class RaagaSupabaseRelay(
         connectJob = scope.launch {
             while (isActive) {
                 try {
-                    val expected = computeCurrentChannel()
-                    if (expected != null && (!isConnected || expected != activeChannel)) {
+                    val expected = computeActiveChannels()
+                    if (expected.isNotEmpty() && (!isConnected || webSocket == null)) {
                         connectWebSocket()
                     }
                 } catch (_: Exception) {}
@@ -189,6 +249,7 @@ class RaagaSupabaseRelay(
     private fun disconnectWebSocket() {
         isConnected = false
         activeChannel = null
+        joinedChannels.clear()
         heartbeatJob?.cancel()
         announceJob?.cancel()
         try {
@@ -198,14 +259,10 @@ class RaagaSupabaseRelay(
     }
 
     private fun connectWebSocket() {
-        val channel = computeCurrentChannel() ?: return
+        val active = computeActiveChannels()
+        if (active.isEmpty()) return
+        val channel = computeCurrentChannel() ?: active.first()
         activeChannel = channel
-
-        // Automatically prefer and retry Cloudflare Primary after 60 seconds
-        val now = System.currentTimeMillis()
-        if (!usingCloudflare && (now - lastCloudflareFailureTime > 60_000L)) {
-            usingCloudflare = true
-        }
 
         val local = localDeviceProvider()
         val url = if (usingCloudflare) {
@@ -221,22 +278,29 @@ class RaagaSupabaseRelay(
         webSocket = okHttpClient.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(ws: WebSocket, response: Response) {
                 isConnected = true
+                joinedChannels.clear()
+
                 if (!usingCloudflare) {
-                    // Join Phoenix topic for Supabase Realtime
-                    val joinMsg = """
-                        {
-                            "topic": "realtime:$channel",
-                            "event": "phx_join",
-                            "payload": {
-                                "config": {
-                                    "broadcast": { "ack": false, "self": false },
-                                    "presence": { "key": "" }
-                                }
-                            },
-                            "ref": "${refCounter.getAndIncrement()}"
-                        }
-                    """.trimIndent()
-                    ws.send(joinMsg)
+                    // Join all active Phoenix topics (account, sync key, active pairing code)
+                    for (chan in active) {
+                        val joinMsg = """
+                            {
+                                "topic": "realtime:$chan",
+                                "event": "phx_join",
+                                "payload": {
+                                    "config": {
+                                        "broadcast": { "ack": false, "self": false },
+                                        "presence": { "key": "" }
+                                    }
+                                },
+                                "ref": "${refCounter.getAndIncrement()}"
+                            }
+                        """.trimIndent()
+                        ws.send(joinMsg)
+                        joinedChannels.add(chan)
+                    }
+                } else {
+                    joinedChannels.add(channel)
                 }
 
                 // Start heartbeat
@@ -251,14 +315,12 @@ class RaagaSupabaseRelay(
                     }
                 }
 
-                // Start periodic announcement (only if not an ephemeral pair-request channel)
+                // Start periodic announcement
                 announceJob?.cancel()
-                if (!channel.startsWith("raaga_pair_")) {
-                    announceJob = scope.launch {
-                        while (isActive && isConnected) {
-                            sendAnnounce()
-                            delay(25000) // Optimized: beacon every 25s instead of 5s
-                        }
+                announceJob = scope.launch {
+                    while (isActive && isConnected) {
+                        sendAnnounce()
+                        delay(25000) // Beacon every 25s
                     }
                 }
             }
@@ -269,23 +331,42 @@ class RaagaSupabaseRelay(
 
             override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
                 isConnected = false
+                joinedChannels.clear()
                 heartbeatJob?.cancel()
                 announceJob?.cancel()
-                // Failover between Cloudflare and Supabase gracefully
-                if (usingCloudflare) {
+                // Failover between Supabase and Cloudflare gracefully if needed
+                if (!usingCloudflare) {
                     lastCloudflareFailureTime = System.currentTimeMillis()
-                    usingCloudflare = false // Fallback to Supabase temporarily
-                } else {
-                    usingCloudflare = true // Supabase failed, retry Cloudflare
                 }
             }
 
             override fun onClosed(ws: WebSocket, code: Int, reason: String) {
                 isConnected = false
+                joinedChannels.clear()
                 heartbeatJob?.cancel()
                 announceJob?.cancel()
             }
         })
+    }
+
+    fun broadcastToChannel(channel: String, eventName: String, jsonInnerPayload: String) {
+        val ws = webSocket ?: return
+        if (!isConnected) return
+        val topic = if (usingCloudflare) channel else "realtime:$channel"
+        val ref = refCounter.getAndIncrement().toString()
+        val msg = """
+            {
+                "topic": "$topic",
+                "event": "broadcast",
+                "payload": {
+                    "type": "broadcast",
+                    "event": "$eventName",
+                    "payload": $jsonInnerPayload
+                },
+                "ref": "$ref"
+            }
+        """.trimIndent()
+        try { ws.send(msg) } catch (_: Exception) {}
     }
 
     fun sendAnnounce() {
@@ -319,38 +400,29 @@ class RaagaSupabaseRelay(
     }
 
     fun sendPairRequest(request: ConnectPairRequest) {
+        val pairChannel = "raaga_pair_${request.code}"
         setTemporaryPairCode(request.code)
-        scope.launch {
-            delay(150)
-            val jsonPayload = json.encodeToString(ConnectPairRequest.serializer(), request)
-            broadcastEvent("pair_request", jsonPayload)
-        }
+        val jsonPayload = json.encodeToString(ConnectPairRequest.serializer(), request)
+        broadcastToChannel(pairChannel, "pair_request", jsonPayload)
     }
 
     fun sendPairResponse(response: ConnectPairResponse) {
+        val pairChannel = "raaga_pair_${response.code}"
         val jsonPayload = json.encodeToString(ConnectPairResponse.serializer(), response)
-        broadcastEvent("pair_response", jsonPayload)
+        broadcastToChannel(pairChannel, "pair_response", jsonPayload)
     }
 
     private fun broadcastEvent(eventName: String, jsonInnerPayload: String) {
         val ws = webSocket ?: return
         if (!isConnected) return
-        val channel = activeChannel ?: return
-        val topic = if (usingCloudflare) channel else "realtime:$channel"
-        val ref = refCounter.getAndIncrement().toString()
-        val msg = """
-            {
-                "topic": "$topic",
-                "event": "broadcast",
-                "payload": {
-                    "type": "broadcast",
-                    "event": "$eventName",
-                    "payload": $jsonInnerPayload
-                },
-                "ref": "$ref"
+        val channels = computeActiveChannels().filterNot { it.startsWith("raaga_pair_") }
+        if (channels.isEmpty()) {
+            activeChannel?.let { broadcastToChannel(it, eventName, jsonInnerPayload) }
+        } else {
+            for (ch in channels) {
+                broadcastToChannel(ch, eventName, jsonInnerPayload)
             }
-        """.trimIndent()
-        ws.send(msg)
+        }
     }
 
     private fun handleIncomingMessage(text: String) {

@@ -136,4 +136,29 @@ class ConnectScopeIsolationTest {
         assertTrue(chanA!!.startsWith("raaga_sync_"))
         assertEquals("Both devices paired via syncKey must join the same sync channel", chanA, chanB)
     }
+
+    @Test
+    fun testMultiChannel_includesPairCodeAndSyncKey() {
+        val relay = RaagaSupabaseRelay(
+            localDeviceProvider = { createDummyDevice("dev_mc", "Multi Device") },
+            accountIdProvider = { "google_user_999" },
+            syncKeyProvider = { "sync_key_888" },
+            onTransferReceived = {},
+            onControlReceived = {},
+            onStatusReceived = {},
+        )
+
+        relay.setTemporaryPairCode("123456")
+        val active = relay.computeActiveChannels()
+
+        assertTrue(active.contains("raaga_pair_123456"))
+        assertTrue(active.any { it.startsWith("raaga_acc_") })
+        assertTrue(active.any { it.startsWith("raaga_sync_") })
+        assertEquals(3, active.size)
+
+        relay.setTemporaryPairCode(null)
+        val cleared = relay.computeActiveChannels()
+        assertTrue(!cleared.contains("raaga_pair_123456"))
+        assertEquals(2, cleared.size)
+    }
 }
