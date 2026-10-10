@@ -755,11 +755,35 @@ private fun Pill(
     modifier: Modifier = Modifier,
     content: @Composable RowScope.() -> Unit,
 ) {
+    val liquidGlassBackground = remember {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color.White.copy(alpha = 0.20f),
+                Color.White.copy(alpha = 0.08f),
+                Color.White.copy(alpha = 0.14f),
+            ),
+        )
+    }
+    val liquidGlassBorder = remember {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color.White.copy(alpha = 0.40f),
+                Color.White.copy(alpha = 0.12f),
+                Color.White.copy(alpha = 0.25f),
+            ),
+        )
+    }
+
     Row(
         modifier = modifier
             .height(BOTTOM_ACTION_SIZE)
             .clip(CircleShape)
-            .background(Color.White.copy(alpha = 0.12f))
+            .background(liquidGlassBackground)
+            .border(
+                width = 1.dp,
+                brush = liquidGlassBorder,
+                shape = CircleShape,
+            )
             .animateContentSize(
                 animationSpec = spring(
                     dampingRatio = 0.82f,
@@ -773,11 +797,20 @@ private fun Pill(
 
 @Composable
 private fun PillDivider() {
+    val dividerBrush = remember {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color.White.copy(alpha = 0.04f),
+                Color.White.copy(alpha = 0.28f),
+                Color.White.copy(alpha = 0.04f),
+            ),
+        )
+    }
     Box(
         Modifier
             .width(1.dp)
-            .fillMaxHeight()
-            .background(Color.White.copy(alpha = 0.20f)),
+            .fillMaxHeight(0.55f)
+            .background(dividerBrush, shape = CircleShape),
     )
 }
 
@@ -859,11 +892,29 @@ private fun PillSegment(
 ) {
     val haptics = rememberHaptics()
     val lastTap = remember { mutableLongStateOf(-tapWindowMs) }
+    val segmentBackground = remember(highlighted) {
+        if (highlighted) {
+            Brush.verticalGradient(
+                colors = listOf(
+                    Color.White.copy(alpha = 0.24f),
+                    Color.White.copy(alpha = 0.12f),
+                ),
+            )
+        } else {
+            null
+        }
+    }
     Box(
         modifier = Modifier
             .width(width)
             .height(BOTTOM_ACTION_SIZE)
-            .background(if (highlighted) Color.White.copy(alpha = 0.14f) else Color.Transparent)
+            .then(
+                if (segmentBackground != null) {
+                    Modifier.background(segmentBackground)
+                } else {
+                    Modifier
+                }
+            )
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -879,7 +930,7 @@ private fun PillSegment(
             .semantics { this.contentDescription = contentDescription },
         contentAlignment = Alignment.Center,
     ) {
-        val tint = Color.White.copy(alpha = if (highlighted) 1f else 0.75f)
+        val tint = Color.White.copy(alpha = if (highlighted) 1f else 0.80f)
         Crossfade(
             targetState = loading,
             animationSpec = tween(durationMillis = 200),
@@ -1114,12 +1165,35 @@ private fun BottomGlyph(
     // costs no recomposition. Starts a full window in the past so the first tap
     // is never the one that gets swallowed.
     val lastTap = remember { mutableLongStateOf(-tapWindowMs) }
+    val liquidActiveBackground = remember {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color.White.copy(alpha = 0.24f),
+                Color.White.copy(alpha = 0.12f),
+            ),
+        )
+    }
+    val liquidActiveBorder = remember {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color.White.copy(alpha = 0.40f),
+                Color.White.copy(alpha = 0.12f),
+                Color.White.copy(alpha = 0.22f),
+            ),
+        )
+    }
     Box(
         modifier = Modifier
             .size(BOTTOM_ACTION_SIZE)
             .clip(CircleShape)
-            .background(
-                if (highlighted) Color.White.copy(alpha = 0.20f) else Color.Transparent,
+            .then(
+                if (highlighted) {
+                    Modifier
+                        .background(liquidActiveBackground)
+                        .border(1.dp, liquidActiveBorder, CircleShape)
+                } else {
+                    Modifier
+                }
             )
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
@@ -1135,7 +1209,7 @@ private fun BottomGlyph(
             .semantics { this.contentDescription = contentDescription },
         contentAlignment = Alignment.Center,
     ) {
-        val tint = Color.White.copy(alpha = if (highlighted) 1f else 0.75f)
+        val tint = Color.White.copy(alpha = if (highlighted) 1f else 0.80f)
         if (icon != null) {
             Icon(
                 imageVector = icon,

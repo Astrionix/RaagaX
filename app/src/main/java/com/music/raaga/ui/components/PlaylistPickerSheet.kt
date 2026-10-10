@@ -3,8 +3,15 @@ package com.music.raaga.ui.components
 import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import com.music.raaga.ui.components.optimizedHazeEffect
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.HazeStyle
+import dev.chrisbanes.haze.HazeTint
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -89,11 +96,29 @@ fun PlaylistPickerSheet(
     onPick: (UserPlaylist) -> Unit,
     onCreate: (String, PlaylistPrivacy) -> Unit,
     modifier: Modifier = Modifier,
+    hazeState: HazeState? = null,
     song: Song? = null,
     startCreating: Boolean = false,
     onImportSpotify: (() -> Unit)? = null,
 ) {
     var creating by remember { mutableStateOf(startCreating) }
+    val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
+    val shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)
+    val drawerBorder = Brush.verticalGradient(
+        listOf(
+            Color.White.copy(alpha = 0.38f),
+            Color.White.copy(alpha = 0.12f),
+            Color.White.copy(alpha = 0.04f),
+        ),
+    )
+    val drawerSheen = Brush.verticalGradient(
+        listOf(
+            Color.White.copy(alpha = 0.12f),
+            Color(0xFF201828).copy(alpha = 0.35f),
+            Color(0xFF120E18).copy(alpha = 0.52f),
+        ),
+    )
+
     val pinnedPlaylists by AppSettings.pinnedPlaylists.collectAsStateWithLifecycle()
     val sortedPlaylists = remember(playlists, pinnedPlaylists) {
         if (pinnedPlaylists.isEmpty()) playlists
@@ -111,18 +136,51 @@ fun PlaylistPickerSheet(
         }
     }
 
-    if (creating) {
-        NewPlaylistForm(
-            // Nowhere to go back to when the sheet opened straight onto the
-            // form; the sheet's own dismiss is the way out.
-            onBack = if (startCreating) null else ({ creating = false }),
-            onCreate = onCreate,
-            modifier = modifier,
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .then(
+                if (reduceDynamicBlur || hazeState == null) {
+                    Modifier.background(Color(0xFF16151D))
+                } else {
+                    Modifier
+                        .optimizedHazeEffect(
+                            state = hazeState,
+                            style = HazeStyle(
+                                backgroundColor = Color.Transparent,
+                                tints = listOf(
+                                    HazeTint(Color(0xFF16121C).copy(alpha = 0.38f)),
+                                ),
+                                blurRadius = 36.dp,
+                                noiseFactor = 0.05f,
+                            ),
+                        )
+                        .background(drawerSheen)
+                        .border(1.dp, drawerBorder, shape)
+                }
+            )
+            .padding(bottom = 20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        // Grab handle
+        Box(
+            Modifier
+                .padding(top = 10.dp, bottom = 12.dp)
+                .size(width = 40.dp, height = 5.dp)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.32f)),
         )
-        return
-    }
 
-    Column(modifier.fillMaxWidth()) {
+        if (creating) {
+            NewPlaylistForm(
+                // Nowhere to go back to when the sheet opened straight onto the
+                // form; the sheet's own dismiss is the way out.
+                onBack = if (startCreating) null else ({ creating = false }),
+                onCreate = onCreate,
+            )
+        } else {
+            Column(Modifier.fillMaxWidth()) {
         if (song != null) {
             SheetTrackHeader(song)
             HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline)
@@ -206,8 +264,11 @@ fun PlaylistPickerSheet(
             }
         }
         Spacer(Modifier.height(24.dp))
+        }
     }
 }
+}
+
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable

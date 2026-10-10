@@ -41,6 +41,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
@@ -61,7 +63,29 @@ internal fun DesktopAccountButton(
     onClick: () -> Unit,
 ) {
     Box(
-        Modifier.size(36.dp).clip(CircleShape).clickable(onClick = onClick),
+        Modifier
+            .size(34.dp)
+            .shadow(3.dp, CircleShape, spotColor = Color.Black.copy(alpha = 0.20f))
+            .clip(CircleShape)
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        Color.White.copy(alpha = 0.16f),
+                        Color.White.copy(alpha = 0.05f),
+                    ),
+                ),
+            )
+            .border(
+                1.dp,
+                Brush.verticalGradient(
+                    listOf(
+                        Color.White.copy(alpha = 0.55f),
+                        Color.White.copy(alpha = 0.16f),
+                    ),
+                ),
+                CircleShape,
+            )
+            .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         if (avatar != null) {
@@ -75,21 +99,12 @@ internal fun DesktopAccountButton(
                 px = 96,
             )
         } else {
-            Box(
-                Modifier
-                    .size(26.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.14f))
-                    .border(1.dp, Color.White.copy(alpha = 0.18f), CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    Icons.Rounded.Person,
-                    DesktopStrings["accounts", "Accounts"],
-                    tint = Color.White.copy(alpha = 0.85f),
-                    modifier = Modifier.size(16.dp),
-                )
-            }
+            Icon(
+                Icons.Rounded.Person,
+                DesktopStrings["accounts", "Accounts"],
+                tint = Color.White.copy(alpha = 0.85f),
+                modifier = Modifier.size(16.dp),
+            )
         }
     }
 }

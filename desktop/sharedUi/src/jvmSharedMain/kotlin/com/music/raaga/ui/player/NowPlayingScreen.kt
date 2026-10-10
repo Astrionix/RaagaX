@@ -726,6 +726,7 @@ fun NowPlayingScreen(
     lyricsUnavailable: Boolean,
     lyricsOffsetOpen: Boolean,
     onDismissLyricsOffset: () -> Unit,
+    onOpenAudioOutput: (() -> Unit)? = null,
     /** The width of the window the player is in — see [fullBleedArtworkAvailable]. */
     windowWidth: Dp,
     /**
@@ -764,7 +765,13 @@ fun NowPlayingScreen(
     var showAudioOutput by remember { mutableStateOf(false) }
     var showLyricsProviders by remember { mutableStateOf(false) }
     // Gated on the Bluetooth permission the first time — see [rememberOutputPicker].
-    val openAudioOutput = rememberOutputPicker { showAudioOutput = true }
+    val openAudioOutput = rememberOutputPicker {
+        if (onOpenAudioOutput != null) {
+            onOpenAudioOutput()
+        } else {
+            showAudioOutput = true
+        }
+    }
     // Listening in a party whose host has taken the controls: the transport
     // keeps only play/pause, which from here moves this device alone.
     val controlsLocked = rememberControlsLocked()
@@ -1789,6 +1796,7 @@ fun NowPlayingScreen(
                         // cover sits flat in its bar.
                         shadowFraction = dockT,
                         modifier = artworkModifier
+                            .hazeSource(playerHaze)
                             .then(
                                 if (dock != null) {
                                     Modifier.onGloballyPositioned { dockFrame.landscapeArt = it }

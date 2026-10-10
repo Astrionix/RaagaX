@@ -9,6 +9,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -41,6 +42,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -57,11 +59,13 @@ import com.music.raaga.data.settings.AppSettings
 import com.music.raaga.ui.components.optimizedHazeEffect
 import com.music.raaga.ui.utils.containSheetGestures
 import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.HazeStyle
+import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import dev.chrisbanes.haze.materials.HazeMaterials
 import kotlin.math.roundToInt
 
-internal val DRAWER_SHAPE = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp)
+internal val DRAWER_SHAPE = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)
 
 /**
  * The widest the drawer itself gets, however wide the window behind it is.
@@ -76,8 +80,55 @@ internal val DRAWER_SHAPE = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp)
  * No effect on a phone, which is narrower than this everywhere it runs.
  */
 internal val DRAWER_MAX_WIDTH = 640.dp
-internal val ROW_SHAPE = RoundedCornerShape(16.dp)
-internal val SCRIM_COLOR = Color.Black.copy(alpha = 0.5f)
+internal val ROW_SHAPE = RoundedCornerShape(18.dp)
+internal val SCRIM_COLOR = Color.Black.copy(alpha = 0.05f)
+
+fun Modifier.liquidGlassCard(
+    active: Boolean = false,
+    accentBorder: Color? = null,
+): Modifier = this
+    .clip(ROW_SHAPE)
+    .background(
+        Brush.verticalGradient(
+            if (active) {
+                listOf(
+                    Color.White.copy(alpha = 0.22f),
+                    Color(0xFF1DB954).copy(alpha = 0.22f),
+                    Color(0xFF10B981).copy(alpha = 0.08f),
+                )
+            } else {
+                listOf(
+                    Color.White.copy(alpha = 0.10f),
+                    Color.White.copy(alpha = 0.03f),
+                    Color(0xFF0F172A).copy(alpha = 0.06f),
+                )
+            }
+        )
+    )
+    .border(
+        width = 1.dp,
+        brush = if (accentBorder != null) {
+            Brush.verticalGradient(
+                listOf(accentBorder.copy(alpha = 0.80f), accentBorder.copy(alpha = 0.30f))
+            )
+        } else {
+            Brush.verticalGradient(
+                if (active) {
+                    listOf(
+                        Color.White.copy(alpha = 0.80f),
+                        Color(0xFF1DB954).copy(alpha = 0.50f),
+                        Color.White.copy(alpha = 0.15f),
+                    )
+                } else {
+                    listOf(
+                        Color.White.copy(alpha = 0.35f),
+                        Color.White.copy(alpha = 0.06f),
+                    )
+                }
+            )
+        },
+        shape = ROW_SHAPE,
+    )
 
 /**
  * How much of its own height the drawer has to be dragged before letting go
@@ -187,14 +238,41 @@ internal fun PlayerDrawer(
                 .clip(DRAWER_SHAPE)
                 .then(
                     if (reduceDynamicBlur) {
-                        Modifier.background(Color(0xFF121212))
+                        Modifier.background(Color(0xFF0F172A))
                     } else {
+                        // 02. Liquid water-drop top specular highlight border
+                        val drawerBorder = Brush.verticalGradient(
+                            listOf(
+                                Color.White.copy(alpha = 0.70f),
+                                Color.White.copy(alpha = 0.18f),
+                                Color.White.copy(alpha = 0.04f),
+                            ),
+                        )
+                        // 01. Translucent liquid glass material with water-drop sheen
+                        val drawerSheen = Brush.verticalGradient(
+                            listOf(
+                                Color.White.copy(alpha = 0.16f),
+                                Color(0xFF38BDF8).copy(alpha = 0.03f),
+                                Color.White.copy(alpha = 0.02f),
+                                Color(0xFF0F172A).copy(alpha = 0.08f),
+                            ),
+                        )
                         Modifier
+                            // 03. Liquid background diffusion: translucent blur
                             .optimizedHazeEffect(
                                 state = hazeState,
-                                style = HazeMaterials.regular(Color(0xFF141414)),
+                                style = HazeStyle(
+                                    backgroundColor = Color.Transparent,
+                                    tints = listOf(
+                                        HazeTint(Color.White.copy(alpha = 0.03f)),
+                                        HazeTint(Color(0xFF0F172A).copy(alpha = 0.08f)),
+                                    ),
+                                    blurRadius = 36.dp,
+                                    noiseFactor = 0f,
+                                ),
                             )
-                            .background(Color(0xFF121212).copy(alpha = 0.9f))
+                            .background(drawerSheen)
+                            .border(1.dp, drawerBorder, DRAWER_SHAPE)
                     }
                 )
                 .clickable(
@@ -220,14 +298,21 @@ internal fun PlayerDrawer(
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // The grab handle every sheet here has, and the thing that says the
-            // drawer can be pulled away before anybody tries it.
+            // The water drop grab handle capsule
             Box(
                 Modifier
                     .padding(bottom = 12.dp)
-                    .size(width = 36.dp, height = 4.dp)
+                    .size(width = 44.dp, height = 5.dp)
                     .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.25f)),
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(
+                                Color.White.copy(alpha = 0.25f),
+                                Color.White.copy(alpha = 0.60f),
+                                Color.White.copy(alpha = 0.25f),
+                            )
+                        )
+                    ),
             )
             Text(
                 text = title,

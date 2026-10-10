@@ -1,6 +1,7 @@
 package com.music.raaga.ui.player
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -30,6 +31,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -119,8 +121,7 @@ private fun LyricsProviderRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(ROW_SHAPE)
-            .background(Color.White.copy(alpha = if (current) 0.10f else 0.05f))
+            .liquidGlassCard(active = current)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -136,7 +137,22 @@ private fun LyricsProviderRow(
             modifier = Modifier
                 .size(40.dp)
                 .clip(CircleShape)
-                .background(Color.White.copy(alpha = if (current) 0.16f else 0.08f)),
+                .background(
+                    if (current) {
+                        Brush.radialGradient(
+                            listOf(Color.White.copy(alpha = 0.35f), Color(0xFF1DB954).copy(alpha = 0.30f))
+                        )
+                    } else {
+                        Brush.radialGradient(
+                            listOf(Color.White.copy(alpha = 0.14f), Color.White.copy(alpha = 0.04f))
+                        )
+                    }
+                )
+                .border(
+                    1.dp,
+                    if (current) Color.White.copy(alpha = 0.55f) else Color.White.copy(alpha = 0.18f),
+                    CircleShape
+                ),
             contentAlignment = Alignment.Center,
         ) {
             when {

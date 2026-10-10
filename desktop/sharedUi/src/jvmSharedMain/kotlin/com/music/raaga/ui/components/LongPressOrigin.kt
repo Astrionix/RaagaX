@@ -1,7 +1,10 @@
 package com.music.raaga.ui.components
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Indication
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -86,6 +89,8 @@ fun Modifier.longPressMenuClickable(
     onClick: () -> Unit,
     onLongClick: (() -> Unit)?,
     enabled: Boolean = true,
+    interactionSource: MutableInteractionSource? = null,
+    indication: Indication? = LocalIndication.current,
 ): Modifier {
     val capture = remember { HoldCapture() }
     val graphicsContext = LocalGraphicsContext.current
@@ -101,9 +106,20 @@ fun Modifier.longPressMenuClickable(
             held()
         }
     }
+    val clickModifier = if (interactionSource != null) {
+        Modifier.combinedClickable(
+            interactionSource = interactionSource,
+            indication = indication,
+            enabled = enabled,
+            onLongClick = longClick,
+            onClick = onClick,
+        )
+    } else {
+        Modifier.combinedClickable(enabled = enabled, onClick = onClick, onLongClick = longClick)
+    }
     return this
         .onPlaced { capture.coordinates = it }
-        .combinedClickable(enabled = enabled, onClick = onClick, onLongClick = longClick)
+        .then(clickModifier)
         .drawWithContent {
             drawContent()
             // Reading the counter is what subscribes this draw to a hold;

@@ -76,6 +76,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -242,6 +243,50 @@ internal fun ConnectJamSheet(
     )
 }
 
+private fun Modifier.jamGlassCard(
+    active: Boolean = false,
+    accentBorder: Color? = null,
+): Modifier = this
+    .clip(ROW_SHAPE)
+    .background(
+        Brush.verticalGradient(
+            if (active) {
+                listOf(
+                    Color(0xFF38BDF8).copy(alpha = 0.18f),
+                    Color(0xFF0F172A).copy(alpha = 0.40f),
+                )
+            } else {
+                listOf(
+                    Color.White.copy(alpha = 0.09f),
+                    Color(0xFF1E293B).copy(alpha = 0.28f),
+                )
+            }
+        )
+    )
+    .border(
+        width = 1.dp,
+        brush = if (accentBorder != null) {
+            Brush.verticalGradient(
+                listOf(accentBorder.copy(alpha = 0.65f), accentBorder.copy(alpha = 0.20f))
+            )
+        } else {
+            Brush.verticalGradient(
+                if (active) {
+                    listOf(
+                        Color.White.copy(alpha = 0.50f),
+                        Color.White.copy(alpha = 0.15f),
+                    )
+                } else {
+                    listOf(
+                        Color.White.copy(alpha = 0.26f),
+                        Color.White.copy(alpha = 0.05f),
+                    )
+                }
+            )
+        },
+        shape = ROW_SHAPE,
+    )
+
 @Composable
 private fun SocialTabHeader(
     selectedTab: ConnectJamTab,
@@ -253,7 +298,24 @@ private fun SocialTabHeader(
         modifier = Modifier
             .fillMaxWidth()
             .clip(CircleShape)
-            .background(Color.White.copy(alpha = 0.08f))
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        Color.White.copy(alpha = 0.10f),
+                        Color(0xFF1E293B).copy(alpha = 0.35f),
+                    )
+                )
+            )
+            .border(
+                1.dp,
+                Brush.verticalGradient(
+                    listOf(
+                        Color.White.copy(alpha = 0.35f),
+                        Color.White.copy(alpha = 0.08f),
+                    )
+                ),
+                CircleShape,
+            )
             .padding(3.dp),
         horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
@@ -294,7 +356,7 @@ private fun TabButton(
     onClick: () -> Unit,
 ) {
     val bgAlpha by animateColorAsState(
-        targetValue = if (isSelected) Color.White.copy(alpha = 0.16f) else Color.Transparent,
+        targetValue = if (isSelected) Color.White.copy(alpha = 0.18f) else Color.Transparent,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "tabBg",
     )
@@ -448,8 +510,7 @@ private fun JamTabContent(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(ROW_SHAPE)
-                    .background(Color.White.copy(alpha = 0.07f))
+                    .jamGlassCard()
                     .padding(18.dp),
             ) {
                 Column {
@@ -611,8 +672,7 @@ private fun JamTabContent(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(ROW_SHAPE)
-                    .background(Color.White.copy(alpha = 0.05f))
+                    .jamGlassCard()
                     .padding(14.dp),
             ) {
                 Row(
@@ -763,8 +823,7 @@ private fun JamTabContent(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(ROW_SHAPE)
-                    .background(Color.White.copy(alpha = 0.08f))
+                    .jamGlassCard(active = true)
                     .padding(14.dp),
             ) {
                 Row(
@@ -886,8 +945,7 @@ private fun JamTabContent(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(ROW_SHAPE)
-                        .background(Color.White.copy(alpha = 0.05f))
+                        .jamGlassCard()
                         .padding(14.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
@@ -1052,8 +1110,7 @@ private fun JamVotedQueueRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(ROW_SHAPE)
-            .background(Color.White.copy(alpha = 0.05f))
+            .jamGlassCard()
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

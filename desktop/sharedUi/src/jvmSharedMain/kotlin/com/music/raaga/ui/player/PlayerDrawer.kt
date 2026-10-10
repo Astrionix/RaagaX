@@ -9,7 +9,11 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.graphics.Brush
+import dev.chrisbanes.haze.HazeStyle
+import dev.chrisbanes.haze.HazeTint
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -27,6 +31,15 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Speaker
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -61,23 +74,27 @@ import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import dev.chrisbanes.haze.materials.HazeMaterials
 import kotlin.math.roundToInt
 
-internal val DRAWER_SHAPE = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp)
+import com.music.raaga.ui.components.LiquidGlassTokens
+import com.music.raaga.ui.components.liquidGlassSurface
+import com.music.raaga.ui.components.liquidGlassCard
+
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Size
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+
+internal val DRAWER_SHAPE = RoundedCornerShape(24.dp)
 
 /**
  * The widest the drawer itself gets, however wide the window behind it is.
- *
- * Full-bleed it is fine on a phone and wrong on a tablet: the rows inside are a
- * label and a radio mark, so stretched across a landscape window each one is a
- * word at the far left, a mark at the far right and a hand's width of nothing
- * between them. Matches Material's own [BottomSheetDefaults.SheetMaxWidth], so
- * this drawer and the sheets the rest of the app puts up at the M3 default
- * settle at the same width instead of at two.
- *
- * No effect on a phone, which is narrower than this everywhere it runs.
  */
-internal val DRAWER_MAX_WIDTH = 640.dp
-internal val ROW_SHAPE = RoundedCornerShape(16.dp)
-internal val SCRIM_COLOR = Color.Black.copy(alpha = 0.5f)
+internal val DRAWER_MAX_WIDTH = 480.dp
+internal val ROW_SHAPE = RoundedCornerShape(18.dp)
+internal val SCRIM_COLOR = Color.Black.copy(alpha = 0.40f)
 
 /**
  * How much of its own height the drawer has to be dragged before letting go
@@ -87,15 +104,8 @@ internal val SCRIM_COLOR = Color.Black.copy(alpha = 0.5f)
 private const val DISMISS_DRAG_FRACTION = 0.25f
 
 /**
- * The bottom-edge drawer shell every player sheet in this package puts up —
- * [AudioOutputSheet] and [ListenTogetherMembersSheet] alike: dark over a
- * scrim, a grab handle, a title, drag down to put it away. Pulled out because
- * the drag gesture, the scrim fade tied to it, and the haze background are
- * identical between the two and worth keeping in exactly one place.
- *
- * Public because a platform's own player sheet draws in it too: the phone's
- * lyrics card goes up in this same shell rather than in a second one that would
- * have to re-learn the drag gesture, the scrim fade and the frosted material.
+ * The floating optical Liquid Glass lens shell for player sheets:
+ * [AudioOutputSheet] and [ListenTogetherMembersSheet] alike.
  */
 @OptIn(ExperimentalHazeMaterialsApi::class)
 @Composable
@@ -110,8 +120,6 @@ fun PlayerDrawer(
 ) {
     val reduceDynamicBlur by PlayerSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
 
-    // How far the drawer has been dragged down, in pixels. Released, it either
-    // springs back or goes — see [DISMISS_DRAG_FRACTION].
     var drag by remember { mutableFloatStateOf(0f) }
     var height by remember { mutableIntStateOf(0) }
     val offset by animateFloatAsState(
@@ -119,26 +127,11 @@ fun PlayerDrawer(
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "playerDrawerOffset",
     )
-    // Fades with the drawer rather than staying at full strength under a sheet
-    // halfway off the screen, which is what makes the drag feel connected.
     val scrimAlpha = if (height > 0) (1f - offset / height).coerceIn(0f, 1f) else 1f
 
-    // Flipped on the first composition so the drawer travels up from the edge
-    // instead of appearing over the player fully formed.
     var shown by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { shown = true }
 
-    // The drawer's rows scroll, and that scroll takes the finger before the
-    // drag detector below ever sees it. So a pull down past the top of the
-    // list moves the drawer itself — the way a sheet with a list in it
-    // behaves — and pushing back up returns it before the list scrolls again.
-    // Everything left over is kept here rather than handed on to the player's
-    // sheet, which would otherwise be dragged down along with the drawer.
-    //
-    // Only where scrolling is dragging, though: see [drawerFollowsListScroll].
-    // Where it is not, the connection is left off entirely and the drawer
-    // answers to its own drag alone, because a scroll leftover means something
-    // else there and must not be read as a pull.
     val dismissOnRelease: () -> Unit = {
         if (height > 0 && drag > height * DISMISS_DRAG_FRACTION) onDismiss() else drag = 0f
     }
@@ -153,13 +146,6 @@ fun PlayerDrawer(
 
             override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
                 if (source == NestedScrollSource.UserInput && available.y > 0f) drag += available.y
-                // Upward leftover is taken only as far as the drawer has already
-                // been dragged. Returning all of it would hand the player sheet
-                // — the very thing this connection is here to keep clear — the
-                // gesture meant to undo the drag, and the drawer would have no
-                // way back to where it started, because a list resting on its
-                // top consumes nothing and so never produces a pre-scroll to
-                // give back.
                 if (drag > 0f && available.y < 0f) {
                     val used = available.y.coerceAtLeast(-drag)
                     drag += used
@@ -188,83 +174,164 @@ fun PlayerDrawer(
                 interactionSource = remember { MutableInteractionSource() },
                 onClick = onDismiss,
             ),
-        contentAlignment = Alignment.BottomCenter,
+        contentAlignment = Alignment.Center,
     ) {
         AnimatedVisibility(
             visible = shown,
-            enter = slideInVertically(tween(260, easing = FastOutSlowInEasing)) { it },
-            exit = slideOutVertically(tween(180)) { it },
-        ) {
-        Column(
-            modifier = Modifier
-                // Capped so a phone full of rows scrolls inside the drawer
-                // rather than growing one into a full-screen page.
-                .heightIn(max = 560.dp)
-                // Capped before the fill, so [Modifier.fillMaxWidth] fills to
-                // the cap rather than to the window. Centred by the parent's
-                // own BottomCenter alignment once it is narrower.
-                .widthIn(max = DRAWER_MAX_WIDTH)
-                .fillMaxWidth()
-                .onSizeChanged { height = it.height }
-                .offset { IntOffset(0, offset.roundToInt()) }
-                .clip(DRAWER_SHAPE)
-                .then(
-                    if (reduceDynamicBlur) {
-                        Modifier.background(Color(0xFF121212))
-                    } else {
-                        Modifier
-                            .optimizedHazeEffect(
-                                state = hazeState,
-                                style = HazeMaterials.regular(Color(0xFF141414)),
-                            )
-                            .background(Color(0xFF121212).copy(alpha = 0.9f))
-                    }
-                )
-                .clickable(
-                    indication = null,
-                    interactionSource = remember { MutableInteractionSource() },
-                    onClick = {},
-                )
-                // Dragged down to dismiss, like every other sheet in the app.
-                // Upward drag is clamped to zero rather than followed: there is
-                // nothing above the drawer to reveal.
-                .then(if (drawerFollowsListScroll) Modifier.nestedScroll(drawerScroll) else Modifier)
-                .pointerInput(height) {
-                    detectVerticalDragGestures(
-                        onDragEnd = dismissOnRelease,
-                        onDragCancel = { drag = 0f },
-                    ) { _, delta ->
-                        drag = (drag + delta).coerceAtLeast(0f)
-                    }
-                }
-                .navigationBarsPadding()
-                .padding(horizontal = 16.dp)
-                .padding(top = 10.dp, bottom = 20.dp)
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            // The grab handle every sheet here has, and the thing that says the
-            // drawer can be pulled away before anybody tries it.
-            Box(
-                Modifier
-                    .padding(bottom = 12.dp)
-                    .size(width = 36.dp, height = 4.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.25f)),
-            )
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleLarge.copy(
-                    fontSize = 19.sp,
-                    fontWeight = FontWeight.Bold,
+            enter = scaleIn(
+                animationSpec = spring(
+                    dampingRatio = 0.82f,
+                    stiffness = Spring.StiffnessMediumLow,
                 ),
-                color = Color.White,
+                initialScale = 0.94f,
+            ) + fadeIn(tween(220, easing = FastOutSlowInEasing)),
+            exit = scaleOut(tween(180)) + fadeOut(tween(150)),
+        ) {
+            Box(
                 modifier = Modifier
+                    .padding(horizontal = 16.dp, vertical = 20.dp)
+                    .widthIn(max = DRAWER_MAX_WIDTH)
                     .fillMaxWidth()
-                    .padding(start = 4.dp, bottom = titleGap),
-            )
-            content()
-        }
+                    .onSizeChanged { height = it.height }
+                    .offset { IntOffset(0, offset.roundToInt()) }
+                    .shadow(
+                        elevation = 24.dp,
+                        shape = DRAWER_SHAPE,
+                        spotColor = Color.Black.copy(alpha = 0.35f),
+                        ambientColor = Color.Transparent,
+                    )
+                    .clip(DRAWER_SHAPE)
+                    .then(
+                        if (reduceDynamicBlur) {
+                            Modifier.background(Color(0xFF0F172A))
+                        } else {
+                            Modifier.liquidGlassSurface(hazeState = hazeState, shape = DRAWER_SHAPE)
+                        }
+                    )
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() },
+                        onClick = {},
+                    )
+                    .then(if (drawerFollowsListScroll) Modifier.nestedScroll(drawerScroll) else Modifier)
+                    .pointerInput(height) {
+                        detectVerticalDragGestures(
+                            onDragEnd = dismissOnRelease,
+                            onDragCancel = { drag = 0f },
+                        ) { _, delta ->
+                            drag = (drag + delta).coerceAtLeast(0f)
+                        }
+                    }
+                    .padding(horizontal = 18.dp, vertical = 14.dp),
+            ) {
+                // Internal optical water droplet meniscus & specular caustics
+                Canvas(Modifier.matchParentSize()) {
+                    val cornerRadius = CornerRadius(32.dp.toPx())
+
+                    // 1. Diagonal crystal specular refraction streak
+                    drawRoundRect(
+                        brush = Brush.linearGradient(
+                            listOf(
+                                Color.Transparent,
+                                Color.White.copy(alpha = 0.05f),
+                                Color.White.copy(alpha = 0.12f),
+                                Color.White.copy(alpha = 0.04f),
+                                Color.Transparent,
+                            ),
+                            start = Offset(size.width * 0.10f, size.height * 0.15f),
+                            end = Offset(size.width * 0.95f, size.height * 0.55f),
+                        ),
+                        size = size,
+                        cornerRadius = cornerRadius,
+                    )
+
+                    // 2. Corner luminous water droplet flare
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            listOf(
+                                Color.White.copy(alpha = 0.14f),
+                                Color.White.copy(alpha = 0.05f),
+                                Color.Transparent,
+                            ),
+                            center = Offset(size.width * 0.92f, size.height * 0.94f),
+                            radius = size.width * 0.35f,
+                        ),
+                        center = Offset(size.width * 0.92f, size.height * 0.94f),
+                        radius = size.width * 0.35f,
+                    )
+                }
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 580.dp)
+                        .verticalScroll(rememberScrollState()),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    // The water drop grab handle capsule
+                    Box(
+                        Modifier
+                            .padding(bottom = 8.dp)
+                            .size(width = 38.dp, height = 4.dp)
+                            .clip(CircleShape)
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(
+                                        Color.White.copy(alpha = 0.25f),
+                                        Color.White.copy(alpha = 0.75f),
+                                        Color.White.copy(alpha = 0.25f),
+                                    )
+                                )
+                            ),
+                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 2.dp, end = 2.dp, bottom = titleGap),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.White.copy(alpha = 0.12f)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Speaker,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(19.dp),
+                                )
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = title,
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = Color.White,
+                                )
+                                Text(
+                                    text = "Select output device & routing",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.White.copy(alpha = 0.65f),
+                                )
+                            }
+                        }
+                        IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
+                            Icon(
+                                imageVector = Icons.Rounded.Close,
+                                contentDescription = "Close",
+                                tint = Color.White.copy(alpha = 0.65f),
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                    }
+                    content()
+                }
+            }
         }
     }
 }

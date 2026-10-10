@@ -1,6 +1,8 @@
 package com.music.raaga.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,6 +13,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import com.music.raaga.data.settings.AppSettings
+import com.music.raaga.ui.components.optimizedHazeEffect
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.HazeStyle
+import dev.chrisbanes.haze.HazeTint
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
@@ -132,6 +142,7 @@ fun BrowseActionsSheet(
     onPlayNext: () -> Unit,
     onAddToQueue: () -> Unit,
     modifier: Modifier = Modifier,
+    hazeState: HazeState? = null,
     onPlay: (() -> Unit)? = null,
     onShuffle: (() -> Unit)? = null,
     onLoop: (() -> Unit)? = null,
@@ -180,19 +191,72 @@ fun BrowseActionsSheet(
     var confirmingDeleteDownload by remember { mutableStateOf(false) }
 
     val playlist = target.playlist
-    if (renaming && playlist != null && onRename != null) {
-        RenamePlaylistForm(
-            playlist = playlist,
-            onBack = { renaming = false },
-            onRename = onRename,
-            modifier = modifier,
-        )
-        return
-    }
+    val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
+    val shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)
+    val drawerBorder = Brush.verticalGradient(
+        listOf(
+            Color.White.copy(alpha = 0.38f),
+            Color.White.copy(alpha = 0.12f),
+            Color.White.copy(alpha = 0.04f),
+        ),
+    )
+    val drawerSheen = Brush.verticalGradient(
+        listOf(
+            Color.White.copy(alpha = 0.12f),
+            Color(0xFF201828).copy(alpha = 0.35f),
+            Color(0xFF120E18).copy(alpha = 0.52f),
+        ),
+    )
 
-    Column(modifier.fillMaxWidth()) {
-        BrowseSheetHeader(target)
-        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline)
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .then(
+                if (reduceDynamicBlur || hazeState == null) {
+                    Modifier.background(Color(0xFF16151D))
+                } else {
+                    Modifier
+                        .optimizedHazeEffect(
+                            state = hazeState,
+                            style = HazeStyle(
+                                backgroundColor = Color.Transparent,
+                                tints = listOf(
+                                    HazeTint(Color(0xFF16121C).copy(alpha = 0.38f)),
+                                ),
+                                blurRadius = 36.dp,
+                                noiseFactor = 0.05f,
+                            ),
+                        )
+                        .background(drawerSheen)
+                        .border(1.dp, drawerBorder, shape)
+                }
+            )
+            .padding(bottom = 20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        // Grab handle
+        Box(
+            Modifier
+                .padding(top = 10.dp, bottom = 12.dp)
+                .size(width = 40.dp, height = 5.dp)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.32f)),
+        )
+
+        if (renaming && playlist != null && onRename != null) {
+            RenamePlaylistForm(
+                playlist = playlist,
+                onBack = { renaming = false },
+                onRename = onRename,
+            )
+        } else {
+            BrowseSheetHeader(target)
+            HorizontalDivider(
+                thickness = 0.5.dp,
+                color = Color.White.copy(alpha = 0.08f),
+                modifier = Modifier.padding(bottom = 4.dp),
+            )
 
         onPlay?.let { ActionRow(Icons.Rounded.PlayArrow, stringResource(R.string.play), onClick = it) }
         onShuffle?.let { ActionRow(RaagaIcons.Shuffle, stringResource(R.string.shuffle), onClick = it) }
@@ -308,6 +372,7 @@ fun BrowseActionsSheet(
             }
         }
         Spacer(Modifier.height(24.dp))
+        }
     }
 }
 
@@ -334,8 +399,8 @@ private fun BrowseSheetHeader(target: BrowseTarget) {
         Column(Modifier.weight(1f)) {
             Text(
                 text = target.title,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onBackground,
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = Color.White,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -352,7 +417,7 @@ private fun BrowseSheetHeader(target: BrowseTarget) {
                     }
                 },
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = Color.White.copy(alpha = 0.65f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )

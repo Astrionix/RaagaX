@@ -1,6 +1,7 @@
 package com.music.raaga.desktop
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.hoverable
@@ -8,6 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,10 +24,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.foundation.Canvas
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.drag
@@ -47,7 +56,7 @@ internal fun DesktopTitleBar() {
     // Collected rather than read: [DesktopTitleBarSetting.active] is a plain call, so a composable
     // that only asks it never learns the answer changed.
     val enabled by DesktopTitleBarSetting.enabled.collectAsState()
-    if (!DesktopPlatform.drawsOwnWindowFrame || !enabled) return
+    if (!DesktopPlatform.drawsOwnWindowFrame || !enabled || !DesktopPlatform.isMac) return
     DesktopTitleBarDragArea(
         Modifier
             .fillMaxWidth()
@@ -118,57 +127,216 @@ internal fun DesktopWindowButtons(modifier: Modifier = Modifier) {
     val maximized by DesktopWindowMode.maximized.collectAsState()
     val windowInfo = androidx.compose.ui.platform.LocalWindowInfo.current
     val isFocused = windowInfo.isWindowFocused
-    val inactiveFill = if (!isFocused && DesktopPlatform.isMac) Color.White.copy(alpha = 0.22f) else null
 
+    if (DesktopPlatform.isMac) {
+        val inactiveFill = if (!isFocused) Color.White.copy(alpha = 0.22f) else null
+        Row(
+            modifier = modifier.height(CAPTION_HEIGHT).padding(start = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(0.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            MacCaptionButton("Close", MAC_CLOSE, onClick = actions.close, inactiveFill = inactiveFill) { glyph ->
+                val reach = GLYPH_HALF.toPx()
+                val line = HAIRLINE.toPx()
+                drawLine(
+                    color = glyph,
+                    start = Offset(center.x - reach, center.y - reach),
+                    end = Offset(center.x + reach, center.y + reach),
+                    strokeWidth = line,
+                    cap = StrokeCap.Round,
+                )
+                drawLine(
+                    color = glyph,
+                    start = Offset(center.x + reach, center.y - reach),
+                    end = Offset(center.x - reach, center.y + reach),
+                    strokeWidth = line,
+                    cap = StrokeCap.Round,
+                )
+            }
+            MacCaptionButton("Minimize", MAC_MINIMIZE, onClick = actions.minimize, inactiveFill = inactiveFill) { glyph ->
+                drawLine(
+                    color = glyph,
+                    start = Offset(center.x - GLYPH_HALF.toPx(), center.y),
+                    end = Offset(center.x + GLYPH_HALF.toPx(), center.y),
+                    strokeWidth = HAIRLINE.toPx(),
+                    cap = StrokeCap.Round,
+                )
+            }
+            MacCaptionButton(
+                if (maximized) "Restore" else "Maximize",
+                MAC_MAXIMIZE,
+                onClick = actions.toggleMaximize,
+                inactiveFill = inactiveFill,
+            ) { glyph ->
+                val reach = GLYPH_HALF.toPx()
+                val line = HAIRLINE.toPx()
+                // The opposing corner marks used by macOS' green zoom control. They remain legible at
+                // 100% Windows scaling, unlike a tiny outlined square.
+                drawLine(glyph, Offset(center.x - reach, center.y + reach), Offset(center.x + reach, center.y - reach), line, StrokeCap.Round)
+                drawLine(glyph, Offset(center.x + reach, center.y - reach), Offset(center.x + 1.dp.toPx(), center.y - reach), line, StrokeCap.Round)
+                drawLine(glyph, Offset(center.x + reach, center.y - reach), Offset(center.x + reach, center.y - 1.dp.toPx()), line, StrokeCap.Round)
+                drawLine(glyph, Offset(center.x - reach, center.y + reach), Offset(center.x - 1.dp.toPx(), center.y + reach), line, StrokeCap.Round)
+                drawLine(glyph, Offset(center.x - reach, center.y + reach), Offset(center.x - reach, center.y + 1.dp.toPx()), line, StrokeCap.Round)
+            }
+        }
+    } else {
+        WindowsWindowButtons(
+            modifier = modifier,
+            maximized = maximized,
+            isFocused = isFocused,
+            actions = actions,
+        )
+    }
+}
+
+@Composable
+private fun WindowsWindowButtons(
+    modifier: Modifier = Modifier,
+    maximized: Boolean,
+    isFocused: Boolean,
+    actions: DesktopWindowActions,
+) {
     Row(
-        modifier = modifier.height(CAPTION_HEIGHT).padding(start = 2.dp),
-        horizontalArrangement = Arrangement.spacedBy(0.dp),
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(1.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        MacCaptionButton("Close", MAC_CLOSE, onClick = actions.close, inactiveFill = inactiveFill) { glyph ->
-            val reach = GLYPH_HALF.toPx()
-            val line = HAIRLINE.toPx()
+        // Minimize
+        WindowsCaptionButton(
+            label = "Minimize",
+            onClick = actions.minimize,
+            isClose = false,
+            isFocused = isFocused,
+        ) { glyphColor ->
+            val w = 10.dp.toPx()
+            val stroke = 1.15.dp.toPx()
             drawLine(
-                color = glyph,
+                color = glyphColor,
+                start = Offset(center.x - w / 2, center.y),
+                end = Offset(center.x + w / 2, center.y),
+                strokeWidth = stroke,
+                cap = StrokeCap.Round,
+            )
+        }
+
+        // Maximize / Restore
+        WindowsCaptionButton(
+            label = if (maximized) "Restore" else "Maximize",
+            onClick = actions.toggleMaximize,
+            isClose = false,
+            isFocused = isFocused,
+        ) { glyphColor ->
+            val stroke = 1.15.dp.toPx()
+            if (!maximized) {
+                val s = 9.dp.toPx()
+                drawRect(
+                    color = glyphColor,
+                    topLeft = Offset(center.x - s / 2, center.y - s / 2),
+                    size = Size(s, s),
+                    style = Stroke(width = stroke),
+                )
+            } else {
+                // Windows 11 restore icon: clean foreground square + non-overlapping background L-bracket
+                val s = 7.5.dp.toPx()
+                val offset = 2.5.dp.toPx()
+                val fx = center.x - s / 2 - offset * 0.4f
+                val fy = center.y - s / 2 + offset * 0.4f
+                // Foreground square
+                drawRect(
+                    color = glyphColor,
+                    topLeft = Offset(fx, fy),
+                    size = Size(s, s),
+                    style = Stroke(width = stroke),
+                )
+                // Background L-bracket (top and right edges only)
+                val bx = fx + offset
+                val by = fy - offset
+                drawLine(
+                    color = glyphColor,
+                    start = Offset(fx + offset, by),
+                    end = Offset(bx + s, by),
+                    strokeWidth = stroke,
+                )
+                drawLine(
+                    color = glyphColor,
+                    start = Offset(bx + s, by),
+                    end = Offset(bx + s, fy),
+                    strokeWidth = stroke,
+                )
+            }
+        }
+
+        // Close
+        WindowsCaptionButton(
+            label = "Close",
+            onClick = actions.close,
+            isClose = true,
+            isFocused = isFocused,
+        ) { glyphColor ->
+            val reach = 4.5.dp.toPx()
+            val stroke = 1.15.dp.toPx()
+            drawLine(
+                color = glyphColor,
                 start = Offset(center.x - reach, center.y - reach),
                 end = Offset(center.x + reach, center.y + reach),
-                strokeWidth = line,
+                strokeWidth = stroke,
                 cap = StrokeCap.Round,
             )
             drawLine(
-                color = glyph,
+                color = glyphColor,
                 start = Offset(center.x + reach, center.y - reach),
                 end = Offset(center.x - reach, center.y + reach),
-                strokeWidth = line,
+                strokeWidth = stroke,
                 cap = StrokeCap.Round,
             )
-        }
-        MacCaptionButton("Minimize", MAC_MINIMIZE, onClick = actions.minimize, inactiveFill = inactiveFill) { glyph ->
-            drawLine(
-                color = glyph,
-                start = Offset(center.x - GLYPH_HALF.toPx(), center.y),
-                end = Offset(center.x + GLYPH_HALF.toPx(), center.y),
-                strokeWidth = HAIRLINE.toPx(),
-                cap = StrokeCap.Round,
-            )
-        }
-        MacCaptionButton(
-            if (maximized) "Restore" else "Maximize",
-            MAC_MAXIMIZE,
-            onClick = actions.toggleMaximize,
-            inactiveFill = inactiveFill,
-        ) { glyph ->
-            val reach = GLYPH_HALF.toPx()
-            val line = HAIRLINE.toPx()
-            // The opposing corner marks used by macOS' green zoom control. They remain legible at
-            // 100% Windows scaling, unlike a tiny outlined square.
-            drawLine(glyph, Offset(center.x - reach, center.y + reach), Offset(center.x + reach, center.y - reach), line, StrokeCap.Round)
-            drawLine(glyph, Offset(center.x + reach, center.y - reach), Offset(center.x + 1.dp.toPx(), center.y - reach), line, StrokeCap.Round)
-            drawLine(glyph, Offset(center.x + reach, center.y - reach), Offset(center.x + reach, center.y - 1.dp.toPx()), line, StrokeCap.Round)
-            drawLine(glyph, Offset(center.x - reach, center.y + reach), Offset(center.x - 1.dp.toPx(), center.y + reach), line, StrokeCap.Round)
-            drawLine(glyph, Offset(center.x - reach, center.y + reach), Offset(center.x - reach, center.y + 1.dp.toPx()), line, StrokeCap.Round)
         }
     }
+}
+
+@Composable
+private fun WindowsCaptionButton(
+    label: String,
+    onClick: () -> Unit,
+    isClose: Boolean,
+    isFocused: Boolean,
+    drawGlyph: DrawScope.(Color) -> Unit,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val hovered by interaction.collectIsHoveredAsState()
+
+    val bg = when {
+        isClose && hovered -> Color(0xFFC42B1C)
+        hovered -> Color.White.copy(alpha = 0.09f)
+        else -> Color.Transparent
+    }
+
+    val glyphColor = when {
+        isClose && hovered -> Color.White
+        hovered -> Color.White
+        !isFocused -> Color.White.copy(alpha = 0.38f)
+        else -> Color.White.copy(alpha = 0.72f)
+    }
+
+    val shape = RoundedCornerShape(7.dp)
+
+    Box(
+        modifier = Modifier
+            .size(width = 38.dp, height = 30.dp)
+            .clip(shape)
+            .background(bg)
+            .hoverable(interaction)
+            .pointerHoverIcon(PointerIcon.Default)
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = onClick,
+            )
+            .semantics { contentDescription = label }
+            .drawBehind {
+                drawGlyph(glyphColor)
+            },
+        contentAlignment = Alignment.Center,
+    ) {}
 }
 
 @Composable

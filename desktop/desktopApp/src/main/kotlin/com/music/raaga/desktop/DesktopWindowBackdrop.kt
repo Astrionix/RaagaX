@@ -30,8 +30,7 @@ internal object DesktopWindowBackdrop {
      * start, because it decides whether the window is created transparent.
      */
     val available: Boolean =
-        (DesktopPlatform.isWindows && DesktopPlatform.drawsOwnWindowFrame &&
-            System.getProperty("os.name").orEmpty().contains("11")) ||
+        (DesktopPlatform.isWindows && DesktopPlatform.drawsOwnWindowFrame) ||
         DesktopPlatform.isMac
 
     private val _selected = MutableStateFlow(

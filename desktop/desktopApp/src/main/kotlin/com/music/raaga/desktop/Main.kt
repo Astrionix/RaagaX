@@ -135,7 +135,19 @@ private fun desktopMain() = application {
                 (openingSize.width.value * transform.scaleX).roundToInt(),
                 (openingSize.height.value * transform.scaleY).roundToInt(),
             )
-            if (DesktopPlatform.isWindows && DesktopWindowsFrame.install("Raaga")) {
+            if (DesktopPlatform.drawsOwnWindowFrame) {
+                val screen = composeWindow.graphicsConfiguration.bounds
+                val insets = Toolkit.getDefaultToolkit().getScreenInsets(
+                    composeWindow.graphicsConfiguration,
+                )
+                composeWindow.maximizedBounds = Rectangle(
+                    screen.x + insets.left,
+                    screen.y + insets.top,
+                    screen.width - insets.left - insets.right,
+                    screen.height - insets.top - insets.bottom,
+                )
+            }
+            if (DesktopPlatform.isWindows && DesktopWindowsFrame.install(composeWindow)) {
                 DesktopWindowBackdrop.apply()
             } else if (DesktopPlatform.isMac && DesktopMacFrame.install(composeWindow)) {
                 DesktopWindowBackdrop.apply()
@@ -144,27 +156,24 @@ private fun desktopMain() = application {
         val actions = remember {
             DesktopWindowActions(
                 minimize = {
-                    if (!DesktopWindowsFrame.minimize()) state.isMinimized = true
+                    if (!DesktopWindowsFrame.minimize() && !DesktopMacFrame.minimize()) {
+                        state.isMinimized = true
+                    }
                 },
                 toggleMaximize = {
-                    if (!DesktopWindowsFrame.toggleMaximize()) {
-                        // An undecorated AWT window otherwise maximizes to the monitor bounds on
-                        // Windows when the native frame bridge is unavailable. Give AWT the
-                        // monitor's usable work area before Compose switches the placement.
-                        if (DesktopPlatform.isWindows && !DesktopWindowMode.maximized.value) {
-                            val screen = composeWindow.graphicsConfiguration.bounds
-                            val insets = Toolkit.getDefaultToolkit().getScreenInsets(
-                                composeWindow.graphicsConfiguration,
-                            )
-                            composeWindow.maximizedBounds = Rectangle(
-                                screen.x + insets.left,
-                                screen.y + insets.top,
-                                screen.width - insets.left - insets.right,
-                                screen.height - insets.top - insets.bottom,
-                            )
-                        }
-                        DesktopWindowMode.toggleMaximized()
+                    if (DesktopPlatform.drawsOwnWindowFrame) {
+                        val screen = composeWindow.graphicsConfiguration.bounds
+                        val insets = Toolkit.getDefaultToolkit().getScreenInsets(
+                            composeWindow.graphicsConfiguration,
+                        )
+                        composeWindow.maximizedBounds = Rectangle(
+                            screen.x + insets.left,
+                            screen.y + insets.top,
+                            screen.width - insets.left - insets.right,
+                            screen.height - insets.top - insets.bottom,
+                        )
                     }
+                    DesktopWindowMode.toggleMaximized()
                 },
                 // The same door the system's close button went through, so the tray keeps the
                 // process alive exactly as it did before.

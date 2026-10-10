@@ -9,7 +9,16 @@ import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import com.music.raaga.data.settings.AppSettings
+import com.music.raaga.ui.components.optimizedHazeEffect
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.HazeStyle
+import dev.chrisbanes.haze.HazeTint
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -43,8 +52,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -191,14 +198,71 @@ fun TopBarDownloadButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
  *   takes the indicator down.
  */
 @Composable
-fun DownloadManagerSheet(onDismiss: () -> Unit, modifier: Modifier = Modifier) {
+fun DownloadManagerSheet(
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+    hazeState: HazeState? = null,
+) {
     val context = LocalContext.current
     val session by DownloadSession.state.collectAsStateWithLifecycle()
     // Newest ask last, the order the queue will actually reach them in.
     val items = remember(session.items) { session.items.sortedBy { it.sequence } }
 
-    Column(modifier.fillMaxWidth()) {
-        Row(
+    val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
+    val shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)
+    val drawerBorder = Brush.verticalGradient(
+        listOf(
+            Color.White.copy(alpha = 0.38f),
+            Color.White.copy(alpha = 0.12f),
+            Color.White.copy(alpha = 0.04f),
+        ),
+    )
+    val drawerSheen = Brush.verticalGradient(
+        listOf(
+            Color.White.copy(alpha = 0.12f),
+            Color(0xFF201828).copy(alpha = 0.35f),
+            Color(0xFF120E18).copy(alpha = 0.52f),
+        ),
+    )
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .then(
+                if (reduceDynamicBlur || hazeState == null) {
+                    Modifier.background(Color(0xFF16151D))
+                } else {
+                    Modifier
+                        .optimizedHazeEffect(
+                            state = hazeState,
+                            style = HazeStyle(
+                                backgroundColor = Color.Transparent,
+                                tints = listOf(
+                                    HazeTint(Color(0xFF16121C).copy(alpha = 0.38f)),
+                                ),
+                                blurRadius = 36.dp,
+                                noiseFactor = 0.05f,
+                            ),
+                        )
+                        .background(drawerSheen)
+                        .border(1.dp, drawerBorder, shape)
+                }
+            )
+            .padding(bottom = 20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        // Grab handle
+        Box(
+            Modifier
+                .padding(top = 10.dp, bottom = 12.dp)
+                .size(width = 40.dp, height = 5.dp)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.32f)),
+        )
+
+        Column(Modifier.fillMaxWidth()) {
+            Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(start = 20.dp, end = 8.dp, top = 4.dp, bottom = 8.dp),
@@ -278,6 +342,7 @@ fun DownloadManagerSheet(onDismiss: () -> Unit, modifier: Modifier = Modifier) {
             }
         }
         Spacer(Modifier.height(24.dp))
+        }
     }
 }
 

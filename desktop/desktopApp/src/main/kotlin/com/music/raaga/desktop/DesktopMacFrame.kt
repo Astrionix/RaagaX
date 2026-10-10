@@ -336,6 +336,38 @@ internal object DesktopMacFrame {
     }
 
     /**
+     * Minimizes the window to the macOS Dock via AppKit -[NSWindow miniaturize:].
+     */
+    fun minimize(): Boolean {
+        if (!DesktopPlatform.isMac) return false
+        val o = objc ?: return false
+        val send = msgSend ?: return false
+        val nsWindow = windowPtr ?: return false
+
+        return runCatching {
+            val selMiniaturize = o.sel_registerName("miniaturize:")
+            send.invoke(arrayOf(nsWindow, selMiniaturize, Pointer.NULL))
+            true
+        }.getOrDefault(false)
+    }
+
+    /**
+     * Toggles native AppKit window zoom state (respecting macOS Dock and Menu Bar).
+     */
+    fun zoom(): Boolean {
+        if (!DesktopPlatform.isMac) return false
+        val o = objc ?: return false
+        val send = msgSend ?: return false
+        val nsWindow = windowPtr ?: return false
+
+        return runCatching {
+            val selZoom = o.sel_registerName("zoom:")
+            send.invoke(arrayOf(nsWindow, selZoom, Pointer.NULL))
+            true
+        }.getOrDefault(false)
+    }
+
+    /**
      * Activates the macOS application process and restores/orders the window to the front.
      * Called when the app is reopened from the macOS Dock, Spotlight, or system tray.
      */

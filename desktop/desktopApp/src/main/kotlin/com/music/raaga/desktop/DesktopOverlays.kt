@@ -54,6 +54,12 @@ internal class DesktopOverlays {
     fun toggleSidePanel(panel: DesktopSidePanel) {
         sidePanel = if (sidePanel == panel) null else panel
     }
+
+    /** Whether any modal dialog is currently open above the desktop workspace. */
+    val hasActiveModal: Boolean
+        get() = pipeline || audioOutput || connectDevice || listenTogether || downloadManager ||
+                playlistDialog || rename || delete || spotifySync || lastfmLogin || listenBrainzToken ||
+                discordToken || accounts || signIn
 }
 
 /**

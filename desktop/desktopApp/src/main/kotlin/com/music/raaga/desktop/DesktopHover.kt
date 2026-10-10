@@ -37,7 +37,7 @@ internal fun Modifier.desktopHoverLift(
     val hovered by interaction.collectIsHoveredAsState()
     val lift by animateFloatAsState(
         targetValue = if (hovered) 1f else 0f,
-        animationSpec = tween(HOVER_MS),
+        animationSpec = tween(HOVER_MS, easing = androidx.compose.animation.core.FastOutSlowInEasing),
         label = "hoverLift",
     )
     this
@@ -50,13 +50,13 @@ internal fun Modifier.desktopHoverLift(
         .shadow(elevation * lift, shape)
 }
 
-/** Barely more than a nudge — enough to acknowledge the pointer, not enough to jostle the shelf. */
-private const val HOVER_SCALE = 1.035f
+/** Subtle artwork scale (1.03x) — within 1.02–1.04 range. */
+private const val HOVER_SCALE = 1.03f
 
-private val HOVER_ELEVATION = 18.dp
+private val HOVER_ELEVATION = 10.dp
 
-/** Quick enough to feel like a response rather than an animation. */
-private const val HOVER_MS = 140
+/** Smooth 200ms duration — within 180–220ms requirement. */
+private const val HOVER_MS = 200
 
 
 /**

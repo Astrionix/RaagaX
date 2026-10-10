@@ -60,6 +60,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import org.jetbrains.compose.resources.stringResource
@@ -71,6 +72,10 @@ import com.music.raaga.sharedui.resources.*
 import com.music.raaga.ui.haptics.Haptic
 import com.music.raaga.ui.haptics.rememberHaptics
 import dev.chrisbanes.haze.HazeState
+import com.music.raaga.ui.components.LiquidGlassTokens
+import com.music.raaga.ui.components.interactiveLiquidGlassCard
+import com.music.raaga.ui.components.liquidGlassCard
+import com.music.raaga.ui.components.liquidDropletPod
 import kotlinx.coroutines.delay
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -141,6 +146,8 @@ internal fun AudioOutputSheet(
     }
 }
 
+
+
 /**
  * Drills into [com.music.raaga.ui.components.AudioPipelineDialog] — the
  * subtitle is the negotiated output itself, read live off
@@ -152,14 +159,14 @@ private fun AudioPipelineRow(onClick: () -> Unit) {
     val haptics = rememberHaptics()
     val outputFormat by PlayerPlatform.host.outputFormat.collectAsStateWithLifecycle()
     val subtitle = outputFormat.summary
+    val interactionSource = remember { MutableInteractionSource() }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(ROW_SHAPE)
-            .background(Color.White.copy(alpha = 0.05f))
+            .interactiveLiquidGlassCard(active = false, interactionSource = interactionSource)
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = interactionSource,
                 indication = null,
             ) {
                 haptics.play(Haptic.Select)
@@ -171,14 +178,13 @@ private fun AudioPipelineRow(onClick: () -> Unit) {
         Box(
             modifier = Modifier
                 .size(40.dp)
-                .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.08f)),
+                .liquidDropletPod(active = false),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 imageVector = Icons.Rounded.GraphicEq,
                 contentDescription = null,
-                tint = Color.White.copy(alpha = 0.7f),
+                tint = Color.White.copy(alpha = 0.75f),
                 modifier = Modifier.size(20.dp),
             )
         }
@@ -218,13 +224,13 @@ private fun AudioPipelineRow(onClick: () -> Unit) {
 private fun CastRow(cast: CastUi, onClick: () -> Unit) {
     val haptics = rememberHaptics()
     val casting = cast.connectedName != null
+    val interactionSource = remember { MutableInteractionSource() }
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(ROW_SHAPE)
-            .background(Color.White.copy(alpha = if (casting) 0.10f else 0.05f))
+            .interactiveLiquidGlassCard(active = casting, interactionSource = interactionSource)
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = interactionSource,
                 indication = null,
             ) {
                 haptics.play(Haptic.Select)
@@ -236,8 +242,7 @@ private fun CastRow(cast: CastUi, onClick: () -> Unit) {
         Box(
             modifier = Modifier
                 .size(40.dp)
-                .clip(CircleShape)
-                .background(Color.White.copy(alpha = if (casting) 0.16f else 0.08f)),
+                .liquidDropletPod(active = casting),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
@@ -294,13 +299,47 @@ private fun OutputRow(
 ) {
     val haptics = rememberHaptics()
     val active = device.isActive
+    val interactionSource = remember { MutableInteractionSource() }
+    val rowShape = RoundedCornerShape(18.dp)
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(ROW_SHAPE)
-            .background(Color.White.copy(alpha = if (active) 0.10f else 0.05f))
+            .clip(rowShape)
+            .then(
+                if (active) {
+                    Modifier
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    Color.White.copy(alpha = 0.14f),
+                                    Color.White.copy(alpha = 0.04f),
+                                    Color.White.copy(alpha = 0.06f),
+                                )
+                            )
+                        )
+                        .border(
+                            1.dp,
+                            Brush.verticalGradient(
+                                listOf(
+                                    Color.White.copy(alpha = 0.92f),
+                                    Color.White.copy(alpha = 0.32f),
+                                    Color.White.copy(alpha = 0.08f),
+                                    Color.White.copy(alpha = 0.24f),
+                                )
+                            ),
+                            rowShape,
+                        )
+                } else {
+                    Modifier.interactiveLiquidGlassCard(
+                        active = false,
+                        shape = rowShape,
+                        interactionSource = interactionSource,
+                    )
+                }
+            )
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = interactionSource,
                 indication = null,
                 enabled = !active,
             ) {
@@ -312,16 +351,31 @@ private fun OutputRow(
     ) {
         Box(
             modifier = Modifier
-                .size(40.dp)
+                .size(38.dp)
                 .clip(CircleShape)
-                .background(Color.White.copy(alpha = if (active) 0.16f else 0.08f)),
+                .then(
+                    if (active) {
+                        Modifier
+                            .background(
+                                Brush.radialGradient(
+                                    listOf(
+                                        Color.White.copy(alpha = 0.28f),
+                                        Color.White.copy(alpha = 0.06f),
+                                    )
+                                )
+                            )
+                            .border(1.dp, Color.White.copy(alpha = 0.65f), CircleShape)
+                    } else {
+                        Modifier.liquidDropletPod(active = false)
+                    }
+                ),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 imageVector = iconFor(device.kind),
                 contentDescription = null,
-                tint = Color.White.copy(alpha = if (active) 1f else 0.7f),
-                modifier = Modifier.size(21.dp),
+                tint = if (active) Color.White else Color.White.copy(alpha = 0.75f),
+                modifier = Modifier.size(19.dp),
             )
         }
         Spacer(Modifier.width(13.dp))
@@ -329,28 +383,41 @@ private fun OutputRow(
             Text(
                 text = outputLabel(device, accountName),
                 style = MaterialTheme.typography.bodyLarge.copy(
-                    fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+                    fontSize = 15.sp,
+                    fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
                 ),
-                color = Color.White.copy(alpha = if (active) 1f else 0.85f),
+                color = Color.White,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             if (active) {
-                Spacer(Modifier.height(2.dp))
+                Spacer(Modifier.height(1.dp))
                 Text(
                     text = stringResource(Res.string.audio_output_playing),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = Color.White.copy(alpha = 0.55f),
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                    ),
+                    color = Color.White.copy(alpha = 0.75f),
                 )
             }
         }
         if (active) {
-            Icon(
-                imageVector = Icons.Rounded.Check,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(20.dp),
-            )
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.24f))
+                    .border(1.dp, Color.White.copy(alpha = 0.75f), CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Check,
+                    contentDescription = "Selected",
+                    tint = Color.White,
+                    modifier = Modifier.size(15.dp),
+                )
+            }
         }
     }
 }
@@ -393,15 +460,14 @@ private fun VolumeRow(routeKey: Any) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(ROW_SHAPE)
-            .background(Color.White.copy(alpha = 0.05f))
-            .padding(horizontal = 16.dp, vertical = 16.dp),
+            .interactiveLiquidGlassCard(active = false)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
             imageVector = if (level > 0f) Icons.AutoMirrored.Rounded.VolumeUp else Icons.AutoMirrored.Rounded.VolumeOff,
             contentDescription = null,
-            tint = Color.White.copy(alpha = 0.6f),
+            tint = Color.White.copy(alpha = 0.7f),
             modifier = Modifier.size(20.dp),
         )
         Spacer(Modifier.width(12.dp))
@@ -413,8 +479,12 @@ private fun VolumeRow(routeKey: Any) {
                 system.set(it)
             },
             onValueChangeFinished = { dragging = false },
-            idleHeight = 6.dp,
-            activeHeight = 10.dp,
+            drawThumb = true,
+            idleHeight = 4.dp,
+            activeHeight = 6.dp,
+            thumbRadius = 7.dp,
+            activeColor = Color.White,
+            inactiveColor = Color.White.copy(alpha = 0.22f),
             modifier = Modifier.weight(1f),
         )
     }
@@ -538,9 +608,7 @@ private fun RaagaConnectSection(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(ROW_SHAPE)
-                    .background(Color(0xFF121212))
-                    .border(1.dp, Color(0xFF1DB954).copy(alpha = 0.35f), ROW_SHAPE)
+                    .liquidGlassCard(active = false, accentBorder = Color(0xFF1DB954))
                     .padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
@@ -549,14 +617,23 @@ private fun RaagaConnectSection(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.07f))
+                        .background(Color.White.copy(alpha = 0.08f))
+                        .border(1.dp, Color.White.copy(alpha = 0.12f), CircleShape)
                         .padding(3.dp),
                 ) {
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .clip(CircleShape)
-                            .background(if (pairTab == 0) Color(0xFF1DB954) else Color.Transparent)
+                            .then(
+                                if (pairTab == 0) {
+                                    Modifier.background(
+                                        Brush.horizontalGradient(
+                                            listOf(Color(0xFF1DB954), Color(0xFF10B981))
+                                        )
+                                    )
+                                } else Modifier
+                            )
                             .clickable {
                                 pairTab = 0
                                 if (activePairCode == null) connectManager.generatePairCode()
@@ -576,7 +653,15 @@ private fun RaagaConnectSection(
                         modifier = Modifier
                             .weight(1f)
                             .clip(CircleShape)
-                            .background(if (pairTab == 1) Color(0xFF1DB954) else Color.Transparent)
+                            .then(
+                                if (pairTab == 1) {
+                                    Modifier.background(
+                                        Brush.horizontalGradient(
+                                            listOf(Color(0xFF1DB954), Color(0xFF10B981))
+                                        )
+                                    )
+                                } else Modifier
+                            )
                             .clickable {
                                 pairTab = 1
                             }
@@ -618,7 +703,7 @@ private fun RaagaConnectSection(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(Color.Black.copy(alpha = 0.4f))
+                                .background(Color.Black.copy(alpha = 0.35f))
                                 .border(1.dp, Color(0xFF1DB954).copy(alpha = 0.5f), RoundedCornerShape(12.dp))
                                 .padding(vertical = 12.dp),
                             contentAlignment = Alignment.Center,
@@ -645,7 +730,8 @@ private fun RaagaConnectSection(
                             Box(
                                 modifier = Modifier
                                     .clip(CircleShape)
-                                    .background(Color.White.copy(alpha = 0.1f))
+                                    .background(Color.White.copy(alpha = 0.12f))
+                                    .border(1.dp, Color.White.copy(alpha = 0.18f), CircleShape)
                                     .clickable {
                                         haptics.play(Haptic.Select)
                                         connectManager.generatePairCode()
@@ -678,8 +764,8 @@ private fun RaagaConnectSection(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(Color.Black.copy(alpha = 0.4f))
-                                .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
+                                .background(Color.Black.copy(alpha = 0.35f))
+                                .border(1.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
                                 .padding(horizontal = 16.dp, vertical = 10.dp),
                             contentAlignment = Alignment.Center,
                         ) {
@@ -723,7 +809,22 @@ private fun RaagaConnectSection(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(CircleShape)
-                                .background(if (canSubmit) Color(0xFF1DB954) else Color.White.copy(alpha = 0.15f))
+                                .background(
+                                    if (canSubmit) {
+                                        Brush.horizontalGradient(
+                                            listOf(Color(0xFF1DB954), Color(0xFF10B981))
+                                        )
+                                    } else {
+                                        Brush.horizontalGradient(
+                                            listOf(Color.White.copy(alpha = 0.12f), Color.White.copy(alpha = 0.08f))
+                                        )
+                                    }
+                                )
+                                .border(
+                                    1.dp,
+                                    if (canSubmit) Color.White.copy(alpha = 0.4f) else Color.White.copy(alpha = 0.12f),
+                                    CircleShape
+                                )
                                 .clickable(enabled = canSubmit) {
                                     haptics.play(Haptic.Select)
                                     connectManager.submitPairCode(enteredCode)
@@ -748,6 +849,7 @@ private fun RaagaConnectSection(
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(8.dp))
                             .background(Color(0xFF1DB954).copy(alpha = 0.15f))
+                            .border(1.dp, Color(0xFF1DB954).copy(alpha = 0.35f), RoundedCornerShape(8.dp))
                             .padding(horizontal = 10.dp, vertical = 6.dp),
                         contentAlignment = Alignment.Center,
                     ) {
@@ -768,8 +870,7 @@ private fun RaagaConnectSection(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(ROW_SHAPE)
-                    .background(Color(0xFF1DB954).copy(alpha = 0.15f))
+                    .liquidGlassCard(active = true, accentBorder = Color(0xFF1DB954))
                     .padding(14.dp),
             ) {
                 Row(
@@ -780,7 +881,12 @@ private fun RaagaConnectSection(
                         modifier = Modifier
                             .size(40.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF1DB954)),
+                            .background(
+                                Brush.radialGradient(
+                                    listOf(Color(0xFF1DB954), Color(0xFF15803D))
+                                )
+                            )
+                            .border(1.dp, Color.White.copy(alpha = 0.4f), CircleShape),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
@@ -790,7 +896,7 @@ private fun RaagaConnectSection(
                                 ConnectDeviceType.SPEAKER -> Icons.Rounded.Speaker
                             },
                             contentDescription = null,
-                            tint = Color.Black,
+                            tint = Color.White,
                             modifier = Modifier.size(22.dp),
                         )
                     }
@@ -815,7 +921,7 @@ private fun RaagaConnectSection(
                         Text(
                             text = subText,
                             style = MaterialTheme.typography.labelMedium,
-                            color = Color(0xFF1DB954),
+                            color = Color(0xFF4ADE80),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -826,7 +932,8 @@ private fun RaagaConnectSection(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.15f))
+                            .background(Color.White.copy(alpha = 0.18f))
+                            .border(1.dp, Color.White.copy(alpha = 0.3f), CircleShape)
                             .clickable {
                                 haptics.play(Haptic.Select)
                                 connectManager.sendToggle()
@@ -850,7 +957,8 @@ private fun RaagaConnectSection(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.1f))
+                        .background(Color.White.copy(alpha = 0.12f))
+                        .border(1.dp, Color.White.copy(alpha = 0.22f), CircleShape)
                         .clickable {
                             haptics.play(Haptic.Select)
                             connectManager.transferBackToThisDevice()
@@ -873,7 +981,7 @@ private fun RaagaConnectSection(
             text = "PAIRED DEVICES (${pairedDevicesWithStatus.size})",
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
-            color = Color.White.copy(alpha = 0.5f),
+            color = Color.White.copy(alpha = 0.65f),
             letterSpacing = 1.sp,
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
         )
@@ -882,22 +990,21 @@ private fun RaagaConnectSection(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(ROW_SHAPE)
-                    .background(Color.White.copy(alpha = 0.03f))
+                    .liquidGlassCard(active = false)
                     .padding(horizontal = 14.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
                     imageVector = Icons.Rounded.Cast,
                     contentDescription = null,
-                    tint = Color.White.copy(alpha = 0.35f),
+                    tint = Color.White.copy(alpha = 0.45f),
                     modifier = Modifier.size(20.dp),
                 )
                 Spacer(Modifier.width(12.dp))
                 Text(
                     text = "No paired devices. Tap 'Pair Device' above to link Phone & PC.",
                     style = MaterialTheme.typography.labelMedium,
-                    color = Color.White.copy(alpha = 0.45f),
+                    color = Color.White.copy(alpha = 0.55f),
                 )
             }
         } else {
@@ -910,8 +1017,10 @@ private fun RaagaConnectSection(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(ROW_SHAPE)
-                        .background(if (isCurrentlyActive) Color(0xFF1DB954).copy(alpha = 0.12f) else Color.White.copy(alpha = 0.05f))
+                        .liquidGlassCard(
+                            active = isCurrentlyActive,
+                            accentBorder = if (isCurrentlyActive) Color(0xFF1DB954) else null,
+                        )
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
@@ -929,7 +1038,26 @@ private fun RaagaConnectSection(
                         modifier = Modifier
                             .size(40.dp)
                             .clip(CircleShape)
-                            .background(if (isOnline) Color(0xFF1DB954).copy(alpha = 0.2f) else Color.White.copy(alpha = 0.06f)),
+                            .background(
+                                if (isCurrentlyActive) {
+                                    Brush.radialGradient(
+                                        listOf(Color.White.copy(alpha = 0.35f), Color(0xFF1DB954).copy(alpha = 0.30f))
+                                    )
+                                } else if (isOnline) {
+                                    Brush.radialGradient(
+                                        listOf(Color(0xFF1DB954).copy(alpha = 0.25f), Color(0xFF1DB954).copy(alpha = 0.08f))
+                                    )
+                                } else {
+                                    Brush.radialGradient(
+                                        listOf(Color.White.copy(alpha = 0.14f), Color.White.copy(alpha = 0.04f))
+                                    )
+                                }
+                            )
+                            .border(
+                                1.dp,
+                                if (isCurrentlyActive || isOnline) Color(0xFF1DB954).copy(alpha = 0.45f) else Color.White.copy(alpha = 0.18f),
+                                CircleShape
+                            ),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
@@ -939,7 +1067,7 @@ private fun RaagaConnectSection(
                                 ConnectDeviceType.SPEAKER -> Icons.Rounded.Speaker
                             },
                             contentDescription = null,
-                            tint = if (isOnline) Color(0xFF1DB954) else Color.White.copy(alpha = 0.4f),
+                            tint = if (isCurrentlyActive || isOnline) Color(0xFF4ADE80) else Color.White.copy(alpha = 0.4f),
                             modifier = Modifier.size(20.dp),
                         )
                     }
@@ -966,7 +1094,7 @@ private fun RaagaConnectSection(
                             text = statusText,
                             style = MaterialTheme.typography.labelMedium,
                             color = when {
-                                isCurrentlyActive || isOnline -> Color(0xFF1DB954)
+                                isCurrentlyActive || isOnline -> Color(0xFF4ADE80)
                                 else -> Color.White.copy(alpha = 0.4f)
                             },
                             maxLines = 1,
@@ -979,6 +1107,8 @@ private fun RaagaConnectSection(
                         modifier = Modifier
                             .size(34.dp)
                             .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.06f))
+                            .border(1.dp, Color.White.copy(alpha = 0.12f), CircleShape)
                             .clickable {
                                 haptics.play(Haptic.Select)
                                 connectManager.unpairDevice(paired.id)
@@ -988,7 +1118,7 @@ private fun RaagaConnectSection(
                         Icon(
                             imageVector = Icons.Rounded.DeleteOutline,
                             contentDescription = "Unpair device",
-                            tint = Color.White.copy(alpha = 0.35f),
+                            tint = Color.White.copy(alpha = 0.45f),
                             modifier = Modifier.size(18.dp),
                         )
                     }
@@ -999,10 +1129,10 @@ private fun RaagaConnectSection(
         // OTHER UNPAIRED DEVICES (Discovered on LAN / Cloud)
         if (unpairedDevices.isNotEmpty()) {
             Text(
-                text = "NEARBY DEVICES ON WI-FI",
+                text = "AVAILABLE DEVICES",
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Bold,
-                color = Color.White.copy(alpha = 0.5f),
+                color = Color.White.copy(alpha = 0.65f),
                 letterSpacing = 1.sp,
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
             )
@@ -1011,21 +1141,33 @@ private fun RaagaConnectSection(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(ROW_SHAPE)
-                        .background(Color.White.copy(alpha = 0.04f))
+                        .liquidGlassCard(active = false)
                         .padding(horizontal = 14.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(
-                        imageVector = when (device.type) {
-                            ConnectDeviceType.PHONE -> Icons.Rounded.PhoneAndroid
-                            ConnectDeviceType.DESKTOP -> Icons.Rounded.Tv
-                            ConnectDeviceType.SPEAKER -> Icons.Rounded.Speaker
-                        },
-                        contentDescription = null,
-                        tint = Color.White.copy(alpha = 0.6f),
-                        modifier = Modifier.size(20.dp),
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(
+                                Brush.radialGradient(
+                                    listOf(Color.White.copy(alpha = 0.14f), Color.White.copy(alpha = 0.04f))
+                                )
+                            )
+                            .border(1.dp, Color.White.copy(alpha = 0.18f), CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = when (device.type) {
+                                ConnectDeviceType.PHONE -> Icons.Rounded.PhoneAndroid
+                                ConnectDeviceType.DESKTOP -> Icons.Rounded.Tv
+                                ConnectDeviceType.SPEAKER -> Icons.Rounded.Speaker
+                            },
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.75f),
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
 
                     Spacer(Modifier.width(12.dp))
 
@@ -1038,9 +1180,9 @@ private fun RaagaConnectSection(
                             overflow = TextOverflow.Ellipsis,
                         )
                         Text(
-                            text = if (device.isCloud) "Discovered via Cloud" else "Discovered on Wi-Fi (${device.host})",
+                            text = if (device.isCloud) "Discovered via Cloud" else "Discovered on Local Wi-Fi",
                             style = MaterialTheme.typography.labelSmall,
-                            color = Color.White.copy(alpha = 0.45f),
+                            color = Color.White.copy(alpha = 0.5f),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -1050,19 +1192,24 @@ private fun RaagaConnectSection(
                     Box(
                         modifier = Modifier
                             .clip(CircleShape)
-                            .background(Color(0xFF1DB954).copy(alpha = 0.2f))
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(Color(0xFF1DB954).copy(alpha = 0.35f), Color(0xFF1DB954).copy(alpha = 0.18f))
+                                )
+                            )
+                            .border(1.dp, Color(0xFF1DB954).copy(alpha = 0.55f), CircleShape)
                             .clickable {
                                 haptics.play(Haptic.Select)
                                 connectManager.pairDeviceDirectly(device)
                             }
-                            .padding(horizontal = 10.dp, vertical = 5.dp),
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
                             text = "+ Pair",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF1DB954),
+                            color = Color(0xFF4ADE80),
                         )
                     }
                 }

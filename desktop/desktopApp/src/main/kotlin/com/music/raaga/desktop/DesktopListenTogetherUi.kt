@@ -27,6 +27,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
@@ -310,9 +311,7 @@ internal fun DesktopListenTogetherDialog(autoplayEnabled: Boolean, onDismiss: ()
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(18.dp))
-                                .background(Color.White.copy(alpha = 0.05f))
-                                .border(0.5.dp, DesktopCardEdge, RoundedCornerShape(18.dp))
+                                .desktopLiquidCard(RoundedCornerShape(18.dp))
                                 .padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
@@ -458,9 +457,7 @@ internal fun DesktopListenTogetherDialog(autoplayEnabled: Boolean, onDismiss: ()
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(18.dp))
-                                .background(Color.White.copy(alpha = 0.05f))
-                                .border(0.5.dp, DesktopCardEdge, RoundedCornerShape(18.dp))
+                                .desktopLiquidCard(RoundedCornerShape(18.dp))
                                 .padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(10.dp),
                         ) {
@@ -689,9 +686,47 @@ internal fun DesktopListenTogetherDialog(autoplayEnabled: Boolean, onDismiss: ()
     }
 }
 
-// =============================================================================
-// SUBCOMPONENTS
-// =============================================================================
+private fun Modifier.desktopLiquidCard(
+    shape: RoundedCornerShape = RoundedCornerShape(18.dp),
+    active: Boolean = false,
+): Modifier = this
+    .clip(shape)
+    .background(
+        Brush.verticalGradient(
+            if (active) {
+                listOf(
+                    Color.White.copy(alpha = 0.22f),
+                    Color(0xFF1DB954).copy(alpha = 0.20f),
+                    Color(0xFF10B981).copy(alpha = 0.08f),
+                )
+            } else {
+                listOf(
+                    Color.White.copy(alpha = 0.12f),
+                    Color.White.copy(alpha = 0.04f),
+                    Color(0xFF0F172A).copy(alpha = 0.10f),
+                )
+            }
+        )
+    )
+    .border(
+        width = 1.dp,
+        brush = Brush.verticalGradient(
+            if (active) {
+                listOf(
+                    Color.White.copy(alpha = 0.80f),
+                    Color(0xFF1DB954).copy(alpha = 0.50f),
+                    Color.White.copy(alpha = 0.15f),
+                )
+            } else {
+                listOf(
+                    Color.White.copy(alpha = 0.45f),
+                    Color.White.copy(alpha = 0.12f),
+                    Color.White.copy(alpha = 0.03f),
+                )
+            }
+        ),
+        shape = shape,
+    )
 
 @Composable
 private fun JamModePill(
@@ -800,9 +835,7 @@ private fun ActiveJamBanner(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(Color.White.copy(alpha = 0.07f))
-            .border(0.5.dp, DesktopCardEdge, RoundedCornerShape(18.dp))
+            .desktopLiquidCard(RoundedCornerShape(18.dp), active = true)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
@@ -862,7 +895,7 @@ private fun ActiveJamBanner(
                 onClick = onCopyCode,
                 shape = RoundedCornerShape(10.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color.White.copy(alpha = 0.10f),
+                    containerColor = Color.White.copy(alpha = 0.12f),
                     contentColor = Color.White,
                 ),
                 modifier = Modifier.weight(1f).height(38.dp),
@@ -876,7 +909,7 @@ private fun ActiveJamBanner(
                 onClick = onCopyLink,
                 shape = RoundedCornerShape(10.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color.White.copy(alpha = 0.10f),
+                    containerColor = Color.White.copy(alpha = 0.12f),
                     contentColor = Color.White,
                 ),
                 modifier = Modifier.weight(1f).height(38.dp),
@@ -895,9 +928,7 @@ private fun JamPlaybackStatus(state: DesktopListenTogether.State) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color.White.copy(alpha = 0.05f))
-            .border(0.5.dp, DesktopCardEdge, RoundedCornerShape(16.dp))
+            .desktopLiquidCard(RoundedCornerShape(16.dp))
             .padding(14.dp),
     ) {
         if (track == null) {
@@ -932,9 +963,7 @@ private fun JamMembersCard(state: DesktopListenTogether.State) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color.White.copy(alpha = 0.05f))
-            .border(0.5.dp, DesktopCardEdge, RoundedCornerShape(16.dp))
+            .desktopLiquidCard(RoundedCornerShape(16.dp))
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -952,8 +981,7 @@ private fun JamMembersCard(state: DesktopListenTogether.State) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(Color.White.copy(alpha = 0.03f))
+                    .desktopLiquidCard(RoundedCornerShape(12.dp), active = isYou)
                     .padding(horizontal = 10.dp, vertical = 7.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -1000,9 +1028,7 @@ private fun JamHostControls(state: DesktopListenTogether.State) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color.White.copy(alpha = 0.05f))
-            .border(0.5.dp, DesktopCardEdge, RoundedCornerShape(16.dp))
+            .desktopLiquidCard(RoundedCornerShape(16.dp))
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {

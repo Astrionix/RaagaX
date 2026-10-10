@@ -23,10 +23,15 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import dev.chrisbanes.haze.HazeStyle
+import dev.chrisbanes.haze.HazeTint
+import dev.chrisbanes.haze.hazeEffect
 
 // The look every modal card in the app shares.
 
@@ -43,7 +48,7 @@ internal val DesktopCardEdge = Color(0x1FFFFFFF)
 internal val DesktopRowHover = Color(0x1AFFFFFF)
 
 /** The scrim a modal card sits on. */
-internal val DesktopScrim = Color(0x8C000000)
+internal val DesktopScrim = Color(0x2E000000)
 
 /** Card, hairline and all. */
 internal fun Modifier.desktopCard(shape: Shape): Modifier =
@@ -161,12 +166,70 @@ internal fun DesktopDialogPanel(
                     onClick = onDismiss,
                 ),
         )
-        val shape = RoundedCornerShape(20.dp)
+        val haze = LocalDesktopHaze.current
+        val shape = RoundedCornerShape(24.dp)
         Box(
             Modifier
                 .widthIn(max = maxWidth.dp)
                 .fillMaxWidth()
-                .desktopCard(shape),
+                .shadow(
+                    elevation = 20.dp,
+                    shape = shape,
+                    spotColor = Color.Black.copy(alpha = 0.35f),
+                    ambientColor = Color.Transparent,
+                )
+                .clip(shape)
+                .then(
+                    if (haze != null) {
+                        Modifier
+                            .hazeEffect(
+                                state = haze,
+                                style = HazeStyle(
+                                    backgroundColor = Color.Transparent,
+                                    tints = listOf(
+                                        HazeTint(Color.White.copy(alpha = 0.04f)),
+                                    ),
+                                    blurRadius = 36.dp,
+                                    noiseFactor = 0f,
+                                ),
+                            )
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(
+                                        Color.White.copy(alpha = 0.16f),
+                                        Color.White.copy(alpha = 0.04f),
+                                        Color.White.copy(alpha = 0.01f),
+                                        Color.White.copy(alpha = 0.05f),
+                                    )
+                                )
+                            )
+                            .border(
+                                1.dp,
+                                Brush.verticalGradient(
+                                    listOf(
+                                        Color.White.copy(alpha = 0.88f),
+                                        Color.White.copy(alpha = 0.28f),
+                                        Color.White.copy(alpha = 0.06f),
+                                        Color.White.copy(alpha = 0.22f),
+                                    )
+                                ),
+                                shape,
+                            )
+                    } else {
+                        Modifier
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(
+                                        Color.White.copy(alpha = 0.14f),
+                                        Color.White.copy(alpha = 0.04f),
+                                        Color.White.copy(alpha = 0.02f),
+                                        Color.White.copy(alpha = 0.06f),
+                                    )
+                                )
+                            )
+                            .border(1.dp, Color.White.copy(alpha = 0.35f), shape)
+                    }
+                ),
         ) {
             // Behind the content rather than around it, so it swallows clicks on the panel's own
             // background without eating the rows' own.

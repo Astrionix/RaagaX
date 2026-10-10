@@ -3989,9 +3989,14 @@ private fun RaagaApp(
             BackHandler(onBack = closeDownloadManager)
             ModalBottomSheet(
                 onDismissRequest = closeDownloadManager,
-                containerColor = MaterialTheme.colorScheme.background,
+                containerColor = Color.Transparent,
+                dragHandle = null,
+                scrimColor = Color.Black.copy(alpha = 0.28f),
             ) {
-                DownloadManagerSheet(onDismiss = closeDownloadManager)
+                DownloadManagerSheet(
+                    hazeState = hazeState,
+                    onDismiss = closeDownloadManager,
+                )
             }
         }
 
@@ -4007,9 +4012,12 @@ private fun RaagaApp(
             }
             ModalBottomSheet(
                 onDismissRequest = dismiss,
-                containerColor = MaterialTheme.colorScheme.background,
+                containerColor = Color.Transparent,
+                dragHandle = null,
+                scrimColor = Color.Black.copy(alpha = 0.28f),
             ) {
                 PlaylistPickerSheet(
+                    hazeState = hazeState,
                     playlists = playlists,
                     loading = playlistsLoading,
                     song = target,
@@ -4144,9 +4152,12 @@ private fun RaagaApp(
 
             ModalBottomSheet(
                 onDismissRequest = { browseActions = null },
-                containerColor = MaterialTheme.colorScheme.background,
+                containerColor = Color.Transparent,
+                dragHandle = null,
+                scrimColor = Color.Black.copy(alpha = 0.28f),
             ) {
                 BrowseActionsSheet(
+                    hazeState = hazeState,
                     // The live answer, not the one the target was built with.
                     target = target.copy(playlist = playlist),
                     onPlayNext = act(playSongsNext),

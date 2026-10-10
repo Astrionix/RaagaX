@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import dev.chrisbanes.haze.hazeSource
 import kotlinx.coroutines.launch
 
 /**
@@ -52,6 +53,8 @@ internal fun DesktopPlayerSheet(
     if (visible) mounted = true
     if (!mounted) return
 
+    val haze = LocalDesktopHaze.current
+
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val windowWidth = maxWidth
         val windowHeight = maxHeight
@@ -74,6 +77,7 @@ internal fun DesktopPlayerSheet(
         Box(
             Modifier
                 .fillMaxSize()
+                .then(if (haze != null) Modifier.hazeSource(haze) else Modifier)
                 .graphicsLayer { translationY = offset.value }
                 .draggable(
                     state = dragState,

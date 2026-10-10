@@ -86,6 +86,9 @@ class RaagaSupabaseRelay(
     private var usingCloudflare = true
 
     @Volatile
+    private var lastCloudflareFailureTime: Long = 0L
+
+    @Volatile
     private var activeChannel: String? = null
 
     @Volatile
@@ -163,9 +166,9 @@ class RaagaSupabaseRelay(
         // Cleanup stale cloud devices
         cleanupJob = scope.launch {
             while (isActive) {
-                delay(5000)
+                delay(10000)
                 val now = System.currentTimeMillis()
-                val stale = cloudDevices.filterValues { now - it.lastSeenTimestamp > 25_000L }.keys
+                val stale = cloudDevices.filterValues { now - it.lastSeenTimestamp > 60_000L }.keys
                 if (stale.isNotEmpty()) {
                     stale.forEach { cloudDevices.remove(it) }
                     _discoveredCloudDevices.value = cloudDevices.values.toList()
@@ -197,6 +200,12 @@ class RaagaSupabaseRelay(
     private fun connectWebSocket() {
         val channel = computeCurrentChannel() ?: return
         activeChannel = channel
+
+        // Automatically prefer and retry Cloudflare Primary after 60 seconds
+        val now = System.currentTimeMillis()
+        if (!usingCloudflare && (now - lastCloudflareFailureTime > 60_000L)) {
+            usingCloudflare = true
+        }
 
         val local = localDeviceProvider()
         val url = if (usingCloudflare) {
@@ -248,7 +257,7 @@ class RaagaSupabaseRelay(
                     announceJob = scope.launch {
                         while (isActive && isConnected) {
                             sendAnnounce()
-                            delay(5000)
+                            delay(25000) // Optimized: beacon every 25s instead of 5s
                         }
                     }
                 }
@@ -262,8 +271,13 @@ class RaagaSupabaseRelay(
                 isConnected = false
                 heartbeatJob?.cancel()
                 announceJob?.cancel()
-                // Failover between Cloudflare and Supabase
-                usingCloudflare = !usingCloudflare
+                // Failover between Cloudflare and Supabase gracefully
+                if (usingCloudflare) {
+                    lastCloudflareFailureTime = System.currentTimeMillis()
+                    usingCloudflare = false // Fallback to Supabase temporarily
+                } else {
+                    usingCloudflare = true // Supabase failed, retry Cloudflare
+                }
             }
 
             override fun onClosed(ws: WebSocket, code: Int, reason: String) {

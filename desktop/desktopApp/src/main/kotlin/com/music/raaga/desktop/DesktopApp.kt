@@ -47,15 +47,18 @@ import androidx.compose.runtime.SideEffect
 import com.music.raaga.data.model.QueueTier
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.ui.draw.blur
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
@@ -73,6 +76,7 @@ import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -118,6 +122,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
+import androidx.compose.material.icons.automirrored.rounded.VolumeDown
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.Album
 import androidx.compose.material.icons.rounded.ArrowBack
@@ -343,7 +349,7 @@ internal val DesktopGlassStrong = Color(0xCC0D0D0F)
 private val DesktopBarGlass = Color(0xB324242A)
 
 /** The backdrop the floating bars blur. */
-private val LocalDesktopHaze = staticCompositionLocalOf<HazeState?> { null }
+internal val LocalDesktopHaze = staticCompositionLocalOf<HazeState?> { null }
 
 /** How much a page's scrollable should keep clear of the floating bars. */
 private val LocalDesktopBottomInset = staticCompositionLocalOf { 0.dp }
@@ -3195,6 +3201,7 @@ fun RaagaDesktopApp() {
             LocalNowPlaying provides effectiveSong,
         ) {
             DesktopFrame(
+                blurRadius = 0.dp,
                 // The phone's page is black, not the near-black of its cards.
                 containerColor = DesktopBackground,
                 // Only Replay dresses itself unless ambient backdrop is on; everywhere else the chrome sits on the plain surface.
@@ -3526,6 +3533,7 @@ fun RaagaDesktopApp() {
                             lyricsUnavailable = sharedLyricsUnavailable,
                             lyricsOffsetOpen = false,
                             onDismissLyricsOffset = {},
+                            onOpenAudioOutput = { overlays.audioOutput = true },
                             windowWidth = windowWidth,
                             windowHeight = windowHeight,
                         )
@@ -3717,7 +3725,13 @@ fun RaagaDesktopApp() {
                         )
                     }
                     if (overlays.audioOutput) {
-                        DesktopAudioOutputDialog(onDismiss = { overlays.audioOutput = false })
+                        DesktopAudioOutputDialog(
+                            onDismiss = { overlays.audioOutput = false },
+                            onOpenPipeline = {
+                                overlays.audioOutput = false
+                                overlays.pipeline = true
+                            },
+                        )
                     }
                     if (overlays.connectDevice) {
                         DesktopConnectDialog(onDismiss = { overlays.connectDevice = false })
@@ -4352,6 +4366,57 @@ fun RaagaDesktopApp() {
 }
 
 @Composable
+private fun DesktopMiniEqualizer(
+    color: Color = Color.White.copy(alpha = 0.80f),
+    modifier: Modifier = Modifier,
+) {
+    val transition = rememberInfiniteTransition(label = "equalizer")
+    val bar1 by transition.animateFloat(
+        initialValue = 0.25f,
+        targetValue = 0.95f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(420, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "b1",
+    )
+    val bar2 by transition.animateFloat(
+        initialValue = 0.80f,
+        targetValue = 0.30f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(560, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "b2",
+    )
+    val bar3 by transition.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(380, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "b3",
+    )
+
+    Row(
+        modifier = modifier.size(width = 15.dp, height = 13.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        verticalAlignment = Alignment.Bottom,
+    ) {
+        listOf(bar1, bar2, bar3).forEach { heightFraction ->
+            Box(
+                Modifier
+                    .weight(1f)
+                    .fillMaxHeight(heightFraction.coerceIn(0.2f, 1f))
+                    .clip(RoundedCornerShape(1.dp))
+                    .background(color),
+            )
+        }
+    }
+}
+
+@Composable
 private fun DesktopTopBar(
     compact: Boolean,
     song: Song?,
@@ -4390,161 +4455,309 @@ private fun DesktopTopBar(
     val mixPulse = rememberMixPulse({ mixBlend.value }, enabled = !reduceAnimation)
     val currentProgress by rememberUpdatedState(progress)
 
-    // Apple Music uses one calm strip for both player controls and window furniture. The left
-    // sidebar owns the traffic lights; the rest is a balanced transport / now-playing / utility
-    // layout with deliberately smaller glyphs than the phone player.
-    DesktopTitleBarDragArea(Modifier.fillMaxWidth().height(64.dp)) {
+    val haze = LocalDesktopHaze.current
+    val reduceDynamicBlur by DesktopAppearanceSettings.reduceDynamicBlur.collectAsState()
+
+    // Apple Music macOS Sequoia / visionOS: Floating Liquid Glass Header
+    DesktopTitleBarDragArea(Modifier.fillMaxWidth().height(66.dp)) {
         Box(Modifier.fillMaxSize()) {
-            Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-            // The window's own buttons live at the head of the sidebar; a compact window has no
-            // sidebar, so there they lead this bar instead.
-            if (compact && inlineCaption) {
-                Box(
-                    Modifier
-                        .fillMaxHeight()
-                        .desktopWindowGlass(DesktopChromeEdge.BOTTOM)
-                        .padding(start = if (DesktopPlatform.isMac) 16.dp else 10.dp),
-                    contentAlignment = Alignment.CenterStart,
-                ) {
-                    DesktopWindowButtons()
-                }
-            }
             Row(
                 Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .desktopWindowGlass(DesktopChromeEdge.BOTTOM)
-                    .padding(start = 14.dp, end = 12.dp),
+                    .fillMaxSize()
+                    .padding(
+                        start = if (compact && inlineCaption && DesktopPlatform.isMac) 0.dp else 12.dp,
+                        end = if (DesktopPlatform.drawsOwnWindowFrame && !DesktopPlatform.isMac) 8.dp else 16.dp,
+                    ),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                // The mark leads the player's own controls, now that the sidebar runs to the top.
-                Image(
-                    painter = painterResource(Res.drawable.logo_mark),
-                    contentDescription = "Raaga",
-                    modifier = Modifier.size(width = 28.dp, height = 22.dp),
-                    contentScale = ContentScale.Fit,
-                )
-                Spacer(Modifier.width(14.dp))
-                DesktopToolbarButton(onClick = onBack, enabled = canGoBack, size = 32.dp) {
-                    Icon(
-                        Icons.AutoMirrored.Rounded.ArrowBack,
-                        DesktopStrings["back", "Back"],
-                        tint = if (canGoBack) Color.White else DesktopSecondary.copy(alpha = 0.40f),
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
-                Spacer(Modifier.width(6.dp))
-                if (!compact) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(0.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                // In compact mode with inline caption, traffic lights lead the top bar (Mac only)
+                if (compact && inlineCaption && DesktopPlatform.isMac) {
+                    Box(
+                        Modifier
+                            .fillMaxHeight()
+                            .padding(start = 16.dp, end = 10.dp),
+                        contentAlignment = Alignment.CenterStart,
                     ) {
-                        DesktopToolbarButton(onClick = { onShuffleChange(!shuffle) }, size = 32.dp) {
-                            Icon(
-                                RaagaIcons.Shuffle,
-                                DesktopStrings["shuffle", "Shuffle"],
-                                tint = if (shuffle) DesktopAccent else DesktopSecondary,
-                                modifier = Modifier.size(18.dp),
-                            )
-                        }
-                        DesktopToolbarButton(onClick = onPrevious, enabled = previousEnabled, size = 32.dp) {
-                            Icon(
-                                Icons.Rounded.FastRewind,
-                                DesktopStrings["widget_previous", "Previous"],
-                                tint = if (previousEnabled) Color.White else DesktopSecondary.copy(alpha = 0.40f),
-                                modifier = Modifier.size(21.dp),
-                            )
-                        }
-                        DesktopToolbarButton(onClick = onPlayPause, size = 32.dp) {
-                            if (isLoading) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(18.dp),
-                                    color = Color.White,
-                                    strokeWidth = 2.dp,
-                                )
-                            } else {
+                        DesktopWindowButtons()
+                    }
+                }
+
+                // 1. LEFT POD: Brand, Navigation & Tactile Transport Pod
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Image(
+                        painter = painterResource(Res.drawable.logo_mark),
+                        contentDescription = "Raaga",
+                        modifier = Modifier.size(width = 26.dp, height = 22.dp),
+                        contentScale = ContentScale.Fit,
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    DesktopToolbarButton(onClick = onBack, enabled = canGoBack, size = 32.dp) {
+                        Icon(
+                            Icons.AutoMirrored.Rounded.ArrowBack,
+                            DesktopStrings["back", "Back"],
+                            tint = if (canGoBack) Color.White else Color.White.copy(alpha = 0.30f),
+                            modifier = Modifier.size(19.dp),
+                        )
+                    }
+
+                    if (!compact) {
+                        Spacer(Modifier.width(8.dp))
+                        // Tactile Liquid Glass Transport Cluster
+                        val transportShape = RoundedCornerShape(percent = 50)
+                        val transportRim = Brush.verticalGradient(
+                            listOf(
+                                Color.White.copy(alpha = 0.55f),
+                                Color.White.copy(alpha = 0.16f),
+                                Color.White.copy(alpha = 0.05f),
+                                Color.White.copy(alpha = 0.16f),
+                            ),
+                        )
+                        val transportSheen = Brush.verticalGradient(
+                            listOf(
+                                Color.White.copy(alpha = 0.14f),
+                                Color.White.copy(alpha = 0.04f),
+                                Color.White.copy(alpha = 0.01f),
+                                Color.White.copy(alpha = 0.04f),
+                            ),
+                        )
+                        Row(
+                            modifier = Modifier
+                                .shadow(4.dp, transportShape, spotColor = Color.Black.copy(alpha = 0.20f))
+                                .clip(transportShape)
+                                .background(transportSheen)
+                                .border(1.dp, transportRim, transportShape)
+                                .padding(horizontal = 6.dp, vertical = 3.dp),
+                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            // Shuffle
+                            DesktopToolbarButton(onClick = { onShuffleChange(!shuffle) }, size = 30.dp) {
                                 Icon(
-                                    if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                                    if (isPlaying) "Pause" else "Play",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(23.dp),
+                                    RaagaIcons.Shuffle,
+                                    DesktopStrings["shuffle", "Shuffle"],
+                                    tint = if (shuffle) DesktopAccent else Color.White.copy(alpha = 0.50f),
+                                    modifier = Modifier.size(16.dp),
                                 )
                             }
-                        }
-                        DesktopToolbarButton(onClick = onNext, size = 32.dp) {
-                            Icon(
-                                Icons.Rounded.FastForward,
-                                DesktopStrings["widget_next", "Next"],
-                                tint = Color.White,
-                                modifier = Modifier.size(21.dp),
-                            )
-                        }
-                        DesktopToolbarButton(
-                            onClick = { onRepeatModeChange(repeatMode.next()) },
-                            size = 32.dp,
-                        ) {
-                            val tint = if (repeatMode != DesktopRepeatMode.OFF) DesktopAccent else DesktopSecondary
-                            if (repeatMode == DesktopRepeatMode.ONE) {
-                                Text(
-                                    "1",
-                                    color = tint,
-                                    fontWeight = FontWeight.Bold,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    modifier = Modifier.semantics { contentDescription = "Repeat one" },
-                                )
-                            } else {
+                            // Previous
+                            DesktopToolbarButton(onClick = onPrevious, enabled = previousEnabled, size = 30.dp) {
                                 Icon(
-                                    RaagaIcons.Repeat,
-                                    "Repeat ${repeatMode.label()}",
-                                    tint = tint,
-                                    modifier = Modifier.size(18.dp),
+                                    Icons.Rounded.FastRewind,
+                                    DesktopStrings["widget_previous", "Previous"],
+                                    tint = if (previousEnabled) Color.White else Color.White.copy(alpha = 0.30f),
+                                    modifier = Modifier.size(19.dp),
                                 )
+                            }
+                            // Hero Circular Play/Pause Glass Button
+                            Box(
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .shadow(
+                                        elevation = 3.dp,
+                                        shape = CircleShape,
+                                        spotColor = Color.Black.copy(alpha = 0.25f),
+                                    )
+                                    .clip(CircleShape)
+                                    .then(
+                                        if (isPlaying) {
+                                            Modifier.background(Color.White)
+                                        } else {
+                                            Modifier
+                                                .background(
+                                                    Brush.verticalGradient(
+                                                        listOf(
+                                                            Color.White.copy(alpha = 0.26f),
+                                                            Color.White.copy(alpha = 0.10f),
+                                                        ),
+                                                    ),
+                                                )
+                                                .border(
+                                                    1.dp,
+                                                    Brush.verticalGradient(
+                                                        listOf(
+                                                            Color.White.copy(alpha = 0.65f),
+                                                            Color.White.copy(alpha = 0.20f),
+                                                        ),
+                                                    ),
+                                                    CircleShape,
+                                                )
+                                        }
+                                    )
+                                    .clickable(onClick = onPlayPause),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                if (isLoading) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        color = if (isPlaying) Color.Black else Color.White,
+                                        strokeWidth = 2.dp,
+                                    )
+                                } else {
+                                    Icon(
+                                        if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                                        if (isPlaying) "Pause" else "Play",
+                                        tint = if (isPlaying) Color.Black else Color.White,
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                }
+                            }
+                            // Next
+                            DesktopToolbarButton(onClick = onNext, size = 30.dp) {
+                                Icon(
+                                    Icons.Rounded.FastForward,
+                                    DesktopStrings["widget_next", "Next"],
+                                    tint = Color.White,
+                                    modifier = Modifier.size(19.dp),
+                                )
+                            }
+                            // Repeat
+                            DesktopToolbarButton(onClick = { onRepeatModeChange(repeatMode.next()) }, size = 30.dp) {
+                                val isRepeatActive = repeatMode != DesktopRepeatMode.OFF
+                                val tint = if (isRepeatActive) DesktopAccent else Color.White.copy(alpha = 0.50f)
+                                if (repeatMode == DesktopRepeatMode.ONE) {
+                                    Text(
+                                        "1",
+                                        color = tint,
+                                        fontWeight = FontWeight.Bold,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        modifier = Modifier.semantics { contentDescription = "Repeat one" },
+                                    )
+                                } else {
+                                    Icon(
+                                        RaagaIcons.Repeat,
+                                        "Repeat ${repeatMode.label()}",
+                                        tint = tint,
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                }
                             }
                         }
                     }
+                }
 
+                // 2. CENTER HERO: "Liquid Glass Dynamic Island"
+                if (!compact) {
                     Box(
-                        Modifier.weight(1f).padding(horizontal = 14.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 16.dp),
                         contentAlignment = Alignment.Center,
                     ) {
+                        val islandShape = RoundedCornerShape(20.dp)
+                        val islandRim = Brush.verticalGradient(
+                            listOf(
+                                Color.White.copy(alpha = 0.85f),
+                                Color.White.copy(alpha = 0.28f),
+                                Color.White.copy(alpha = 0.06f),
+                                Color.White.copy(alpha = 0.20f),
+                            ),
+                        )
+                        val islandSheen = Brush.verticalGradient(
+                            listOf(
+                                Color.White.copy(alpha = 0.16f),
+                                Color.White.copy(alpha = 0.03f),
+                                Color.White.copy(alpha = 0.01f),
+                                Color.White.copy(alpha = 0.05f),
+                            ),
+                        )
+
                         Surface(
                             modifier = Modifier
-                                .widthIn(min = 300.dp, max = 520.dp)
+                                .widthIn(min = 340.dp, max = 520.dp)
                                 .fillMaxWidth()
-                                .height(46.dp)
-                                .border(1.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(4.dp))
-                                .clip(RoundedCornerShape(4.dp))
+                                .height(48.dp)
+                                .shadow(
+                                    elevation = 10.dp,
+                                    shape = islandShape,
+                                    spotColor = Color.Black.copy(alpha = 0.22f),
+                                    ambientColor = Color.Transparent,
+                                )
+                                .clip(islandShape)
+                                .then(
+                                    if (haze != null && !reduceDynamicBlur) {
+                                        Modifier.hazeEffect(state = haze) {
+                                            blurEnabled = true
+                                            backgroundColor = Color.Transparent
+                                            blurRadius = 24.dp
+                                            noiseFactor = 0f
+                                            tints = listOf(
+                                                HazeTint(Color.White.copy(alpha = 0.03f)),
+                                            )
+                                        }
+                                    } else {
+                                        Modifier.background(
+                                            Brush.verticalGradient(
+                                                listOf(
+                                                    Color.White.copy(alpha = 0.14f),
+                                                    Color.White.copy(alpha = 0.04f),
+                                                    Color.White.copy(alpha = 0.02f),
+                                                    Color.White.copy(alpha = 0.06f),
+                                                ),
+                                            ),
+                                        )
+                                    }
+                                )
+                                .background(islandSheen)
+                                .border(1.dp, islandRim, islandShape)
                                 .clickable(onClick = onOpenNowPlaying),
-                            color = Color(0xFF323236),
+                            color = Color.Transparent,
                             tonalElevation = 0.dp,
                         ) {
                             Box(Modifier.fillMaxSize()) {
                                 if (song == null) {
-                                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                    Row(
+                                        Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center,
+                                    ) {
                                         Icon(
                                             RaagaIcons.MusicNote,
                                             DesktopStrings["playback_channel_name", "Now playing"],
-                                            tint = DesktopSecondary.copy(alpha = 0.65f),
-                                            modifier = Modifier.size(21.dp),
+                                            tint = Color.White.copy(alpha = 0.45f),
+                                            modifier = Modifier.size(18.dp),
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(
+                                            "Raaga",
+                                            color = Color.White.copy(alpha = 0.65f),
+                                            style = MaterialTheme.typography.bodyMedium.copy(
+                                                fontWeight = FontWeight.Medium,
+                                            ),
                                         )
                                     }
                                 } else {
-                                    Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+                                    Row(
+                                        Modifier
+                                            .fillMaxSize()
+                                            .padding(start = 6.dp, end = 12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
                                         DesktopArtwork(
                                             song.thumbnailUrl,
-                                            Modifier.size(44.dp).clip(RoundedCornerShape(3.dp)),
+                                            Modifier
+                                                .size(36.dp)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .border(0.5.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(8.dp)),
                                             px = ROW_ART_PX,
                                         )
                                         Column(
-                                            Modifier.weight(1f).padding(start = 12.dp, end = 56.dp),
+                                            Modifier
+                                                .weight(1f)
+                                                .padding(horizontal = 10.dp),
                                             horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.Center,
                                         ) {
                                             Text(
                                                 song.title,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis,
-                                                style = MaterialTheme.typography.labelLarge,
-                                                fontWeight = FontWeight.SemiBold,
+                                                style = MaterialTheme.typography.bodyMedium.copy(
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    fontSize = 12.5.sp,
+                                                ),
+                                                color = Color.White,
                                             )
                                             val activeRemoteDevice by DesktopConnect.manager.activeRemoteDevice.collectAsState()
                                             val controlledByDevice by DesktopConnect.controlledByDeviceName.collectAsState()
@@ -4565,8 +4778,10 @@ private fun DesktopTopBar(
                                                         color = Color(0xFF1DB954),
                                                         maxLines = 1,
                                                         overflow = TextOverflow.Ellipsis,
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        fontWeight = FontWeight.SemiBold,
+                                                        style = MaterialTheme.typography.labelSmall.copy(
+                                                            fontWeight = FontWeight.Medium,
+                                                            fontSize = 11.sp,
+                                                        ),
                                                     )
                                                 }
                                             } else if (controlledByDevice != null) {
@@ -4586,40 +4801,61 @@ private fun DesktopTopBar(
                                                         color = Color(0xFF1DB954),
                                                         maxLines = 1,
                                                         overflow = TextOverflow.Ellipsis,
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        fontWeight = FontWeight.SemiBold,
+                                                        style = MaterialTheme.typography.labelSmall.copy(
+                                                            fontWeight = FontWeight.Medium,
+                                                            fontSize = 11.sp,
+                                                        ),
                                                     )
                                                 }
                                             } else {
                                                 Text(
                                                     song.artist,
-                                                    color = DesktopSecondary,
+                                                    color = Color.White.copy(alpha = 0.60f),
                                                     maxLines = 1,
                                                     overflow = TextOverflow.Ellipsis,
-                                                    style = MaterialTheme.typography.labelSmall,
+                                                    style = MaterialTheme.typography.bodySmall.copy(
+                                                        fontSize = 11.sp,
+                                                    ),
+                                                )
+                                            }
+                                        }
+                                        Box(
+                                            modifier = Modifier.size(30.dp),
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            if (isPlaying) {
+                                                DesktopMiniEqualizer(color = Color.White.copy(alpha = 0.80f))
+                                            } else {
+                                                Icon(
+                                                    RaagaIcons.MusicNote,
+                                                    contentDescription = null,
+                                                    tint = Color.White.copy(alpha = 0.35f),
+                                                    modifier = Modifier.size(15.dp),
                                                 )
                                             }
                                         }
                                     }
-                                    // Drawn rather than sized: through a blend the line covers
-                                    // the full width and pulses on the beat, as the player's
-                                    // scrubber does, and reading either in draw keeps the frame
-                                    // clock from recomposing the whole bar.
+
+                                    // Sleek inset progress scrubber along the bottom edge, clearing the artwork
                                     Box(
                                         Modifier
-                                            .align(Alignment.BottomStart)
-                                            .padding(start = 44.dp)
+                                            .align(Alignment.BottomCenter)
                                             .fillMaxWidth()
+                                            .padding(start = 48.dp, end = 14.dp, bottom = 2.5.dp)
                                             .height(2.dp)
-                                            .drawBehind {
-                                                val base = currentProgress.coerceIn(0f, 1f)
-                                                val fraction = base + (1f - base) * mixPulse.cover
-                                                drawRect(
-                                                    color = Color.White.copy(alpha = mixPulse.alpha(0.48f)),
-                                                    size = Size(size.width * fraction, size.height),
-                                                )
-                                            },
-                                    )
+                                            .clip(RoundedCornerShape(1.dp))
+                                            .background(Color.White.copy(alpha = 0.10f)),
+                                    ) {
+                                        val base = currentProgress.coerceIn(0f, 1f)
+                                        val fraction = base + (1f - base) * mixPulse.cover
+                                        Box(
+                                            Modifier
+                                                .fillMaxHeight()
+                                                .fillMaxWidth(fraction)
+                                                .clip(RoundedCornerShape(1.dp))
+                                                .background(Color.White.copy(alpha = mixPulse.alpha(0.75f))),
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -4628,72 +4864,225 @@ private fun DesktopTopBar(
                     Spacer(Modifier.weight(1f))
                 }
 
+                // 3. RIGHT UTILITIES: Volume Capsule & Action Pods
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(1.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(
-                        Icons.Rounded.VolumeUp,
-                        DesktopStrings["d_volume", "Volume"],
-                        tint = DesktopSecondary,
-                        modifier = Modifier.size(17.dp),
+                    val utilityShape = RoundedCornerShape(percent = 50)
+                    val utilityRim = Brush.verticalGradient(
+                        listOf(
+                            Color.White.copy(alpha = 0.55f),
+                            Color.White.copy(alpha = 0.16f),
+                            Color.White.copy(alpha = 0.05f),
+                            Color.White.copy(alpha = 0.16f),
+                        ),
                     )
-                    Spacer(Modifier.width(8.dp))
-                    DesktopThinSlider(
-                        value = volume,
-                        onValueChange = onVolumeChange,
-                        idleHeight = 4.dp,
-                        activeHeight = 8.dp,
-                        modifier = Modifier.width(78.dp),
+                    val utilitySheen = Brush.verticalGradient(
+                        listOf(
+                            Color.White.copy(alpha = 0.14f),
+                            Color.White.copy(alpha = 0.04f),
+                            Color.White.copy(alpha = 0.01f),
+                            Color.White.copy(alpha = 0.04f),
+                        ),
                     )
-                    Spacer(Modifier.width(5.dp))
-                    val activeRemoteDevice by DesktopConnect.manager.activeRemoteDevice.collectAsState()
-                    val controlledByDevice by DesktopConnect.controlledByDeviceName.collectAsState()
-                    DesktopToolbarButton(onClick = onOpenConnectDevice, size = 32.dp) {
+
+                    // Volume Capsule
+                    Row(
+                        modifier = Modifier
+                            .shadow(4.dp, utilityShape, spotColor = Color.Black.copy(alpha = 0.20f))
+                            .clip(utilityShape)
+                            .background(utilitySheen)
+                            .border(1.dp, utilityRim, utilityShape)
+                            .padding(horizontal = 10.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        val volIcon = if (volume < 0.5f) {
+                            Icons.AutoMirrored.Rounded.VolumeDown
+                        } else {
+                            Icons.AutoMirrored.Rounded.VolumeUp
+                        }
                         Icon(
-                            Icons.Rounded.Devices,
-                            DesktopStrings["connect_to_device", "Connect to a device"],
-                            tint = when {
-                                activeRemoteDevice != null || controlledByDevice != null -> Color(0xFF1DB954)
-                                sidePanel == DesktopSidePanel.CONNECT -> Color.White
-                                else -> DesktopSecondary
-                            },
-                            modifier = Modifier.size(19.dp),
+                            volIcon,
+                            DesktopStrings["d_volume", "Volume"],
+                            tint = Color.White.copy(alpha = 0.70f),
+                            modifier = Modifier.size(16.dp),
+                        )
+                        Spacer(Modifier.width(7.dp))
+                        DesktopThinSlider(
+                            value = volume,
+                            onValueChange = onVolumeChange,
+                            idleHeight = 4.dp,
+                            activeHeight = 7.dp,
+                            modifier = Modifier.width(72.dp),
                         )
                     }
-                    DesktopToolbarButton(onClick = onOpenAudioOutput, size = 32.dp) {
-                        Icon(
-                            Icons.Rounded.Headphones,
-                            DesktopStrings["audio_output", "Audio output"],
-                            tint = DesktopSecondary,
-                            modifier = Modifier.size(19.dp),
-                        )
+
+                    // Action Controls Pod (Connect, Output, Lyrics, Queue)
+                    Row(
+                        modifier = Modifier
+                            .shadow(4.dp, utilityShape, spotColor = Color.Black.copy(alpha = 0.20f))
+                            .clip(utilityShape)
+                            .background(utilitySheen)
+                            .border(1.dp, utilityRim, utilityShape)
+                            .padding(horizontal = 4.dp, vertical = 3.dp),
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        val activeRemoteDevice by DesktopConnect.manager.activeRemoteDevice.collectAsState()
+                        val controlledByDevice by DesktopConnect.controlledByDeviceName.collectAsState()
+                        val isConnectActive = activeRemoteDevice != null || controlledByDevice != null || sidePanel == DesktopSidePanel.CONNECT
+                        Box(
+                            modifier = Modifier
+                                .size(30.dp)
+                                .clip(CircleShape)
+                                .then(
+                                    if (isConnectActive) {
+                                        Modifier
+                                            .background(
+                                                Brush.verticalGradient(
+                                                    listOf(
+                                                        Color(0xFF1DB954).copy(alpha = 0.28f),
+                                                        Color(0xFF1DB954).copy(alpha = 0.12f),
+                                                    ),
+                                                ),
+                                            )
+                                            .border(
+                                                1.dp,
+                                                Brush.verticalGradient(
+                                                    listOf(
+                                                        Color(0xFF1DB954).copy(alpha = 0.70f),
+                                                        Color(0xFF1DB954).copy(alpha = 0.25f),
+                                                    ),
+                                                ),
+                                                CircleShape,
+                                            )
+                                    } else {
+                                        Modifier.desktopHoverWash()
+                                    }
+                                )
+                                .clickable(onClick = onOpenConnectDevice),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                Icons.Rounded.Devices,
+                                DesktopStrings["connect_to_device", "Connect to a device"],
+                                tint = if (isConnectActive) Color(0xFF1ED760) else Color.White.copy(alpha = 0.65f),
+                                modifier = Modifier.size(17.dp),
+                            )
+                        }
+
+                        DesktopToolbarButton(onClick = onOpenAudioOutput, size = 30.dp) {
+                            Icon(
+                                Icons.Rounded.Headphones,
+                                DesktopStrings["audio_output", "Audio output"],
+                                tint = Color.White.copy(alpha = 0.65f),
+                                modifier = Modifier.size(17.dp),
+                            )
+                        }
+
+                        // Lyrics Button with tactile active liquid glass pod
+                        val isLyricsOpen = sidePanel == DesktopSidePanel.LYRICS
+                        Box(
+                            modifier = Modifier
+                                .size(30.dp)
+                                .clip(CircleShape)
+                                .then(
+                                    if (isLyricsOpen) {
+                                        Modifier
+                                            .background(
+                                                Brush.verticalGradient(
+                                                    listOf(
+                                                        Color.White.copy(alpha = 0.26f),
+                                                        Color.White.copy(alpha = 0.10f),
+                                                    ),
+                                                ),
+                                            )
+                                            .border(
+                                                1.dp,
+                                                Brush.verticalGradient(
+                                                    listOf(
+                                                        Color.White.copy(alpha = 0.65f),
+                                                        Color.White.copy(alpha = 0.20f),
+                                                    ),
+                                                ),
+                                                CircleShape,
+                                            )
+                                    } else {
+                                        Modifier.desktopHoverWash()
+                                    }
+                                )
+                                .clickable(onClick = onOpenLyrics),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                RaagaIcons.LyricsQuote,
+                                DesktopStrings["lyrics", "Lyrics"],
+                                tint = if (isLyricsOpen) Color.White else Color.White.copy(alpha = 0.65f),
+                                modifier = Modifier.size(17.dp),
+                            )
+                        }
+
+                        // Queue Button with tactile active liquid glass pod
+                        val isQueueOpen = sidePanel == DesktopSidePanel.QUEUE
+                        Box(
+                            modifier = Modifier
+                                .size(30.dp)
+                                .clip(CircleShape)
+                                .then(
+                                    if (isQueueOpen) {
+                                        Modifier
+                                            .background(
+                                                Brush.verticalGradient(
+                                                    listOf(
+                                                        Color.White.copy(alpha = 0.26f),
+                                                        Color.White.copy(alpha = 0.10f),
+                                                    ),
+                                                ),
+                                            )
+                                            .border(
+                                                1.dp,
+                                                Brush.verticalGradient(
+                                                    listOf(
+                                                        Color.White.copy(alpha = 0.65f),
+                                                        Color.White.copy(alpha = 0.20f),
+                                                    ),
+                                                ),
+                                                CircleShape,
+                                            )
+                                    } else {
+                                        Modifier.desktopHoverWash()
+                                    }
+                                )
+                                .clickable(onClick = onOpenQueue),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                RaagaIcons.Queue,
+                                DesktopStrings["queue", "Queue"],
+                                tint = if (isQueueOpen) Color.White else Color.White.copy(alpha = 0.65f),
+                                modifier = Modifier.size(17.dp),
+                            )
+                        }
                     }
-                    DesktopToolbarButton(onClick = onOpenLyrics, size = 32.dp) {
-                        Icon(
-                            RaagaIcons.LyricsQuote,
-                            DesktopStrings["lyrics", "Lyrics"],
-                            tint = if (sidePanel == DesktopSidePanel.LYRICS) Color.White else DesktopSecondary,
-                            modifier = Modifier.size(19.dp),
-                        )
-                    }
-                    DesktopToolbarButton(onClick = onOpenQueue, size = 32.dp) {
-                        Icon(
-                            RaagaIcons.Queue,
-                            DesktopStrings["queue", "Queue"],
-                            tint = if (sidePanel == DesktopSidePanel.QUEUE) Color.White else DesktopSecondary,
-                            modifier = Modifier.size(19.dp),
-                        )
-                    }
+
+                    // Account Button
                     DesktopAccountButton(avatar = accountAvatar, onClick = onOpenAccounts)
+
+                    // Modern Borderless Window Controls (─ ▢ ✕)
+                    if (DesktopPlatform.drawsOwnWindowFrame && !DesktopPlatform.isMac) {
+                        Spacer(Modifier.width(10.dp))
+                        Box(
+                            Modifier
+                                .width(1.dp)
+                                .height(18.dp)
+                                .background(Color.White.copy(alpha = 0.12f)),
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        DesktopWindowButtons()
+                    }
                 }
             }
-            }
-            HorizontalDivider(
-                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
-                thickness = 1.dp,
-                color = desktopChromeDivider(),
-            )
         }
     }
 }
@@ -4763,113 +5152,204 @@ private fun DesktopSidebar(
 
     val titleBarEnabled by DesktopTitleBarSetting.enabled.collectAsState()
     val inlineCaption = DesktopPlatform.drawsOwnWindowFrame && !titleBarEnabled
+
+    val haze = LocalDesktopHaze.current
+    val reduceDynamicBlur by DesktopAppearanceSettings.reduceDynamicBlur.collectAsState()
+    val sidebarShape = RoundedCornerShape(24.dp)
+
+    // Pure Optical Water Droplet Meniscus Border with sharp top specular highlight
+    val glassRim = Brush.verticalGradient(
+        listOf(
+            Color.White.copy(alpha = 0.85f),
+            Color.White.copy(alpha = 0.28f),
+            Color.White.copy(alpha = 0.06f),
+            Color.White.copy(alpha = 0.22f),
+        ),
+    )
+
+    // Genuine Transparent Water Droplet Sheen - crystal transmission, zero dark slate
+    val glassSheen = Brush.verticalGradient(
+        listOf(
+            Color.White.copy(alpha = 0.16f),
+            Color.White.copy(alpha = 0.03f),
+            Color.White.copy(alpha = 0.01f),
+            Color.White.copy(alpha = 0.05f),
+        ),
+    )
+
     Box(
-        Modifier
-            .width(220.dp)
+        modifier = Modifier
+            .width(256.dp)
             .fillMaxHeight()
-            .desktopWindowGlass(DesktopChromeEdge.END, fade = 0.07f),
+            .padding(start = 14.dp, top = 12.dp, bottom = 14.dp, end = 6.dp),
     ) {
-        Column(Modifier.fillMaxSize()) {
-            // The sidebar runs to the top of the window, so its head is the window's caption: the
-            // three buttons, and room to take hold of the window by.
-            if (inlineCaption) {
-                DesktopTitleBarDragArea(Modifier.fillMaxWidth().height(SIDEBAR_CAPTION_HEIGHT)) {
-                    Box(
-                        Modifier
-                            .fillMaxSize()
-                            .padding(start = if (DesktopPlatform.isMac) 16.dp else 10.dp),
-                        contentAlignment = Alignment.CenterStart,
-                    ) {
-                        DesktopWindowButtons()
-                    }
-                }
-            }
-        Column(
-            Modifier.fillMaxSize().padding(start = 12.dp, end = 12.dp, top = if (inlineCaption) 4.dp else 16.dp, bottom = 16.dp),
-        ) {
-            DesktopSearchField(
-                query = query,
-                onQueryChange = onQueryChange,
-                onSearch = onSearch,
-                focusRequester = searchFocusRequester,
-                onFocusChanged = { searchFocused = it },
-            )
-            Spacer(Modifier.height(20.dp))
-            DesktopSidebarItem(RaagaIcons.Home, DesktopStrings["home", "Home"], destination == DesktopDestination.LISTEN_NOW) {
-                onDestinationSelected(DesktopDestination.LISTEN_NOW)
-            }
-            DesktopSidebarItem(RaagaIcons.Explore, "Explore", destination == DesktopDestination.EXPLORE) {
-                onDestinationSelected(DesktopDestination.EXPLORE)
-            }
-            DesktopSidebarItem(RaagaIcons.Library, "Library", destination == DesktopDestination.LIBRARY) {
-                onDestinationSelected(DesktopDestination.LIBRARY)
-            }
-            DesktopSidebarItem(RaagaIcons.Search, "Search", destination == DesktopDestination.SEARCH) {
-                onDestinationSelected(DesktopDestination.SEARCH)
-            }
-            Spacer(Modifier.height(6.dp))
-            HorizontalDivider(color = desktopChromeDivider())
-            Spacer(Modifier.height(12.dp))
-            DesktopSidebarItem(RaagaIcons.Clock, "History", destination == DesktopDestination.HISTORY) {
-                onDestinationSelected(DesktopDestination.HISTORY)
-            }
-            val queued by DesktopDownloadQueue.active.collectAsState()
-            DesktopSidebarItem(
-                RaagaIcons.Download,
-                if (queued.isEmpty()) "Downloads" else "Downloads · ${queued.size}",
-                destination == DesktopDestination.DOWNLOADS,
-            ) {
-                onDestinationSelected(DesktopDestination.DOWNLOADS)
-            }
-            DesktopSidebarItem(RaagaIcons.Library, "Local Music", destination == DesktopDestination.LOCAL_MUSIC) {
-                onDestinationSelected(DesktopDestination.LOCAL_MUSIC)
-            }
-            Spacer(Modifier.height(6.dp))
-            HorizontalDivider(color = desktopChromeDivider())
-            Spacer(Modifier.height(12.dp))
-            LazyColumn(
-                modifier = Modifier.fillMaxWidth().weight(1f),
-                contentPadding = PaddingValues(bottom = 8.dp),
-            ) {
-                items(accountPlaylists, key = { "account:${it.browseId}" }) { playlist ->
-                    DesktopSidebarItem(
-                        Icons.AutoMirrored.Rounded.PlaylistPlay,
-                        playlist.title,
-                        openedCollectionId == playlist.browseId,
-                    ) { onOpenAccountPlaylist(playlist) }
-                }
-                items(localPlaylists, key = { "local:${it.id}" }) { playlist ->
-                    DesktopSidebarItem(
-                        Icons.AutoMirrored.Rounded.PlaylistPlay,
-                        playlist.title,
-                        openedCollectionId == playlist.id,
-                    ) { onOpenLocalPlaylist(playlist) }
-                }
-                if (accountPlaylists.isEmpty() && localPlaylists.isEmpty()) {
-                    item {
-                        Text(
-                            "Your playlists will appear here",
-                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 8.dp),
-                            color = DesktopSecondary.copy(alpha = 0.68f),
-                            style = MaterialTheme.typography.bodySmall,
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .shadow(
+                    elevation = 12.dp,
+                    shape = sidebarShape,
+                    spotColor = Color.Black.copy(alpha = 0.28f),
+                    ambientColor = Color.Transparent,
+                )
+                .clip(sidebarShape)
+                .then(
+                    if (haze != null && !reduceDynamicBlur) {
+                        Modifier.hazeEffect(state = haze) {
+                            blurEnabled = true
+                            backgroundColor = Color.Transparent
+                            blurRadius = 24.dp
+                            noiseFactor = 0f
+                            tints = listOf(
+                                HazeTint(Color.White.copy(alpha = 0.03f)),
+                            )
+                        }
+                    } else {
+                        Modifier.background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    Color.White.copy(alpha = 0.14f),
+                                    Color.White.copy(alpha = 0.04f),
+                                    Color.White.copy(alpha = 0.02f),
+                                    Color.White.copy(alpha = 0.06f),
+                                )
+                            )
                         )
                     }
+                )
+                .background(glassSheen)
+                .border(1.dp, glassRim, sidebarShape),
+        ) {
+            Column(Modifier.fillMaxSize()) {
+                // The sidebar runs to the top of the window, so its head is the window's caption: the
+                // three buttons, and room to take hold of the window by (macOS only).
+                if (inlineCaption && DesktopPlatform.isMac) {
+                    DesktopTitleBarDragArea(Modifier.fillMaxWidth().height(SIDEBAR_CAPTION_HEIGHT)) {
+                        Box(
+                            Modifier
+                                .fillMaxSize()
+                                .padding(start = 16.dp),
+                            contentAlignment = Alignment.CenterStart,
+                        ) {
+                            DesktopWindowButtons()
+                        }
+                    }
+                }
+                Column(
+                    Modifier
+                        .fillMaxSize()
+                        .padding(
+                            start = 10.dp,
+                            end = 10.dp,
+                            top = if (inlineCaption && DesktopPlatform.isMac) 4.dp else 14.dp,
+                            bottom = 12.dp,
+                        ),
+                ) {
+                    DesktopSearchField(
+                        query = query,
+                        onQueryChange = onQueryChange,
+                        onSearch = onSearch,
+                        focusRequester = searchFocusRequester,
+                        onFocusChanged = { searchFocused = it },
+                    )
+                    Spacer(Modifier.height(14.dp))
+                    DesktopSidebarItem(RaagaIcons.Home, DesktopStrings["home", "Home"], destination == DesktopDestination.LISTEN_NOW) {
+                        onDestinationSelected(DesktopDestination.LISTEN_NOW)
+                    }
+                    Spacer(Modifier.height(3.dp))
+                    DesktopSidebarItem(RaagaIcons.Explore, "Explore", destination == DesktopDestination.EXPLORE) {
+                        onDestinationSelected(DesktopDestination.EXPLORE)
+                    }
+                    Spacer(Modifier.height(3.dp))
+                    DesktopSidebarItem(RaagaIcons.Library, "Library", destination == DesktopDestination.LIBRARY) {
+                        onDestinationSelected(DesktopDestination.LIBRARY)
+                    }
+                    Spacer(Modifier.height(3.dp))
+                    DesktopSidebarItem(RaagaIcons.Search, "Search", destination == DesktopDestination.SEARCH) {
+                        onDestinationSelected(DesktopDestination.SEARCH)
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    HorizontalDivider(
+                        color = Color.White.copy(alpha = 0.08f),
+                        thickness = 0.5.dp,
+                        modifier = Modifier.padding(horizontal = 4.dp),
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    DesktopSidebarItem(RaagaIcons.Clock, "History", destination == DesktopDestination.HISTORY) {
+                        onDestinationSelected(DesktopDestination.HISTORY)
+                    }
+                    Spacer(Modifier.height(3.dp))
+                    val queued by DesktopDownloadQueue.active.collectAsState()
+                    DesktopSidebarItem(
+                        RaagaIcons.Download,
+                        if (queued.isEmpty()) "Downloads" else "Downloads · ${queued.size}",
+                        destination == DesktopDestination.DOWNLOADS,
+                    ) {
+                        onDestinationSelected(DesktopDestination.DOWNLOADS)
+                    }
+                    Spacer(Modifier.height(3.dp))
+                    DesktopSidebarItem(RaagaIcons.Library, "Local Music", destination == DesktopDestination.LOCAL_MUSIC) {
+                        onDestinationSelected(DesktopDestination.LOCAL_MUSIC)
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    HorizontalDivider(
+                        color = Color.White.copy(alpha = 0.08f),
+                        thickness = 0.5.dp,
+                        modifier = Modifier.padding(horizontal = 4.dp),
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "PLAYLISTS",
+                        modifier = Modifier.padding(start = 10.dp, top = 2.dp, bottom = 6.dp),
+                        color = Color.White.copy(alpha = 0.40f),
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp,
+                        ),
+                    )
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(3.dp),
+                        contentPadding = PaddingValues(bottom = 8.dp),
+                    ) {
+                        items(accountPlaylists, key = { "account:${it.browseId}" }) { playlist ->
+                            DesktopSidebarItem(
+                                Icons.AutoMirrored.Rounded.PlaylistPlay,
+                                playlist.title,
+                                openedCollectionId == playlist.browseId,
+                            ) { onOpenAccountPlaylist(playlist) }
+                        }
+                        items(localPlaylists, key = { "local:${it.id}" }) { playlist ->
+                            DesktopSidebarItem(
+                                Icons.AutoMirrored.Rounded.PlaylistPlay,
+                                playlist.title,
+                                openedCollectionId == playlist.id,
+                            ) { onOpenLocalPlaylist(playlist) }
+                        }
+                        if (accountPlaylists.isEmpty() && localPlaylists.isEmpty()) {
+                            item {
+                                Text(
+                                    "Your playlists will appear here",
+                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 8.dp),
+                                    color = DesktopSecondary.copy(alpha = 0.68f),
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+                        }
+                    }
+                    HorizontalDivider(
+                        color = Color.White.copy(alpha = 0.09f),
+                        thickness = 0.5.dp,
+                        modifier = Modifier.padding(horizontal = 4.dp),
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    DesktopSidebarItem(Icons.Rounded.Settings, "Settings", settingsOpen) {
+                        onOpenSettings()
+                    }
                 }
             }
-            HorizontalDivider(color = desktopChromeDivider())
-            Spacer(Modifier.height(8.dp))
-            DesktopSidebarItem(Icons.Rounded.Settings, "Settings", settingsOpen) {
-                onOpenSettings()
-            }
         }
-        }
-        Box(
-            Modifier
-                .align(Alignment.CenterEnd)
-                .width(1.dp)
-                .fillMaxHeight()
-                .background(desktopChromeDivider()),
-        )
     }
 }
 
@@ -4880,23 +5360,87 @@ private fun DesktopSidebarItem(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
+    val itemShape = RoundedCornerShape(12.dp)
+    val interaction = remember { MutableInteractionSource() }
+    val hovered by interaction.collectIsHoveredAsState()
+    val hoverAlpha by animateFloatAsState(
+        targetValue = if (hovered && !selected) 0.07f else 0f,
+        animationSpec = tween(140),
+        label = "sidebarHover",
+    )
+
+    // Pure Water Droplet Meniscus: Crystal liquid body with 4-stop directional specular rim
+    val dropletFill = Brush.verticalGradient(
+        listOf(
+            Color.White.copy(alpha = 0.16f),
+            Color.White.copy(alpha = 0.05f),
+            Color.White.copy(alpha = 0.08f),
+        ),
+    )
+    val dropletRim = Brush.verticalGradient(
+        listOf(
+            Color.White.copy(alpha = 0.85f),
+            Color.White.copy(alpha = 0.26f),
+            Color.White.copy(alpha = 0.06f),
+            Color.White.copy(alpha = 0.20f),
+        ),
+    )
+
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(7.dp))
-            .background(if (selected) Color.White.copy(alpha = 0.12f) else Color.Transparent)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 9.dp, vertical = 7.dp),
+            .heightIn(min = 40.dp)
+            .then(
+                if (selected) {
+                    Modifier.shadow(
+                        elevation = 4.dp,
+                        shape = itemShape,
+                        spotColor = Color.Black.copy(alpha = 0.30f),
+                        ambientColor = Color.Transparent,
+                    )
+                } else {
+                    Modifier
+                }
+            )
+            .clip(itemShape)
+            .hoverable(interaction)
+            .then(
+                if (selected) {
+                    Modifier
+                        .background(dropletFill)
+                        .border(1.dp, dropletRim, itemShape)
+                } else if (hoverAlpha > 0.001f) {
+                    Modifier
+                        .background(Color.White.copy(alpha = hoverAlpha))
+                        .border(0.5.dp, Color.White.copy(alpha = hoverAlpha * 1.5f), itemShape)
+                } else {
+                    Modifier
+                },
+            )
+            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+            .padding(horizontal = 11.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, label, tint = if (selected) DesktopAccent else DesktopSecondary, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(10.dp))
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = if (selected) Color.White else Color.White.copy(alpha = if (hovered) 0.95f else 0.65f),
+            modifier = Modifier.size(19.dp),
+        )
+
+        Spacer(Modifier.width(12.dp))
+
         Text(
-            label,
-            color = if (selected) Color.White else DesktopSecondary,
-            style = MaterialTheme.typography.bodyMedium,
+            text = label,
+            color = if (selected) Color.White else Color.White.copy(alpha = if (hovered) 1f else 0.78f),
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontSize = 13.5.sp,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                letterSpacing = 0.1.sp,
+            ),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
         )
     }
 }
@@ -5036,16 +5580,30 @@ internal fun DesktopSearchField(
     onFocusChanged: (Boolean) -> Unit = {},
     placeholder: String = "Search",
 ) {
-    val searchShape = RoundedCornerShape(7.dp)
+    val searchShape = RoundedCornerShape(12.dp)
+    val searchFill = Brush.verticalGradient(
+        listOf(
+            Color.White.copy(alpha = 0.10f),
+            Color.White.copy(alpha = 0.03f),
+        ),
+    )
+    val searchBorder = Brush.verticalGradient(
+        listOf(
+            Color.White.copy(alpha = 0.45f),
+            Color.White.copy(alpha = 0.12f),
+            Color.White.copy(alpha = 0.05f),
+            Color.White.copy(alpha = 0.18f),
+        ),
+    )
     Box(
         modifier
             .fillMaxWidth()
-            .height(36.dp)
+            .height(38.dp)
             .clip(searchShape)
-            .background(Color.White.copy(alpha = 0.07f))
-            .border(1.dp, Color.White.copy(alpha = 0.10f), searchShape)
+            .background(searchFill)
+            .border(0.75.dp, searchBorder, searchShape)
             .clickable { focusRequester.requestFocus() }
-            .padding(horizontal = 9.dp),
+            .padding(horizontal = 10.dp),
         contentAlignment = Alignment.CenterStart,
     ) {
         BasicTextField(
@@ -5065,7 +5623,7 @@ internal fun DesktopSearchField(
                 },
             singleLine = true,
             textStyle = MaterialTheme.typography.bodyMedium.copy(color = Color.White),
-            cursorBrush = SolidColor(DesktopAccent),
+            cursorBrush = SolidColor(Color.White),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
             keyboardActions = KeyboardActions(onSearch = { onSearch() }),
             decorationBox = { innerTextField ->
@@ -5073,13 +5631,13 @@ internal fun DesktopSearchField(
                     Icon(
                         RaagaIcons.Search,
                         contentDescription = null,
-                        tint = DesktopSecondary,
-                        modifier = Modifier.size(18.dp),
+                        tint = Color.White.copy(alpha = 0.65f),
+                        modifier = Modifier.size(17.dp),
                     )
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(9.dp))
                     Box(Modifier.weight(1f)) {
                         if (query.isBlank()) {
-                            Text(placeholder, color = DesktopSecondary, maxLines = 1)
+                            Text(placeholder, color = Color.White.copy(alpha = 0.40f), maxLines = 1)
                         }
                         innerTextField()
                     }
@@ -5093,6 +5651,7 @@ internal fun DesktopSearchField(
 private fun DesktopFrame(
     containerColor: Color,
     modifier: Modifier = Modifier,
+    blurRadius: Dp = 0.dp,
     /**
      * The open page's own colours, painted across the whole window rather than only the content
      * area, so the title bar, top bar and sidebar take their tint from the page they are framing
@@ -5128,11 +5687,12 @@ private fun DesktopFrame(
         ) {
             // Both sources of the same state: the chrome blurs the backdrop behind it, and the
             // floating bottom bar blurs the page scrolling under it.
-            if (!glass) Box(Modifier.fillMaxSize().hazeSource(haze)) { backdrop(false) }
+            Box(Modifier.fillMaxSize().hazeSource(haze)) { backdrop(if (glass) materialBehindApp else false) }
             Column(Modifier.fillMaxSize()) {
-                // Above everything, and outside the box the rest of the window is drawn in, because
-                // that is what a title bar is.
-                DesktopTitleBar()
+                // Above everything, and outside the box the rest of the window is drawn in (macOS only).
+                if (DesktopPlatform.isMac) {
+                    DesktopTitleBar()
+                }
                 Box(Modifier.fillMaxWidth().weight(1f)) {
                     BoxWithConstraints(Modifier.fillMaxSize()) {
                         val compact = maxWidth < 980.dp
@@ -5172,15 +5732,7 @@ private fun DesktopFrame(
                                     }
                                 }
                                 Box(
-                                    Modifier
-                                        .fillMaxHeight()
-                                        .then(
-                                            if (glass && !materialBehindApp) {
-                                                Modifier.background(containerColor)
-                                            } else {
-                                                Modifier
-                                            },
-                                        ),
+                                    Modifier.fillMaxHeight(),
                                 ) { trailing() }
                             }
                             }
@@ -5206,19 +5758,64 @@ private fun DesktopPageBackdrop(artworkUrl: String?, transparentBase: Boolean) {
             .fillMaxSize()
             .then(if (transparentBase) Modifier else Modifier.background(DesktopBackground)),
     ) {
-        if (artworkUrl == null) return@Box
-        DesktopMesh(artworkUrl)
-        Box(
-            Modifier.fillMaxSize().background(
-                Brush.verticalGradient(
-                    listOf(
-                        Color.Black.copy(alpha = 0.30f),
-                        Color.Black.copy(alpha = 0.72f),
-                        Color.Black.copy(alpha = 0.88f),
+        if (artworkUrl != null) {
+            DesktopMesh(artworkUrl)
+            Box(
+                Modifier.fillMaxSize().background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color.Black.copy(alpha = 0.20f),
+                            Color.Black.copy(alpha = 0.45f),
+                            Color.Black.copy(alpha = 0.65f),
+                        ),
                     ),
                 ),
-            ),
-        )
+            )
+        } else {
+            // Luminous ambient Aurora mesh: provides rich optical refraction for water droplet liquid glass
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                Color(0xFF131B2E),
+                                Color(0xFF0F172A),
+                                DesktopBackground,
+                            ),
+                        ),
+                    ),
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .drawBehind {
+                            drawCircle(
+                                brush = Brush.radialGradient(
+                                    listOf(
+                                        Color(0xFF38BDF8).copy(alpha = 0.14f),
+                                        Color(0xFF6366F1).copy(alpha = 0.08f),
+                                        Color.Transparent,
+                                    ),
+                                    center = Offset(size.width * 0.15f, size.height * 0.25f),
+                                    radius = size.width * 0.45f,
+                                ),
+                            )
+                            drawCircle(
+                                brush = Brush.radialGradient(
+                                    listOf(
+                                        Color(0xFF818CF8).copy(alpha = 0.10f),
+                                        Color(0xFF0EA5E9).copy(alpha = 0.05f),
+                                        Color.Transparent,
+                                    ),
+                                    center = Offset(size.width * 0.50f, size.height * 0.10f),
+                                    radius = size.width * 0.50f,
+                                ),
+                            )
+                        },
+                )
+            }
+        }
     }
 }
 
@@ -7494,20 +8091,44 @@ internal fun BoxScope.DesktopShelfArrow(
 private fun DesktopShelfCard(item: ShelfItem, onClick: (ShelfItem) -> Unit) {
     val width = 158.dp
     val shape = RoundedCornerShape(10.dp)
+    val interaction = remember { MutableInteractionSource() }
+    val hovered by interaction.collectIsHoveredAsState()
+    val focused by interaction.collectIsFocusedAsState()
+    val lift by animateFloatAsState(
+        targetValue = if (hovered) 1f else 0f,
+        animationSpec = tween(durationMillis = 200, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+        label = "desktopShelfCardHover",
+    )
     Column(
         Modifier
             .width(width)
-            // The whole card answers the pointer, artwork and captions together, so the two do not
-            // move independently of each other.
-            .desktopHoverLift(shape)
-            .clickable { onClick(item) },
+            .hoverable(interaction)
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = { onClick(item) },
+            ),
     ) {
         Box(
             Modifier
                 .size(width)
+                .graphicsLayer {
+                    val grown = 1f + 0.03f * lift
+                    scaleX = grown
+                    scaleY = grown
+                }
+                .shadow(
+                    elevation = 10.dp * lift,
+                    shape = shape,
+                    clip = false,
+                )
                 .clip(shape)
                 .background(DesktopGlass)
-                .border(1.dp, Color.White.copy(alpha = 0.12f), shape),
+                .border(
+                    width = if (focused) 1.5.dp else 1.dp,
+                    color = if (focused) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.12f),
+                    shape = shape,
+                ),
         ) {
             DesktopArtwork(item.thumbnailUrl, Modifier.fillMaxSize())
         }

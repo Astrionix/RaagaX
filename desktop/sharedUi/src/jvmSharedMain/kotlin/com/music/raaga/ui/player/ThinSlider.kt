@@ -100,6 +100,8 @@ fun ThinSlider(
     inactiveColor: Color = Color.White.copy(alpha = 0.26f),
     /** Halfway between the two track colours: visible against unplayed, invisible under played. */
     markerColor: Color = Color.White.copy(alpha = 0.5f),
+    drawThumb: Boolean = false,
+    thumbRadius: Dp = 7.dp,
 ) {
     var dragging by remember { mutableStateOf(false) }
     val height by animateDpAsState(
@@ -210,14 +212,32 @@ fun ThinSlider(
             val filled = size.width * fraction * fillFactor
             if (filled > 0f) {
                 val alpha = if (dragging) activeColor.alpha else mixPulse?.alpha(activeColor.alpha) ?: activeColor.alpha
+                val activeWidth = filled.coerceAtLeast(size.height * fillFactor).coerceAtMost(size.width)
                 drawRoundRect(
                     color = activeColor.copy(alpha = alpha),
                     size = Size(
-                        filled.coerceAtLeast(size.height * fillFactor).coerceAtMost(size.width),
+                        activeWidth,
                         size.height,
                     ),
                     cornerRadius = radius,
                 )
+                if (drawThumb && activeWidth > 0f) {
+                    val rPx = thumbRadius.toPx()
+                    val cx = activeWidth.coerceIn(rPx, size.width - rPx)
+                    val cy = size.height / 2f
+                    // Drop shadow
+                    drawCircle(
+                        color = Color.Black.copy(alpha = 0.35f),
+                        radius = rPx + 1.5f,
+                        center = Offset(cx, cy + 1f),
+                    )
+                    // Solid white thumb
+                    drawCircle(
+                        color = Color.White,
+                        radius = rPx,
+                        center = Offset(cx, cy),
+                    )
+                }
             }
         }
         // Composed only while switching or mixing. The infinite animation therefore costs no

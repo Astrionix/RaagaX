@@ -632,6 +632,7 @@ fun NowPlayingScreen(
     // source tree, so it needs its own source for the same frosted material as
     // the bottom navigation pill.
     val playerHaze = remember { HazeState() }
+    val drawerHaze = remember { HazeState() }
     var showSocialJamSheet by remember { mutableStateOf(false) }
     var socialJamInitialTab by remember { mutableStateOf(ConnectJamTab.JAM) }
     var showAudioPipeline by remember { mutableStateOf(false) }
@@ -1344,7 +1345,7 @@ fun NowPlayingScreen(
     val playerOverlays: @Composable () -> Unit = {
         if (showSocialJamSheet) {
             SocialJamSheet(
-                hazeState = playerHaze,
+                hazeState = drawerHaze,
                 accountName = accountName,
                 initialTab = socialJamInitialTab,
                 currentSong = song,
@@ -1358,7 +1359,7 @@ fun NowPlayingScreen(
         }
         if (showAudioOutput) {
             AudioOutputSheet(
-                hazeState = playerHaze,
+                hazeState = drawerHaze,
                 accountName = accountName,
                 onDismiss = { showAudioOutput = false },
                 onOpenPipeline = { showAudioPipeline = true },
@@ -1366,7 +1367,7 @@ fun NowPlayingScreen(
         }
         if (showLyricsProviders) {
             LyricsProviderSheet(
-                hazeState = playerHaze,
+                hazeState = drawerHaze,
                 currentSource = lyricsSource,
                 states = lyricsProviderStates,
                 onSelect = onSelectLyricsProvider,
@@ -1375,14 +1376,14 @@ fun NowPlayingScreen(
         }
         if (showAudioPipeline) {
             AudioPipelineDialog(
-                hazeState = playerHaze,
+                hazeState = drawerHaze,
                 isPlaying = isPlaying,
                 onDismiss = { showAudioPipeline = false },
             )
         }
         if (showListenTogetherMembers) {
             ListenTogetherMembersSheet(
-                hazeState = playerHaze,
+                hazeState = drawerHaze,
                 onDismiss = { showListenTogetherMembers = false },
                 onManage = {
                     showListenTogetherMembers = false
@@ -1392,7 +1393,7 @@ fun NowPlayingScreen(
         }
         if (lyricsOffsetOpen) {
             LyricsOffsetSheet(
-                hazeState = playerHaze,
+                hazeState = drawerHaze,
                 onDismiss = onDismissLyricsOffset,
             )
         }
@@ -1461,7 +1462,7 @@ fun NowPlayingScreen(
                 background = { backgroundModifier ->
                     // The whole screen is the sheets' frost source: there is
                     // no full-bleed banner here to be it instead.
-                    fullArtworkBlurContent(backgroundModifier.hazeSource(playerHaze))
+                    fullArtworkBlurContent(backgroundModifier.hazeSource(playerHaze).hazeSource(drawerHaze))
                 },
                 artwork = { artworkModifier ->
                     LandscapeArtwork(
@@ -1659,6 +1660,11 @@ fun NowPlayingScreen(
     }
 
     Box(modifier = modifier.fillMaxSize().onSizeChanged { playerBounds = it }.background(Color.Black)) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .hazeSource(drawerHaze),
+        ) {
         // Anchored to the sleeve's bottom edge, so the screen carries on in the
         // colours the artwork ended in rather than in a quantiser's idea of what
         // the artwork was about. Position ticks recompose this screen twice a
@@ -2981,6 +2987,7 @@ fun NowPlayingScreen(
             }
             }
             }
+        }
         }
         playerOverlays()
     }

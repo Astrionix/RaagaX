@@ -65,6 +65,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -185,6 +186,7 @@ internal fun AudioOutputSheet(
     }
 }
 
+
 /**
  * Drills into [com.music.raaga.ui.components.AudioPipelineDialog] — the
  * subtitle is the negotiated output itself, read live off
@@ -200,8 +202,7 @@ private fun AudioPipelineRow(onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(ROW_SHAPE)
-            .background(Color.White.copy(alpha = 0.05f))
+            .liquidGlassCard(active = false)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -216,13 +217,18 @@ private fun AudioPipelineRow(onClick: () -> Unit) {
             modifier = Modifier
                 .size(40.dp)
                 .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.08f)),
+                .background(
+                    Brush.radialGradient(
+                        listOf(Color.White.copy(alpha = 0.14f), Color.White.copy(alpha = 0.04f))
+                    )
+                )
+                .border(1.dp, Color.White.copy(alpha = 0.18f), CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 imageVector = Icons.Rounded.GraphicEq,
                 contentDescription = null,
-                tint = Color.White.copy(alpha = 0.7f),
+                tint = Color.White.copy(alpha = 0.75f),
                 modifier = Modifier.size(20.dp),
             )
         }
@@ -276,8 +282,7 @@ private fun OutputRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(ROW_SHAPE)
-            .background(Color.White.copy(alpha = if (active) 0.10f else 0.05f))
+            .liquidGlassCard(active = active)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -293,13 +298,28 @@ private fun OutputRow(
             modifier = Modifier
                 .size(40.dp)
                 .clip(CircleShape)
-                .background(Color.White.copy(alpha = if (active) 0.16f else 0.08f)),
+                .background(
+                    if (active) {
+                        Brush.radialGradient(
+                            listOf(Color.White.copy(alpha = 0.35f), Color(0xFF1DB954).copy(alpha = 0.30f))
+                        )
+                    } else {
+                        Brush.radialGradient(
+                            listOf(Color.White.copy(alpha = 0.14f), Color.White.copy(alpha = 0.04f))
+                        )
+                    }
+                )
+                .border(
+                    1.dp,
+                    if (active) Color.White.copy(alpha = 0.55f) else Color.White.copy(alpha = 0.18f),
+                    CircleShape
+                ),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 imageVector = iconFor(device.kind),
                 contentDescription = null,
-                tint = Color.White.copy(alpha = if (active) 1f else 0.7f),
+                tint = if (active) Color.White else Color.White.copy(alpha = 0.75f),
                 modifier = Modifier.size(21.dp),
             )
         }
@@ -310,7 +330,7 @@ private fun OutputRow(
                 style = MaterialTheme.typography.bodyLarge.copy(
                     fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
                 ),
-                color = Color.White.copy(alpha = if (active) 1f else 0.85f),
+                color = if (active) Color.White else Color.White.copy(alpha = 0.85f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -319,17 +339,26 @@ private fun OutputRow(
                 Text(
                     text = stringResource(R.string.audio_output_playing),
                     style = MaterialTheme.typography.labelMedium,
-                    color = Color.White.copy(alpha = 0.55f),
+                    color = Color(0xFF4ADE80),
                 )
             }
         }
         if (active) {
-            Icon(
-                imageVector = Icons.Rounded.Check,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(20.dp),
-            )
+            Box(
+                modifier = Modifier
+                    .size(26.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF1DB954).copy(alpha = 0.25f))
+                    .border(1.dp, Color(0xFF1DB954).copy(alpha = 0.6f), CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Check,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
         }
     }
 }
@@ -391,8 +420,7 @@ private fun VolumeRow(manager: AudioManager, routeKey: Any) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(ROW_SHAPE)
-            .background(Color.White.copy(alpha = 0.05f))
+            .liquidGlassCard(active = false)
             .padding(horizontal = 16.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -589,8 +617,7 @@ private fun RaagaConnectSection(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(ROW_SHAPE)
-                    .background(Color.White.copy(alpha = 0.05f))
+                    .liquidGlassCard()
                     .padding(horizontal = 14.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -1108,8 +1135,10 @@ private fun RaagaConnectSection(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(ROW_SHAPE)
-                        .background(if (isCurrentlyActive) ConnectGreen.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.05f))
+                        .liquidGlassCard(
+                            active = isCurrentlyActive,
+                            accentBorder = if (isCurrentlyActive) ConnectGreen else null,
+                        )
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
@@ -1204,10 +1233,10 @@ private fun RaagaConnectSection(
             }
         }
 
-        // 5. NEARBY DEVICES ON WI-FI
+        // 5. AVAILABLE DEVICES (Local Wi-Fi / Cloud)
         if (unpairedDevices.isNotEmpty()) {
             Text(
-                text = "NEARBY DEVICES ON WI-FI (${unpairedDevices.size})",
+                text = "AVAILABLE DEVICES (${unpairedDevices.size})",
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Bold,
                 color = Color.White.copy(alpha = 0.5f),
@@ -1220,8 +1249,7 @@ private fun RaagaConnectSection(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(ROW_SHAPE)
-                        .background(Color.White.copy(alpha = 0.04f))
+                        .liquidGlassCard(active = false)
                         .clickable(enabled = !isConnecting) {
                             haptics.play(Haptic.Select)
                             connectManager.pairDeviceDirectly(device)
@@ -1263,7 +1291,7 @@ private fun RaagaConnectSection(
                         val statusText = when {
                             isConnecting -> "Connecting to ${device.name}..."
                             device.isCloud -> "Discovered via Cloud • Tap to play"
-                            else -> "Discovered on Wi-Fi (${device.host}) • Tap to play"
+                            else -> "Discovered on Local Wi-Fi • Tap to play"
                         }
                         Text(
                             text = statusText,

@@ -335,7 +335,9 @@ class RaagaConnectManager(
         cloudStatusBroadcastJob = scope.launch {
             var lastTrackId: String? = null
             var lastIsPlaying: Boolean? = null
-            var idleTicks = 0
+            var lastDurationMs: Long = 0L
+            var lastPositionMs: Long = 0L
+            var ticks = 0
             while (isActive) {
                 // Broadcast local status when this device is the speaker (not controlling a remote device)
                 if (_activeRemoteDevice.value == null) {
@@ -344,14 +346,22 @@ class RaagaConnectManager(
                     if (track != null) {
                         val trackChanged = track.videoId != lastTrackId
                         val playStateChanged = status.isPlaying != lastIsPlaying
-                        if (status.isPlaying || trackChanged || playStateChanged || idleTicks % 3 == 0) {
+                        val durationChanged = status.durationMs != lastDurationMs
+                        // Detect manual seek jump (>3s jump from normal playback tick)
+                        val seekJumped = lastIsPlaying == status.isPlaying &&
+                            kotlin.math.abs(status.positionMs - (lastPositionMs + 1000L)) > 3000L
+                        val periodicSync = (ticks % 20 == 0) // Relaxed 20s heartbeat sync
+
+                        if (trackChanged || playStateChanged || durationChanged || seekJumped || periodicSync) {
                             broadcastLocalStatusToCloud()
                         }
                         lastTrackId = track.videoId
                         lastIsPlaying = status.isPlaying
-                        if (!status.isPlaying) idleTicks++ else idleTicks = 0
+                        lastDurationMs = status.durationMs
+                        lastPositionMs = status.positionMs
                     }
                 }
+                ticks++
                 delay(1000)
             }
         }
@@ -617,7 +627,8 @@ class RaagaConnectManager(
         statusPollJob = scope.launch {
             pollRemoteStatusNow(target)
             while (isActive && _activeRemoteDevice.value?.id == target.id) {
-                delay(800)
+                val pollDelay = if (target.isCloud) 20_000L else 800L
+                delay(pollDelay)
                 pollRemoteStatusNow(target)
             }
         }

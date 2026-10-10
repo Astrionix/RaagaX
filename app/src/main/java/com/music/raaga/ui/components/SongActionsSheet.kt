@@ -4,7 +4,9 @@ import com.music.raaga.R
 
 import android.net.Uri
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -401,10 +403,18 @@ private fun TintedSheet(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val maxHeight = LocalConfiguration.current.screenHeightDp.dp * 0.85f
+    val sheetBorder = Brush.verticalGradient(
+        listOf(
+            Color.White.copy(alpha = 0.38f),
+            Color.White.copy(alpha = 0.12f),
+            Color.White.copy(alpha = 0.04f),
+        ),
+    )
     Box(
         modifier
             .fillMaxWidth()
-            .clip(SHEET_SHAPE),
+            .clip(SHEET_SHAPE)
+            .border(1.dp, sheetBorder, SHEET_SHAPE),
     ) {
         ArtworkBackdrop(
             palette = palette,
@@ -424,14 +434,14 @@ private fun TintedSheet(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 8.dp, bottom = 4.dp),
+                    .padding(top = 10.dp, bottom = 8.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Box(
                     Modifier
-                        .size(width = 34.dp, height = 4.dp)
+                        .size(width = 40.dp, height = 5.dp)
                         .clip(CircleShape)
-                        .background(palette.onBackground.copy(alpha = 0.35f)),
+                        .background(Color.White.copy(alpha = 0.32f)),
                 )
             }
             Column(
@@ -444,7 +454,7 @@ private fun TintedSheet(
     }
 }
 
-private val SHEET_SHAPE = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+private val SHEET_SHAPE = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)
 
 /**
  * One row carrying the whole life of a download: start it, watch it, cancel it,

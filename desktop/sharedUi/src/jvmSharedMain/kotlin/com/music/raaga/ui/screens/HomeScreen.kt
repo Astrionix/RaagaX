@@ -5,7 +5,17 @@ import com.music.raaga.ui.AppUi
 import com.music.raaga.sharedui.resources.*
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.DrawableResource
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.border
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.graphicsLayer
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -783,13 +793,37 @@ private fun HeroCard(
     isCurrent: Boolean = false,
     isPlaying: Boolean = false,
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isHovered by interactionSource.collectIsHoveredAsState()
+    val lift by animateFloatAsState(
+        targetValue = if (isHovered) 1f else 0f,
+        animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
+        label = "heroCardHover",
+    )
+    val heroShape = RoundedCornerShape(18.dp)
     Box(
         modifier = modifier
             .aspectRatio(HERO_CARD_RATIO)
-            .clip(RoundedCornerShape(18.dp))
-            .thumbnailBorder(RoundedCornerShape(18.dp))
+            .graphicsLayer {
+                val scale = 1f + 0.025f * lift
+                scaleX = scale
+                scaleY = scale
+            }
+            .shadow(
+                elevation = 10.dp * lift,
+                shape = heroShape,
+                clip = false,
+            )
+            .clip(heroShape)
+            .thumbnailBorder(heroShape)
             .background(MaterialTheme.colorScheme.surfaceVariant)
-            .longPressMenuClickable(onClick = onClick, onLongClick = onLongPress)
+            .hoverable(interactionSource)
+            .longPressMenuClickable(
+                onClick = onClick,
+                onLongClick = onLongPress,
+                interactionSource = interactionSource,
+                indication = null,
+            )
             .contextClick(onLongPress),
     ) {
         AsyncImage(
@@ -883,14 +917,44 @@ internal fun NewShelfCard(
     /** A full-colour mark drawn in place of [icon], for a card that stands for a brand. */
     logo: DrawableResource? = null,
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isHovered by interactionSource.collectIsHoveredAsState()
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val lift by animateFloatAsState(
+        targetValue = if (isHovered) 1f else 0f,
+        animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
+        label = "newShelfHover",
+    )
+    val cardShape = RoundedCornerShape(12.dp)
     Column(
-        modifier = modifier.clickable(onClick = onClick),
+        modifier = modifier
+            .hoverable(interactionSource)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick,
+            ),
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1f)
-                .clip(RoundedCornerShape(12.dp))
+                .graphicsLayer {
+                    val scale = 1f + 0.03f * lift
+                    scaleX = scale
+                    scaleY = scale
+                }
+                .shadow(
+                    elevation = 10.dp * lift,
+                    shape = cardShape,
+                    clip = false,
+                )
+                .clip(cardShape)
+                .border(
+                    width = if (isFocused) 1.5.dp else 0.dp,
+                    color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+                    shape = cardShape,
+                )
                 .background(MaterialTheme.colorScheme.surfaceVariant),
             contentAlignment = Alignment.Center,
         ) {
@@ -936,13 +1000,15 @@ internal fun NewShelfCard(
  * copies of the same box.
  */
 @Composable
-private fun ServiceCard(colors: List<Color>, trackKey: String, icon: ImageVector) {
+private fun ServiceCard(
+    colors: List<Color>,
+    trackKey: String,
+    icon: ImageVector,
+    modifier: Modifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(12.dp)),
+) {
     val palette = remember { MeshPalette(colors) }
     Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .aspectRatio(1f)
-            .clip(RoundedCornerShape(12.dp)),
+        modifier = modifier,
         contentAlignment = Alignment.Center,
     ) {
         MeshGradientBackground(
@@ -972,19 +1038,46 @@ internal fun ShelfCard(
     isCurrent: Boolean = false,
     isPlaying: Boolean = false,
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isHovered by interactionSource.collectIsHoveredAsState()
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val lift by animateFloatAsState(
+        targetValue = if (isHovered) 1f else 0f,
+        animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
+        label = "shelfCardHover",
+    )
+    val cardShape = RoundedCornerShape(12.dp)
+    val artModifier = Modifier
+        .fillMaxWidth()
+        .aspectRatio(1f)
+        .graphicsLayer {
+            val scale = 1f + 0.03f * lift
+            scaleX = scale
+            scaleY = scale
+        }
+        .shadow(
+            elevation = 10.dp * lift,
+            shape = cardShape,
+            clip = false,
+        )
+        .clip(cardShape)
+
     Column(
         modifier = modifier
-            .longPressMenuClickable(onClick = onClick, onLongClick = onLongPress)
+            .hoverable(interactionSource)
+            .longPressMenuClickable(
+                onClick = onClick,
+                onLongClick = onLongPress,
+                interactionSource = interactionSource,
+                indication = null,
+            )
             .contextClick(onLongPress),
     ) {
         when (item.browseId) {
             "local:downloads" -> {
                 val palette = remember { MeshPalette(listOf(Color(0xFF1E3C72), Color(0xFF2A5298))) }
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(1f)
-                        .clip(RoundedCornerShape(12.dp)),
+                    modifier = artModifier,
                     contentAlignment = Alignment.Center,
                 ) {
                     MeshGradientBackground(
@@ -1005,29 +1098,35 @@ internal fun ShelfCard(
                 colors = listOf(Color(0xFF134E5E), Color(0xFF71B280)),
                 trackKey = "local:all",
                 icon = Icons.Rounded.LibraryMusic,
+                modifier = artModifier,
             )
             "local:cache" -> ServiceCard(
                 colors = listOf(Color(0xFF42275A), Color(0xFF734B6D)),
                 trackKey = "local:cache",
                 icon = Icons.Rounded.Cached,
+                modifier = artModifier,
             )
             "local:webdav" -> ServiceCard(
                 colors = listOf(Color(0xFF3A1C71), Color(0xFFD76D77)),
                 trackKey = "local:webdav",
                 icon = Icons.Rounded.Folder,
+                modifier = artModifier,
             )
             "local:smb" -> ServiceCard(
                 colors = listOf(Color(0xFF0F2027), Color(0xFF2C5364)),
                 trackKey = "local:smb",
                 icon = Icons.Rounded.Storage,
+                modifier = artModifier,
             )
             else -> {
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(1f)
-                        .clip(RoundedCornerShape(12.dp))
-                        .thumbnailBorder(RoundedCornerShape(12.dp))
+                    modifier = artModifier
+                        .thumbnailBorder(cardShape)
+                        .border(
+                            width = if (isFocused) 1.5.dp else 0.dp,
+                            color = if (isFocused) MaterialTheme.colorScheme.primary else Color.Transparent,
+                            shape = cardShape,
+                        )
                         .background(MaterialTheme.colorScheme.surfaceVariant),
                 ) {
                     AsyncImage(

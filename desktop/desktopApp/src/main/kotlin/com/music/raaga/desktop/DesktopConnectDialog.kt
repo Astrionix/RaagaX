@@ -57,6 +57,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -79,7 +80,8 @@ internal fun DesktopConnectDialog(onDismiss: () -> Unit) {
     DesktopDialogPanel(onDismiss = onDismiss, maxWidth = 480) {
         ConnectDeviceContent(
             modifier = Modifier
-                .padding(horizontal = panelInset(22.dp), vertical = 20.dp)
+                .padding(horizontal = panelInset(22.dp))
+                .padding(top = 18.dp, bottom = 12.dp)
                 .heightIn(max = 560.dp),
             showHeader = true,
             onDismiss = onDismiss,
@@ -95,8 +97,9 @@ internal fun DesktopConnectDialog(onDismiss: () -> Unit) {
 internal fun ConnectSidePanel(modifier: Modifier = Modifier) {
     ConnectDeviceContent(
         modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 6.dp, vertical = 6.dp),
+            .fillMaxWidth()
+            .padding(horizontal = 6.dp)
+            .padding(top = 4.dp, bottom = 8.dp),
         showHeader = false,
         onDismiss = null,
     )
@@ -816,7 +819,8 @@ internal fun ConnectDeviceContent(
                             val statusText = when {
                                 isConnecting -> "Connecting to ${paired.name}..."
                                 isCurrentlyActive -> "Playing remotely"
-                                isOnline -> "Online on Wi-Fi (Click to play)"
+                                isOnline && onlineDev?.isCloud == true -> "Online via Cloud (Click to play)"
+                                isOnline -> "Online on Local Wi-Fi (Click to play)"
                                 else -> "Offline"
                             }
                             Text(
@@ -851,11 +855,11 @@ internal fun ConnectDeviceContent(
             }
         }
 
-        // NEARBY UNPAIRED DEVICES
+        // AVAILABLE UNPAIRED DEVICES
         if (unpairedDevices.isNotEmpty()) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
-                    text = "NEARBY WI-FI DEVICES (${unpairedDevices.size})",
+                    text = "AVAILABLE DEVICES (${unpairedDevices.size})",
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
                     color = DesktopSecondary,
@@ -898,10 +902,10 @@ internal fun ConnectDeviceContent(
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
-                            val statusText = if (isConnecting) {
-                                "Connecting to ${device.name}..."
-                            } else {
-                                "Discovered on Wi-Fi • Click to connect"
+                            val statusText = when {
+                                isConnecting -> "Connecting to ${device.name}..."
+                                device.isCloud -> "Discovered via Cloud • Click to connect"
+                                else -> "Discovered on Local Wi-Fi • Click to connect"
                             }
                             Text(
                                 text = statusText,
@@ -958,6 +962,8 @@ internal fun ConnectDeviceContent(
                 }
             }
         }
+
+        Spacer(Modifier.height(4.dp))
     }
 }
 
@@ -972,31 +978,67 @@ private fun AudioRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RowShape)
+            .background(if (chosen) ConnectGreen.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.04f))
+            .border(
+                1.dp,
+                if (chosen) ConnectGreen.copy(alpha = 0.42f) else Color.White.copy(alpha = 0.07f),
+                RowShape,
+            )
             .desktopRowClickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(
-            imageVector = Icons.Rounded.Headphones,
-            contentDescription = null,
-            tint = if (chosen) ConnectGreen else DesktopSecondary,
-            modifier = Modifier.size(18.dp),
-        )
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(
+                    if (chosen) {
+                        Brush.radialGradient(
+                            listOf(
+                                ConnectGreen.copy(alpha = 0.35f),
+                                ConnectGreen.copy(alpha = 0.15f),
+                            )
+                        )
+                    } else {
+                        Brush.radialGradient(
+                            listOf(
+                                Color.White.copy(alpha = 0.12f),
+                                Color.White.copy(alpha = 0.03f),
+                            )
+                        )
+                    }
+                )
+                .border(
+                    1.dp,
+                    if (chosen) ConnectGreen.copy(alpha = 0.60f) else Color.White.copy(alpha = 0.15f),
+                    CircleShape,
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Headphones,
+                contentDescription = null,
+                tint = if (chosen) ConnectGreen else Color.White.copy(alpha = 0.85f),
+                modifier = Modifier.size(18.dp),
+            )
+        }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
                 text = name,
                 style = MaterialTheme.typography.bodyMedium,
-                fontWeight = if (chosen) FontWeight.SemiBold else FontWeight.Normal,
-                color = if (chosen) Color.White else Color.White.copy(alpha = 0.8f),
+                fontWeight = if (chosen) FontWeight.SemiBold else FontWeight.Medium,
+                color = if (chosen) Color.White else Color.White.copy(alpha = 0.85f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             if (description.isNotBlank()) {
+                Spacer(Modifier.height(1.dp))
                 Text(
                     text = description,
                     style = MaterialTheme.typography.bodySmall,
-                    color = DesktopSecondary,
+                    color = if (chosen) ConnectGreen.copy(alpha = 0.85f) else DesktopSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -1004,12 +1046,21 @@ private fun AudioRow(
         }
         if (chosen) {
             Spacer(Modifier.width(8.dp))
-            Icon(
-                imageVector = Icons.Rounded.Check,
-                contentDescription = null,
-                tint = ConnectGreen,
-                modifier = Modifier.size(18.dp),
-            )
+            Box(
+                modifier = Modifier
+                    .size(22.dp)
+                    .clip(CircleShape)
+                    .background(ConnectGreen)
+                    .border(1.dp, Color.White.copy(alpha = 0.4f), CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Check,
+                    contentDescription = "Selected",
+                    tint = Color.Black,
+                    modifier = Modifier.size(14.dp),
+                )
+            }
         }
     }
 }
