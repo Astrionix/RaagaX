@@ -1,8 +1,8 @@
 /**
  * Raaga Connect — Cloudflare Edge WebSocket Pub/Sub Relay
  *
- * Ultra-low latency (<20ms) device coordination relay for Raaga Connect.
- * Works seamlessly on Cloudflare Workers Free Tier (no paid Durable Objects required).
+ * Ultra-low latency (<20ms in India) multi-device synchronization relay.
+ * Runs on Cloudflare Workers with Durable Objects (100% Free on Workers Free Plan).
  */
 
 const channelMap = new Map();
@@ -13,12 +13,17 @@ export default {
 
     // Health check endpoint
     if (url.pathname === "/" || url.pathname === "/health") {
+      const hasDurableObjects = Boolean(env && env.ROOMS && typeof env.ROOMS.idFromName === "function");
       return new Response(
         JSON.stringify({
           status: "ok",
           service: "Raaga Connect Cloudflare Relay",
           region: request.cf?.colo || "global",
+          durableObjectsActive: hasDurableObjects,
           activeChannels: channelMap.size,
+          hint: hasDurableObjects 
+            ? "Durable Objects active: multi-device synchronization is enabled." 
+            : "To enable multi-device sync, add Durable Object binding in Cloudflare Dashboard: Variable name 'ROOMS', Class 'ConnectRoom'.",
           timestamp: new Date().toISOString(),
         }),
         {
@@ -37,7 +42,7 @@ export default {
         return new Response("Expected WebSocket Upgrade header", { status: 426 });
       }
 
-      // If Durable Objects binding ROOMS is properly configured, use it
+      // If Durable Objects binding ROOMS is configured, route to Durable Object room
       if (env && env.ROOMS && typeof env.ROOMS.idFromName === "function") {
         try {
           const channel = url.searchParams.get("channel") || "raaga_cloud";
@@ -49,11 +54,9 @@ export default {
         }
       }
 
-      // Standard Worker WebSocket handling (100% Free Plan Compatible)
+      // Fallback: Standard Worker WebSocket handling (for single-isolate testing)
       try {
         const channel = url.searchParams.get("channel") || "raaga_cloud";
-        const deviceId = url.searchParams.get("deviceId") || "unknown";
-
         const pair = new WebSocketPair();
         const client = pair[0];
         const server = pair[1];
@@ -69,7 +72,6 @@ export default {
         server.addEventListener("message", (event) => {
           const activeSockets = channelMap.get(channel);
           if (!activeSockets) return;
-
           for (const sock of activeSockets) {
             if (sock !== server) {
               try {
@@ -106,11 +108,13 @@ export default {
 };
 
 /**
- * Optional Room Durable Object (if user enables Durable Objects on paid plan)
+ * ConnectRoom Durable Object (Handles shared room WebSocket broadcasting)
+ * Cloudflare routes all clients for the same channel to this exact instance globally.
  */
 export class ConnectRoom {
   constructor(state, env) {
     this.state = state;
+    this.ctx = state;
     this.env = env;
   }
 
@@ -119,8 +123,9 @@ export class ConnectRoom {
     const client = pair[0];
     const server = pair[1];
 
-    if (this.state.acceptWebSocket) {
-      this.state.acceptWebSocket(server);
+    const ctx = this.ctx || this.state;
+    if (ctx && typeof ctx.acceptWebSocket === "function") {
+      ctx.acceptWebSocket(server);
     } else {
       server.accept();
     }
@@ -132,7 +137,8 @@ export class ConnectRoom {
   }
 
   async webSocketMessage(ws, message) {
-    const sockets = this.state.getWebSockets ? this.state.getWebSockets() : [];
+    const ctx = this.ctx || this.state;
+    const sockets = ctx && typeof ctx.getWebSockets === "function" ? ctx.getWebSockets() : [];
     for (const client of sockets) {
       if (client !== ws) {
         try {
