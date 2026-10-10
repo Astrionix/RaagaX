@@ -6209,9 +6209,10 @@ class PlaybackService : MediaLibraryService() {
         }
         scrobbleManager?.destroy()
         scrobbleManager = null
-        // Last chance to get the current track's minutes onto disk: the scope is
-        // cancelled a few lines down and the sampler goes with it.
         ListeningRecorder.onStopped()
+        // Stop presence in Supabase friend activity so users don't remain stuck as Playing
+        val lastPlaybackSong = listenBrainzSong ?: player?.currentMediaItem?.toSong()
+        com.music.raaga.data.social.FriendActivityEngine.updateMyPlayback(lastPlaybackSong, false, this@PlaybackService)
         // Discord, on the same terms as the ListenBrainz submit above: the
         // service scope is cancelled a few lines down, and a presence left up
         // would advertise a track that stopped when the process did — until

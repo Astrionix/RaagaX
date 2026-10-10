@@ -212,6 +212,7 @@ object FriendActivityEngine {
     private var lastPublishedVideoId: String? = null
     private var lastPublishedIsPlaying: Boolean? = null
     private var lastPublishedTimeMs: Long = 0L
+    private var lastKnownSong: Song? = null
 
     fun updateMyPlayback(song: Song?, isPlaying: Boolean, context: Context) {
         val me = BlendEngine.getMyIdentity(context)
@@ -222,29 +223,34 @@ object FriendActivityEngine {
             return
         }
 
-        if (song == null || song.videoId.isBlank() || song.videoId.startsWith("saavn_")) return
+        if (song != null) {
+            lastKnownSong = song
+        }
+        val effectiveSong = song ?: if (!isPlaying) lastKnownSong else null
+        if (effectiveSong == null || effectiveSong.videoId.isBlank() || effectiveSong.videoId.startsWith("saavn_")) return
+
         val myActivity = FriendActivityState(
             userId = me.userId,
             userTag = me.userTag,
             userName = "${me.userName} (You)",
-            songTitle = song.title,
-            artist = song.artist,
-            coverUrl = song.thumbnailUrl,
+            songTitle = effectiveSong.title,
+            artist = effectiveSong.artist,
+            coverUrl = effectiveSong.thumbnailUrl,
             isPlaying = isPlaying,
             timestamp = System.currentTimeMillis(),
-            videoId = song.videoId,
-            albumName = song.albumName,
-            durationText = song.durationText,
+            videoId = effectiveSong.videoId,
+            albumName = effectiveSong.albumName,
+            durationText = effectiveSong.durationText,
         )
         val filtered = _activities.value.filter { it.userId != me.userId }
         _activities.value = listOf(myActivity) + filtered
 
         // Deduplicate updates to prevent spamming cloud backend
         val now = System.currentTimeMillis()
-        if (song.videoId == lastPublishedVideoId && isPlaying == lastPublishedIsPlaying && (now - lastPublishedTimeMs < 15_000L)) {
+        if (effectiveSong.videoId == lastPublishedVideoId && isPlaying == lastPublishedIsPlaying && (now - lastPublishedTimeMs < 15_000L)) {
             return
         }
-        lastPublishedVideoId = song.videoId
+        lastPublishedVideoId = effectiveSong.videoId
         lastPublishedIsPlaying = isPlaying
         lastPublishedTimeMs = now
 
@@ -253,12 +259,12 @@ object FriendActivityEngine {
             SupabaseActivityClient.publishMyActivity(
                 userTag = me.userTag,
                 userName = me.userName,
-                songTitle = song.title,
-                artist = song.artist,
-                videoId = song.videoId,
-                coverUrl = song.thumbnailUrl,
-                albumName = song.albumName,
-                durationText = song.durationText,
+                songTitle = effectiveSong.title,
+                artist = effectiveSong.artist,
+                videoId = effectiveSong.videoId,
+                coverUrl = effectiveSong.thumbnailUrl,
+                albumName = effectiveSong.albumName,
+                durationText = effectiveSong.durationText,
                 isPlaying = isPlaying,
             )
         }

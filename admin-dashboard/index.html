@@ -441,6 +441,12 @@
       color: #fbbf24;
     }
 
+    .badge-offline {
+      background: rgba(100, 116, 139, 0.12);
+      border: 1px solid rgba(100, 116, 139, 0.25);
+      color: #94a3b8;
+    }
+
     .user-role-badge {
       font-size: 9px;
       font-weight: 700;
@@ -896,8 +902,17 @@
         supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
       }
       feather.replace();
+      // Automatically prune ghost sessions (>15 min) on launch
+      cleanStaleSessions(true);
       fetchLiveActivity();
       subscribeToRealtime();
+
+      // Periodically clean stale sessions in the background every 60 seconds
+      if (!window._staleCleanerInterval) {
+        window._staleCleanerInterval = setInterval(() => {
+          cleanStaleSessions(true);
+        }, 60000);
+      }
     }
 
     // Fetch initial dataset
@@ -942,9 +957,9 @@
     }
 
     // Clean stale sessions stuck in is_playing = true older than 15 minutes
-    async function cleanStaleSessions() {
+    async function cleanStaleSessions(silent = false) {
       const btn = document.getElementById("btnCleanStale");
-      if (btn) btn.classList.add("loading");
+      if (btn && !silent) btn.classList.add("loading");
       try {
         const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
         const { error } = await supabaseClient
@@ -955,14 +970,14 @@
 
         if (error) {
           console.error("Failed to clean stale sessions:", error);
-          alert("Error: " + error.message);
+          if (!silent) alert("Error: " + error.message);
         } else {
           await fetchLiveActivity();
         }
       } catch (err) {
         console.error("Clean stale failed:", err);
       } finally {
-        if (btn) btn.classList.remove("loading");
+        if (btn && !silent) btn.classList.remove("loading");
       }
     }
 
@@ -1102,6 +1117,11 @@
         const initial = (rawName || item.user_tag || "L").charAt(0).toUpperCase();
         const timeAgo = formatTimeAgo(item.updated_at);
         const isLive = isActivelyPlaying(item);
+        const updatedMs = item.updated_at ? new Date(item.updated_at).getTime() : 0;
+        const diffMinutes = (Date.now() - updatedMs) / (1000 * 60);
+        const isStale = diffMinutes > 15;
+        const badgeClass = isLive ? 'badge-playing' : (isStale ? 'badge-offline' : 'badge-paused');
+        const badgeLabel = isLive ? 'Playing' : (isStale ? 'Offline' : 'Paused');
 
         return `
           <div class="user-card">
@@ -1116,7 +1136,7 @@
                   <span class="user-tag">${escapeHtml(item.user_tag || "AETH-????")}</span>
                 </div>
               </div>
-              <div class="activity-badge ${isLive ? 'badge-playing' : 'badge-paused'}">
+              <div class="activity-badge ${badgeClass}">
                 ${isLive ? `
                   <div class="equalizer">
                     <span class="eq-bar"></span>
@@ -1124,10 +1144,13 @@
                     <span class="eq-bar"></span>
                   </div>
                   Playing
+                ` : (isStale ? `
+                  <span class="pulse-dot" style="width: 6px; height: 6px; background: #64748b; box-shadow: none; animation: none;"></span>
+                  Offline
                 ` : `
                   <i data-feather="pause" style="width: 10px; height: 10px;"></i>
                   Paused
-                `}
+                `)}
               </div>
             </div>
 
@@ -1165,6 +1188,11 @@
         const rawName = (item.user_name || "").trim();
         const isRegistered = rawName && !rawName.startsWith("Listener ");
         const isLive = isActivelyPlaying(item);
+        const updatedMs = item.updated_at ? new Date(item.updated_at).getTime() : 0;
+        const diffMinutes = (Date.now() - updatedMs) / (1000 * 60);
+        const isStale = diffMinutes > 15;
+        const badgeClass = isLive ? 'badge-playing' : (isStale ? 'badge-offline' : 'badge-paused');
+        const badgeLabel = isLive ? 'Playing' : (isStale ? 'Offline' : 'Paused');
 
         return `
           <tr>
@@ -1186,8 +1214,8 @@
             </td>
             <td style="color: var(--text-muted);">${escapeHtml(item.album_name || "—")}</td>
             <td>
-              <span class="activity-badge ${isLive ? 'badge-playing' : 'badge-paused'}">
-                ${isLive ? 'Playing' : 'Paused'}
+              <span class="activity-badge ${badgeClass}">
+                ${badgeLabel}
               </span>
             </td>
             <td>${escapeHtml(item.duration_text || "—")}</td>
