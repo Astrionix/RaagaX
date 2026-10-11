@@ -43,23 +43,14 @@ export const metadata: Metadata = {
       "A cinematic, high-performance Android music player with real-time synchronized playback, lossless audio streaming, and C++ spectral audio engineering.",
     url: RAAGAX_CONFIG.liveDomainUrl,
     siteName: RAAGAX_CONFIG.appName,
-    images: [
-      {
-        url: "/hero_mockup.jpg",
-        width: 1200,
-        height: 675,
-        alt: "RaagaX Flagship Android Music Player Interface",
-      },
-    ],
     locale: "en_US",
     type: "website",
   },
   twitter: {
-    card: "summary_large_image",
+    card: "summary",
     title: `${RAAGAX_CONFIG.appName} — Music playback, engineered beyond the surface`,
     description:
       "Modern Android music streaming and playback platform engineered by Chandra Reddy (@Astrionix).",
-    images: ["/hero_mockup.jpg"],
   },
 };
 
