@@ -227,7 +227,7 @@ object FriendActivityEngine {
             lastKnownSong = song
         }
         val effectiveSong = song ?: if (!isPlaying) lastKnownSong else null
-        if (effectiveSong == null || effectiveSong.videoId.isBlank() || effectiveSong.videoId.startsWith("saavn_")) return
+        if (effectiveSong == null || effectiveSong.title.isBlank()) return
 
         val myActivity = FriendActivityState(
             userId = me.userId,

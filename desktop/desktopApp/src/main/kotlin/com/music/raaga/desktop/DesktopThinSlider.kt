@@ -60,7 +60,7 @@ internal fun DesktopThinSlider(
     val height by animateDpAsState(
         targetValue = if (dragging) activeHeight else idleHeight,
         animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
+            dampingRatio = Spring.DampingRatioNoBouncy,
             stiffness = Spring.StiffnessMediumLow,
         ),
         label = "sliderHeight",
@@ -99,10 +99,17 @@ internal fun DesktopThinSlider(
         Canvas(
             Modifier
                 .fillMaxWidth()
-                .height(height),
+                .height(activeHeight),
         ) {
-            val radius = CornerRadius(size.height / 2f)
-            drawRoundRect(color = inactiveColor, cornerRadius = radius)
+            val barHeight = height.toPx()
+            val barTop = (size.height - barHeight) / 2f
+            val radius = CornerRadius(barHeight / 2f)
+            drawRoundRect(
+                color = inactiveColor,
+                topLeft = Offset(0f, barTop),
+                size = Size(size.width, barHeight),
+                cornerRadius = radius,
+            )
             // Between the two track colours, and drawn *under* the played fill.
             transitionWindow?.let { window ->
                 val from = size.width * window.start.coerceIn(0f, 1f)
@@ -110,10 +117,10 @@ internal fun DesktopThinSlider(
                 if (to > from) {
                     drawRoundRect(
                         color = markerColor,
-                        topLeft = Offset(from, 0f),
+                        topLeft = Offset(from, barTop),
                         // Never thinner than the bar is tall, so a short transition still reads as
                         // a dot rather than a hairline.
-                        size = Size((to - from).coerceAtLeast(size.height), size.height),
+                        size = Size((to - from).coerceAtLeast(barHeight), barHeight),
                         cornerRadius = radius,
                     )
                 }
@@ -122,7 +129,8 @@ internal fun DesktopThinSlider(
             if (filled > 0f && !mixing) {
                 drawRoundRect(
                     color = activeColor,
-                    size = Size(filled.coerceAtLeast(size.height), size.height),
+                    topLeft = Offset(0f, barTop),
+                    size = Size(filled.coerceAtLeast(barHeight), barHeight),
                     cornerRadius = radius,
                 )
             }
@@ -133,7 +141,7 @@ internal fun DesktopThinSlider(
             enter = fadeIn(tween(durationMillis = 420)),
             exit = fadeOut(tween(durationMillis = 520)),
         ) {
-            DesktopMixSheen(height = height)
+            DesktopMixSheen(height = height, activeHeight = activeHeight)
         }
     }
 }
@@ -143,7 +151,7 @@ internal fun DesktopThinSlider(
  * being mixed.
  */
 @Composable
-private fun DesktopMixSheen(height: Dp) {
+private fun DesktopMixSheen(height: Dp, activeHeight: Dp) {
     val transition = rememberInfiniteTransition(label = "mixSheen")
     val phase by transition.animateFloat(
         initialValue = 0f,
@@ -157,8 +165,10 @@ private fun DesktopMixSheen(height: Dp) {
     Canvas(
         Modifier
             .fillMaxWidth()
-            .height(height),
+            .height(activeHeight),
     ) {
+        val barHeight = height.toPx()
+        val barTop = (size.height - barHeight) / 2f
         val band = size.width * SHEEN_BAND_FRACTION
         // Travels from fully off the left edge to fully off the right, so the highlight enters and
         // leaves rather than materialising mid-bar.
@@ -173,7 +183,9 @@ private fun DesktopMixSheen(height: Dp) {
                 start = Offset(centre - band / 2f, 0f),
                 end = Offset(centre + band / 2f, 0f),
             ),
-            cornerRadius = CornerRadius(size.height / 2f),
+            topLeft = Offset(0f, barTop),
+            size = Size(size.width, barHeight),
+            cornerRadius = CornerRadius(barHeight / 2f),
         )
     }
 }

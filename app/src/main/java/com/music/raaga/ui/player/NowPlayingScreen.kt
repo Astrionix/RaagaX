@@ -932,7 +932,13 @@ fun NowPlayingScreen(
             val newest = swipeTargets.tryReceive().getOrNull() ?: target
             launch {
                 if (newest != swipeSettle.targetValue) {
-                    swipeSettle.animateTo(newest, spring(stiffness = Spring.StiffnessMediumLow))
+                    swipeSettle.animateTo(
+                        newest,
+                        spring(
+                            dampingRatio = Spring.DampingRatioNoBouncy,
+                            stiffness = Spring.StiffnessMediumLow,
+                        ),
+                    )
                 }
             }
         }
@@ -1261,31 +1267,35 @@ fun NowPlayingScreen(
     val skipSwipeGesture = Modifier.pointerInput(showAudioPipeline, panelScrolling, controlsLocked) {
         if (showAudioPipeline || panelScrolling) return@pointerInput
         var total = 0f
+        val velocityTracker = VelocityTracker()
         detectHorizontalDragGestures(
-            onDragStart = { total = 0f },
+            onDragStart = {
+                total = 0f
+                velocityTracker.resetTracking()
+            },
             onDragCancel = { setSwipeOffset(0f) },
             onDragEnd = {
-                // The same two buzzes the transport glyphs give, so swiping the
-                // sleeve and tapping skip feel like one gesture with two
-                // spellings.
-                val crossed = total <= -swipeThreshold || total >= swipeThreshold
+                val vx = velocityTracker.calculateVelocity().x
+                val flickNext = (vx <= -600f && total < 0f) || total <= -swipeThreshold
+                val flickPrev = (vx >= 600f && total > 0f) || total >= swipeThreshold
                 when {
                     // Still tracks the finger and still springs back, so the
                     // sleeve does not feel dead — it just says why it did not
                     // move on.
-                    controlsLocked -> if (crossed) onBlockedControl()
-                    total <= -swipeThreshold -> {
+                    controlsLocked -> if (flickNext || flickPrev) onBlockedControl()
+                    flickNext -> {
                         haptics.play(Haptic.SkipNext)
                         onNext()
                     }
-                    total >= swipeThreshold -> {
+                    flickPrev -> {
                         haptics.play(Haptic.SkipPrevious)
                         onPrevious()
                     }
                 }
                 setSwipeOffset(0f)
             },
-            onHorizontalDrag = { _, delta ->
+            onHorizontalDrag = { change, delta ->
+                velocityTracker.addPosition(change.uptimeMillis, change.position)
                 total += delta
                 // Damped: it's a hint, not a drag-to-position.
                 setSwipeOffset(total * 0.35f)

@@ -220,7 +220,8 @@ class DesktopPlaybackEngine(
         commands += Command.Flush
         searchingBetterFor = null
         incomingSearchingFor = null
-        _state.value = DesktopPlaybackState(song = song, volume = volume, isLoading = true)
+        paused = !playWhenReady
+        _state.value = DesktopPlaybackState(song = song, volume = volume, isLoading = true, isPlaying = playWhenReady)
         resolveJob = scope.launch {
             // Only when the file is really there: a download record can outlive the file it names,
             // and handing the decoder a path that is not there fails as "could not open stream"
@@ -238,7 +239,8 @@ class DesktopPlaybackEngine(
                     opened.fold(
                         onSuccess = { track ->
                             searchingBetterFor = song.videoId.takeIf { live.pendingSubstitute != null }
-                            commands += Command.Start(track, playWhenReady)
+                            val effectivePlay = !paused || _state.value.isPlaying
+                            commands += Command.Start(track, effectivePlay)
                             live.pendingSubstitute?.let { watchForUpgrade(song, it) }
                         },
                         onFailure = { failure -> retryAfterFailure(song, playWhenReady, live.stream, failure) },
@@ -1257,8 +1259,9 @@ class DesktopPlaybackEngine(
         outgoingFilter.configure(sink.format.channels, sink.format.sampleRate)
         incomingFilter.configure(sink.format.channels, sink.format.sampleRate)
         resetPlayhead(track, track.startUs)
-        paused = !playWhenReady
-        publishTrack(track, isPlaying = playWhenReady)
+        val effectivePlay = playWhenReady || !paused || _state.value.isPlaying
+        paused = !effectivePlay
+        publishTrack(track, isPlaying = effectivePlay)
     }
 
     /** Reopens the output on the current decoder, keeping the track playing. */

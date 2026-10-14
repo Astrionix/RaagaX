@@ -107,11 +107,14 @@ fun ThinSlider(
     val height by animateDpAsState(
         targetValue = if (dragging) activeHeight else idleHeight,
         animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
+            dampingRatio = Spring.DampingRatioNoBouncy,
             stiffness = Spring.StiffnessMediumLow,
         ),
         label = "sliderHeight",
     )
+    val canvasSlotHeight = remember(activeHeight, drawThumb, thumbRadius) {
+        if (drawThumb) maxOf(activeHeight, thumbRadius * 2 + 2.dp) else activeHeight
+    }
     // The sheen gets a minimum beat even when the switch resolves instantly —
     // a cached offset can land in a few hundred milliseconds — so its entry,
     // its sweep and its hand-over to the progress bar always play out as one
@@ -176,10 +179,17 @@ fun ThinSlider(
         Canvas(
             Modifier
                 .fillMaxWidth()
-                .height(height),
+                .height(canvasSlotHeight),
         ) {
-            val radius = CornerRadius(size.height / 2f)
-            drawRoundRect(color = inactiveColor, cornerRadius = radius)
+            val barHeight = height.toPx()
+            val barTop = (size.height - barHeight) / 2f
+            val radius = CornerRadius(barHeight / 2f)
+            drawRoundRect(
+                color = inactiveColor,
+                topLeft = Offset(0f, barTop),
+                size = Size(size.width, barHeight),
+                cornerRadius = radius,
+            )
             // Between the two track colours, and drawn *under* the played fill:
             // once the playhead reaches the window the transition is no longer
             // upcoming, and the ordinary progress colour taking it over is what
@@ -190,8 +200,8 @@ fun ThinSlider(
                 if (to > from) {
                     drawRoundRect(
                         color = markerColor,
-                        topLeft = Offset(from, 0f),
-                        size = Size(to - from, size.height),
+                        topLeft = Offset(from, barTop),
+                        size = Size(to - from, barHeight),
                         cornerRadius = radius,
                     )
                 }
@@ -212,12 +222,13 @@ fun ThinSlider(
             val filled = size.width * fraction * fillFactor
             if (filled > 0f) {
                 val alpha = if (dragging) activeColor.alpha else mixPulse?.alpha(activeColor.alpha) ?: activeColor.alpha
-                val activeWidth = filled.coerceAtLeast(size.height * fillFactor).coerceAtMost(size.width)
+                val activeWidth = filled.coerceAtLeast(barHeight * fillFactor).coerceAtMost(size.width)
                 drawRoundRect(
                     color = activeColor.copy(alpha = alpha),
+                    topLeft = Offset(0f, barTop),
                     size = Size(
                         activeWidth,
-                        size.height,
+                        barHeight,
                     ),
                     cornerRadius = radius,
                 )
@@ -257,7 +268,7 @@ fun ThinSlider(
                 ),
             exit = fadeOut(tween(durationMillis = MORPH_MS, easing = FastOutSlowInEasing)),
         ) {
-            MixSheen(height = height, color = activeColor)
+            MixSheen(height = height, containerHeight = canvasSlotHeight, color = activeColor)
         }
     }
 }
@@ -422,7 +433,7 @@ private const val LOADING_MIN_MS = 600L
  * at each edge rather than restarting from the far one.
  */
 @Composable
-private fun MixSheen(height: Dp, color: Color) {
+private fun MixSheen(height: Dp, containerHeight: Dp, color: Color) {
     val transition = rememberInfiniteTransition(label = "mixSheen")
     val phase by transition.animateFloat(
         initialValue = -SHEEN_BAND_FRACTION,
@@ -439,8 +450,10 @@ private fun MixSheen(height: Dp, color: Color) {
     Canvas(
         Modifier
             .fillMaxWidth()
-            .height(height),
+            .height(containerHeight),
     ) {
+        val barHeight = height.toPx()
+        val barTop = (size.height - barHeight) / 2f
         val band = size.width * SHEEN_BAND_FRACTION
         val x = phase * size.width
         drawRoundRect(
@@ -453,11 +466,12 @@ private fun MixSheen(height: Dp, color: Color) {
                 startX = x,
                 endX = x + band,
             ),
-            size = Size(size.width, size.height),
+            topLeft = Offset(0f, barTop),
+            size = Size(size.width, barHeight),
             // The band is clipped to the same capsule the track is drawn
             // with: a plain rect bared square corners wherever the sweep
             // crossed the rounded ends.
-            cornerRadius = CornerRadius(size.height / 2f),
+            cornerRadius = CornerRadius(barHeight / 2f),
         )
     }
 }

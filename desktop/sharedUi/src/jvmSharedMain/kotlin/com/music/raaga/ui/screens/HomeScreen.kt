@@ -5,15 +5,23 @@ import com.music.raaga.ui.AppUi
 import com.music.raaga.sharedui.resources.*
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.DrawableResource
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import org.jetbrains.compose.resources.stringResource
@@ -782,6 +790,54 @@ private fun HeroShelf(
     }
 }
 
+@Composable
+private fun FloatingCardPlayButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val isPressed by interaction.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (isPressed) 0.88f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMedium,
+        ),
+        label = "floatingPlayPress",
+    )
+    Box(
+        modifier = modifier
+            .size(38.dp)
+            .graphicsLayer {
+                scaleX = pressScale
+                scaleY = pressScale
+            }
+            .shadow(8.dp, CircleShape, spotColor = Color.Black.copy(alpha = 0.50f))
+            .clip(CircleShape)
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        Color.White.copy(alpha = 0.95f),
+                        Color.White.copy(alpha = 0.85f),
+                    ),
+                ),
+            )
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = onClick,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = RaagaIcons.Play,
+            contentDescription = null,
+            tint = Color(0xFF0F172A),
+            modifier = Modifier.size(19.dp).padding(start = 2.dp),
+        )
+    }
+}
+
 /** Big card: artwork with the caption laid over a scrim, as on Listen Now. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -797,7 +853,10 @@ private fun HeroCard(
     val isHovered by interactionSource.collectIsHoveredAsState()
     val lift by animateFloatAsState(
         targetValue = if (isHovered) 1f else 0f,
-        animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
         label = "heroCardHover",
     )
     val heroShape = RoundedCornerShape(18.dp)
@@ -833,6 +892,25 @@ private fun HeroCard(
             modifier = Modifier.fillMaxSize(),
         )
         if (isCurrent && isPlaying) SearchPlayingBars(Modifier.align(Alignment.Center))
+        AnimatedVisibility(
+            visible = isHovered && !(isCurrent && isPlaying),
+            enter = scaleIn(
+                animationSpec = spring(
+                    dampingRatio = 0.78f,
+                    stiffness = Spring.StiffnessMedium,
+                ),
+                initialScale = 0.6f,
+            ) + fadeIn(tween(140)),
+            exit = scaleOut(
+                animationSpec = tween(120),
+                targetScale = 0.7f,
+            ) + fadeOut(tween(100)),
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(14.dp),
+        ) {
+            FloatingCardPlayButton(onClick = onClick)
+        }
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -842,7 +920,7 @@ private fun HeroCard(
                         listOf(Color.Transparent, Color.Black.copy(alpha = 0.78f)),
                     ),
                 )
-                .padding(start = 16.dp, end = 16.dp, top = 34.dp, bottom = 14.dp),
+                .padding(start = 16.dp, end = 56.dp, top = 34.dp, bottom = 14.dp),
         ) {
             Text(
                 text = item.title,
@@ -922,7 +1000,10 @@ internal fun NewShelfCard(
     val isFocused by interactionSource.collectIsFocusedAsState()
     val lift by animateFloatAsState(
         targetValue = if (isHovered) 1f else 0f,
-        animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
         label = "newShelfHover",
     )
     val cardShape = RoundedCornerShape(12.dp)
@@ -1043,7 +1124,10 @@ internal fun ShelfCard(
     val isFocused by interactionSource.collectIsFocusedAsState()
     val lift by animateFloatAsState(
         targetValue = if (isHovered) 1f else 0f,
-        animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
         label = "shelfCardHover",
     )
     val cardShape = RoundedCornerShape(12.dp)
@@ -1136,6 +1220,25 @@ internal fun ShelfCard(
                         modifier = Modifier.fillMaxSize(),
                     )
                     if (isCurrent && isPlaying) SearchPlayingBars(Modifier.align(Alignment.Center))
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = isHovered && !(isCurrent && isPlaying),
+                        enter = scaleIn(
+                            animationSpec = spring(
+                                dampingRatio = 0.78f,
+                                stiffness = Spring.StiffnessMedium,
+                            ),
+                            initialScale = 0.6f,
+                        ) + fadeIn(tween(140)),
+                        exit = scaleOut(
+                            animationSpec = tween(120),
+                            targetScale = 0.7f,
+                        ) + fadeOut(tween(100)),
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(8.dp),
+                    ) {
+                        FloatingCardPlayButton(onClick = onClick)
+                    }
                 }
             }
         }

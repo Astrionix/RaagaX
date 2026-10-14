@@ -7,10 +7,14 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -66,6 +70,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -198,13 +203,27 @@ private fun AudioPipelineRow(onClick: () -> Unit) {
     val haptics = rememberHaptics()
     val outputStatus by AudioOutputStatus.current.collectAsStateWithLifecycle()
     val subtitle = remember(outputStatus) { outputSummary(outputStatus) }
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (isPressed) 0.97f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
+        label = "audioPipelineRowScale",
+    )
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .graphicsLayer {
+                scaleX = pressScale
+                scaleY = pressScale
+            }
             .liquidGlassCard(active = false)
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = interactionSource,
                 indication = null,
             ) {
                 haptics.play(Haptic.Select)
@@ -279,12 +298,26 @@ private fun OutputRow(
 ) {
     val haptics = rememberHaptics()
     val active = device.isActive
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (isPressed && !active) 0.97f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
+        label = "outputRowScale",
+    )
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .graphicsLayer {
+                scaleX = pressScale
+                scaleY = pressScale
+            }
             .liquidGlassCard(active = active)
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = interactionSource,
                 indication = null,
                 enabled = !active,
             ) {
@@ -790,8 +823,12 @@ private fun RaagaConnectSection(
                     .clickable {
                         haptics.play(Haptic.Select)
                         showPairingCard = !showPairingCard
-                        if (showPairingCard && activePairCode == null) {
-                            connectManager.generatePairCode()
+                        if (showPairingCard) {
+                            if (pairTab == 0 && activePairCode == null) {
+                                connectManager.generatePairCode()
+                            }
+                        } else {
+                            connectManager.cancelPairCode()
                         }
                     }
                     .padding(horizontal = 10.dp, vertical = 5.dp),
@@ -869,6 +906,7 @@ private fun RaagaConnectSection(
                             .clickable {
                                 haptics.play(Haptic.Select)
                                 pairTab = 1
+                                connectManager.cancelPairCode()
                             }
                             .padding(vertical = 6.dp),
                         contentAlignment = Alignment.Center,
@@ -1131,16 +1169,30 @@ private fun RaagaConnectSection(
                 val onlineDev = item.onlineDevice
                 val isConnecting = connectingDeviceId == paired.id
                 val isCurrentlyActive = activeRemote?.id == paired.id
+                val interactionSource = remember { MutableInteractionSource() }
+                val isPressed by interactionSource.collectIsPressedAsState()
+                val pressScale by animateFloatAsState(
+                    targetValue = if (isPressed && isOnline && !isCurrentlyActive && !isConnecting) 0.97f else 1f,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioNoBouncy,
+                        stiffness = Spring.StiffnessMediumLow,
+                    ),
+                    label = "pairedDeviceScale",
+                )
 
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .graphicsLayer {
+                            scaleX = pressScale
+                            scaleY = pressScale
+                        }
                         .liquidGlassCard(
                             active = isCurrentlyActive,
                             accentBorder = if (isCurrentlyActive) ConnectGreen else null,
                         )
                         .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
+                            interactionSource = interactionSource,
                             indication = null,
                             enabled = isOnline && !isCurrentlyActive && !isConnecting,
                         ) {

@@ -87,6 +87,9 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.util.VelocityTracker
+
 internal val DRAWER_SHAPE = RoundedCornerShape(24.dp)
 
 /**
@@ -124,7 +127,10 @@ fun PlayerDrawer(
     var height by remember { mutableIntStateOf(0) }
     val offset by animateFloatAsState(
         targetValue = drag,
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
         label = "playerDrawerOffset",
     )
     val scrimAlpha = if (height > 0) (1f - offset / height).coerceIn(0f, 1f) else 1f
@@ -132,8 +138,10 @@ fun PlayerDrawer(
     var shown by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { shown = true }
 
-    val dismissOnRelease: () -> Unit = {
-        if (height > 0 && drag > height * DISMISS_DRAG_FRACTION) onDismiss() else drag = 0f
+    val dismissOnRelease: (Float) -> Unit = { velocityY ->
+        val flingDismiss = velocityY > 600f && drag > 0f
+        val dragDismiss = height > 0 && drag > height * DISMISS_DRAG_FRACTION
+        if (flingDismiss || dragDismiss) onDismiss() else drag = 0f
     }
     val drawerScroll = remember {
         object : NestedScrollConnection {
@@ -156,7 +164,7 @@ fun PlayerDrawer(
 
             override suspend fun onPreFling(available: Velocity): Velocity {
                 if (drag <= 0f) return Velocity.Zero
-                dismissOnRelease()
+                dismissOnRelease(available.y)
                 return available
             }
 
@@ -180,12 +188,12 @@ fun PlayerDrawer(
             visible = shown,
             enter = scaleIn(
                 animationSpec = spring(
-                    dampingRatio = 0.82f,
+                    dampingRatio = Spring.DampingRatioNoBouncy,
                     stiffness = Spring.StiffnessMediumLow,
                 ),
                 initialScale = 0.94f,
             ) + fadeIn(tween(220, easing = FastOutSlowInEasing)),
-            exit = scaleOut(tween(180)) + fadeOut(tween(150)),
+            exit = scaleOut(tween(160, easing = FastOutSlowInEasing)) + fadeOut(tween(140)),
         ) {
             Box(
                 modifier = Modifier
@@ -193,7 +201,7 @@ fun PlayerDrawer(
                     .widthIn(max = DRAWER_MAX_WIDTH)
                     .fillMaxWidth()
                     .onSizeChanged { height = it.height }
-                    .offset { IntOffset(0, offset.roundToInt()) }
+                    .graphicsLayer { translationY = offset }
                     .shadow(
                         elevation = 24.dp,
                         shape = DRAWER_SHAPE,
@@ -215,10 +223,16 @@ fun PlayerDrawer(
                     )
                     .then(if (drawerFollowsListScroll) Modifier.nestedScroll(drawerScroll) else Modifier)
                     .pointerInput(height) {
+                        val velocityTracker = VelocityTracker()
                         detectVerticalDragGestures(
-                            onDragEnd = dismissOnRelease,
+                            onDragStart = { velocityTracker.resetTracking() },
+                            onDragEnd = {
+                                val velocityY = velocityTracker.calculateVelocity().y
+                                dismissOnRelease(velocityY)
+                            },
                             onDragCancel = { drag = 0f },
-                        ) { _, delta ->
+                        ) { change, delta ->
+                            velocityTracker.addPosition(change.uptimeMillis, change.position)
                             drag = (drag + delta).coerceAtLeast(0f)
                         }
                     }

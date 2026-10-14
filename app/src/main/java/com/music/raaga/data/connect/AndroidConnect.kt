@@ -3,20 +3,26 @@ package com.music.raaga.data.connect
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
+import com.music.raaga.data.MonotonicClock
 import com.music.raaga.data.model.Song
 import com.music.raaga.playback.toMediaItem
 import com.music.raaga.playback.toSong
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 
 /**
  * Singleton managing Raaga Connect lifecycle on the Android application.
- * Connects the Android MediaController to local Wi-Fi discovery and playback transfers.
+ * Connects the Android MediaController to local Wi-Fi discovery, 2PC playback transfers,
+ * and clock-synchronized handoffs.
  */
 object AndroidConnect {
     private val scope = CoroutineScope(Dispatchers.Main)
@@ -35,12 +41,16 @@ object AndroidConnect {
         positionMs = 0L,
         durationMs = 0L,
         volume = 1.0f,
+        playbackSpeed = 1.0f,
+        anchorMonotonicMs = 0L,
     )
 
     private val playerListener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) {
             updateStatusFromPlayer(player)
-            manager.broadcastLocalStatusToCloud()
+            if (manager.activeRemoteDevice.value == null) {
+                manager.broadcastLocalStatusToCloud()
+            }
         }
     }
 
@@ -79,6 +89,8 @@ object AndroidConnect {
             positionMs = player.currentPosition,
             durationMs = dur,
             volume = currentVolume,
+            playbackSpeed = player.playbackParameters.speed,
+            anchorMonotonicMs = MonotonicClock.nowMs(),
         )
     }
 
@@ -193,6 +205,103 @@ object AndroidConnect {
                 }
             }
         },
+        onHandoffPrepareRequested = { packet ->
+            val track = packet.track ?: return@RaagaConnectManager packet.copy(phase = HandoffPhase.ABORT, errorMessage = "No track in packet")
+            val c = controller ?: return@RaagaConnectManager packet.copy(phase = HandoffPhase.ABORT, errorMessage = "Controller not available")
+            val deferredReady = CompletableDeferred<ConnectHandoffPacket>()
+
+            mainHandler.post {
+                try {
+                    packet.volume?.let { v ->
+                        val ctx = appContext
+                        if (ctx != null) {
+                            val am = ctx.getSystemService(android.media.AudioManager::class.java)
+                            val max = am?.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC) ?: 15
+                            am?.setStreamVolume(
+                                android.media.AudioManager.STREAM_MUSIC,
+                                (v * max).toInt().coerceIn(0, max),
+                                0,
+                            )
+                        }
+                    }
+                    val currentSong = Song(
+                        videoId = track.videoId,
+                        title = track.title,
+                        artist = track.artist,
+                        thumbnailUrl = track.thumbnailUrl,
+                        durationText = track.durationText,
+                        albumName = track.albumName,
+                    )
+                    val mediaItems = if (packet.queue.isNotEmpty()) {
+                        packet.queue.map { t ->
+                            Song(
+                                videoId = t.videoId,
+                                title = t.title,
+                                artist = t.artist,
+                                thumbnailUrl = t.thumbnailUrl,
+                                durationText = t.durationText,
+                                albumName = t.albumName,
+                            ).toMediaItem()
+                        }
+                    } else {
+                        listOf(currentSong.toMediaItem())
+                    }
+                    val startIdx = if (packet.queue.isNotEmpty()) {
+                        val foundIdx = packet.queue.indexOfFirst { it.videoId == track.videoId }
+                        if (foundIdx >= 0) foundIdx else packet.queueIndex.coerceIn(mediaItems.indices)
+                    } else 0
+
+                    c.playWhenReady = false // Pre-buffer without emitting audio
+                    c.setMediaItems(mediaItems, startIdx, packet.positionMs)
+                    c.prepare()
+
+                    if (c.playbackState == Player.STATE_READY) {
+                        val bufMs = (c.bufferedPosition - c.currentPosition).coerceAtLeast(0L)
+                        deferredReady.complete(packet.copy(phase = HandoffPhase.READY, bufferReadyDurationMs = bufMs.coerceAtLeast(1000L)))
+                    } else {
+                        val listener = object : Player.Listener {
+                            override fun onPlaybackStateChanged(state: Int) {
+                                if (state == Player.STATE_READY) {
+                                    c.removeListener(this)
+                                    val bufMs = (c.bufferedPosition - c.currentPosition).coerceAtLeast(0L)
+                                    deferredReady.complete(packet.copy(phase = HandoffPhase.READY, bufferReadyDurationMs = bufMs.coerceAtLeast(1000L)))
+                                }
+                            }
+                        }
+                        c.addListener(listener)
+                    }
+                } catch (e: Exception) {
+                    deferredReady.complete(packet.copy(phase = HandoffPhase.ABORT, errorMessage = e.message))
+                }
+            }
+
+            withTimeoutOrNull(4500) { deferredReady.await() }
+                ?: packet.copy(phase = HandoffPhase.ABORT, errorMessage = "Buffering timed out")
+        },
+        onHandoffCommitRequested = { packet ->
+            val c = controller ?: return@RaagaConnectManager packet.copy(phase = HandoffPhase.ABORT, errorMessage = "Controller not available")
+            val scheduledAt = packet.scheduledStartEpochMs
+            if (scheduledAt != null) {
+                val waitMs = (scheduledAt - MonotonicClock.nowMs()).coerceAtLeast(0L)
+                if (waitMs > 0L) {
+                    delay(waitMs)
+                }
+            }
+            mainHandler.post {
+                c.playWhenReady = packet.isPlaying
+                if (packet.isPlaying) {
+                    c.play()
+                } else {
+                    c.pause()
+                }
+            }
+            packet.copy(phase = HandoffPhase.CONFIRMED)
+        },
+        onHandoffAbortRequested = {
+            mainHandler.post {
+                controller?.stop()
+            }
+        },
         onRemoteControlCommand = { cmd ->
             scope.launch {
                 val c = controller ?: return@launch
@@ -217,6 +326,11 @@ object AndroidConnect {
                         }
                     }
                     "SEEK" -> cmd.positionMs?.let { c.seekTo(it) }
+                    "SPEED" -> {
+                        cmd.playbackSpeed?.let { spd ->
+                            c.playbackParameters = PlaybackParameters(spd)
+                        }
+                    }
                     "VOLUME" -> {
                         cmd.volume?.let { v ->
                             try {
@@ -256,13 +370,8 @@ object AndroidConnect {
             }
         },
         onLocalPlaybackHandoffCompleted = {
-            scope.launch {
-                isHandoffPausing = true
-                try {
-                    controller?.pause()
-                } finally {
-                    isHandoffPausing = false
-                }
+            mainHandler.post {
+                controller?.pause()
             }
         },
         accountIdProvider = {

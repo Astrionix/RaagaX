@@ -100,6 +100,7 @@ object RaagaPairingStore {
     private const val KEY_SYNC_KEY = "connect_sync_key"
 
     fun getSyncKey(): String? {
+        if (_pairedDevices.value.isEmpty()) return null
         return prefs?.getString(KEY_SYNC_KEY, null)?.takeIf { it.isNotBlank() }
     }
 

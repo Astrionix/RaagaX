@@ -1,5 +1,6 @@
 package com.music.raaga.desktop
 
+import com.music.raaga.ui.components.LiquidGlassSegmentedControl
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -47,6 +48,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -512,8 +514,12 @@ internal fun ConnectDeviceContent(
                     .background(if (showPairingCard) ConnectGreen else ConnectGreen.copy(alpha = 0.16f))
                     .clickable {
                         showPairingCard = !showPairingCard
-                        if (showPairingCard && activePairCode == null) {
-                            connectManager.generatePairCode()
+                        if (showPairingCard) {
+                            if (pairTab == 0 && activePairCode == null) {
+                                connectManager.generatePairCode()
+                            }
+                        } else {
+                            connectManager.cancelPairCode()
                         }
                     }
                     .padding(horizontal = 10.dp, vertical = 5.dp),
@@ -550,51 +556,20 @@ internal fun ConnectDeviceContent(
                     .padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                // Switcher tabs
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.07f))
-                        .padding(3.dp),
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(CircleShape)
-                            .background(if (pairTab == 0) ConnectGreen else Color.Transparent)
-                            .clickable {
-                                pairTab = 0
-                                if (activePairCode == null) connectManager.generatePairCode()
-                            }
-                            .padding(vertical = 6.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = "Show Code",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (pairTab == 0) Color.Black else Color.White.copy(alpha = 0.7f),
-                        )
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(CircleShape)
-                            .background(if (pairTab == 1) ConnectGreen else Color.Transparent)
-                            .clickable { pairTab = 1 }
-                            .padding(vertical = 6.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = "Enter Code",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (pairTab == 1) Color.Black else Color.White.copy(alpha = 0.7f),
-                        )
-                    }
-                }
+                // Switcher tabs (Apple Music Liquid Glass)
+                LiquidGlassSegmentedControl(
+                    items = listOf("Show Code", "Enter Code"),
+                    selectedIndex = pairTab,
+                    onItemSelected = { index ->
+                        pairTab = index
+                        if (index == 0) {
+                            if (activePairCode == null) connectManager.generatePairCode()
+                        } else {
+                            connectManager.cancelPairCode()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
 
                 if (pairTab == 0) {
                     Column(

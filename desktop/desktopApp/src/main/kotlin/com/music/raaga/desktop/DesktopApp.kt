@@ -1,6 +1,9 @@
 package com.music.raaga.desktop
 
 import androidx.compose.foundation.lazy.LazyListState
+import com.music.raaga.ui.components.LiquidGlassSegmentedControl
+import com.music.raaga.ui.components.LiquidGlassVerticalSegmentedNavigation
+import com.music.raaga.ui.components.LiquidGlassNavItem
 import com.music.raaga.ui.components.LocalShelfRowChrome
 import com.music.raaga.ui.components.ShelfRowChrome
 import com.music.raaga.ui.components.ShelfRow
@@ -78,6 +81,7 @@ import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -123,6 +127,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
 import androidx.compose.material.icons.automirrored.rounded.VolumeDown
+import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.Album
@@ -194,6 +199,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -1684,25 +1690,13 @@ fun RaagaDesktopApp() {
         DesktopConnect.onPlaySong = { song, positionMs, isPlaying ->
             selectedSong = song
             liveQueue = DesktopQueue(listOf(song), 0)
-            playbackEngine.load(song, playWhenReady = isPlaying)
-            if (positionMs > 0) {
-                scope.launch {
-                    delay(200)
-                    playbackEngine.seekTo(positionMs)
-                }
-            }
+            playbackEngine.load(song, playWhenReady = isPlaying, startAtMs = positionMs)
         }
         DesktopConnect.onPlaySongsWithQueue = { songs, index, positionMs, isPlaying ->
             val cur = songs.getOrElse(index) { songs.first() }
             selectedSong = cur
             liveQueue = DesktopQueue(songs, index)
-            playbackEngine.load(cur, playWhenReady = isPlaying)
-            if (positionMs > 0) {
-                scope.launch {
-                    delay(200)
-                    playbackEngine.seekTo(positionMs)
-                }
-            }
+            playbackEngine.load(cur, playWhenReady = isPlaying, startAtMs = positionMs)
         }
         DesktopConnect.onNext = { playNext() }
         DesktopConnect.onPrevious = { playPrevious() }
@@ -3754,10 +3748,21 @@ fun RaagaDesktopApp() {
                         )
                     }
                 },
-            ) { contentPadding ->
+            ) { rawContentPadding ->
+                val sidePanelActive = overlays.sidePanel != null && (effectiveSong != null || overlays.sidePanel == DesktopSidePanel.CONNECT)
+                val panelEndMargin = if (sidePanelActive) 18.dp else 0.dp
+                val contentPadding = PaddingValues(
+                    start = rawContentPadding.calculateStartPadding(androidx.compose.ui.unit.LayoutDirection.Ltr),
+                    top = rawContentPadding.calculateTopPadding(),
+                    end = panelEndMargin,
+                    bottom = rawContentPadding.calculateBottomPadding(),
+                )
                 // Desktop pages start at the same top edge as Library. Only preserve space for the
-                // floating player/navigation bar at the bottom in compact windows.
-                val sharedPagePadding = PaddingValues(bottom = contentPadding.calculateBottomPadding())
+                // floating player/navigation bar at the bottom in compact windows, and add breathing room when side panel is open.
+                val sharedPagePadding = PaddingValues(
+                    end = panelEndMargin,
+                    bottom = rawContentPadding.calculateBottomPadding(),
+                )
                 CompositionLocalProvider(
                     LocalPullToRefreshEnabled provides false,
                     LocalShelfRowChrome provides DesktopShelfRowChrome,
@@ -4887,34 +4892,83 @@ private fun DesktopTopBar(
                         ),
                     )
 
-                    // Volume Capsule
+                    // Volume Capsule with Fluid Inflation & Morphing Speaker
+                    val volInteraction = remember { MutableInteractionSource() }
+                    val volHovered by volInteraction.collectIsHoveredAsState()
+                    val animatedSliderWidth by animateDpAsState(
+                        targetValue = if (volHovered) 104.dp else 72.dp,
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioNoBouncy,
+                            stiffness = Spring.StiffnessMediumLow,
+                        ),
+                        label = "volSliderWidth",
+                    )
+                    var lastNonZeroVolume by remember { mutableFloatStateOf(0.7f) }
+                    if (volume > 0f) {
+                        lastNonZeroVolume = volume
+                    }
+                    val speakerInteraction = remember { MutableInteractionSource() }
+                    val isSpeakerPressed by speakerInteraction.collectIsPressedAsState()
+                    val speakerScale by animateFloatAsState(
+                        targetValue = if (isSpeakerPressed) 0.84f else 1f,
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioNoBouncy,
+                            stiffness = Spring.StiffnessMediumLow,
+                        ),
+                        label = "speakerScale",
+                    )
+
                     Row(
                         modifier = Modifier
                             .shadow(4.dp, utilityShape, spotColor = Color.Black.copy(alpha = 0.20f))
                             .clip(utilityShape)
+                            .hoverable(volInteraction)
                             .background(utilitySheen)
                             .border(1.dp, utilityRim, utilityShape)
                             .padding(horizontal = 10.dp, vertical = 5.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        val volIcon = if (volume < 0.5f) {
-                            Icons.AutoMirrored.Rounded.VolumeDown
-                        } else {
-                            Icons.AutoMirrored.Rounded.VolumeUp
+                        val volIcon = when {
+                            volume <= 0.001f -> Icons.AutoMirrored.Rounded.VolumeOff
+                            volume < 0.5f -> Icons.AutoMirrored.Rounded.VolumeDown
+                            else -> Icons.AutoMirrored.Rounded.VolumeUp
                         }
-                        Icon(
-                            volIcon,
-                            DesktopStrings["d_volume", "Volume"],
-                            tint = Color.White.copy(alpha = 0.70f),
-                            modifier = Modifier.size(16.dp),
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(20.dp)
+                                .graphicsLayer {
+                                    scaleX = speakerScale
+                                    scaleY = speakerScale
+                                }
+                                .clip(CircleShape)
+                                .clickable(
+                                    interactionSource = speakerInteraction,
+                                    indication = null,
+                                    onClick = {
+                                        if (volume > 0f) {
+                                            lastNonZeroVolume = volume
+                                            onVolumeChange(0f)
+                                        } else {
+                                            onVolumeChange(if (lastNonZeroVolume > 0f) lastNonZeroVolume else 0.7f)
+                                        }
+                                    },
+                                ),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                volIcon,
+                                DesktopStrings["d_volume", "Volume"],
+                                tint = Color.White.copy(alpha = if (volume <= 0.001f) 0.45f else 0.75f),
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
                         Spacer(Modifier.width(7.dp))
                         DesktopThinSlider(
                             value = volume,
                             onValueChange = onVolumeChange,
                             idleHeight = 4.dp,
                             activeHeight = 7.dp,
-                            modifier = Modifier.width(72.dp),
+                            modifier = Modifier.width(animatedSliderWidth),
                         )
                     }
 
@@ -5252,22 +5306,57 @@ private fun DesktopSidebar(
                         focusRequester = searchFocusRequester,
                         onFocusChanged = { searchFocused = it },
                     )
-                    Spacer(Modifier.height(14.dp))
-                    DesktopSidebarItem(RaagaIcons.Home, DesktopStrings["home", "Home"], destination == DesktopDestination.LISTEN_NOW) {
-                        onDestinationSelected(DesktopDestination.LISTEN_NOW)
-                    }
-                    Spacer(Modifier.height(3.dp))
-                    DesktopSidebarItem(RaagaIcons.Explore, "Explore", destination == DesktopDestination.EXPLORE) {
-                        onDestinationSelected(DesktopDestination.EXPLORE)
-                    }
-                    Spacer(Modifier.height(3.dp))
-                    DesktopSidebarItem(RaagaIcons.Library, "Library", destination == DesktopDestination.LIBRARY) {
-                        onDestinationSelected(DesktopDestination.LIBRARY)
-                    }
-                    Spacer(Modifier.height(3.dp))
-                    DesktopSidebarItem(RaagaIcons.Search, "Search", destination == DesktopDestination.SEARCH) {
-                        onDestinationSelected(DesktopDestination.SEARCH)
-                    }
+                    Spacer(Modifier.height(10.dp))
+                    val isLibraryScope = destination == DesktopDestination.LIBRARY ||
+                        destination == DesktopDestination.HISTORY ||
+                        destination == DesktopDestination.DOWNLOADS ||
+                        destination == DesktopDestination.LOCAL_MUSIC ||
+                        openedCollectionId != null
+                    LiquidGlassSegmentedControl(
+                        items = listOf("Raaga", "Library"),
+                        selectedIndex = if (isLibraryScope) 1 else 0,
+                        onItemSelected = { index ->
+                            if (index == 0) {
+                                if (isLibraryScope) {
+                                    onDestinationSelected(DesktopDestination.LISTEN_NOW)
+                                }
+                            } else {
+                                if (!isLibraryScope) {
+                                    onDestinationSelected(DesktopDestination.LIBRARY)
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    LiquidGlassVerticalSegmentedNavigation(
+                        items = listOf(
+                            LiquidGlassNavItem(
+                                icon = RaagaIcons.Home,
+                                label = DesktopStrings["home", "Home"],
+                                selected = destination == DesktopDestination.LISTEN_NOW,
+                                onClick = { onDestinationSelected(DesktopDestination.LISTEN_NOW) },
+                            ),
+                            LiquidGlassNavItem(
+                                icon = RaagaIcons.Explore,
+                                label = "Explore",
+                                selected = destination == DesktopDestination.EXPLORE,
+                                onClick = { onDestinationSelected(DesktopDestination.EXPLORE) },
+                            ),
+                            LiquidGlassNavItem(
+                                icon = RaagaIcons.Library,
+                                label = "Library",
+                                selected = destination == DesktopDestination.LIBRARY,
+                                onClick = { onDestinationSelected(DesktopDestination.LIBRARY) },
+                            ),
+                            LiquidGlassNavItem(
+                                icon = RaagaIcons.Search,
+                                label = "Search",
+                                selected = destination == DesktopDestination.SEARCH,
+                                onClick = { onDestinationSelected(DesktopDestination.SEARCH) },
+                            ),
+                        ),
+                    )
                     Spacer(Modifier.height(8.dp))
                     HorizontalDivider(
                         color = Color.White.copy(alpha = 0.08f),
@@ -5363,26 +5452,40 @@ private fun DesktopSidebarItem(
     val itemShape = RoundedCornerShape(12.dp)
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
+    val isPressed by interaction.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (isPressed) 0.97f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
+        label = "sidebarItemPressScale",
+    )
     val hoverAlpha by animateFloatAsState(
         targetValue = if (hovered && !selected) 0.07f else 0f,
         animationSpec = tween(140),
         label = "sidebarHover",
     )
 
-    // Pure Water Droplet Meniscus: Crystal liquid body with 4-stop directional specular rim
-    val dropletFill = Brush.verticalGradient(
+    // Pure Apple Water Droplet Meniscus: Crystal liquid body with 4-stop directional specular rim
+    val activeCapsuleFill = Brush.verticalGradient(
         listOf(
-            Color.White.copy(alpha = 0.16f),
-            Color.White.copy(alpha = 0.05f),
-            Color.White.copy(alpha = 0.08f),
+            Color.White.copy(alpha = 0.16f), // top surface tension
+            Color.White.copy(alpha = 0.04f), // crystal clear water center
+            Color.White.copy(alpha = 0.09f), // bottom refraction
         ),
     )
-    val dropletRim = Brush.verticalGradient(
+    val activeCapsuleSheen = Brush.verticalGradient(
+        0.0f to Color.White.copy(alpha = 0.38f),
+        0.42f to Color.White.copy(alpha = 0.05f),
+        1.0f to Color.Transparent,
+    )
+    val activeCapsuleBorder = Brush.verticalGradient(
         listOf(
-            Color.White.copy(alpha = 0.85f),
-            Color.White.copy(alpha = 0.26f),
+            Color.White.copy(alpha = 0.90f), // razor sharp meniscus crest reflection
+            Color.White.copy(alpha = 0.35f),
             Color.White.copy(alpha = 0.06f),
-            Color.White.copy(alpha = 0.20f),
+            Color.White.copy(alpha = 0.22f), // bottom internal refraction
         ),
     )
 
@@ -5390,12 +5493,16 @@ private fun DesktopSidebarItem(
         Modifier
             .fillMaxWidth()
             .heightIn(min = 40.dp)
+            .graphicsLayer {
+                scaleX = pressScale
+                scaleY = pressScale
+            }
             .then(
                 if (selected) {
                     Modifier.shadow(
-                        elevation = 4.dp,
+                        elevation = 3.dp,
                         shape = itemShape,
-                        spotColor = Color.Black.copy(alpha = 0.30f),
+                        spotColor = Color.Black.copy(alpha = 0.14f),
                         ambientColor = Color.Transparent,
                     )
                 } else {
@@ -5407,8 +5514,9 @@ private fun DesktopSidebarItem(
             .then(
                 if (selected) {
                     Modifier
-                        .background(dropletFill)
-                        .border(1.dp, dropletRim, itemShape)
+                        .background(activeCapsuleFill)
+                        .background(activeCapsuleSheen)
+                        .border(1.dp, activeCapsuleBorder, itemShape)
                 } else if (hoverAlpha > 0.001f) {
                     Modifier
                         .background(Color.White.copy(alpha = hoverAlpha))
@@ -5707,6 +5815,7 @@ private fun DesktopFrame(
                                     Modifier
                                         .weight(1f)
                                         .fillMaxHeight()
+                                        .clipToBounds()
                                         .then(
                                             if (glass && !materialBehindApp) {
                                                 Modifier.background(containerColor)

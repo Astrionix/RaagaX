@@ -30,6 +30,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -617,6 +618,16 @@ internal fun CircleGlyph(
     haptic: Haptic = Haptic.Tap,
 ) {
     val haptics = rememberHaptics()
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (isPressed) 0.90f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
+        label = "circleGlyphPressScale",
+    )
     val discAlpha by animateFloatAsState(
         targetValue = if (active) 0.34f else 0.18f,
         label = "glyphDisc",
@@ -624,10 +635,14 @@ internal fun CircleGlyph(
     Box(
         modifier = Modifier
             .size(34.dp)
+            .graphicsLayer {
+                scaleX = pressScale
+                scaleY = pressScale
+            }
             .clip(CircleShape)
             .background(Color.White.copy(alpha = discAlpha))
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = interactionSource,
                 indication = null,
             ) {
                 haptics.play(haptic)
@@ -668,6 +683,16 @@ private fun TransportGlyph(
     heightScale: Float = 1f,
 ) {
     val haptics = rememberHaptics()
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (isPressed && enabled) 0.88f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
+        label = "transportPressScale",
+    )
     // Faded rather than hidden: the row keeps its shape at the ends of a queue.
     val alpha by animateFloatAsState(
         targetValue = if (enabled) 1f else 0.3f,
@@ -676,8 +701,12 @@ private fun TransportGlyph(
     Box(
         modifier = Modifier
             .size(touchSize)
+            .graphicsLayer {
+                scaleX = pressScale
+                scaleY = pressScale
+            }
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = interactionSource,
                 indication = null,
                 enabled = enabled,
             ) {
@@ -892,6 +921,16 @@ private fun PillSegment(
 ) {
     val haptics = rememberHaptics()
     val lastTap = remember { mutableLongStateOf(-tapWindowMs) }
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (isPressed && !loading) 0.92f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
+        label = "pillSegmentPressScale",
+    )
     val segmentBackground = remember(highlighted) {
         if (highlighted) {
             Brush.verticalGradient(
@@ -908,6 +947,10 @@ private fun PillSegment(
         modifier = Modifier
             .width(width)
             .height(BOTTOM_ACTION_SIZE)
+            .graphicsLayer {
+                scaleX = pressScale
+                scaleY = pressScale
+            }
             .then(
                 if (segmentBackground != null) {
                     Modifier.background(segmentBackground)
@@ -916,7 +959,7 @@ private fun PillSegment(
                 }
             )
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = interactionSource,
                 indication = null,
                 enabled = !loading,
             ) {

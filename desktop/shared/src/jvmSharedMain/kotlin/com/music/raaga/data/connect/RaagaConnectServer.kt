@@ -1,5 +1,6 @@
 package com.music.raaga.data.connect
 
+import com.music.raaga.data.MonotonicClock
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -7,6 +8,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.BufferedReader
@@ -15,15 +17,22 @@ import java.io.OutputStreamWriter
 import java.net.ServerSocket
 import java.net.Socket
 import java.nio.charset.StandardCharsets
+import java.util.Collections
+import java.util.LinkedHashMap
 
 /**
- * Embedded HTTP server for Raaga Connect receiver on the local network.
- * Handles incoming playback transfer requests and remote control commands.
+ * Embedded HTTP server for Raaga Connect receiver on local network.
+ * Handles incoming playback transfer requests, Two-Phase Commit handoffs,
+ * monotonic clock calibration, authentication verification, and deduplicated control.
  */
 class RaagaConnectServer(
     private val getStatus: () -> ConnectDeviceStatus,
     private val onTransfer: (ConnectPlaybackTransfer) -> Unit,
     private val onControl: (ConnectControlCommand) -> Unit,
+    private val onHandoffPrepare: (suspend (ConnectHandoffPacket) -> ConnectHandoffPacket)? = null,
+    private val onHandoffCommit: (suspend (ConnectHandoffPacket) -> ConnectHandoffPacket)? = null,
+    private val onHandoffAbort: ((ConnectHandoffPacket) -> Unit)? = null,
+    private val onPair: ((ConnectPairRequest) -> ConnectPairResponse)? = null,
     private val preferredPort: Int = 8895,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -35,6 +44,15 @@ class RaagaConnectServer(
 
     private var serverSocket: ServerSocket? = null
     private var acceptJob: Job? = null
+
+    // LRU deduplication cache for recent command IDs (capacity 64)
+    private val processedCommandIds = Collections.newSetFromMap(
+        Collections.synchronizedMap(
+            object : LinkedHashMap<String, Boolean>(64, 0.75f, true) {
+                override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Boolean>?): Boolean = size > 64
+            }
+        )
+    )
 
     val port: Int get() = serverSocket?.localPort ?: preferredPort
     val isRunning: Boolean get() = serverSocket?.isClosed == false && acceptJob?.isActive == true
@@ -79,9 +97,31 @@ class RaagaConnectServer(
         serverSocket = null
     }
 
+    private fun isAuthorized(senderDeviceId: String, syncKey: String?, isLocalLan: Boolean = false): Boolean {
+        if (isLocalLan) {
+            return true
+        }
+        val pairedList = RaagaPairingStore.pairedDevices.value
+        val localSyncKey = RaagaPairingStore.getSyncKey()
+        // If this device has no pairing key or paired devices set up yet, allow initial pairing/handshake
+        if (pairedList.isEmpty() && localSyncKey.isNullOrBlank()) {
+            return true
+        }
+        // 1. Direct device pairing check
+        if (senderDeviceId.isNotBlank() && RaagaPairingStore.isPaired(senderDeviceId)) {
+            return true
+        }
+        // 2. Shared sync key check
+        if (!localSyncKey.isNullOrBlank() && !syncKey.isNullOrBlank() && localSyncKey == syncKey) {
+            return true
+        }
+        return false
+    }
+
     private fun handleClient(socket: Socket) {
         socket.use { s ->
-            s.soTimeout = 5000
+            s.soTimeout = 6000
+            val isLocalLan = s.inetAddress?.let { it.isSiteLocalAddress || it.isLoopbackAddress } ?: false
             val reader = BufferedReader(InputStreamReader(s.getInputStream(), StandardCharsets.UTF_8))
             val writer = OutputStreamWriter(s.getOutputStream(), StandardCharsets.UTF_8)
 
@@ -92,14 +132,20 @@ class RaagaConnectServer(
             val method = parts[0].uppercase()
             val path = parts[1]
 
-            // Read headers to determine Content-Length
+            // Read headers to determine Content-Length, Sender Device ID, and Sync Key
             var contentLength = 0
+            var senderDeviceId = ""
+            var headerSyncKey = ""
             var line: String?
             while (reader.readLine().also { line = it } != null) {
                 if (line.isNullOrBlank()) break
                 val header = line!!
                 if (header.startsWith("Content-Length:", ignoreCase = true)) {
                     contentLength = header.substringAfter(":").trim().toIntOrNull() ?: 0
+                } else if (header.startsWith("X-Raaga-Device-Id:", ignoreCase = true)) {
+                    senderDeviceId = header.substringAfter(":").trim()
+                } else if (header.startsWith("X-Raaga-Sync-Key:", ignoreCase = true)) {
+                    headerSyncKey = header.substringAfter(":").trim()
                 }
             }
 
@@ -122,9 +168,130 @@ class RaagaConnectServer(
                     writeResponse(writer, 200, "OK", jsonStr)
                 }
 
+                method == "POST" && path.startsWith("/raaga-connect/time-sync") -> {
+                    try {
+                        val req = json.decodeFromString<ConnectClockSyncRequest>(body)
+                        val recvMs = MonotonicClock.nowMs()
+                        val sendMs = MonotonicClock.nowMs()
+                        val resp = ConnectClockSyncResponse(
+                            clientSendMs = req.clientSendMs,
+                            serverReceiveMs = recvMs,
+                            serverTransmitMs = sendMs,
+                        )
+                        writeResponse(writer, 200, "OK", json.encodeToString(resp))
+                    } catch (e: Exception) {
+                        writeResponse(writer, 400, "Bad Request", """{"error":"${e.message}"}""")
+                    }
+                }
+
+                method == "POST" && path.startsWith("/raaga-connect/pair") -> {
+                    try {
+                        val req = json.decodeFromString<ConnectPairRequest>(body)
+                        val resp = onPair?.invoke(req)
+                        if (resp != null) {
+                            writeResponse(writer, 200, "OK", json.encodeToString(resp))
+                        } else {
+                            writeResponse(writer, 400, "Bad Request", """{"success":false,"message":"Pairing handler not available"}""")
+                        }
+                    } catch (e: Exception) {
+                        writeResponse(writer, 400, "Bad Request", """{"error":"${e.message}"}""")
+                    }
+                }
+
+                method == "POST" && path.startsWith("/raaga-connect/handoff/prepare") -> {
+                    try {
+                        val packet = json.decodeFromString<ConnectHandoffPacket>(body)
+                        val effectiveSenderId = senderDeviceId.ifBlank { packet.sourceDeviceId }
+                        val effectiveSyncKey = headerSyncKey.ifBlank { packet.syncKey ?: "" }
+                        if (!isAuthorized(effectiveSenderId, effectiveSyncKey, isLocalLan)) {
+                            writeResponse(writer, 401, "Unauthorized", """{"error":"Unauthorized device"}""")
+                            return
+                        }
+                        if (packet.sourceDeviceId.isNotBlank()) {
+                            RaagaPairingStore.addPairedDevice(
+                                PairedDevice(
+                                    id = packet.sourceDeviceId,
+                                    name = packet.sourceDeviceName.ifBlank { "Remote Device" },
+                                    type = if (packet.sourceDeviceName.contains("PC", ignoreCase = true) || packet.sourceDeviceName.contains("Desktop", ignoreCase = true)) ConnectDeviceType.DESKTOP else ConnectDeviceType.PHONE,
+                                    pairedAt = System.currentTimeMillis(),
+                                )
+                            )
+                        }
+
+                        val result = if (onHandoffPrepare != null) {
+                            runBlocking { onHandoffPrepare.invoke(packet) }
+                        } else {
+                            packet.copy(phase = HandoffPhase.READY, bufferReadyDurationMs = 1500L)
+                        }
+                        val statusCode = if (result.phase == HandoffPhase.READY) 200 else 400
+                        writeResponse(writer, statusCode, if (statusCode == 200) "OK" else "Bad Request", json.encodeToString(result))
+                    } catch (e: Exception) {
+                        writeResponse(writer, 400, "Bad Request", """{"error":"${e.message}"}""")
+                    }
+                }
+
+                method == "POST" && path.startsWith("/raaga-connect/handoff/commit") -> {
+                    try {
+                        val packet = json.decodeFromString<ConnectHandoffPacket>(body)
+                        val effectiveSenderId = senderDeviceId.ifBlank { packet.sourceDeviceId }
+                        val effectiveSyncKey = headerSyncKey.ifBlank { packet.syncKey ?: "" }
+                        if (!isAuthorized(effectiveSenderId, effectiveSyncKey, isLocalLan)) {
+                            writeResponse(writer, 401, "Unauthorized", """{"error":"Unauthorized device"}""")
+                            return
+                        }
+                        if (packet.sourceDeviceId.isNotBlank()) {
+                            RaagaPairingStore.addPairedDevice(
+                                PairedDevice(
+                                    id = packet.sourceDeviceId,
+                                    name = packet.sourceDeviceName.ifBlank { "Remote Device" },
+                                    type = if (packet.sourceDeviceName.contains("PC", ignoreCase = true) || packet.sourceDeviceName.contains("Desktop", ignoreCase = true)) ConnectDeviceType.DESKTOP else ConnectDeviceType.PHONE,
+                                    pairedAt = System.currentTimeMillis(),
+                                )
+                            )
+                        }
+
+                        val result = if (onHandoffCommit != null) {
+                            runBlocking { onHandoffCommit.invoke(packet) }
+                        } else {
+                            packet.copy(phase = HandoffPhase.CONFIRMED)
+                        }
+                        val statusCode = if (result.phase == HandoffPhase.CONFIRMED) 200 else 400
+                        writeResponse(writer, statusCode, if (statusCode == 200) "OK" else "Bad Request", json.encodeToString(result))
+                    } catch (e: Exception) {
+                        writeResponse(writer, 400, "Bad Request", """{"error":"${e.message}"}""")
+                    }
+                }
+
+                method == "POST" && path.startsWith("/raaga-connect/handoff/abort") -> {
+                    try {
+                        val packet = json.decodeFromString<ConnectHandoffPacket>(body)
+                        onHandoffAbort?.invoke(packet)
+                        writeResponse(writer, 200, "OK", """{"success":true}""")
+                    } catch (e: Exception) {
+                        writeResponse(writer, 400, "Bad Request", """{"error":"${e.message}"}""")
+                    }
+                }
+
                 method == "POST" && path.startsWith("/raaga-connect/transfer") -> {
                     try {
                         val payload = json.decodeFromString<ConnectPlaybackTransfer>(body)
+                        val effectiveSenderId = senderDeviceId.ifBlank { payload.sourceDeviceId }
+                        val effectiveSyncKey = headerSyncKey.ifBlank { payload.syncKey ?: "" }
+                        if (!isAuthorized(effectiveSenderId, effectiveSyncKey, isLocalLan)) {
+                            writeResponse(writer, 401, "Unauthorized", """{"error":"Unauthorized device"}""")
+                            return
+                        }
+                        if (payload.sourceDeviceId.isNotBlank()) {
+                            RaagaPairingStore.addPairedDevice(
+                                PairedDevice(
+                                    id = payload.sourceDeviceId,
+                                    name = payload.sourceDeviceName.ifBlank { "Remote Device" },
+                                    type = if (payload.sourceDeviceName.contains("PC", ignoreCase = true) || payload.sourceDeviceName.contains("Desktop", ignoreCase = true)) ConnectDeviceType.DESKTOP else ConnectDeviceType.PHONE,
+                                    pairedAt = System.currentTimeMillis(),
+                                )
+                            )
+                        }
+
                         onTransfer(payload)
                         writeResponse(writer, 200, "OK", """{"success":true}""")
                     } catch (e: Exception) {
@@ -135,8 +302,20 @@ class RaagaConnectServer(
                 method == "POST" && path.startsWith("/raaga-connect/control") -> {
                     try {
                         val payload = json.decodeFromString<ConnectControlCommand>(body)
-                        onControl(payload)
-                        writeResponse(writer, 200, "OK", """{"success":true}""")
+                        val effectiveSenderId = senderDeviceId.ifBlank { payload.senderDeviceId }
+                        val effectiveSyncKey = headerSyncKey.ifBlank { payload.syncKey ?: "" }
+                        if (!isAuthorized(effectiveSenderId, effectiveSyncKey, isLocalLan)) {
+                            writeResponse(writer, 401, "Unauthorized", """{"error":"Unauthorized device"}""")
+                            return
+                        }
+
+                        if (payload.commandId.isNotBlank() && !processedCommandIds.add(payload.commandId)) {
+                            // Idempotent duplicate: ack without re-executing
+                            writeResponse(writer, 200, "OK", """{"success":true,"deduplicated":true}""")
+                        } else {
+                            onControl(payload)
+                            writeResponse(writer, 200, "OK", """{"success":true}""")
+                        }
                     } catch (e: Exception) {
                         writeResponse(writer, 400, "Bad Request", """{"error":"${e.message}"}""")
                     }

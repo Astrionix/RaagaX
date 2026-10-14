@@ -4,15 +4,23 @@ import com.music.raaga.sharedui.resources.*
 import com.music.raaga.ui.components.ExplicitSongTitle
 
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.shadow
 import kotlin.math.abs
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -703,22 +711,59 @@ private fun InlineQueueRow(
     onDrag: (Float) -> Unit = {},
     onDragEnd: () -> Unit = {},
 ) {
+    val removeInteractionSource = remember { MutableInteractionSource() }
+    val isRemovePressed by removeInteractionSource.collectIsPressedAsState()
+    val removeScale by animateFloatAsState(
+        targetValue = if (isRemovePressed) 0.82f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
+        label = "queueRemoveScale",
+    )
+
+    val liftScale by animateFloatAsState(
+        targetValue = if (lifted) 1.03f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
+        label = "queueLiftScale",
+    )
+
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .background(if (lifted) Color.White.copy(alpha = 0.06f) else Color.Transparent)
-            // Disabled rather than ignored: a tap that ripples and then does
-            // nothing reads as the app having missed it.
-            .clickable(enabled = !locked, onClick = onClick)
-            .padding(vertical = 6.dp),
+            .graphicsLayer {
+                scaleX = liftScale
+                scaleY = liftScale
+            }
+            .then(
+                if (lifted) {
+                    Modifier
+                        .shadow(
+                            elevation = 16.dp,
+                            shape = RoundedCornerShape(12.dp),
+                            spotColor = Color.Black.copy(alpha = 0.5f),
+                        )
+                        .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(12.dp))
+                        .background(Color(0xFF1E222D).copy(alpha = 0.95f), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                } else {
+                    Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color.Transparent)
+                        .clickable(enabled = !locked, onClick = onClick)
+                        .padding(vertical = 6.dp)
+                }
+            ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (draggable) {
             Icon(
                 Icons.Rounded.DragHandle,
                 contentDescription = stringResource(Res.string.drag_to_reorder),
-                tint = Color.White.copy(alpha = 0.4f),
+                tint = Color.White.copy(alpha = if (lifted) 0.8f else 0.4f),
                 modifier = Modifier
                     .size(20.dp)
                     // The glyph sits well inset in its own box; this pulls it
@@ -775,14 +820,23 @@ private fun InlineQueueRow(
             Box(
                 modifier = Modifier
                     .size(32.dp)
+                    .graphicsLayer {
+                        scaleX = removeScale
+                        scaleY = removeScale
+                    }
                     .clip(CircleShape)
-                    .clickable(onClick = onRemove),
+                    .background(Color.White.copy(alpha = if (isRemovePressed) 0.16f else 0f))
+                    .clickable(
+                        interactionSource = removeInteractionSource,
+                        indication = null,
+                        onClick = onRemove,
+                    ),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     Icons.Rounded.Close,
                     contentDescription = stringResource(Res.string.remove_from_queue),
-                    tint = Color.White.copy(alpha = 0.55f),
+                    tint = Color.White.copy(alpha = if (isRemovePressed) 0.95f else 0.55f),
                     modifier = Modifier.size(18.dp),
                 )
             }

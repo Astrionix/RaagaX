@@ -1,6 +1,7 @@
 package com.music.raaga.ui.player
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -13,6 +14,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -179,8 +181,10 @@ internal fun PlayerDrawer(
     // behaves — and pushing back up returns it before the list scrolls again.
     // Everything left over is kept here rather than handed on to the player's
     // sheet, which would otherwise be dragged down along with the drawer.
-    val dismissOnRelease: () -> Unit = {
-        if (height > 0 && drag > height * DISMISS_DRAG_FRACTION) onDismiss() else drag = 0f
+    val dismissOnRelease: (Float) -> Unit = { velocityY ->
+        val flingDismiss = velocityY > 600f && drag > 0f
+        val dragDismiss = height > 0 && drag > height * DISMISS_DRAG_FRACTION
+        if (flingDismiss || dragDismiss) onDismiss() else drag = 0f
     }
     val drawerScroll = remember {
         object : NestedScrollConnection {
@@ -198,7 +202,7 @@ internal fun PlayerDrawer(
 
             override suspend fun onPreFling(available: Velocity): Velocity {
                 if (drag <= 0f) return Velocity.Zero
-                dismissOnRelease()
+                dismissOnRelease(available.y)
                 return available
             }
 
@@ -220,8 +224,18 @@ internal fun PlayerDrawer(
     ) {
         AnimatedVisibility(
             visible = shown,
-            enter = slideInVertically(tween(260, easing = FastOutSlowInEasing)) { it },
-            exit = slideOutVertically(tween(180)) { it },
+            enter = slideInVertically(
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    stiffness = Spring.StiffnessMediumLow,
+                )
+            ) { it },
+            exit = slideOutVertically(
+                animationSpec = tween(
+                    durationMillis = 200,
+                    easing = CubicBezierEasing(0.32f, 0.72f, 0f, 1f),
+                )
+            ) { it },
         ) {
         Column(
             modifier = Modifier
@@ -285,10 +299,16 @@ internal fun PlayerDrawer(
                 // nothing above the drawer to reveal.
                 .nestedScroll(drawerScroll)
                 .pointerInput(height) {
+                    val velocityTracker = VelocityTracker()
                     detectVerticalDragGestures(
-                        onDragEnd = dismissOnRelease,
+                        onDragStart = { velocityTracker.resetTracking() },
+                        onDragEnd = {
+                            val velocityY = velocityTracker.calculateVelocity().y
+                            dismissOnRelease(velocityY)
+                        },
                         onDragCancel = { drag = 0f },
-                    ) { _, delta ->
+                    ) { change, delta ->
+                        velocityTracker.addPosition(change.uptimeMillis, change.position)
                         drag = (drag + delta).coerceAtLeast(0f)
                     }
                 }

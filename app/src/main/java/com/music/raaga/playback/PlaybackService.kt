@@ -1211,7 +1211,14 @@ class PlaybackService : MediaLibraryService() {
                 com.music.raaga.data.connect.AndroidConnect.manager.remoteStatus,
             ) { remote, status ->
                 Pair(remote, status)
-            }.collectLatest {
+            }.collectLatest { (remote, _) ->
+                if (remote != null) {
+                    player?.let { p ->
+                        if (p.playWhenReady) {
+                            p.playWhenReady = false
+                        }
+                    }
+                }
                 activeSessionPlayer?.notifyRemoteStateChanged()
                 refreshCustomLayouts()
                 publishWidgetState()
@@ -6694,13 +6701,8 @@ class PlaybackService : MediaLibraryService() {
         }
 
         override fun setPlayWhenReady(playWhenReady: Boolean) {
-            if (com.music.raaga.data.connect.AndroidConnect.isHandoffPausing) {
-                super.setPlayWhenReady(playWhenReady)
-                return
-            }
             if (isRemoteConnected()) {
-                if (playWhenReady) com.music.raaga.data.connect.AndroidConnect.manager.sendPlay()
-                else com.music.raaga.data.connect.AndroidConnect.manager.sendPause()
+                super.setPlayWhenReady(playWhenReady)
                 return
             }
             if (lockedTransport(playWhenReady)) return

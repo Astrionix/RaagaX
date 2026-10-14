@@ -65,7 +65,10 @@ object RaagaPairingStore {
     private const val KEY_CUSTOM_DEVICE_NAME = "custom_device_name"
     private const val KEY_SYNC_KEY = "connect_sync_key"
 
-    fun getSyncKey(): String? = prefs.get(KEY_SYNC_KEY, null)?.takeIf(String::isNotBlank)
+    fun getSyncKey(): String? {
+        if (_pairedDevices.value.isEmpty()) return null
+        return prefs.get(KEY_SYNC_KEY, null)?.takeIf(String::isNotBlank)
+    }
 
     @Synchronized
     fun saveSyncKey(key: String?) {

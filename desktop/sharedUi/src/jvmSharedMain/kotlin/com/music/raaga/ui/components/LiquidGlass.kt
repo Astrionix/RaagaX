@@ -1,5 +1,6 @@
 package com.music.raaga.ui.components
 
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
@@ -14,9 +15,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -204,18 +205,27 @@ fun Modifier.interactiveLiquidGlassCard(
 
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.985f else if (isHovered) 1.008f else 1.0f,
-        animationSpec = spring(stiffness = 500f, dampingRatio = 0.8f),
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
         label = "liquidCardScale",
     )
 
     val hoverAlpha by animateFloatAsState(
         targetValue = if (isHovered) 0.16f else 0.0f,
-        animationSpec = spring(stiffness = 400f),
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
         label = "liquidCardHoverAlpha",
     )
 
     return this
-        .scale(scale)
+        .graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+        }
         .clip(shape)
         .background(
             if (active) LiquidGlassTokens.CardSheenActive

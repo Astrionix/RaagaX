@@ -2,10 +2,22 @@ package com.music.raaga.ui.components
 
 import com.music.raaga.R
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationVector1D
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.platform.LocalDensity
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -30,12 +42,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -161,6 +176,66 @@ internal fun Modifier.miniPlayerTrackSwipe(
     }
 }
 
+/**
+ * Real-time 1:1 vertical drag-to-expand with velocity handoff, rubber-band
+ * resistance when pulled downward, and critically damped settle.
+ */
+@Composable
+internal fun Modifier.miniPlayerVerticalExpand(
+    onExpand: () -> Unit,
+    offsetY: Animatable<Float, AnimationVector1D>,
+): Modifier {
+    val coroutineScope = rememberCoroutineScope()
+    val currentOnExpand by rememberUpdatedState(onExpand)
+    val density = LocalDensity.current
+    val thresholdPx = with(density) { 36.dp.toPx() }
+
+    return pointerInput(Unit) {
+        val velocityTracker = VelocityTracker()
+        detectVerticalDragGestures(
+            onDragStart = { velocityTracker.resetTracking() },
+            onDragEnd = {
+                val velocityY = velocityTracker.calculateVelocity().y
+                val currentOffset = offsetY.value
+                coroutineScope.launch {
+                    if (currentOffset <= -thresholdPx || velocityY <= -350f) {
+                        currentOnExpand()
+                    }
+                    offsetY.animateTo(
+                        0f,
+                        spring(
+                            dampingRatio = Spring.DampingRatioNoBouncy,
+                            stiffness = Spring.StiffnessMediumLow,
+                        ),
+                    )
+                }
+            },
+            onDragCancel = {
+                coroutineScope.launch {
+                    offsetY.animateTo(
+                        0f,
+                        spring(
+                            dampingRatio = Spring.DampingRatioNoBouncy,
+                            stiffness = Spring.StiffnessMediumLow,
+                        ),
+                    )
+                }
+            },
+        ) { change, delta ->
+            velocityTracker.addPosition(change.uptimeMillis, change.position)
+            coroutineScope.launch {
+                val next = if (delta > 0f && offsetY.value >= 0f) {
+                    // Rubber-band resistance when pulling downwards
+                    offsetY.value + delta * 0.25f
+                } else {
+                    offsetY.value + delta
+                }
+                offsetY.snapTo(next.coerceIn(-140f, 40f))
+            }
+        }
+    }
+}
+
 /** Frosted mini player that rides just above the floating tab bar. */
 @OptIn(ExperimentalHazeMaterialsApi::class)
 @Composable
@@ -185,9 +260,33 @@ fun MiniPlayer(
     // a pill instead of a rounded rectangle. Same idiom as [FloatingBottomBar]
     // directly below it, so the two shapes are the same family.
     val shape = RoundedCornerShape(percent = 50)
+    val specularPillBorder = remember {
+        Brush.verticalGradient(
+            listOf(
+                Color.White.copy(alpha = 0.35f),
+                Color.White.copy(alpha = 0.08f),
+            )
+        )
+    }
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val pillScale by animateFloatAsState(
+        targetValue = if (isPressed) 0.98f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
+        label = "miniPlayerPressScale",
+    )
+    val dragOffsetY = remember { Animatable(0f) }
     Box(
         modifier = modifier
             .padding(horizontal = PAGE_GUTTER)
+            .graphicsLayer {
+                scaleX = pillScale
+                scaleY = pillScale
+                translationY = dragOffsetY.value
+            }
             .clip(shape)
             .then(
                 if (reduceDynamicBlur) {
@@ -199,11 +298,15 @@ fun MiniPlayer(
                     )
                 },
             )
-            .border(0.5.dp, Color.White.copy(alpha = 0.10f), shape)
+            .border(1.dp, specularPillBorder, shape)
             // Deliberately silent: the whole bar is the target, so it catches
             // stray taps meant for the page behind it, and the sheet rising is
             // its own confirmation. The glyphs on it still buzz.
-            .clickable(onClick = onExpand)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onExpand,
+            )
             .miniPlayerTrackSwipe(
                 onNext = {
                     haptics.play(Haptic.SkipNext)
@@ -215,6 +318,10 @@ fun MiniPlayer(
                 },
                 locked = controlsLocked,
                 onBlocked = onBlockedControl,
+            )
+            .miniPlayerVerticalExpand(
+                onExpand = onExpand,
+                offsetY = dragOffsetY,
             ),
     ) {
         Row(
@@ -282,12 +389,28 @@ fun MiniPlayer(
                     )
                 }
             } else {
+                val playInteractionSource = remember { MutableInteractionSource() }
+                val playPressed by playInteractionSource.collectIsPressedAsState()
+                val playScale by animateFloatAsState(
+                    targetValue = if (playPressed) 0.88f else 1f,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioNoBouncy,
+                        stiffness = Spring.StiffnessMediumLow,
+                    ),
+                    label = "miniPlayerPlayScale",
+                )
                 IconButton(
                     onClick = {
                         haptics.play(if (isPlaying) Haptic.Pause else Haptic.Resume)
                         onPlayPause()
                     },
-                    modifier = Modifier.size(GLYPH_SLOT),
+                    interactionSource = playInteractionSource,
+                    modifier = Modifier
+                        .size(GLYPH_SLOT)
+                        .graphicsLayer {
+                            scaleX = playScale
+                            scaleY = playScale
+                        },
                 ) {
                     Icon(
                         imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
@@ -300,13 +423,29 @@ fun MiniPlayer(
             Spacer(Modifier.width(TRANSPORT_GAP))
             // Faded and inert rather than removed while the host holds the
             // controls, so the bar keeps its shape — see [controlsLocked].
+            val nextInteractionSource = remember { MutableInteractionSource() }
+            val nextPressed by nextInteractionSource.collectIsPressedAsState()
+            val nextScale by animateFloatAsState(
+                targetValue = if (nextPressed && !controlsLocked) 0.88f else 1f,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    stiffness = Spring.StiffnessMediumLow,
+                ),
+                label = "miniPlayerNextScale",
+            )
             IconButton(
                 onClick = {
                     haptics.play(Haptic.SkipNext)
                     onNext()
                 },
+                interactionSource = nextInteractionSource,
                 enabled = !controlsLocked,
-                modifier = Modifier.size(GLYPH_SLOT),
+                modifier = Modifier
+                    .size(GLYPH_SLOT)
+                    .graphicsLayer {
+                        scaleX = nextScale
+                        scaleY = nextScale
+                    },
             ) {
                 Icon(
                     Icons.Rounded.SkipNext,

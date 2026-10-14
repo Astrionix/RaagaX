@@ -194,6 +194,8 @@ internal fun SocialJamSheet(
             }
             ConnectJamTab.FRIENDS -> {
                 FriendActivityTabContent(
+                    currentSong = currentSong,
+                    isPlaying = isPlaying,
                     onPlaySong = { song ->
                         onPlaySong(song)
                         onDismiss()

@@ -1,5 +1,7 @@
 package com.music.raaga.data.connect
 
+import com.music.raaga.data.MonotonicClock
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -11,16 +13,19 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.net.InetAddress
 import java.net.NetworkInterface
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Coordinates Raaga Connect functionality on Android:
- * - Local receiver server (LAN)
+ * - Local receiver server (LAN) with Two-Phase Commit and clock synchronization
  * - Wi-Fi device discovery (UDP)
- * - Supabase Cloud Realtime relay (Internet / 5G / Remote)
- * - 2-Way Playback transfer & remote control
+ * - Supabase / Cloudflare Cloud Realtime relay (Internet / 5G / Remote)
+ * - 2-Way Playback transfer, scheduled handoffs, and remote control
  */
 class RaagaConnectManager(
     initialDeviceName: String,
@@ -32,6 +37,9 @@ class RaagaConnectManager(
     private val onTransferBackRequested: (ConnectTrack?, Long, Boolean) -> Unit = { _, _, _ -> },
     private val onLocalPlaybackHandoffCompleted: () -> Unit = {},
     private val accountIdProvider: () -> String? = { null },
+    private val onHandoffPrepareRequested: (suspend (ConnectHandoffPacket) -> ConnectHandoffPacket)? = null,
+    private val onHandoffCommitRequested: (suspend (ConnectHandoffPacket) -> ConnectHandoffPacket)? = null,
+    private val onHandoffAbortRequested: ((ConnectHandoffPacket) -> Unit)? = null,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     val deviceId: String = RaagaPairingStore.deviceId
@@ -64,12 +72,23 @@ class RaagaConnectManager(
             isCloud = false,
         )
 
+    private val pendingHandoffDeferred = ConcurrentHashMap<String, CompletableDeferred<ConnectHandoffPacket>>()
+    private val pendingClockSyncDeferred = ConcurrentHashMap<Long, CompletableDeferred<ConnectClockSyncResponse>>()
+    @Volatile
+    private var lastCalibratedClockOffsetMs: Long = 0L
+    private var commandSeq = 0L
+
     private val server = RaagaConnectServer(
         getStatus = {
-            getLocalPlaybackStatus().copy(
+            val localStatus = getLocalPlaybackStatus()
+            val isRemoteController = _activeRemoteDevice.value != null
+            localStatus.copy(
                 deviceId = deviceId,
                 deviceName = deviceName,
                 deviceType = deviceType,
+                protocolVersion = 2,
+                activeSpeakerDeviceId = if (!isRemoteController && localStatus.isPlaying) deviceId else null,
+                anchorMonotonicMs = MonotonicClock.nowMs(),
             )
         },
         onTransfer = { transfer ->
@@ -79,6 +98,19 @@ class RaagaConnectManager(
         onControl = { cmd ->
             onRemoteControlCommand(cmd)
         },
+        onHandoffPrepare = { packet ->
+            onHandoffPrepareRequested?.invoke(packet)
+                ?: packet.copy(phase = HandoffPhase.READY, bufferReadyDurationMs = 1500L)
+        },
+        onHandoffCommit = { packet ->
+            _activeRemoteDevice.value = null
+            onHandoffCommitRequested?.invoke(packet)
+                ?: packet.copy(phase = HandoffPhase.CONFIRMED)
+        },
+        onHandoffAbort = { packet ->
+            onHandoffAbortRequested?.invoke(packet)
+        },
+        onPair = { req -> handlePairRequestDirect(req) },
         preferredPort = 8895,
     )
 
@@ -113,8 +145,10 @@ class RaagaConnectManager(
         onStatusReceived = { status ->
             val active = _activeRemoteDevice.value
             if (active != null && (active.id == status.deviceId || status.deviceId.isBlank())) {
+                lastRemoteStatusReceivedAt = System.currentTimeMillis()
                 val dur = if (status.durationMs > 0L) status.durationMs else parseDurationTextToMs(status.track?.durationText)
                 _remoteStatus.value = status.copy(durationMs = dur)
+                checkAndCorrectDrift(status)
             }
         },
         onPairRequestReceived = { req ->
@@ -123,7 +157,37 @@ class RaagaConnectManager(
         onPairResponseReceived = { resp ->
             handlePairResponse(resp)
         },
+        onHandoffReceived = { packet ->
+            handleCloudHandoffPacket(packet)
+        },
+        onClockSyncResponseReceived = { resp ->
+            pendingClockSyncDeferred[resp.clientSendMs]?.complete(resp)
+        },
     )
+
+    private fun handleCloudHandoffPacket(packet: ConnectHandoffPacket) {
+        scope.launch {
+            when (packet.phase) {
+                HandoffPhase.PREPARE -> {
+                    val resp = onHandoffPrepareRequested?.invoke(packet)
+                        ?: packet.copy(phase = HandoffPhase.READY, bufferReadyDurationMs = 1500L)
+                    supabaseRelay.sendHandoff(packet.sourceDeviceId, resp)
+                }
+                HandoffPhase.COMMIT -> {
+                    _activeRemoteDevice.value = null
+                    val resp = onHandoffCommitRequested?.invoke(packet)
+                        ?: packet.copy(phase = HandoffPhase.CONFIRMED)
+                    supabaseRelay.sendHandoff(packet.sourceDeviceId, resp)
+                }
+                HandoffPhase.ABORT -> {
+                    onHandoffAbortRequested?.invoke(packet)
+                }
+                HandoffPhase.READY, HandoffPhase.CONFIRMED -> {
+                    pendingHandoffDeferred[packet.handoffId]?.complete(packet)
+                }
+            }
+        }
+    }
 
     private val _mergedDevices = MutableStateFlow<List<ConnectDevice>>(emptyList())
     val discoveredDevices: StateFlow<List<ConnectDevice>> = _mergedDevices.asStateFlow()
@@ -152,6 +216,9 @@ class RaagaConnectManager(
 
     private var statusPollJob: Job? = null
     private var pendingPairJob: Job? = null
+    private var volumeJob: Job? = null
+    @Volatile
+    private var lastRemoteStatusReceivedAt: Long = 0L
 
     init {
         scope.launch {
@@ -233,10 +300,28 @@ class RaagaConnectManager(
         pendingPairJob = scope.launch {
             val pairReq = ConnectPairRequest(code = clean, fromDevice = localDevice)
             val startTime = System.currentTimeMillis()
-            // Active pairing retry loop: broadcast every 600ms for up to 12s to ensure delivery across internet
-            while (isActive && isPairingSubmitting.value && System.currentTimeMillis() - startTime < 12_000L) {
+
+            // 1. Attempt direct LAN pairing with any discovered local un-paired devices
+            val localCandidates = _mergedDevices.value.filter { !it.isCloud }
+            for (candidate in localCandidates) {
+                val lanRes = RaagaConnectClient.pair(candidate, pairReq)
+                if (lanRes.isSuccess) {
+                    val pairResp = lanRes.getOrNull()
+                    if (pairResp != null && pairResp.success) {
+                        handlePairResponse(pairResp)
+                        onResult(true, "Paired via local network!")
+                        return@launch
+                    }
+                }
+            }
+
+            // 2. Fall back to cloud relay pairing loop
+            while (isActive && !supabaseRelay.isSocketConnected() && System.currentTimeMillis() - startTime < 3000L) {
+                delay(100)
+            }
+            while (isActive && isPairingSubmitting.value && System.currentTimeMillis() - startTime < 14_000L) {
                 supabaseRelay.sendPairRequest(pairReq)
-                delay(600)
+                delay(500)
             }
             if (isPairingSubmitting.value) {
                 isPairingSubmitting.value = false
@@ -268,7 +353,7 @@ class RaagaConnectManager(
         )
     }
 
-    private fun handlePairRequest(request: ConnectPairRequest) {
+    fun handlePairRequestDirect(request: ConnectPairRequest): ConnectPairResponse {
         val code = activePairCode.value
         val expiresAt = activePairCodeExpiresAt.value
         if (code != null && code == request.code && System.currentTimeMillis() <= expiresAt) {
@@ -294,23 +379,33 @@ class RaagaConnectManager(
                 targetDeviceId = request.fromDevice.id,
                 syncKey = syncKey,
             )
-
-            // Immediately send pair response on pair channel
-            supabaseRelay.sendPairResponse(response)
             pairingFeedback.value = "Successfully paired with $cleanName!"
+            activePairCode.value = null
+            supabaseRelay.setTemporaryPairCode(null)
+            supabaseRelay.checkChannel()
+            return response
+        }
+        return ConnectPairResponse(
+            code = request.code,
+            success = false,
+            message = "Pairing code mismatch or expired",
+            fromDevice = localDevice,
+            targetDeviceId = request.fromDevice.id,
+        )
+    }
 
-            // Send redundant responses to ensure delivery over WAN,
-            // then smoothly switch to sync channel without dropping connection
+    private fun handlePairRequest(request: ConnectPairRequest) {
+        val response = handlePairRequestDirect(request)
+        if (response.success) {
+            supabaseRelay.sendPairResponse(response)
             scope.launch {
-                delay(300)
+                delay(200)
                 supabaseRelay.sendPairResponse(response)
-                delay(300)
+                delay(200)
                 supabaseRelay.sendPairResponse(response)
+                delay(250)
+                supabaseRelay.sendAnnounce()
                 delay(1500)
-                activePairCode.value = null
-                supabaseRelay.setTemporaryPairCode(null)
-                supabaseRelay.checkChannel()
-                delay(300)
                 supabaseRelay.sendAnnounce()
             }
         }
@@ -335,10 +430,12 @@ class RaagaConnectManager(
             pairingFeedback.value = "Successfully paired with $cleanName!"
 
             scope.launch {
-                delay(600)
+                delay(500)
                 supabaseRelay.setTemporaryPairCode(null)
                 supabaseRelay.checkChannel()
-                delay(300)
+                delay(250)
+                supabaseRelay.sendAnnounce()
+                delay(1500)
                 supabaseRelay.sendAnnounce()
             }
         }
@@ -354,6 +451,7 @@ class RaagaConnectManager(
             deviceName = deviceName,
             deviceType = deviceType,
             durationMs = dur,
+            anchorMonotonicMs = MonotonicClock.nowMs(),
         )
         supabaseRelay.sendStatus(fullStatus)
     }
@@ -367,7 +465,6 @@ class RaagaConnectManager(
             var lastPositionMs: Long = 0L
             var ticks = 0
             while (isActive) {
-                // Broadcast local status when this device is the speaker (not controlling a remote device)
                 if (_activeRemoteDevice.value == null) {
                     val status = getLocalPlaybackStatus()
                     val track = status.track
@@ -375,10 +472,9 @@ class RaagaConnectManager(
                         val trackChanged = track.videoId != lastTrackId
                         val playStateChanged = status.isPlaying != lastIsPlaying
                         val durationChanged = status.durationMs != lastDurationMs
-                        // Detect manual seek jump (>3s jump from normal playback tick)
                         val seekJumped = lastIsPlaying == status.isPlaying &&
                             kotlin.math.abs(status.positionMs - (lastPositionMs + 1000L)) > 3000L
-                        val periodicSync = (ticks % 20 == 0) // Relaxed 20s heartbeat sync
+                        val periodicSync = if (status.isPlaying) (ticks % 4 == 0) else (ticks % 20 == 0)
 
                         if (trackChanged || playStateChanged || durationChanged || seekJumped || periodicSync) {
                             broadcastLocalStatusToCloud()
@@ -413,11 +509,72 @@ class RaagaConnectManager(
     fun refreshDiscovery() {
         supabaseRelay.checkChannel()
         discovery.sendDiscover()
+        supabaseRelay.sendDiscover()
         supabaseRelay.sendAnnounce()
     }
 
     /**
-     * Transfer playback to another device on the network or cloud.
+     * Calibrate monotonic clock offset with the target device using an NTP minimum-filter algorithm.
+     * Returns full calibration result including offset, min RTT, and uncertainty.
+     */
+    suspend fun calibrateClockDetailed(target: ConnectDevice): ClockCalibrationResult = withContext(Dispatchers.IO) {
+        val samples = mutableListOf<ClockSyncSample>()
+        if (!target.isCloud) {
+            for (i in 0 until 4) {
+                val t1 = MonotonicClock.nowMs()
+                val res = RaagaConnectClient.clockSync(target, t1, deviceId)
+                val t4 = MonotonicClock.nowMs()
+                if (res.isSuccess) {
+                    val resp = res.getOrNull()
+                    if (resp != null) {
+                        samples.add(
+                            ClockSyncSample(
+                                t1ClientSendMs = t1,
+                                t2ServerRecvMs = resp.serverReceiveMs,
+                                t3ServerTransmitMs = resp.serverTransmitMs,
+                                t4ClientRecvMs = t4,
+                            )
+                        )
+                    }
+                }
+                delay(20)
+            }
+        }
+        if (samples.isEmpty()) {
+            val t1 = MonotonicClock.nowMs()
+            val deferred = CompletableDeferred<ConnectClockSyncResponse>()
+            pendingClockSyncDeferred[t1] = deferred
+            try {
+                supabaseRelay.sendClockSyncRequest(target.id, ConnectClockSyncRequest(clientSendMs = t1, clientDeviceId = deviceId))
+                val resp = withTimeoutOrNull(1500) { deferred.await() }
+                val t4 = MonotonicClock.nowMs()
+                if (resp != null) {
+                    samples.add(
+                        ClockSyncSample(
+                            t1ClientSendMs = t1,
+                            t2ServerRecvMs = resp.serverReceiveMs,
+                            t3ServerTransmitMs = resp.serverTransmitMs,
+                            t4ClientRecvMs = t4,
+                        )
+                    )
+                }
+            } finally {
+                pendingClockSyncDeferred.remove(t1)
+            }
+        }
+
+        val result = RaagaConnectTiming.filterBestSample(samples)
+            ?: ClockCalibrationResult(offsetMs = 0L, rttMs = 120L, uncertaintyMs = 60L, sampleCount = 0)
+        lastCalibratedClockOffsetMs = result.offsetMs
+        result
+    }
+
+    suspend fun calibrateClock(target: ConnectDevice): Long = calibrateClockDetailed(target).offsetMs
+
+    /**
+     * Transfer playback to another device on the network or cloud using a verified
+     * Two-Phase Commit protocol (PREPARE -> READY -> COMMIT -> CONFIRMED).
+     * Local playback is retained and smoothly crossfaded ONLY upon positive confirmation.
      */
     fun transferTo(
         target: ConnectDevice,
@@ -438,49 +595,124 @@ class RaagaConnectManager(
 
         _connectingDeviceId.value = target.id
         scope.launch {
-            val payload = ConnectPlaybackTransfer(
-                track = currentTrack,
-                positionMs = positionMs,
-                isPlaying = isPlaying,
-                volume = volume,
-                queue = queue,
-                sourceDeviceId = deviceId,
-                sourceDeviceName = deviceName,
-                targetDeviceId = target.id,
-            )
+            try {
+                // 1. Clock Calibration (ORCHESTRA monotonic clock offset & uncertainty estimation)
+                val calibration = calibrateClockDetailed(target)
+                val clockOffset = calibration.offsetMs
 
-            if (target.isCloud) {
-                val initialDur = if (currentTrack.durationText != null) {
-                    parseDurationTextToMs(currentTrack.durationText)
-                } else 0L
-                _remoteStatus.value = ConnectDeviceStatus(
-                    deviceId = target.id,
-                    deviceName = target.name,
-                    deviceType = target.type,
-                    isPlaying = isPlaying,
+                // 2. Prepare Phase (Transaction initialization with protocol version & session ID)
+                val handoffId = UUID.randomUUID().toString()
+                val sessionId = UUID.randomUUID().toString()
+                val preparePacket = ConnectHandoffPacket(
+                    handoffId = handoffId,
+                    phase = HandoffPhase.PREPARE,
+                    protocolVersion = 2,
+                    sessionId = sessionId,
+                    sourceDeviceId = deviceId,
+                    sourceDeviceName = deviceName,
+                    targetDeviceId = target.id,
                     track = currentTrack,
                     positionMs = positionMs,
-                    durationMs = initialDur,
-                    volume = volume ?: 1.0f,
+                    isPlaying = isPlaying,
+                    volume = volume,
+                    queue = queue,
+                    timestampMs = MonotonicClock.nowMs(),
+                    syncKey = RaagaPairingStore.getSyncKey(),
                 )
-                supabaseRelay.sendTransfer(target.id, payload)
+
+                var readyPacket: ConnectHandoffPacket? = null
+                var usedLan = false
+
+                if (!target.isCloud) {
+                    val prepRes = RaagaConnectClient.handoffPrepare(target, preparePacket)
+                    if (prepRes.isSuccess) {
+                        readyPacket = prepRes.getOrNull()
+                        usedLan = true
+                    }
+                }
+
+                // Transparent Cloud Fallback if LAN failed or target is remote
+                if (readyPacket == null || readyPacket.phase != HandoffPhase.READY) {
+                    val deferred = CompletableDeferred<ConnectHandoffPacket>()
+                    pendingHandoffDeferred[handoffId] = deferred
+                    try {
+                        supabaseRelay.sendHandoff(target.id, preparePacket)
+                        readyPacket = withTimeoutOrNull(6000) { deferred.await() }
+                    } finally {
+                        pendingHandoffDeferred.remove(handoffId)
+                    }
+                }
+
+                if (readyPacket == null || readyPacket.phase != HandoffPhase.READY) {
+                    _connectingDeviceId.value = null
+                    // Keep playing locally! Rollback with zero interruption to local music
+                    onError(Exception(readyPacket?.errorMessage ?: "Target device was not ready to receive playback"))
+                    return@launch
+                }
+
+                // 3. Commit Phase with Adaptive Scheduled Playout Anchor
+                val leadTimeMs = RaagaConnectTiming.computeAdaptiveLeadTime(
+                    rttMs = calibration.rttMs,
+                    isCloud = !usedLan || target.isCloud,
+                    bufferReadyDurationMs = readyPacket.bufferReadyDurationMs,
+                )
+                val localScheduledAt = MonotonicClock.nowMs() + leadTimeMs
+                val targetScheduledAt = RaagaConnectTiming.computeTargetAnchorMs(localScheduledAt, clockOffset)
+
+                val commitPacket = preparePacket.copy(
+                    phase = HandoffPhase.COMMIT,
+                    scheduledStartEpochMs = targetScheduledAt,
+                )
+
+                var confirmedPacket: ConnectHandoffPacket? = null
+                if (usedLan) {
+                    val commitRes = RaagaConnectClient.handoffCommit(target, commitPacket)
+                    if (commitRes.isSuccess) {
+                        confirmedPacket = commitRes.getOrNull()
+                    }
+                }
+
+                // Cloud fallback for commit
+                if (confirmedPacket == null || confirmedPacket.phase != HandoffPhase.CONFIRMED) {
+                    val deferred = CompletableDeferred<ConnectHandoffPacket>()
+                    pendingHandoffDeferred[handoffId] = deferred
+                    try {
+                        supabaseRelay.sendHandoff(target.id, commitPacket)
+                        confirmedPacket = withTimeoutOrNull(4000) { deferred.await() }
+                    } finally {
+                        pendingHandoffDeferred.remove(handoffId)
+                    }
+                }
+
+                if (confirmedPacket == null || confirmedPacket.phase != HandoffPhase.CONFIRMED) {
+                    _connectingDeviceId.value = null
+                    // Target failed to confirm commit; abort target session and roll back locally
+                    val abortPacket = preparePacket.copy(phase = HandoffPhase.ABORT)
+                    if (usedLan) {
+                        RaagaConnectClient.handoffAbort(target, abortPacket)
+                    } else {
+                        supabaseRelay.sendHandoff(target.id, abortPacket)
+                    }
+                    onError(Exception(confirmedPacket?.errorMessage ?: "Target device failed to confirm playback start"))
+                    return@launch
+                }
+
+                // 4. Wait out until scheduled start instant for seamless transition
+                val waitBeforeCutover = (localScheduledAt - MonotonicClock.nowMs()).coerceAtLeast(0L)
+                if (waitBeforeCutover > 0L) {
+                    delay(waitBeforeCutover)
+                }
+
+                // Seamless handoff complete: transfer speaker ownership and pause local playback
                 _activeRemoteDevice.value = target
                 startRemoteStatusPolling(target)
                 onLocalPlaybackHandoffCompleted()
                 _connectingDeviceId.value = null
                 onSuccess()
-            } else {
-                val res = RaagaConnectClient.transferPlayback(target, payload)
-                if (res.isSuccess && res.getOrNull() == true) {
-                    _activeRemoteDevice.value = target
-                    startRemoteStatusPolling(target)
-                    onLocalPlaybackHandoffCompleted()
-                    _connectingDeviceId.value = null
-                    onSuccess()
-                } else {
-                    _connectingDeviceId.value = null
-                    onError(res.exceptionOrNull() ?: Exception("Transfer failed"))
-                }
+
+            } catch (t: Throwable) {
+                _connectingDeviceId.value = null
+                onError(t)
             }
         }
     }
@@ -515,16 +747,34 @@ class RaagaConnectManager(
         scope.launch {
             // 1. Get latest status from remote device
             val status = if (target.isCloud) {
-                _remoteStatus.value
+                val cur = _remoteStatus.value
+                if (cur != null && cur.isPlaying && cur.positionMs > 0L) {
+                    val elapsed = (System.currentTimeMillis() - lastRemoteStatusReceivedAt).coerceAtLeast(0L)
+                    val estPos = (cur.positionMs + elapsed).coerceAtMost(if (cur.durationMs > 0L) cur.durationMs else Long.MAX_VALUE)
+                    cur.copy(positionMs = estPos)
+                } else {
+                    cur
+                }
             } else {
                 RaagaConnectClient.queryStatus(target).getOrNull()
             }
 
             // 2. Pause remote device
+            val pauseCmd = ConnectControlCommand(
+                action = "PAUSE",
+                targetDeviceId = target.id,
+                commandId = UUID.randomUUID().toString(),
+                seq = ++commandSeq,
+                senderDeviceId = deviceId,
+                syncKey = RaagaPairingStore.getSyncKey(),
+            )
             if (target.isCloud) {
-                supabaseRelay.sendControl(target.id, ConnectControlCommand(action = "PAUSE", targetDeviceId = target.id))
+                supabaseRelay.sendControl(target.id, pauseCmd)
             } else {
-                RaagaConnectClient.sendControl(target, ConnectControlCommand(action = "PAUSE"))
+                val res = RaagaConnectClient.sendControl(target, pauseCmd)
+                if (res.isFailure) {
+                    supabaseRelay.sendControl(target.id, pauseCmd)
+                }
             }
 
             // 3. Clear remote state
@@ -539,15 +789,26 @@ class RaagaConnectManager(
         }
     }
 
-    // --- Remote Control Actions ---
+    // --- Remote Control Actions with Idempotency ---
 
     fun sendPlay() {
         val target = _activeRemoteDevice.value ?: return
         scope.launch {
+            val cmd = ConnectControlCommand(
+                action = "PLAY",
+                targetDeviceId = target.id,
+                commandId = UUID.randomUUID().toString(),
+                seq = ++commandSeq,
+                senderDeviceId = deviceId,
+                syncKey = RaagaPairingStore.getSyncKey(),
+            )
             if (target.isCloud) {
-                supabaseRelay.sendControl(target.id, ConnectControlCommand(action = "PLAY", targetDeviceId = target.id))
+                supabaseRelay.sendControl(target.id, cmd)
             } else {
-                RaagaConnectClient.sendControl(target, ConnectControlCommand(action = "PLAY"))
+                val res = RaagaConnectClient.sendControl(target, cmd)
+                if (res.isFailure) {
+                    supabaseRelay.sendControl(target.id, cmd)
+                }
             }
             updateRemoteStatusOptimistically { it.copy(isPlaying = true) }
             delay(150)
@@ -558,10 +819,21 @@ class RaagaConnectManager(
     fun sendPause() {
         val target = _activeRemoteDevice.value ?: return
         scope.launch {
+            val cmd = ConnectControlCommand(
+                action = "PAUSE",
+                targetDeviceId = target.id,
+                commandId = UUID.randomUUID().toString(),
+                seq = ++commandSeq,
+                senderDeviceId = deviceId,
+                syncKey = RaagaPairingStore.getSyncKey(),
+            )
             if (target.isCloud) {
-                supabaseRelay.sendControl(target.id, ConnectControlCommand(action = "PAUSE", targetDeviceId = target.id))
+                supabaseRelay.sendControl(target.id, cmd)
             } else {
-                RaagaConnectClient.sendControl(target, ConnectControlCommand(action = "PAUSE"))
+                val res = RaagaConnectClient.sendControl(target, cmd)
+                if (res.isFailure) {
+                    supabaseRelay.sendControl(target.id, cmd)
+                }
             }
             updateRemoteStatusOptimistically { it.copy(isPlaying = false) }
             delay(150)
@@ -571,68 +843,106 @@ class RaagaConnectManager(
 
     fun sendToggle() {
         val target = _activeRemoteDevice.value ?: return
-        val currentIsPlaying = _remoteStatus.value?.isPlaying ?: false
-        val nextPlaying = !currentIsPlaying
-        scope.launch {
-            if (target.isCloud) {
-                supabaseRelay.sendControl(target.id, ConnectControlCommand(action = "TOGGLE", targetDeviceId = target.id))
-            } else {
-                RaagaConnectClient.sendControl(target, ConnectControlCommand(action = "TOGGLE"))
-            }
-            updateRemoteStatusOptimistically { it.copy(isPlaying = nextPlaying) }
-            delay(150)
-            pollRemoteStatusNow(target)
-        }
+        val currentPlay = _remoteStatus.value?.isPlaying ?: true
+        if (currentPlay) sendPause() else sendPlay()
     }
-
-    private var volumeJob: Job? = null
-    private var lastSkipTimestamp: Long = 0L
 
     fun sendNext() {
         val target = _activeRemoteDevice.value ?: return
-        val now = System.currentTimeMillis()
-        if (now - lastSkipTimestamp < 350L) return
-        lastSkipTimestamp = now
-
         scope.launch {
+            val cmd = ConnectControlCommand(
+                action = "NEXT",
+                targetDeviceId = target.id,
+                commandId = UUID.randomUUID().toString(),
+                seq = ++commandSeq,
+                senderDeviceId = deviceId,
+                syncKey = RaagaPairingStore.getSyncKey(),
+            )
             if (target.isCloud) {
-                supabaseRelay.sendControl(target.id, ConnectControlCommand(action = "NEXT", targetDeviceId = target.id))
+                supabaseRelay.sendControl(target.id, cmd)
             } else {
-                RaagaConnectClient.sendControl(target, ConnectControlCommand(action = "NEXT"))
+                val res = RaagaConnectClient.sendControl(target, cmd)
+                if (res.isFailure) {
+                    supabaseRelay.sendControl(target.id, cmd)
+                }
             }
             delay(800)
             pollRemoteStatusNow(target)
         }
     }
 
-    fun sendPrevious() {
+    fun sendPrev() {
         val target = _activeRemoteDevice.value ?: return
-        val now = System.currentTimeMillis()
-        if (now - lastSkipTimestamp < 350L) return
-        lastSkipTimestamp = now
-
         scope.launch {
+            val cmd = ConnectControlCommand(
+                action = "PREV",
+                targetDeviceId = target.id,
+                commandId = UUID.randomUUID().toString(),
+                seq = ++commandSeq,
+                senderDeviceId = deviceId,
+                syncKey = RaagaPairingStore.getSyncKey(),
+            )
             if (target.isCloud) {
-                supabaseRelay.sendControl(target.id, ConnectControlCommand(action = "PREV", targetDeviceId = target.id))
+                supabaseRelay.sendControl(target.id, cmd)
             } else {
-                RaagaConnectClient.sendControl(target, ConnectControlCommand(action = "PREV"))
+                val res = RaagaConnectClient.sendControl(target, cmd)
+                if (res.isFailure) {
+                    supabaseRelay.sendControl(target.id, cmd)
+                }
             }
             delay(800)
             pollRemoteStatusNow(target)
         }
     }
+
+    fun sendPrevious() = sendPrev()
 
     fun sendSeek(positionMs: Long) {
         val target = _activeRemoteDevice.value ?: return
         scope.launch {
+            val cmd = ConnectControlCommand(
+                action = "SEEK",
+                positionMs = positionMs,
+                targetDeviceId = target.id,
+                commandId = UUID.randomUUID().toString(),
+                seq = ++commandSeq,
+                senderDeviceId = deviceId,
+                syncKey = RaagaPairingStore.getSyncKey(),
+            )
             if (target.isCloud) {
-                supabaseRelay.sendControl(target.id, ConnectControlCommand(action = "SEEK", positionMs = positionMs, targetDeviceId = target.id))
+                supabaseRelay.sendControl(target.id, cmd)
             } else {
-                RaagaConnectClient.sendControl(target, ConnectControlCommand(action = "SEEK", positionMs = positionMs))
+                val res = RaagaConnectClient.sendControl(target, cmd)
+                if (res.isFailure) {
+                    supabaseRelay.sendControl(target.id, cmd)
+                }
             }
             updateRemoteStatusOptimistically { it.copy(positionMs = positionMs) }
             delay(250)
             pollRemoteStatusNow(target)
+        }
+    }
+
+    fun sendPlaybackSpeed(speed: Float) {
+        val target = _activeRemoteDevice.value ?: return
+        scope.launch {
+            val cmd = ConnectControlCommand(
+                action = "SPEED",
+                playbackSpeed = speed,
+                targetDeviceId = target.id,
+                commandId = UUID.randomUUID().toString(),
+                seq = ++commandSeq,
+                senderDeviceId = deviceId,
+                syncKey = RaagaPairingStore.getSyncKey(),
+            )
+            if (target.isCloud) {
+                supabaseRelay.sendControl(target.id, cmd)
+            } else {
+                val res = RaagaConnectClient.sendControl(target, cmd)
+                if (res.isFailure) {
+                    supabaseRelay.sendControl(target.id, cmd)
+                }
+            }
         }
     }
 
@@ -642,10 +952,65 @@ class RaagaConnectManager(
         volumeJob?.cancel()
         volumeJob = scope.launch {
             delay(50)
+            val cmd = ConnectControlCommand(
+                action = "VOLUME",
+                volume = volume,
+                targetDeviceId = target.id,
+                commandId = UUID.randomUUID().toString(),
+                seq = ++commandSeq,
+                senderDeviceId = deviceId,
+                syncKey = RaagaPairingStore.getSyncKey(),
+            )
             if (target.isCloud) {
-                supabaseRelay.sendControl(target.id, ConnectControlCommand(action = "VOLUME", volume = volume, targetDeviceId = target.id))
+                supabaseRelay.sendControl(target.id, cmd)
             } else {
-                RaagaConnectClient.sendControl(target, ConnectControlCommand(action = "VOLUME", volume = volume))
+                val res = RaagaConnectClient.sendControl(target, cmd)
+                if (res.isFailure) {
+                    supabaseRelay.sendControl(target.id, cmd)
+                }
+            }
+        }
+    }
+
+    // --- Closed-Loop Drift Correction ---
+
+    private var lastDriftCorrectionAt = 0L
+    private var driftStrikes = 0
+
+    private fun checkAndCorrectDrift(status: ConnectDeviceStatus) {
+        if (!status.isPlaying || status.anchorMonotonicMs <= 0L) return
+        val now = MonotonicClock.nowMs()
+        if (now - lastDriftCorrectionAt < 3000L) return // Throttle drift evaluation to every 3s
+
+        val targetMonotonicNow = now + lastCalibratedClockOffsetMs
+        val expectedPos = RaagaConnectTiming.computeExpectedPositionMs(
+            anchorPositionMs = status.positionMs,
+            anchorMonotonicMs = status.anchorMonotonicMs,
+            currentMonotonicMs = targetMonotonicNow,
+            playbackSpeed = status.playbackSpeed,
+            durationMs = status.durationMs,
+        )
+        val drift = RaagaConnectTiming.calculateDriftMs(status.positionMs, expectedPos)
+        val action = RaagaConnectTiming.evaluateDriftAction(drift, expectedPos, status.playbackSpeed)
+
+        when (action) {
+            is RaagaConnectTiming.DriftAction.InSync -> {
+                driftStrikes = 0
+            }
+            is RaagaConnectTiming.DriftAction.RateAdjust -> {
+                driftStrikes++
+                if (driftStrikes >= 2) {
+                    lastDriftCorrectionAt = now
+                    sendPlaybackSpeed(action.newSpeed)
+                }
+            }
+            is RaagaConnectTiming.DriftAction.HardSeek -> {
+                driftStrikes++
+                if (driftStrikes >= 2) {
+                    lastDriftCorrectionAt = now
+                    sendSeek(action.targetPositionMs)
+                    driftStrikes = 0
+                }
             }
         }
     }
@@ -655,7 +1020,7 @@ class RaagaConnectManager(
         statusPollJob = scope.launch {
             pollRemoteStatusNow(target)
             while (isActive && _activeRemoteDevice.value?.id == target.id) {
-                val pollDelay = if (target.isCloud) 20_000L else 800L
+                val pollDelay = if (target.isCloud) 4_000L else 800L
                 delay(pollDelay)
                 pollRemoteStatusNow(target)
             }
@@ -670,14 +1035,20 @@ class RaagaConnectManager(
                 if (s != null) {
                     val dur = if (s.durationMs > 0L) s.durationMs else parseDurationTextToMs(s.track?.durationText)
                     _remoteStatus.value = s.copy(durationMs = dur)
+                    checkAndCorrectDrift(s)
+                    return
                 }
             }
-        } else {
-            supabaseRelay.sendControl(
-                target.id,
-                ConnectControlCommand(action = "QUERY_STATUS", targetDeviceId = target.id),
-            )
         }
+        supabaseRelay.sendControl(
+            target.id,
+            ConnectControlCommand(
+                action = "QUERY_STATUS",
+                targetDeviceId = target.id,
+                commandId = UUID.randomUUID().toString(),
+                seq = ++commandSeq,
+            ),
+        )
     }
 
     private fun updateRemoteStatusOptimistically(transform: (ConnectDeviceStatus) -> ConnectDeviceStatus) {
@@ -705,3 +1076,4 @@ class RaagaConnectManager(
         }
     }
 }
+

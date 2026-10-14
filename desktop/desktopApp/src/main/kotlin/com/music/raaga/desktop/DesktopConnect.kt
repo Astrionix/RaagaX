@@ -1,10 +1,13 @@
 package com.music.raaga.desktop
 
+import com.music.raaga.data.MonotonicClock
 import com.music.raaga.data.connect.ConnectControlCommand
 import com.music.raaga.data.connect.ConnectDeviceStatus
 import com.music.raaga.data.connect.ConnectDeviceType
+import com.music.raaga.data.connect.ConnectHandoffPacket
 import com.music.raaga.data.connect.ConnectPlaybackTransfer
 import com.music.raaga.data.connect.ConnectTrack
+import com.music.raaga.data.connect.HandoffPhase
 import com.music.raaga.data.connect.RaagaConnectManager
 import com.music.raaga.data.connect.RaagaPairingStore
 import com.music.raaga.data.model.Song
@@ -12,10 +15,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Singleton managing Raaga Connect lifecycle on the Desktop application.
- * Connects the desktop audio engine to local Wi-Fi discovery and playback transfers.
+ * Connects the desktop audio engine to local Wi-Fi discovery, 2PC playback transfers,
+ * and clock-synchronized handoffs.
  */
 object DesktopConnect {
     private val scope = CoroutineScope(Dispatchers.Main)
@@ -56,6 +61,8 @@ object DesktopConnect {
                 positionMs = state?.positionMs ?: 0L,
                 durationMs = dur,
                 volume = state?.volume ?: 1.0f,
+                playbackSpeed = 1.0f,
+                anchorMonotonicMs = MonotonicClock.nowMs(),
             )
         },
         getLocalPlaybackQueue = {
@@ -106,6 +113,73 @@ object DesktopConnect {
                 } else {
                     onPlaySong?.invoke(song, transfer.positionMs, transfer.isPlaying)
                 }
+            }
+        },
+        onHandoffPrepareRequested = { packet ->
+            val song = packet.track?.let { t ->
+                Song(
+                    videoId = t.videoId,
+                    title = t.title,
+                    artist = t.artist,
+                    thumbnailUrl = t.thumbnailUrl,
+                    durationText = t.durationText,
+                    albumName = t.albumName,
+                )
+            } ?: return@RaagaConnectManager packet.copy(phase = HandoffPhase.ABORT, errorMessage = "No track in packet")
+
+            val songs = if (packet.queue.isNotEmpty()) {
+                packet.queue.map { t ->
+                    Song(
+                        videoId = t.videoId,
+                        title = t.title,
+                        artist = t.artist,
+                        thumbnailUrl = t.thumbnailUrl,
+                        durationText = t.durationText,
+                        albumName = t.albumName,
+                    )
+                }
+            } else listOf(song)
+
+            val startIdx = if (packet.queue.isNotEmpty()) {
+                val foundIdx = packet.queue.indexOfFirst { it.videoId == song.videoId }
+                if (foundIdx >= 0) foundIdx else packet.queueIndex.coerceIn(songs.indices)
+            } else 0
+
+            withContext(Dispatchers.Main) {
+                controlledByDeviceName.value = packet.sourceDeviceName.ifBlank { "Mobile Phone" }
+                packet.volume?.let { playbackEngine?.setVolume(it) }
+
+                // Pre-load track without starting audio
+                if (onPlaySongsWithQueue != null) {
+                    onPlaySongsWithQueue?.invoke(songs, startIdx, packet.positionMs, false)
+                } else {
+                    onPlaySong?.invoke(song, packet.positionMs, false)
+                }
+            }
+            delay(400)
+            packet.copy(phase = HandoffPhase.READY, bufferReadyDurationMs = 1500L)
+        },
+        onHandoffCommitRequested = { packet ->
+            val scheduledAt = packet.scheduledStartEpochMs
+            if (scheduledAt != null) {
+                val waitMs = (scheduledAt - MonotonicClock.nowMs()).coerceAtLeast(0L)
+                if (waitMs > 0L) {
+                    delay(waitMs)
+                }
+            }
+            withContext(Dispatchers.Main) {
+                if (packet.isPlaying) {
+                    playbackEngine?.play()
+                } else {
+                    playbackEngine?.pause()
+                }
+            }
+            packet.copy(phase = HandoffPhase.CONFIRMED)
+        },
+        onHandoffAbortRequested = {
+            scope.launch {
+                playbackEngine?.pause()
+                controlledByDeviceName.value = null
             }
         },
         onRemoteControlCommand = { cmd ->

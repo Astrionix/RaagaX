@@ -1,5 +1,6 @@
 package com.music.raaga.data.connect
 
+import com.music.raaga.data.MonotonicClock
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -59,6 +60,8 @@ class RaagaSupabaseRelay(
     private val onStatusReceived: (ConnectDeviceStatus) -> Unit,
     private val onPairRequestReceived: ((ConnectPairRequest) -> Unit)? = null,
     private val onPairResponseReceived: ((ConnectPairResponse) -> Unit)? = null,
+    private val onHandoffReceived: ((ConnectHandoffPacket) -> Unit)? = null,
+    private val onClockSyncResponseReceived: ((ConnectClockSyncResponse) -> Unit)? = null,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val json = Json {
@@ -70,7 +73,10 @@ class RaagaSupabaseRelay(
     private val okHttpClient = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.MILLISECONDS) // Keep alive
+        .pingInterval(15, TimeUnit.SECONDS) // Keep Cloudflare WebSocket alive
         .build()
+
+    fun isSocketConnected(): Boolean = isConnected && webSocket != null
 
     private val refCounter = AtomicLong(1)
     private var webSocket: WebSocket? = null
@@ -93,6 +99,9 @@ class RaagaSupabaseRelay(
 
     @Volatile
     private var temporaryPairCode: String? = null
+
+    @Volatile
+    private var lastAnnounceResponseTime: Long = 0L
 
     private val joinedChannels = ConcurrentHashMap.newKeySet<String>()
 
@@ -252,10 +261,11 @@ class RaagaSupabaseRelay(
         joinedChannels.clear()
         heartbeatJob?.cancel()
         announceJob?.cancel()
-        try {
-            webSocket?.close(1000, "Channel changed or stopped")
-        } catch (_: Exception) {}
+        val ws = webSocket
         webSocket = null
+        try {
+            ws?.cancel()
+        } catch (_: Exception) {}
     }
 
     private fun connectWebSocket() {
@@ -276,7 +286,8 @@ class RaagaSupabaseRelay(
             .build()
 
         webSocket = okHttpClient.newWebSocket(request, object : WebSocketListener() {
-            override fun onOpen(ws: WebSocket, response: Response) {
+            override fun onOpen(webSocket: WebSocket, response: Response) {
+                if (webSocket !== this@RaagaSupabaseRelay.webSocket) return
                 isConnected = true
                 joinedChannels.clear()
 
@@ -296,7 +307,7 @@ class RaagaSupabaseRelay(
                                 "ref": "${refCounter.getAndIncrement()}"
                             }
                         """.trimIndent()
-                        ws.send(joinMsg)
+                        webSocket.send(joinMsg)
                         joinedChannels.add(chan)
                     }
                 } else {
@@ -310,7 +321,7 @@ class RaagaSupabaseRelay(
                         delay(25_000)
                         val hbMsg = """{"topic":"phoenix","event":"heartbeat","payload":{},"ref":"hb"}"""
                         try {
-                            ws.send(hbMsg)
+                            webSocket.send(hbMsg)
                         } catch (_: Exception) {}
                     }
                 }
@@ -325,12 +336,15 @@ class RaagaSupabaseRelay(
                 }
             }
 
-            override fun onMessage(ws: WebSocket, text: String) {
+            override fun onMessage(webSocket: WebSocket, text: String) {
+                if (webSocket !== this@RaagaSupabaseRelay.webSocket) return
                 handleIncomingMessage(text)
             }
 
-            override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
+            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                if (webSocket !== this@RaagaSupabaseRelay.webSocket) return
                 isConnected = false
+                this@RaagaSupabaseRelay.webSocket = null
                 joinedChannels.clear()
                 heartbeatJob?.cancel()
                 announceJob?.cancel()
@@ -340,8 +354,10 @@ class RaagaSupabaseRelay(
                 }
             }
 
-            override fun onClosed(ws: WebSocket, code: Int, reason: String) {
+            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                if (webSocket !== this@RaagaSupabaseRelay.webSocket) return
                 isConnected = false
+                this@RaagaSupabaseRelay.webSocket = null
                 joinedChannels.clear()
                 heartbeatJob?.cancel()
                 announceJob?.cancel()
@@ -382,10 +398,36 @@ class RaagaSupabaseRelay(
         broadcastEvent("announce", payload)
     }
 
+    fun sendDiscover() {
+        val local = localDeviceProvider()
+        val payload = """
+            {
+                "id": "${local.id}"
+            }
+        """.trimIndent()
+        broadcastEvent("discover", payload)
+    }
+
     fun sendTransfer(targetDeviceId: String, transfer: ConnectPlaybackTransfer) {
         val transferWithTarget = transfer.copy(targetDeviceId = targetDeviceId)
         val jsonPayload = json.encodeToString(ConnectPlaybackTransfer.serializer(), transferWithTarget)
         broadcastEvent("transfer", jsonPayload)
+    }
+
+    fun sendHandoff(targetDeviceId: String, packet: ConnectHandoffPacket) {
+        val packetWithTarget = packet.copy(targetDeviceId = targetDeviceId)
+        val jsonPayload = json.encodeToString(ConnectHandoffPacket.serializer(), packetWithTarget)
+        broadcastEvent("handoff", jsonPayload)
+    }
+
+    fun sendClockSyncRequest(targetDeviceId: String, request: ConnectClockSyncRequest) {
+        val jsonPayload = json.encodeToString(ConnectClockSyncRequest.serializer(), request)
+        broadcastEvent("clock_sync_req", jsonPayload)
+    }
+
+    fun sendClockSyncResponse(targetDeviceId: String, response: ConnectClockSyncResponse) {
+        val jsonPayload = json.encodeToString(ConnectClockSyncResponse.serializer(), response)
+        broadcastEvent("clock_sync_resp", jsonPayload)
     }
 
     fun sendControl(targetDeviceId: String, command: ConnectControlCommand) {
@@ -457,6 +499,25 @@ class RaagaSupabaseRelay(
                     )
                     cloudDevices[id] = device
                     _discoveredCloudDevices.value = cloudDevices.values.toList()
+
+                    // Bidirectional announce handshake: immediately announce back so the other device sees us instantly
+                    val now = System.currentTimeMillis()
+                    if (now - lastAnnounceResponseTime > 3000L) {
+                        lastAnnounceResponseTime = now
+                        scope.launch {
+                            delay(100)
+                            sendAnnounce()
+                        }
+                    }
+                }
+
+                "discover" -> {
+                    val id = innerPayload["id"]?.jsonPrimitive?.contentOrNull ?: return
+                    if (id == localDevice.id) return // Ignore self
+                    scope.launch {
+                        delay(60)
+                        sendAnnounce()
+                    }
                 }
 
                 "transfer" -> {
@@ -464,6 +525,32 @@ class RaagaSupabaseRelay(
                     if (transfer.targetDeviceId.isBlank() || transfer.targetDeviceId == localDevice.id) {
                         onTransferReceived(transfer)
                     }
+                }
+
+                "handoff" -> {
+                    val packet = json.decodeFromJsonElement(ConnectHandoffPacket.serializer(), innerPayload)
+                    if (packet.targetDeviceId.isBlank() || packet.targetDeviceId == localDevice.id) {
+                        onHandoffReceived?.invoke(packet)
+                    }
+                }
+
+                "clock_sync_req" -> {
+                    val req = json.decodeFromJsonElement(ConnectClockSyncRequest.serializer(), innerPayload)
+                    if (req.clientDeviceId != localDevice.id) {
+                        val recvMs = MonotonicClock.nowMs()
+                        val sendMs = MonotonicClock.nowMs()
+                        val resp = ConnectClockSyncResponse(
+                            clientSendMs = req.clientSendMs,
+                            serverReceiveMs = recvMs,
+                            serverTransmitMs = sendMs,
+                        )
+                        sendClockSyncResponse(req.clientDeviceId, resp)
+                    }
+                }
+
+                "clock_sync_resp" -> {
+                    val resp = json.decodeFromJsonElement(ConnectClockSyncResponse.serializer(), innerPayload)
+                    onClockSyncResponseReceived?.invoke(resp)
                 }
 
                 "control" -> {

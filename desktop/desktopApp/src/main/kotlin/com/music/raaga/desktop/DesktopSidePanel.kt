@@ -47,6 +47,13 @@ import androidx.compose.ui.unit.sp
 import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeEffect
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.graphics.graphicsLayer
+
 /** What the column beside the page is showing. */
 internal enum class DesktopSidePanel { LYRICS, QUEUE, CONNECT }
 
@@ -90,10 +97,27 @@ internal fun DesktopSidePanelColumn(
 
     AnimatedVisibility(
         visible = panel != null,
-        enter = expandHorizontally(tween(SLIDE_MS, easing = FastOutSlowInEasing), expandFrom = Alignment.Start) +
-            fadeIn(tween(SLIDE_MS)),
-        exit = shrinkHorizontally(tween(SLIDE_MS, easing = FastOutSlowInEasing), shrinkTowards = Alignment.Start) +
-            fadeOut(tween(SLIDE_MS / 2)),
+        enter = expandHorizontally(
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioNoBouncy,
+                stiffness = Spring.StiffnessMediumLow,
+            ),
+            expandFrom = Alignment.End,
+        ) + fadeIn(
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioNoBouncy,
+                stiffness = Spring.StiffnessMediumLow,
+            ),
+        ),
+        exit = shrinkHorizontally(
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioNoBouncy,
+                stiffness = Spring.StiffnessMediumLow,
+            ),
+            shrinkTowards = Alignment.End,
+        ) + fadeOut(
+            animationSpec = tween(140, easing = FastOutSlowInEasing),
+        ),
     ) {
         Box(
             modifier = Modifier
@@ -173,9 +197,23 @@ internal fun DesktopSidePanelColumn(
                                 Spacer(Modifier.weight(1f))
                             }
                             // Tactile Frosted Glass Close Pod
+                            val closeInteraction = remember { MutableInteractionSource() }
+                            val closePressed by closeInteraction.collectIsPressedAsState()
+                            val closeScale by animateFloatAsState(
+                                targetValue = if (closePressed) 0.88f else 1f,
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioNoBouncy,
+                                    stiffness = Spring.StiffnessMedium,
+                                ),
+                                label = "closeScale",
+                            )
                             Box(
                                 modifier = Modifier
                                     .size(28.dp)
+                                    .graphicsLayer {
+                                        scaleX = closeScale
+                                        scaleY = closeScale
+                                    }
                                     .shadow(2.dp, CircleShape, spotColor = Color.Black.copy(alpha = 0.25f))
                                     .clip(CircleShape)
                                     .background(
@@ -196,7 +234,11 @@ internal fun DesktopSidePanelColumn(
                                         ),
                                         shape = CircleShape,
                                     )
-                                    .clickable(onClick = onClose),
+                                    .clickable(
+                                        interactionSource = closeInteraction,
+                                        indication = null,
+                                        onClick = onClose,
+                                    ),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Icon(
