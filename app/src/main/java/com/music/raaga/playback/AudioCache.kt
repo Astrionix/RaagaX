@@ -349,10 +349,22 @@ object AudioCache {
     }
 
     /**
+     * Marks a read made for the watch app. Its streams are capped below
+     * lossless and so are kept apart from this phone's own: a lossless file cached
+     * by the phone must never be what the watch is handed, and the other way round.
+     */
+    const val WATCH_READ_PARAM = "watch_read"
+
+    /**
      * The videoId behind a request. Playback asks through the custom scheme;
      * read-ahead builds the same URI, so both land on one cache entry.
      */
     private val keyFactory = CacheKeyFactory { spec ->
+        val key = phoneKey(spec)
+        if (spec.uri.getQueryParameter(WATCH_READ_PARAM) != null) "$key#watch" else key
+    }
+
+    private fun phoneKey(spec: androidx.media3.datasource.DataSpec): String =
         spec.uri.getQueryParameter("v")
             // A YouTube id can name several different recordings on disk: the
             // Opus rendition YouTube serves, whatever a source ranked above it
@@ -401,7 +413,6 @@ object AudioCache {
             }
             ?: spec.key
             ?: spec.uri.toString()
-    }
 
     /**
      * Splits the `#alt` bucket in two along whatever this process currently

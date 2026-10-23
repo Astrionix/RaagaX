@@ -41,6 +41,7 @@ import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.FileUpload
 import androidx.compose.material.icons.rounded.HighQuality
+import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material.icons.rounded.PlaylistRemove
@@ -80,6 +81,7 @@ import com.music.raaga.data.model.LikeStatus
 import com.music.raaga.data.model.ROW_ART_PX
 import com.music.raaga.data.model.Song
 import com.music.raaga.data.model.artworkAt
+import com.music.raaga.data.settings.AppSettings
 import com.music.raaga.data.webdav.WebDavUploads
 import com.music.raaga.download.DownloadState
 import com.music.raaga.download.Downloads
@@ -191,6 +193,7 @@ fun SongActionsSheet(
     onToggleLoop: (() -> Unit)? = null,
 ) {
     var pickingSleepTimer by remember { mutableStateOf(false) }
+    var showingSongInfo by remember(song.videoId) { mutableStateOf(false) }
     // Read from the thumbnail the row that opened this sheet was already
     // showing, not a larger copy of it: the tint is a blur and a handful of
     // swatches, neither of which a bigger image improves, and going back for
@@ -205,6 +208,10 @@ fun SongActionsSheet(
     TintedSheet(palette = palette, imageUrl = song.thumbnailUrl, modifier = modifier) {
         if (pickingSleepTimer) {
             SleepTimerPicker(palette = palette, onBack = { pickingSleepTimer = false })
+            return@TintedSheet
+        }
+        if (showingSongInfo) {
+            SongInfoPage(song = song, palette = palette, onBack = { showingSongInfo = false })
             return@TintedSheet
         }
 
@@ -261,8 +268,14 @@ fun SongActionsSheet(
         }
 
         if (signedIn && !isOffline) {
+            val useStarFavorite by AppSettings.useStarFavorite.collectAsStateWithLifecycle()
+            val favoriteIcon = if (liked) {
+                if (useStarFavorite) RaagaIcons.StarFilled else Icons.Rounded.Favorite
+            } else {
+                if (useStarFavorite) RaagaIcons.Star else Icons.Rounded.FavoriteBorder
+            }
             ActionRow(
-                icon = if (liked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                icon = favoriteIcon,
                 label = if (liked) stringResource(R.string.remove_from_liked) else stringResource(R.string.like),
                 tint = if (liked) palette.accent else null,
                 accent = palette.accent,
@@ -344,6 +357,13 @@ fun SongActionsSheet(
                 stringResource(R.string.open_artist),
                 accent = palette.accent,
             ) { onOpenArtist(id) }
+        }
+        ActionRow(
+            Icons.Rounded.Info,
+            stringResource(R.string.song_info),
+            accent = palette.accent,
+        ) {
+            showingSongInfo = true
         }
         if (showSleepTimer) {
             ActionRow(

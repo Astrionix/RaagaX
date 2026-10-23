@@ -183,11 +183,16 @@ object LocalMediaRepository {
     private fun String?.cleanTag(): String? =
         takeUnless { it.isNullOrBlank() || it == "<unknown>" }
 
+    @Volatile
+    var extraLocalMusic: (suspend (Context, List<Song>) -> List<Song>)? = null
+
     /**
      * Queries MediaStore for all audio files available on the device.
      */
     suspend fun getLocalMusic(context: Context): List<Song> = withContext(Dispatchers.IO) {
-        if (!hasStoragePermission(context)) return@withContext emptyList()
+        if (!hasStoragePermission(context)) {
+            return@withContext extraLocalMusic?.invoke(context, emptyList()) ?: emptyList()
+        }
 
         val songs = mutableListOf<Song>()
         // This scan runs over every audio file on the device, which includes
@@ -296,7 +301,7 @@ object LocalMediaRepository {
             }
         }.onFailure { Log.w(TAG, "Failed scanning device local music: ${it.message}") }
 
-        songs
+        extraLocalMusic?.invoke(context, songs) ?: songs
     }
 
     /** Human-readable path for the folder setting without exposing provider internals. */

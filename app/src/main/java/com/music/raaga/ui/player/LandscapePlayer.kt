@@ -62,6 +62,8 @@ import com.music.raaga.ui.icons.RaagaIcons
 import com.music.raaga.data.canvas.CanvasArtwork
 import com.music.raaga.data.model.LikeStatus
 import com.music.raaga.data.model.Song
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.music.raaga.data.settings.AppSettings
 
 /**
  * The widest the two columns are allowed to get between them, centred in
@@ -425,8 +427,14 @@ internal fun LandscapeCredits(
         // download against either.
         if (signedIn && song.localUri == null) {
             val liked = likeStatus == LikeStatus.LIKE
+            val useStarFavorite by AppSettings.useStarFavorite.collectAsStateWithLifecycle()
+            val favoriteIcon = if (liked) {
+                if (useStarFavorite) RaagaIcons.StarFilled else RaagaIcons.HeartFilled
+            } else {
+                if (useStarFavorite) RaagaIcons.Star else RaagaIcons.Heart
+            }
             CircleGlyph(
-                icon = if (liked) RaagaIcons.HeartFilled else RaagaIcons.Heart,
+                icon = favoriteIcon,
                 contentDescription = stringResource(
                     if (liked) R.string.remove_from_liked else R.string.like,
                 ),

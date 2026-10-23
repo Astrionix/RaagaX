@@ -1,7 +1,7 @@
 # Gradle
 .gradle/
-/build/
-/app/build/
+**/build/
+build/
 gradle-app.setting
 !gradle-wrapper.jar
 !gradle-wrapper.properties
@@ -39,8 +39,14 @@ keystore.properties
 .tmp_verify/
 .debug/
 *.apk
+!app/src/main/assets/wear/BitChordWear.apk
 website/.next/
 website/node_modules/
+node_modules/
+**/node_modules/
+**/.output/
+**/.wxt/
+.turbo/
 portfolio/
 
 # iOS / Xcode

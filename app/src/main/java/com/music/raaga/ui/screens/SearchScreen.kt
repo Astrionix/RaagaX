@@ -70,6 +70,7 @@ import com.music.raaga.ui.components.topBarContentPadding
 import com.music.raaga.ui.components.ROW_DIVIDER_INSET
 import com.music.raaga.ui.components.SearchField
 import com.music.raaga.ui.components.SongRow
+import com.music.raaga.ui.components.SwipeToQueueBox
 import com.music.raaga.ui.components.thumbnailBorder
 import com.music.raaga.ui.components.songListSkeleton
 import com.music.raaga.ui.haptics.Haptic
@@ -196,6 +197,7 @@ fun SearchScreen(
                             typeaheadResults = typeaheadResults,
                             onSongClick = { song -> onTopResultPlay(song) },
                             onSongLongPress = onTypeaheadLongPress,
+                            onSongSwipe = onSongSwipe,
                             onBrowseClick = { item ->
                                 onBrowseClick(item)
                             },
@@ -220,12 +222,16 @@ fun SearchScreen(
                     val topResult = results.data.filterIsInstance<SearchResult.TopTrack>().firstOrNull()
                     if (filter == SearchFilter.ALL && topResult != null) {
                         item(key = "search:top-result:${topResult.song.videoId}") {
-                            TopResultCard(
-                                song = topResult.song,
-                                onPlay = { onTopResultPlay(topResult.song) },
-                                onPlaylist = { onTopResultPlaylist(topResult.song) },
-                                onLongPress = { onSongLongPress(topResult.song) },
-                            )
+                            SwipeToQueueBox(
+                                onSwipeToQueue = { onSongSwipe(topResult.song) },
+                            ) {
+                                TopResultCard(
+                                    song = topResult.song,
+                                    onPlay = { onTopResultPlay(topResult.song) },
+                                    onPlaylist = { onTopResultPlaylist(topResult.song) },
+                                    onLongPress = { onSongLongPress(topResult.song) },
+                                )
+                            }
                         }
                     }
                     searchSections(results.data, filter).forEach { section ->
@@ -488,6 +494,7 @@ private fun LazyListScope.searchTypeaheadDropdown(
     typeaheadResults: List<SearchResult>,
     onSongClick: (Song) -> Unit,
     onSongLongPress: ((Song) -> Unit)?,
+    onSongSwipe: ((Song) -> Unit)? = null,
     onBrowseClick: (BrowseItem) -> Unit,
 ) {
     item(key = "typeahead:divider") {
@@ -505,71 +512,27 @@ private fun LazyListScope.searchTypeaheadDropdown(
         }
     }) { result ->
         when (result) {
-            is SearchResult.Track -> TypeaheadSongRow(
+            is SearchResult.Track -> SongRow(
                 song = result.song,
                 onClick = { onSongClick(result.song) },
                 onLongPress = onSongLongPress?.let { { it(result.song) } },
+                onSwipeToQueue = onSongSwipe?.let { { it(result.song) } },
             )
             is SearchResult.Browse -> BrowseRow(
                 item = result.item,
                 onClick = { onBrowseClick(result.item) },
                 onLongPress = onSongLongPress?.let { { /* browse long-press not applicable */ } },
             )
-            is SearchResult.TopTrack -> TypeaheadSongRow(
+            is SearchResult.TopTrack -> SongRow(
                 song = result.song,
                 onClick = { onSongClick(result.song) },
                 onLongPress = onSongLongPress?.let { { it(result.song) } },
+                onSwipeToQueue = onSongSwipe?.let { { it(result.song) } },
             )
         }
     }
 }
 
-/**
- * A single media row inside the typeahead dropdown: 52dp cover art, title,
- * and artist/album subtitle. Tap plays the track; long-press opens the menu.
- */
-@Composable
-private fun TypeaheadSongRow(
-    song: Song,
-    onClick: () -> Unit,
-    onLongPress: (() -> Unit)? = null,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .combinedClickable(onClick = onClick, onLongClick = onLongPress)
-            .padding(horizontal = PAGE_GUTTER, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        AsyncImage(
-            model = song.artworkAt(ROW_ART_PX),
-            contentDescription = null,
-            modifier = Modifier
-                .size(52.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .thumbnailBorder(RoundedCornerShape(8.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-        )
-        Spacer(Modifier.width(14.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = song.title,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onBackground,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.height(2.dp))
-            Text(
-                text = listOfNotNull(song.artist).joinToString(" · "),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
-}
 
 /**
  * What was searched for before, shown in place of the results while the field

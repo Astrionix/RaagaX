@@ -8,6 +8,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -59,6 +60,18 @@ import java.util.Locale
 class PlaybackPosition internal constructor() {
     var positionMs by mutableLongStateOf(0L)
         internal set
+
+    var sampledAtNanos by mutableLongStateOf(0L)
+        internal set
+
+    var seeks by mutableIntStateOf(0)
+
+    var advancing by mutableStateOf(true)
+
+    fun report(positionMs: Long, sampledAtNanos: Long = System.nanoTime()) {
+        this.positionMs = positionMs
+        this.sampledAtNanos = sampledAtNanos
+    }
 }
 
 /** Snapshot of playback state, driven by the MediaController. */
@@ -292,7 +305,8 @@ fun rememberPlayerState(controller: MediaController?): PlayerState {
             }
             // Synced here too, so seeking while paused or buffering still moves
             // the scrubber (the poll loop only runs on play).
-            position.positionMs = player.currentPosition.coerceAtLeast(0L)
+            position.report(player.currentPosition.coerceAtLeast(0L))
+            position.advancing = player.isPlaying
             state = state.copy(
                 song = item?.toSong(),
                 isPlaying = player.isPlaying,
@@ -343,7 +357,8 @@ fun rememberPlayerState(controller: MediaController?): PlayerState {
     val foreground = rememberIsForeground()
     LaunchedEffect(controller, state.isPlaying, foreground) {
         while (controller != null && state.isPlaying && foreground) {
-            position.positionMs = controller.currentPosition.coerceAtLeast(0L)
+            position.report(controller.currentPosition.coerceAtLeast(0L))
+            position.advancing = controller.isPlaying
             val duration = controller.duration.coerceAtLeast(0L)
             if (duration != state.durationMs) state = state.copy(durationMs = duration)
             delay(500)

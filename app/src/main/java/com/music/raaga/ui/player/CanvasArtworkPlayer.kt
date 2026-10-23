@@ -701,3 +701,9 @@ private fun mimeTypeOf(url: String): String? {
         else -> null
     }
 }
+
+object CanvasPlaybackLimits {
+    @Volatile
+    var maxFrameRate: Int? = null
+}
+

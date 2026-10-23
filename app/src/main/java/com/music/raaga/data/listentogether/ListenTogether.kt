@@ -379,7 +379,9 @@ object ListenTogether {
             is ServerUrlValidationResult.Valid -> add(res.normalizedUrl)
             is ServerUrlValidationResult.Invalid -> Unit
         }
-        val backups = runCatching { BuildConfig.LISTEN_TOGETHER_BACKUP_SERVERS }.getOrDefault("")
+        val backups = runCatching {
+            BuildConfig::class.java.getField("LISTEN_TOGETHER_BACKUP_SERVERS").get(null) as String
+        }.getOrDefault("")
         for (candidate in backups.split(",")) {
             val trimmed = candidate.trim()
             if (trimmed.isNotBlank()) {

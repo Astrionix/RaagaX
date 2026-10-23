@@ -142,6 +142,10 @@ android {
         }
     }
 
+    sourceSets {
+        getByName("main") { java.srcDir("../wearos/protocol") }
+    }
+
     externalNativeBuild {
         cmake {
             path = file("src/main/cpp/CMakeLists.txt")
@@ -239,6 +243,8 @@ android {
         resources {
             // SMBJ's BouncyCastle and jspecify both ship this descriptor.
             excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+            // The three BouncyCastle jars (bcprov, bcutil, bcpkix) ship one licence between them.
+            pickFirsts += setOf("META-INF/LICENSE.md", "META-INF/LICENSE.txt", "META-INF/NOTICE.md")
         }
     }
     buildFeatures {
@@ -340,9 +346,14 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer-dash:1.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-guava:1.9.0")
 
+    // ---- Casting: Google Cast sender + the route discovery it sits on ----
+    implementation("com.google.android.gms:play-services-cast-framework:22.2.0")
+    implementation("androidx.mediarouter:mediarouter:1.8.1")
+
     // ---- Images: Coil 3 + Palette (dominant colors for the mesh gradient) ----
     implementation("io.coil-kt.coil3:coil-compose:3.0.4")
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.0.4")
+    implementation("io.coil-kt.coil3:coil-svg:3.0.4")
     implementation("androidx.palette:palette-ktx:1.0.0")
 
     // ---- Frosted glass / progressive blur (Telegram-style bars) ----
@@ -415,6 +426,17 @@ dependencies {
     // files, which would put an offline conversion step between the model and
     // the app for a saving that does not matter in a self-distributed APK.
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.28.0")
+
+    // ---- The watch app (wearos/): Data Layer state out, commands in ----
+    implementation("com.google.android.gms:play-services-wearable:20.0.1")
+    implementation("androidx.wear:wear-remote-interactions:1.1.0")
+
+    // ---- "Raaga for Wear OS": the first install onto a watch ----
+    implementation("com.github.MuntashirAkon:libadb-android:3.1.1") {
+        exclude(group = "org.bouncycastle")
+    }
+    implementation("org.conscrypt:conscrypt-android:2.5.3")
+    implementation("org.bouncycastle:bcpkix-jdk18on:1.85")
 
     testImplementation("junit:junit:4.13.2")
     // A real HTTP server for the addon tests. The addon protocol is entirely

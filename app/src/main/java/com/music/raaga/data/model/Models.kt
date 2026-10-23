@@ -10,6 +10,17 @@ enum class QueueTier {
     AUTOPLAY,
 }
 
+/**
+ * One credited artist, as YouTube Music itself states them.
+ *
+ * @property browseId The artist's own channel, so their page is the one that
+ * opens. Null for the rare run that names an artist without linking one.
+ */
+data class ArtistRef(
+    val name: String,
+    val browseId: String? = null,
+)
+
 /** A playable YouTube Music track. */
 data class Song(
     val videoId: String,
@@ -19,6 +30,19 @@ data class Song(
     val durationText: String? = null,
     /** Browse ids lifted from the row, used by the long-press actions. */
     val artistId: String? = null,
+    /**
+     * Every credited artist, each with their own channel, where the row said so.
+     *
+     * [artistId] is the lead's and nothing else, which is why a collaboration
+     * could only ever be opened at its first name. A track's byline carries one
+     * navigation endpoint per artist, so the rest of them are here rather than
+     * left in the response — and because a name is not an identity, this is the
+     * only thing that can open the right page for the second and third credit.
+     *
+     * Empty on rows that state no per-artist links, which is most home cards
+     * and anything read before its watch-queue entry has been looked up.
+     */
+    val artists: List<ArtistRef> = emptyList(),
     val albumId: String? = null,
     /** Names the album page header, which [albumId] alone can't. */
     val albumName: String? = null,
@@ -68,6 +92,16 @@ data class Song(
     val localDateAddedSeconds: Long? = null,
     val localDateModifiedSeconds: Long? = null,
     /**
+     * Track number within its album, from the file's own tags (`TRACK` in
+     * MediaStore, `CD_TRACK_NUMBER` via retriever). Null when the tags don't
+     * say — remote catalogue rows never carry one.
+     *
+     * Lets a local album list in release order instead of whatever the library
+     * sort left standing, and lets its rows show the release's own numbers
+     * rather than their position in that list.
+     */
+    val trackNumber: Int? = null,
+    /**
      * What a non-YouTube source says it can serve this recording at, as one of
      * `LOSSLESS`, `HIGH` or `LOW` — null for every row that didn't come from
      * one.
@@ -80,6 +114,12 @@ data class Song(
      * the track played as a 128kbps MP3.
      */
     val sourceQuality: String? = null,
+    /**
+     * Whether a `LOSSLESS` [sourceQuality] row said it was the hi-res tier
+     * (`HI_RES_LOSSLESS`, `hires-96`, `24-bit`). Display only — the resolver
+     * ranks on [sourceQuality], where 16-bit and 24-bit are one tier.
+     */
+    val sourceHiRes: Boolean = false,
     /** Explicit-content state from the catalogue; null when that source does not say. */
     val isExplicit: Boolean? = null,
     /**
@@ -107,6 +147,7 @@ data class Song(
         thumbnailUrl: String?,
         durationText: String? = null,
         artistId: String? = null,
+        artists: List<ArtistRef> = emptyList(),
         albumId: String? = null,
         albumName: String? = null,
         isVideo: Boolean = false,
@@ -119,6 +160,7 @@ data class Song(
         localPath: String? = null,
         localDateAddedSeconds: Long? = null,
         localDateModifiedSeconds: Long? = null,
+        trackNumber: Int? = null,
         sourceQuality: String? = null,
         isExplicit: Boolean? = null,
         playbackSource: String? = null,
@@ -131,6 +173,7 @@ data class Song(
         thumbnailUrl = thumbnailUrl,
         durationText = durationText,
         artistId = artistId,
+        artists = artists,
         albumId = albumId,
         albumName = albumName,
         isVideo = isVideo,
@@ -144,6 +187,7 @@ data class Song(
         localPath = localPath,
         localDateAddedSeconds = localDateAddedSeconds,
         localDateModifiedSeconds = localDateModifiedSeconds,
+        trackNumber = trackNumber,
         sourceQuality = sourceQuality,
         isExplicit = isExplicit,
         playbackSource = playbackSource,
@@ -186,11 +230,39 @@ fun Song.artworkAt(px: Int): String? = thumbnailUrl.artworkAt(px)
  *
  * The one place that must not use this is the player's own queue, where the
  * entry, not the song, is what the row stands for — that list matches on
- * position.
+ * position. Any other list asks [playingRowMatcher], which tries identity
+ * before this.
  */
 fun Song.isSameTrackAs(other: Song?): Boolean {
     other ?: return false
     return title == other.title && artist == other.artist
+}
+
+/**
+ * Which rows of one list get the now-playing highlight: the row that was
+ * played, not every row that shares its name.
+ *
+ * [isSameTrackAs] alone lit up both a song and its music video in a search,
+ * and both an addon's stereo and Atmos rows, whichever was tapped. So
+ * identity is tried first, list-wide: when any row *is* the playing track —
+ * same id, and the same playlist slot when the player knows it — only that
+ * row lights. Only when none is does the name rule apply, for the
+ * cross-catalogue case it exists for (a local file playing over a YouTube
+ * album page), and then only the first row it matches.
+ */
+fun playingRowMatcher(rows: List<Song>, current: Song?): (Song) -> Boolean {
+    current ?: return { false }
+    val sameId = rows.filter { it.videoId == current.videoId }
+    if (sameId.isNotEmpty()) {
+        // A playlist holding the song twice: its slot says which one.
+        val slot = current.setVideoId
+        if (slot != null && sameId.any { it.setVideoId == slot }) {
+            return { it.videoId == current.videoId && it.setVideoId == slot }
+        }
+        return { it.videoId == current.videoId }
+    }
+    val byName = rows.firstOrNull { it.isSameTrackAs(current) } ?: return { false }
+    return { it == byName }
 }
 
 /**
@@ -222,9 +294,29 @@ fun String?.durationMillis(): Long {
 }
 
 /** As [Song.artworkAt], for artwork that isn't a track's. */
-fun String?.artworkAt(px: Int): String? = this?.replace(SIZE_HINT, "w$px-h$px")
+fun String?.artworkAt(px: Int): String? {
+    if (this == null) return null
+    val sized = this.replace(SIZE_HINT, "w$px-h$px")
+    return if (isGoogleImageHost(this)) {
+        sized.replace(PARAM_SIZE_HINT, "=s$px")
+    } else {
+        sized
+    }
+}
+
+private fun isGoogleImageHost(url: String): Boolean {
+    val host = url.substringAfter("://", "")
+        .ifEmpty { url.substringAfter("//", "") }
+        .substringBefore('/')
+        .substringBefore(':')
+        .substringBefore('?')
+        .lowercase()
+    return host == "ggpht.com" || host.endsWith(".ggpht.com") ||
+        host == "googleusercontent.com" || host.endsWith(".googleusercontent.com")
+}
 
 private val SIZE_HINT = Regex("""w\d+-h\d+""")
+private val PARAM_SIZE_HINT = Regex("""=s\d+""")
 
 /**
  * Artwork for a list row — 52dp at most, so about 140px on a 3x screen.
@@ -356,6 +448,33 @@ data class HomeShelf(
     val moreParams: String? = null,
 )
 
+/**
+ * These shelves minus any that mostly repeat one already on the page, or one earlier in this
+ * batch. YouTube serves the same new releases from FEmusic_new_releases ("Albums & singles") and
+ * FEmusic_explore ("New albums & singles"), lightly reordered under a different heading, so a
+ * title check alone lets both through.
+ *
+ * Only browsable items (albums, playlists, artists) are compared. Song shelves overlap on
+ * purpose: Recents and YouTube's own "Listen again" share tracks but rank them differently.
+ */
+fun List<HomeShelf>.withoutRepeatsOf(existing: List<HomeShelf>): List<HomeShelf> {
+    val shown = existing.toMutableList()
+    return filter { shelf ->
+        val keys = shelf.browseKeys()
+        val repeat = keys.isNotEmpty() && shown.any { other ->
+            val shared = other.browseKeys().count { it in keys }
+            shared > 0 && shared >= REPEAT_SHELF_SHARE * minOf(shelf.items.size, other.items.size)
+        }
+        if (!repeat) shown += shelf
+        !repeat
+    }
+}
+
+/** Share of the smaller shelf's items both must hold for one to count as a repeat of the other. */
+private const val REPEAT_SHELF_SHARE = 0.6
+
+private fun HomeShelf.browseKeys(): Set<String> = items.mapNotNullTo(HashSet()) { it.browseId }
+
 /** A page of the Home feed, plus the token for the next one — null once exhausted. */
 data class HomeFeed(
     val shelves: List<HomeShelf>,
@@ -375,6 +494,8 @@ data class MoodGenre(
     val params: String?,
     /** First real cover from the category's playlist shelves, loaded in the background. */
     val thumbnailUrl: String? = null,
+    /** YouTube Music's own stripe colour for the button, as ARGB; null when the button carries none. */
+    val stripeColor: Long? = null,
 )
 
 /** Content for the New feed: new releases, top charts, trending hits, and curated moods & genres. */
@@ -384,7 +505,6 @@ data class NewFeedData(
     val exploreShelves: List<HomeShelf> = emptyList(),
     val moodGenres: List<MoodGenreSection> = emptyList(),
 )
-
 
 /**
  * The signed-in library, as YouTube Music splits it: the auto-generated Liked
@@ -415,6 +535,8 @@ data class DetailPage(
     val thumbnailUrl: String?,
     val songs: UiState<List<Song>>,
     val type: BrowseType = BrowseType.OTHER,
+    /** Continuation behind the currently visible songs, if the listing can grow. */
+    val continuation: String? = null,
     /** Albums / singles carousels, populated for artist pages. */
     val sections: List<HomeShelf> = emptyList(),
     /**

@@ -29,10 +29,14 @@ object SupabaseActivityClient {
     private val json = Json { ignoreUnknownKeys = true }
 
     private val supabaseUrl: String
-        get() = BuildConfig.SUPABASE_URL.trimEnd('/')
+        get() = runCatching {
+            BuildConfig::class.java.getField("SUPABASE_URL").get(null) as String
+        }.getOrDefault("https://qbqnlmfdmfayeztagvkj.supabase.co").trimEnd('/')
 
     private val anonKey: String
-        get() = BuildConfig.SUPABASE_ANON_KEY
+        get() = runCatching {
+            BuildConfig::class.java.getField("SUPABASE_ANON_KEY").get(null) as String
+        }.getOrDefault("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFicW5sbWZkbWZheWV6dGFndmtqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyMDAzNDksImV4cCI6MjEwMTc3NjM0OX0.Xjj4PQmu1LLYu7Yk0XiijVEDqzd4PqSsZzACaKkWLXk")
 
     /**
      * Publishes the user's current playback state to Supabase `user_activity` table.

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -25,6 +26,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -249,4 +251,96 @@ fun MoodGenrePlaylistsScreen(
             }
         }
     }
+}
+
+
+// -- MoodGenreSleeve & Layout for TV and Phone --
+
+const val MOOD_CARD_ASPECT = 1.72f
+private const val MOOD_STRIPE_FRACTION = .28f
+
+@Composable
+fun MoodGenreSleeve(
+    item: MoodGenre,
+    modifier: Modifier = Modifier,
+    titleStyle: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.titleMedium,
+) {
+    val tone = remember(item.stripeColor, item.title) { moodTone(item) }
+    Box(modifier = modifier.background(tone.stripe)) {
+        Box(
+            Modifier
+                .align(Alignment.CenterEnd)
+                .fillMaxHeight()
+                .fillMaxWidth(1f - MOOD_STRIPE_FRACTION)
+                .background(tone.placeholder),
+        ) {
+            item.thumbnailUrl?.let { artwork ->
+                AsyncImage(
+                    model = artwork,
+                    contentDescription = null,
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    colorFilter = tone.duotone,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+        Box(
+            Modifier
+                .matchParentSize()
+                .background(Brush.verticalGradient(0f to Color.Black.copy(alpha = .24f), .62f to Color.Transparent)),
+        )
+        Text(
+            text = item.title,
+            style = titleStyle.copy(
+                shadow = androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha = .35f), offset = androidx.compose.ui.geometry.Offset(0f, 1f), blurRadius = 6f),
+            ),
+            fontWeight = FontWeight.Bold,
+            color = Color.White,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+        )
+    }
+}
+
+private class MoodTone(val stripe: Color, val placeholder: Color, val duotone: androidx.compose.ui.graphics.ColorFilter)
+
+private fun moodTone(item: MoodGenre): MoodTone {
+    val base = item.stripeColor?.let { Color(it.toInt()) } ?: fallbackMoodColor(item.title)
+    val stripe = androidx.compose.ui.graphics.lerp(base, Color.Black, .08f)
+    val shadow = androidx.compose.ui.graphics.lerp(base, Color.Black, .68f)
+    val highlight = androidx.compose.ui.graphics.lerp(base, Color.White, .32f)
+    return MoodTone(
+        stripe = stripe,
+        placeholder = androidx.compose.ui.graphics.lerp(shadow, highlight, .45f),
+        duotone = duotone(shadow, highlight),
+    )
+}
+
+private fun duotone(shadow: Color, highlight: Color): androidx.compose.ui.graphics.ColorFilter {
+    fun channel(from: Float, to: Float): FloatArray {
+        val span = to - from
+        return floatArrayOf(span * .299f, span * .587f, span * .114f, 0f, from * 255f)
+    }
+    return androidx.compose.ui.graphics.ColorFilter.colorMatrix(
+        androidx.compose.ui.graphics.ColorMatrix(
+            channel(shadow.red, highlight.red) +
+                channel(shadow.green, highlight.green) +
+                channel(shadow.blue, highlight.blue) +
+                floatArrayOf(0f, 0f, 0f, 1f, 0f),
+        ),
+    )
+}
+
+private fun fallbackMoodColor(title: String): Color = when ((title.hashCode() and Int.MAX_VALUE) % 8) {
+    0 -> Color(0xFFCC6A55)
+    1 -> Color(0xFFC07A92)
+    2 -> Color(0xFF9C8AC0)
+    3 -> Color(0xFF8090C8)
+    4 -> Color(0xFFD0A060)
+    5 -> Color(0xFF6A88B0)
+    6 -> Color(0xFF7AAED0)
+    else -> Color(0xFF86B890)
 }

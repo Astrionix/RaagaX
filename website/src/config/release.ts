@@ -119,12 +119,36 @@ export interface ChangelogItem {
 
 export const V197_CHANGELOG: ChangelogItem[] = [
   {
+    category: "Casting & Ecosystem",
+    badge: "Google Cast",
+    badgeColor: "bg-amber-500/20 text-amber-300 border-amber-500/30",
+    title: "Google Cast & Chromecast Audio Streaming",
+    description: "Native Google Cast sender subsystem. Discover Chromecasts, Google Nest speakers, and smart displays on local Wi-Fi with instant route selection, synchronized volume control, and continuous ExoPlayer queue forwarding.",
+    platforms: ["Android"],
+  },
+  {
+    category: "Web & Cross-Platform",
+    badge: "Web Player",
+    badgeColor: "bg-cyan-500/20 text-cyan-300 border-cyan-500/30",
+    title: "Modern Web Player & Companion Extension",
+    description: "Full-fidelity React 19 and Tailwind CSS v4 web player with synchronized full-screen lyrics over dynamic mesh gradients, Apple Music motion artwork, music video playback, and companion browser extension.",
+    platforms: ["Web", "Chrome", "Firefox"],
+  },
+  {
     category: "Audio Experience",
     badge: "Liquid Glass",
     badgeColor: "bg-red-500/20 text-red-300 border-red-500/30",
     title: "Liquid Glass Audio Output Sheet",
-    description: "Frosted liquid glass output selector accessible on both Home and expanded Now Playing screens. Switch on-the-fly between Speakers, Bluetooth devices, USB DACs, and wired headphones.",
+    description: "Frosted liquid glass output selector accessible on both Home and expanded Now Playing screens. Switch on-the-fly between Speakers, Bluetooth devices, USB DACs, Google Cast receivers, and wired headphones.",
     platforms: ["Android", "Windows", "macOS", "Linux"],
+  },
+  {
+    category: "Interactions",
+    badge: "Micro-Gestures",
+    badgeColor: "bg-pink-500/20 text-pink-300 border-pink-500/30",
+    title: "Swipe-to-Queue, Star Favorites & Artist Signatures",
+    description: "Smooth gesture swipe-to-queue on songs and search history, Apple Music-style star favorite toggle in player and notifications, and authentic ink signature rendering on artist profile headers.",
+    platforms: ["Android", "Desktop"],
   },
   {
     category: "Desktop UX",
@@ -151,3 +175,4 @@ export const V197_CHANGELOG: ChangelogItem[] = [
     platforms: ["Android", "Cloud"],
   },
 ];
+

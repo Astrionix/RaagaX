@@ -113,6 +113,10 @@ import com.music.raaga.data.scrobbling.ListenBrainzManager
 import com.music.raaga.data.scrobbling.ScrobbleManager
 import com.music.raaga.data.settings.AppSettings
 import com.music.raaga.data.settings.EqualizerMode
+import com.music.raaga.playback.cast.CastController
+import com.music.raaga.playback.cast.CastPlayback
+import com.music.raaga.playback.cast.CastSink
+import com.music.raaga.playback.cast.CastStream
 import com.music.raaga.data.settings.OutputPcmMode
 import com.music.raaga.data.sources.SourceResolver
 import com.music.raaga.data.sources.SourceStream
@@ -671,6 +675,29 @@ class PlaybackService : MediaLibraryService() {
      */
     private var partySync: PartySync? = null
     private var activeSessionPlayer: SessionPlayer? = null
+    private var streamResolver: ResolvingDataSource.Resolver? = null
+
+    private val castPlayback by lazy {
+        CastPlayback(
+            scope = scope,
+            localPlayer = { player },
+            resolve = ::resolveForCast,
+            say = { message ->
+                android.widget.Toast.makeText(applicationContext, message, android.widget.Toast.LENGTH_SHORT).show()
+            },
+        )
+    }
+
+    private suspend fun resolveForCast(item: MediaItem): CastStream? = withContext(Dispatchers.IO) {
+        val uri = item.localConfiguration?.uri ?: return@withContext null
+        val resolver = streamResolver ?: return@withContext null
+        val resolved = resolver.resolveDataSpec(DataSpec(uri)).uri
+        if (resolved.scheme != "http" && resolved.scheme != "https") {
+            null
+        } else {
+            CastStream(resolved.toString(), CastPlayback.mimeTypeOf(resolved))
+        }
+    }
 
     /** Commands exposed as the secondary buttons on the media notification. */
     private val favoriteCommand = SessionCommand(ACTION_TOGGLE_FAVORITE, Bundle.EMPTY)
@@ -847,6 +874,9 @@ class PlaybackService : MediaLibraryService() {
          */
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
             publishWidgetState(playing = playWhenReady)
+            if (playWhenReady && castPlayback.active) {
+                player?.let { castPlayback.onLocalStartedPlaying(it) }
+            }
             // The only place the *reason* can be read. A party has to tell a
             // pause the listener asked for from one another app imposed, and
             // [Player] does not keep the answer around to be asked later.
@@ -904,6 +934,7 @@ class PlaybackService : MediaLibraryService() {
                     reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT,
                 reason = reason,
             )
+            castPlayback.onLocalTransition(mediaItem, reason)
             // Prune consumed USER_QUEUE entries when playback enters CONTEXT,
             // keeping the timeline clean and ensuring REPEAT_MODE_ALL loops only CONTEXT items.
             QueueCoordinator.consumePlayedUserQueue(exoPlayer)
@@ -978,6 +1009,7 @@ class PlaybackService : MediaLibraryService() {
         override fun onRepeatModeChanged(repeatMode: Int) {
             val previous = lastRepeatMode
             lastRepeatMode = repeatMode
+            castPlayback.onLocalRepeatChanged(repeatMode)
             // Repeat-all loops the queue as it stands; AutoPlay's tracks are the
             // opposite of that — an endless supply of new ones — so they come
             // back out first, and native REPEAT_MODE_ALL then wraps a plain
@@ -1009,6 +1041,7 @@ class PlaybackService : MediaLibraryService() {
             // session is currently pointed at.
             val exoPlayer = player ?: return
             if (exoPlayer.isPlaying) prefetchAround(exoPlayer)
+            castPlayback.onLocalQueueChanged()
             if (reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED) {
                 saveQueueSnapshot(exoPlayer)
                 refreshCustomLayouts()
@@ -1226,6 +1259,7 @@ class PlaybackService : MediaLibraryService() {
         }
 
         val streamResolver = ResolvingDataSource.Resolver { dataSpec ->
+            this.streamResolver = streamResolver
             // Which track everything below is for, said once, because none of
             // it would otherwise know: this runs on ExoPlayer's loader thread
             // with a DataSpec and nothing else, and the work it starts — the
@@ -1631,6 +1665,23 @@ class PlaybackService : MediaLibraryService() {
             .setSessionActivity(sessionActivity())
             .build()
         refreshCustomLayouts()
+
+        castPlayback.sink = object : CastSink {
+            override fun onRemotePlaybackChanged() {
+                activeSessionPlayer?.notifyRemoteStateChanged()
+                publishWidgetState()
+            }
+
+            override fun onRemoteRouteChanged() {
+                activeSessionPlayer?.notifyRemoteStateChanged()
+                refreshCustomLayouts()
+                publishWidgetState()
+            }
+
+            override fun onRemoteVolumeChanged() {}
+        }
+        CastController.ensureStarted(this)
+        CastController.attach(castPlayback)
     }
 
     private fun createCrossfadeController() = CrossfadeController(
@@ -6168,6 +6219,9 @@ class PlaybackService : MediaLibraryService() {
     override fun onDestroy() {
         closeAudioEffectSession()
         bluetoothTracker.stop()
+        if (castPlayback.active) CastController.disconnect(resumeHere = false)
+        CastController.detach(castPlayback)
+        castPlayback.release()
         audioManager?.unregisterAudioDeviceCallback(outputDeviceCallback)
         partySync?.stop()
         partySync = null
@@ -6455,7 +6509,7 @@ class PlaybackService : MediaLibraryService() {
         }
 
         private fun isRemoteConnected(): Boolean =
-            com.music.raaga.data.connect.AndroidConnect.manager.activeRemoteDevice.value != null
+            castPlayback.active || com.music.raaga.data.connect.AndroidConnect.manager.activeRemoteDevice.value != null
 
         fun notifyRemoteStateChanged() {
             val isRemote = isRemoteConnected()
@@ -6509,6 +6563,9 @@ class PlaybackService : MediaLibraryService() {
         }
 
         override fun getCurrentTimeline(): Timeline {
+            if (castPlayback.active) {
+                return super.currentTimeline
+            }
             if (isRemoteConnected()) {
                 val item = currentMediaItem
                 if (item != null) {
@@ -6521,6 +6578,9 @@ class PlaybackService : MediaLibraryService() {
         }
 
         override fun isPlaying(): Boolean {
+            if (castPlayback.active) {
+                return castPlayback.isPlaying
+            }
             val remote = com.music.raaga.data.connect.AndroidConnect.manager.activeRemoteDevice.value
             if (remote != null) {
                 return com.music.raaga.data.connect.AndroidConnect.manager.remoteStatus.value?.isPlaying == true
@@ -6529,6 +6589,9 @@ class PlaybackService : MediaLibraryService() {
         }
 
         override fun getPlayWhenReady(): Boolean {
+            if (castPlayback.active) {
+                return castPlayback.playWhenReady
+            }
             val remote = com.music.raaga.data.connect.AndroidConnect.manager.activeRemoteDevice.value
             if (remote != null) {
                 return com.music.raaga.data.connect.AndroidConnect.manager.remoteStatus.value?.isPlaying == true
@@ -6537,6 +6600,9 @@ class PlaybackService : MediaLibraryService() {
         }
 
         override fun getPlaybackState(): Int {
+            if (castPlayback.active) {
+                return castPlayback.playbackState
+            }
             val remote = com.music.raaga.data.connect.AndroidConnect.manager.activeRemoteDevice.value
             if (remote != null) {
                 val track = com.music.raaga.data.connect.AndroidConnect.manager.remoteStatus.value?.track
@@ -6546,6 +6612,9 @@ class PlaybackService : MediaLibraryService() {
         }
 
         override fun getCurrentPosition(): Long {
+            if (castPlayback.active) {
+                return castPlayback.positionMs
+            }
             val remote = com.music.raaga.data.connect.AndroidConnect.manager.activeRemoteDevice.value
             if (remote != null) {
                 return com.music.raaga.data.connect.AndroidConnect.manager.remoteStatus.value?.positionMs ?: 0L
@@ -6563,6 +6632,10 @@ class PlaybackService : MediaLibraryService() {
             if (isRemoteConnected()) currentPosition else super.contentBufferedPosition
 
         override fun getDuration(): Long {
+            if (castPlayback.active) {
+                val d = castPlayback.durationMs
+                if (d > 0 && d != C.TIME_UNSET) return d
+            }
             val remote = com.music.raaga.data.connect.AndroidConnect.manager.activeRemoteDevice.value
             if (remote != null) {
                 val d = com.music.raaga.data.connect.AndroidConnect.manager.remoteStatus.value?.durationMs ?: 0L
@@ -6601,7 +6674,7 @@ class PlaybackService : MediaLibraryService() {
         }
 
         override fun getCurrentMediaItemIndex(): Int =
-            if (isRemoteConnected()) 0 else super.currentMediaItemIndex
+            if (com.music.raaga.data.connect.AndroidConnect.manager.activeRemoteDevice.value != null) 0 else super.currentMediaItemIndex
 
         override fun getCurrentPeriodIndex(): Int =
             if (isRemoteConnected()) 0 else super.currentPeriodIndex
@@ -6656,6 +6729,10 @@ class PlaybackService : MediaLibraryService() {
         private fun locked(): Boolean = ListenTogether.state.value.controlsLocked
 
         override fun play() {
+            if (castPlayback.active) {
+                castPlayback.play()
+                return
+            }
             if (isRemoteConnected()) {
                 com.music.raaga.data.connect.AndroidConnect.manager.sendPlay()
                 return
@@ -6676,6 +6753,10 @@ class PlaybackService : MediaLibraryService() {
         override fun pause() {
             if (com.music.raaga.data.connect.AndroidConnect.isHandoffPausing) {
                 super.pause()
+                return
+            }
+            if (castPlayback.active) {
+                castPlayback.pause()
                 return
             }
             if (isRemoteConnected()) {
@@ -6715,6 +6796,10 @@ class PlaybackService : MediaLibraryService() {
         // host puts it, and a local seek would only be dragged back by the next
         // reconcile anyway.
         override fun seekTo(positionMs: Long) {
+            if (castPlayback.active) {
+                castPlayback.seekTo(positionMs)
+                return
+            }
             if (isRemoteConnected()) {
                 com.music.raaga.data.connect.AndroidConnect.manager.sendSeek(positionMs)
                 return

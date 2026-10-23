@@ -381,17 +381,21 @@ class FloatDspChainTest {
 
         val frames = 64
         val block = AudioBlock(channelCount = 2, capacityFrames = frames)
-        // Feed 0.9f; +3 dB preamp will lift it to ~1.27f (exceeding nominal 1.0f)
+        // Feed 0.9f; +3 dB preamp will lift it to ~1.27f (exceeding nominal 1.0f in EQ stage)
         for (i in 0 until frames * 2) {
             block.samples[i] = 0.9f
         }
         block.reset(frames)
 
-        chain.process(block)
+        chain.equalizer.process(block)
+        val eqSample = block.samples[frames * 2 - 2]
+        assertTrue("Headroom must be preserved above 1.0f in EQ stage (got $eqSample)", eqSample > 1.1f)
 
-        // Must NOT be clipped to 1.0f
-        val sample = block.samples[frames * 2 - 2]
-        assertTrue("Headroom must be preserved above 1.0f (got $sample)", sample > 1.1f)
+        // Downstream LoudnessProcessor limiter catches overs without harsh digital clipping
+        chain.loudness.holdLimiter = chain.equalizer.isShaping
+        chain.loudness.process(block)
+        val finalSample = block.samples[frames * 2 - 2]
+        assertTrue("Limiter bounds peak cleanly under full-scale (got $finalSample)", finalSample <= 0.9851f && finalSample > 0.9f)
     }
 
     @Test

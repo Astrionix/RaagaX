@@ -11,7 +11,7 @@
 # to that same tree without duplicating this module.
 
 cmake_minimum_required(VERSION 3.22.1)
-project(raaga_analysis LANGUAGES CXX)
+project(raaga_analysis LANGUAGES C CXX)
 
 get_filename_component(RAAGA_NATIVE_DIR
     "${CMAKE_CURRENT_SOURCE_DIR}/../../../../native"
@@ -47,3 +47,14 @@ target_link_libraries(raaga_analysis ${log-lib})
 # LOAD segments to 16KB. A superset of 4KB alignment, so 4KB devices are
 # unaffected. APK-side alignment of uncompressed .so files is handled by AGP.
 target_link_options(raaga_analysis PRIVATE "-Wl,-z,max-page-size=16384")
+
+# DSD playback (DSF/DFF). The decimator turns 1-bit DSD into float PCM for
+# DsdExtractor; DST is the lossless compression SACD rips use inside DFF.
+add_library(raaga_dsd SHARED dsd/dsd_decimator.cpp)
+target_compile_options(raaga_dsd PRIVATE -O3 -fno-fast-math -ffp-contract=off -fvisibility=hidden)
+target_link_options(raaga_dsd PRIVATE "-Wl,-z,max-page-size=16384")
+
+add_library(raaga_dst SHARED dsd/dst/decoder.c dsd/dst/jni.cpp)
+target_compile_options(raaga_dst PRIVATE -O3 -fno-strict-aliasing -fvisibility=hidden)
+target_link_options(raaga_dst PRIVATE "-Wl,-z,max-page-size=16384")
+

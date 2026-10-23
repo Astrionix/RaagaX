@@ -1,5 +1,4 @@
-<resources>
-    <string name="app_name">Raaga</string>
+<resources><string name="app_name">Raaga</string>
     <string name="playback_channel_name">Now playing</string>
     <string name="download_channel_name">Downloads</string>
     <string name="download_channel_description">Songs being saved to your Music folder</string>
@@ -988,7 +987,7 @@
     <string name="personal_phone">%1$s’s Phone</string>
     <string name="this_phone">This phone</string>
 
-    <!-- Listen together -->
+    
     <string name="listen_together">Listen together</string>
     <string name="listen_together_subtitle">Share a code and play the same music, in time</string>
     <string name="listen_together_in_party">In a party · %1$s</string>
@@ -1227,7 +1226,7 @@
 
     <string name="card_songs_format">%1$s songs</string>
 
-    <!-- Jam Session strings -->
+    
     <string name="connect_jam_tab" translatable="false">Jam</string>
     <string name="jam_queue_voted_title" translatable="false">Jam Queue · Voted by Room</string>
     <string name="jam_added_by" translatable="false">Added by %1$s</string>
@@ -1241,7 +1240,7 @@
     <string name="jam_empty_queue" translatable="false">No upcoming songs yet. Add songs to start the party!</string>
     <string name="jam_vote_score" translatable="false">%1$d</string>
 
-    <!-- Blend and Friend Activity strings -->
+    
     <string name="connect_blend_tab" translatable="false">Blend</string>
     <string name="connect_friends_tab" translatable="false">Friends</string>
     <string name="blend_title" translatable="false">Raaga Blend</string>
@@ -1259,6 +1258,176 @@
     <string name="friends_listen_along" translatable="false">Listen Along</string>
     <string name="friends_add_btn" translatable="false">Add Friend</string>
     <string name="friends_listening_now" translatable="false">Listening now</string>
-    <string name="friends_minutes_ago" translatable="false">%1$d m ago</string>
 
+    
+    <string name="song_info">Song Info</string>
+    <string name="song_info_album">Album</string>
+    <string name="song_info_release_date">Release date</string>
+    <string name="song_info_views">Plays / views</string>
+    <string name="song_info_likes">Likes</string>
+    <string name="song_info_comments">Comments</string>
+    <string name="song_info_unavailable">Not available</string>
+    <string name="song_info_error">Some information could not be loaded.</string>
+    <string name="song_info_retry">Retry</string>
+
+    
+    <string name="artist_signatures">Artist signatures</string>
+    <string name="artist_signatures_description">Display handwritten signatures on artist header pages</string>
+    <string name="artist_signatures_subtitle">Endpoint providing handwritten signatures for artists</string>
+    <string name="artist_signatures_url">Signature API URL</string>
+    <string name="artist_signatures_url_hint">https://api.example.com</string>
+    <string name="artist_signatures_unconfigured">Not configured — tap to set the API URL</string>
+    <string name="artist_signatures_test_failed">Could not connect to signature API</string>
+    <string name="signed_by">Signed by %1$s</string>
+    <string name="swipe_to_queue">Add to queue</string>
+    <string name="star_favorite_title">Star favorite icon</string>
+    <string name="star_favorite_description">Use Apple Music-style star icon instead of heart</string>
+
+    <string name="cast">Google Cast</string>
+    <string name="cast_connecting">Connecting…</string>
+    <string name="cast_casting">Casting</string>
+    <string name="cast_row_subtitle">Chromecast, Google Cast speakers</string>
+    <string name="cast_dialog_title">Cast</string>
+    <string name="cast_dialog_subtitle">Play on a Chromecast or Google Cast speaker</string>
+    <string name="cast_searching">Looking for devices…</string>
+    <string name="cast_searching_hint">Your phone and the receiver need to be on the same Wi-Fi network.</string>
+    <string name="cast_device_connecting">Connecting…</string>
+    <string name="cast_device_connected">Casting</string>
+    <string name="cast_stop">Stop casting</string>
+    <string name="cast_track_unsupported">This track can\'t be cast</string>
+    <string name="cast_connect_failed">Couldn\'t connect to the receiver</string>
+
+    
+    <string name="advanced_automix">Advanced Automix</string>
+    <string name="advanced_automix_subtitle">Mixes like a DJ: keeps the beats locked, makes each move on the beat, and cuts between songs that won\'t blend. No extra processing.</string>
+    <string name="app_icon">App icon</string>
+    <string name="app_icon_default">Default</string>
+    <string name="app_icon_liquid_glass" translatable="false">Liquid Glass</string>
+    <string name="app_icon_liquid_glass_clear" translatable="false">Liquid Glass Clear</string>
+    <string name="app_icon_liquid_glass_clear_dark" translatable="false">Liquid Glass Clear Dark</string>
+    <string name="app_icon_liquid_glass_dark" translatable="false">Liquid Glass Dark</string>
+    <string name="app_icon_pixel_glass" translatable="false">Pixel Glass</string>
+    <string name="app_icon_pixel_glass_clear" translatable="false">Pixel Glass Clear</string>
+    <string name="app_icon_pixel_glass_clear_dark" translatable="false">Pixel Glass Clear Dark</string>
+    <string name="app_icon_pixel_glass_dark" translatable="false">Pixel Glass Dark</string>
+    <string name="app_icon_samsung_glass" translatable="false">Samsung Glass</string>
+    <string name="app_icon_samsung_glass_clear" translatable="false">Samsung Glass Clear</string>
+    <string name="app_icon_samsung_glass_clear_dark" translatable="false">Samsung Glass Clear Dark</string>
+    <string name="app_icon_samsung_glass_dark" translatable="false">Samsung Glass Dark</string>
+    <string name="cached_songs">Cached songs</string>
+    <string name="cached_songs_empty">No cached songs yet. Songs you play from YouTube or JioSaavn will show up here.</string>
+    <string name="cached_songs_subtitle">Songs from YouTube and JioSaavn in the song cache</string>
+    <string name="chinese_simplified">Chinese (Simplified)</string>
+    <string name="chinese_traditional">Chinese (Traditional)</string>
+    <string name="clear_song_cache_title">Clear song cache?</string>
+    <string name="clear_song_cache_warning">All cached songs will be deleted and the Cached songs folder will be emptied. They will stream again the next time you play them.</string>
+    <string name="hide_status_bar_in_player">Hide status bar in player</string>
+    <string name="hide_status_bar_in_player_subtitle">Hides the clock, battery and notification icons while the main player is open</string>
+    <string name="import_spotify">Import Spotify</string>
+    <string name="local_playlist_subtitle">%1$d songs · On this device</string>
+    <string name="lossless_output_permission">Check Bluetooth codec</string>
+    <string name="lossless_output_permission_denied">Nearby devices permission is off</string>
+    <string name="lossless_output_permission_denied_detail">Tap to open Settings and allow Nearby devices — without it we can’t read your Bluetooth codec</string>
+    <string name="lossless_output_permission_detail">Allow Nearby devices so LDAC, LHDC or Samsung UHQ headphones can unlock lossless-only addons</string>
+    <string name="loudness_off_on_speaker">Disable on Phone Speaker</string>
+    <string name="lyrics_share_description">The lines you picked, laid out on a card with the cover.</string>
+    <string name="lyrics_share_story">Make it a story</string>
+    <string name="lyrics_share_story_revert">Back to the card</string>
+    <string name="lyrics_share_title">Share lyrics</string>
+    <string name="not_enough_this_week">Play a few more songs this week to unlock your Replay.</string>
+    <string name="onboarding_back">Back</string>
+    <string name="onboarding_connect_body">Bring your library, playlists and mixes with you, and start a Listen Together party with friends.</string>
+    <string name="onboarding_connect_title">Connect your YouTube account</string>
+    <string name="onboarding_name_footer">Friends see this when you Listen Together. You can change it later in Settings.</string>
+    <string name="onboarding_name_hint">Your name</string>
+    <string name="onboarding_name_prompt">What should we call you?</string>
+    <string name="onboarding_next">Next</string>
+    <string name="onboarding_sign_in_google">Sign in with Google</string>
+    <string name="onboarding_skip_sign_in">Skip sign in</string>
+    <string name="onboarding_title">Millions of songs, stream on Raaga</string>
+    <string name="pipeline_pcm_data_rate" translatable="false">PCM Data Rate</string>
+    <string name="playlist_reordered">Playlist order saved</string>
+    <string name="recent_album">Recent Album</string>
+    <string name="recent_ep">Recent EP</string>
+    <string name="recent_single">Recent Single</string>
+    <string name="reorder_failed">Couldn\'t save the new order</string>
+    <string name="reorder_songs">Reorder songs</string>
+    <string name="replay_artist_start_week">This week, </string>
+    <string name="replay_songs_end_week"> filled your week.</string>
+    <string name="replay_summary_end_week">week</string>
+    <string name="replay_this_week">This week</string>
+    <string name="save_order">Save</string>
+    <string name="saved_bang">Saved!</string>
+    <string name="search_addons_none">No addons are enabled. Add one in Settings → Sources.</string>
+    <string name="search_source_addons">Addons</string>
+    <string name="search_source_youtube" translatable="false">YouTube</string>
+    <string name="share_your_lyrics">Send your lyrics card</string>
+    <string name="show_cache_folder">Show cached songs folder</string>
+    <string name="show_cache_folder_subtitle">Adds a Cached songs folder to Library with the YouTube and JioSaavn songs kept in the song cache</string>
+    <string name="show_queue_history">Show queue history</string>
+    <string name="show_queue_history_subtitle">Show up to 25 previously played songs above Now playing in the queue</string>
+    <string name="song_cache_unlimited">Unlimited</string>
+    <string name="song_cache_unlimited_subtitle">No limit. Cached audio can keep growing until your storage is full.</string>
+    <string name="source_downloads_off">Streaming only</string>
+    <string name="source_needs_lossless_bt_codec">Needs a lossless output · Bluetooth is on %1$s; use a lossless supported device</string>
+    <string name="source_needs_lossless_bt_unknown">Needs a lossless output · can’t tell which Bluetooth codec is in use</string>
+    <string name="source_needs_lossless_output">Needs a lossless output · use a lossless supported device</string>
+    <string name="spotify">Spotify</string>
+    <string name="spotify_connect_subtitle">Sign in to load your playlists. Playback uses YouTube Music.</string>
+    <string name="spotify_empty_playlists">No playlists on this account</string>
+    <string name="spotify_empty_tracks">This playlist has no tracks</string>
+    <string name="spotify_import_button">Import</string>
+    <string name="spotify_import_description">Paste a public playlist link. Songs are matched on YouTube Music.</string>
+    <string name="spotify_import_description_local">Paste a public playlist link. Songs are matched on YouTube Music and saved on this device.</string>
+    <string name="spotify_import_done">Imported \'%1$s\'</string>
+    <string name="spotify_import_empty_playlist">No songs in this playlist</string>
+    <string name="spotify_import_failed">Couldn\'t import the playlist: %1$s</string>
+    <string name="spotify_import_fetching">Reading the Spotify playlist…</string>
+    <string name="spotify_import_hint">open.spotify.com/playlist/…</string>
+    <string name="spotify_import_invalid">That isn\'t a Spotify playlist link.</string>
+    <string name="spotify_import_local_fallback">Couldn\'t create it on YouTube Music, so \'%1$s\' was saved on this device instead.</string>
+    <string name="spotify_import_matching">Matching songs %1$d of %2$d</string>
+    <string name="spotify_import_none">None of those songs were found on YouTube Music.</string>
+    <string name="spotify_import_title">Import Spotify playlist</string>
+    <string name="spotify_import_unmatched">%1$d songs weren\'t found on YouTube Music</string>
+    <string name="spotify_library_subtitle">Your Spotify playlists</string>
+    <string name="spotify_sign_in">Sign in with Spotify</string>
+    <string name="spotify_track_unavailable">Couldn\'t find that song on YouTube Music</string>
+    <string name="spotify_use_spdc_token">Use sp_dc token</string>
+    <string name="wear_os_checking">Checking…</string>
+    <string name="wear_os_code_hint">Pairing code</string>
+    <string name="wear_os_done">Done</string>
+    <string name="wear_os_failed">That didn’t work (%1$s). Check the code and try again.</string>
+    <string name="wear_os_found">Found your watch</string>
+    <string name="wear_os_install">Install</string>
+    <string name="wear_os_install_title">Install on your watch</string>
+    <string name="wear_os_installed">Installed. You can turn Wireless debugging off again.</string>
+    <string name="wear_os_installing">Installing Raaga on your watch…</string>
+    <string name="wear_os_looking">Looking for watches…</string>
+    <string name="wear_os_no_watch">No watch connected</string>
+    <string name="wear_os_no_watch_subtitle">Pair a Wear OS watch with this phone in its companion app first.</string>
+    <string name="wear_os_not_installed">Raaga isn’t on this watch</string>
+    <string name="wear_os_page_title">Wear OS</string>
+    <string name="wear_os_pairing">Pairing…</string>
+    <string name="wear_os_searching">Looking for your watch on Wi-Fi…</string>
+    <string name="wear_os_section">Raaga for Wear OS</string>
+    <string name="wear_os_send_failed">Couldn’t send the update (%1$s)</string>
+    <string name="wear_os_sending">Sending to your watch…</string>
+    <string name="wear_os_sent">Sent — finish on your watch if it asks</string>
+    <string name="wear_os_step_debugging">In Developer options, turn on ADB debugging and Wireless debugging.</string>
+    <string name="wear_os_step_developer">Turn on Developer options on the watch. Galaxy Watch: Settings → About watch → Software information → tap Software version five times. Pixel Watch: Settings → System → About → tap Build number seven times.</string>
+    <string name="wear_os_step_pair">Tap Pair new device, then enter the six-digit code the watch shows.</string>
+    <string name="wear_os_step_wifi">Connect your watch to the same Wi-Fi as this phone.</string>
+    <string name="wear_os_unknown">Installed · couldn’t check the version</string>
+    <string name="wear_os_unsupported">Installing on a watch needs Android 11 or later on this phone.</string>
+    <string name="wear_os_up_to_date">Up to date · %1$s</string>
+    <string name="wear_os_update">Update</string>
+    <string name="wear_os_update_available">Update available</string>
+    <string name="wear_os_value_none">No watch</string>
+    <string name="wear_os_value_not_installed">Not installed</string>
+    <string name="wear_os_value_up_to_date">Up to date</string>
+    <string name="wear_os_your_watches">Your watches</string>
+    <string name="when_you_listen_the_most">When you listen the most</string>
+    <string name="your_lyrics_card">Your lyrics card</string>
+    <string name="lyrics_share_pick_limit">Card is full</string>
 </resources>

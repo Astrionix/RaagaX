@@ -351,7 +351,7 @@ fun SongRow(
                 if ((value == SwipeToDismissBoxValue.StartToEnd || offset > 0f) && currentOnSwipeDelete != null) {
                     haptics.play(Haptic.Select)
                     currentOnSwipeDelete?.invoke()
-                } else if ((value == SwipeToDismissBoxValue.EndToStart || offset < 0f) && currentOnSwipeToQueue != null) {
+                } else if (currentOnSwipeToQueue != null) {
                     haptics.play(Haptic.Select)
                     currentOnSwipeToQueue?.invoke()
                 }
@@ -390,7 +390,7 @@ fun SongRow(
         var armed = false
         snapshotFlow { try { swipeState.requireOffset() } catch (e: Exception) { 0f } }
             .collect { offset ->
-                val canAct = (offset > 0f && currentOnSwipeDelete != null) || (offset < 0f && currentOnSwipeToQueue != null)
+                val canAct = (offset > 0f && (currentOnSwipeDelete != null || currentOnSwipeToQueue != null)) || (offset < 0f && currentOnSwipeToQueue != null)
                 val travelled = abs(offset)
                 when {
                     canAct && !armed && travelled >= armAt -> {
@@ -408,7 +408,7 @@ fun SongRow(
     SwipeToDismissBox(
         state = swipeState,
         modifier = modifier.onSizeChanged { boxWidth = it.width.toFloat() },
-        enableDismissFromStartToEnd = (currentOnSwipeDelete != null),
+        enableDismissFromStartToEnd = (currentOnSwipeDelete != null || currentOnSwipeToQueue != null),
         enableDismissFromEndToStart = (currentOnSwipeToQueue != null),
         backgroundContent = {
             SongSwipeBackground(
@@ -451,7 +451,9 @@ private fun SongSwipeBackground(
     val offset = try { swipeState.requireOffset() } catch (e: Exception) { 0f }
     val isLeftToRight = offset > 0f
     val bgColor = if (isLeftToRight) {
-        if (canDelete) Color(0xFFEF4444).copy(alpha = 0.22f) else Color.Transparent
+        if (canDelete) Color(0xFFEF4444).copy(alpha = 0.22f)
+        else if (canQueue) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+        else Color.Transparent
     } else {
         if (canQueue) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f) else Color.Transparent
     }
@@ -461,7 +463,7 @@ private fun SongSwipeBackground(
             .fillMaxSize()
             .drawWithContent {
                 val currentOffset = try { swipeState.requireOffset() } catch (e: Exception) { 0f }
-                if (currentOffset > 0f && canDelete) {
+                if (currentOffset > 0f && (canDelete || canQueue)) {
                     clipRect(left = 0f, top = 0f, right = currentOffset, bottom = size.height) {
                         this@drawWithContent.drawContent()
                     }
@@ -478,6 +480,8 @@ private fun SongSwipeBackground(
     ) {
         if (canDelete) {
             DeleteSwipeLabel(resolvedDeleteLabel)
+        } else if (canQueue) {
+            QueueSwipeLabel(playNext)
         } else {
             Spacer(Modifier.width(1.dp))
         }
@@ -523,6 +527,98 @@ private fun QueueSwipeLabel(playNext: Boolean) {
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.primary,
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun QueueSwipeBackground(swipeState: SwipeToDismissBoxState) {
+    val playNext by AppSettings.swipeToPlayNext.collectAsStateWithLifecycle()
+    Row(
+        modifier = Modifier
+            .fillMaxSize()
+            .drawWithContent {
+                val offset = try { swipeState.requireOffset() } catch (e: Exception) { 0f }
+                if (offset > 0f) {
+                    clipRect(left = 0f, top = 0f, right = offset, bottom = size.height) {
+                        this@drawWithContent.drawContent()
+                    }
+                } else if (offset < 0f) {
+                    clipRect(left = size.width + offset, top = 0f, right = size.width, bottom = size.height) {
+                        this@drawWithContent.drawContent()
+                    }
+                }
+            }
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.18f))
+            .padding(horizontal = PAGE_GUTTER),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        QueueSwipeLabel(playNext)
+        QueueSwipeLabel(playNext)
+    }
+}
+
+/**
+ * Wraps any composable with swipe-to-queue behavior (haptic feedback, peek reveal, and auto-snap back).
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SwipeToQueueBox(
+    onSwipeToQueue: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+    rowBackground: Color = MaterialTheme.colorScheme.background,
+    content: @Composable () -> Unit,
+) {
+    if (onSwipeToQueue == null) {
+        content()
+        return
+    }
+    val haptics = rememberHaptics()
+    val swipeStateHolder = remember { mutableStateOf<SwipeToDismissBoxState?>(null) }
+    var boxWidth by remember { mutableFloatStateOf(0f) }
+    val currentOnSwipeToQueue by rememberUpdatedState(onSwipeToQueue)
+
+    val swipeState = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            if (value != SwipeToDismissBoxValue.Settled && currentOnSwipeToQueue != null) {
+                val offset = try { swipeStateHolder.value?.requireOffset() ?: 0f } catch (e: Exception) { 0f }
+                if (abs(offset) >= boxWidth * 0.45f) {
+                    haptics.play(Haptic.Select)
+                    currentOnSwipeToQueue?.invoke()
+                }
+            }
+            false // never actually dismiss; snap back
+        },
+        positionalThreshold = { distance -> distance * 0.5f },
+    )
+    swipeStateHolder.value = swipeState
+
+    LaunchedEffect(swipeState, boxWidth) {
+        if (boxWidth <= 0f) return@LaunchedEffect
+        val armAt = boxWidth * 0.45f
+        var armed = false
+        snapshotFlow { try { swipeState.requireOffset() } catch (e: Exception) { 0f } }
+            .collect { offset ->
+                val travelled = abs(offset)
+                when {
+                    !armed && travelled >= armAt -> {
+                        armed = true
+                        haptics.play(Haptic.Tick)
+                    }
+                    armed && travelled < armAt * 0.8f -> armed = false
+                }
+            }
+    }
+
+    SwipeToDismissBox(
+        state = swipeState,
+        modifier = modifier.onSizeChanged { boxWidth = it.width.toFloat() },
+        backgroundContent = { QueueSwipeBackground(swipeState) },
+    ) {
+        Box(Modifier.background(rowBackground)) {
+            content()
+        }
     }
 }
 

@@ -105,6 +105,7 @@ class RaagaApplication : Application(), SingletonImageLoader.Factory {
         // One cache directory can only be opened once per process, and
         // PlaybackService shares this one — so it's opened here, not there.
         AudioCache.init(this)
+        com.music.raaga.playback.audio.LosslessOutput.init(this)
         // The offscreen WebView that mints a Spotify access token from the
         // listener's own session cookie needs a Context, and nothing in the
         // suspend call chain that reaches it (a track's canvas lookup) has
@@ -151,6 +152,7 @@ class RaagaApplication : Application(), SingletonImageLoader.Factory {
             // Coil's own transport never sees Http.client's interceptor, so
             // the header is attached per request instead. See WebDavCoilAuth.
             .components {
+                add(coil3.svg.SvgDecoder.Factory())
                 add(WebDavCoilAuth())
                 // Covers filed on the SMB share; anything else falls
                 // through to Coil's own fetchers. See SmbCoverFetcher.

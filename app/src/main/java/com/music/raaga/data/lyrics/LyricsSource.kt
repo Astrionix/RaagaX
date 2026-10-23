@@ -108,5 +108,20 @@ enum class LyricsSource(
         label = "Genius",
         detail = "Plain text fallback, massive web catalogue",
         wordSynced = false,
-    ),
+    );
+
+    companion object {
+        val offered: List<LyricsSource> = entries
+
+        fun ordered(saved: List<LyricsSource>): List<LyricsSource> {
+            val result = saved.filter { it in offered }.distinct().toMutableList()
+            offered.forEachIndexed { index, source ->
+                if (source in result) return@forEachIndexed
+                val before = offered.subList(0, index).lastOrNull { it in result }
+                result.add(before?.let { result.indexOf(it) + 1 } ?: 0, source)
+            }
+            return result
+        }
+    }
 }
+

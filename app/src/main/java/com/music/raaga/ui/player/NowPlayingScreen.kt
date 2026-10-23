@@ -2692,8 +2692,14 @@ fun NowPlayingScreen(
                     // no YouTube identity to rate.
                     if (signedIn && song.localUri == null) {
                         val liked = likeStatus == LikeStatus.LIKE
+                        val useStarFavorite by AppSettings.useStarFavorite.collectAsStateWithLifecycle()
+                        val favoriteIcon = if (liked) {
+                            if (useStarFavorite) RaagaIcons.StarFilled else RaagaIcons.HeartFilled
+                        } else {
+                            if (useStarFavorite) RaagaIcons.Star else RaagaIcons.Heart
+                        }
                         CircleGlyph(
-                            icon = if (liked) RaagaIcons.HeartFilled else RaagaIcons.Heart,
+                            icon = favoriteIcon,
                             contentDescription = stringResource(
                                 if (liked) R.string.remove_from_liked else R.string.like,
                             ),

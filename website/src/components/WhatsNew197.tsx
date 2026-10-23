@@ -40,8 +40,8 @@ export const WhatsNew197: React.FC = () => {
             </h2>
 
             <p className="text-sm sm:text-base text-zinc-400 leading-relaxed">
-              Engineered with the new Liquid Glass Audio Output Sheet across both mobile &amp; desktop, 
-              work area taskbar preservation, silent in-app OTA updates, and real-time live telemetry cleanup.
+              Engineered with native Google Cast audio streaming, the new modern Web Player with synchronized mesh lyrics, 
+              Liquid Glass Audio Output Sheet across mobile &amp; desktop, and silent in-app updates.
             </p>
           </div>
 

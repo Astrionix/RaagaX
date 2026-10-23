@@ -27,8 +27,14 @@ class BluetoothAudioTrackerTest {
         assertEquals("LDAC", BluetoothAudioTracker.mapCodecType(BluetoothAudioTracker.SOURCE_CODEC_TYPE_LDAC))
         assertEquals("LC3", BluetoothAudioTracker.mapCodecType(BluetoothAudioTracker.SOURCE_CODEC_TYPE_LC3))
         assertEquals("Opus", BluetoothAudioTracker.mapCodecType(BluetoothAudioTracker.SOURCE_CODEC_TYPE_OPUS))
-        assertEquals("Vendor Codec (7)", BluetoothAudioTracker.mapCodecType(7))
-        assertEquals("Vendor Codec (8)", BluetoothAudioTracker.mapCodecType(8))
+        assertEquals("Samsung Seamless Codec", BluetoothAudioTracker.mapCodecType(BluetoothAudioTracker.SOURCE_CODEC_TYPE_SSC))
+        assertEquals("Samsung SSC UHQ", BluetoothAudioTracker.mapCodecType(BluetoothAudioTracker.SOURCE_CODEC_TYPE_SSC_UHQ))
+        assertEquals("LHDC", BluetoothAudioTracker.mapCodecType(BluetoothAudioTracker.SOURCE_CODEC_TYPE_LHDC))
+        assertEquals("LHDC-V", BluetoothAudioTracker.mapCodecType(BluetoothAudioTracker.SOURCE_CODEC_TYPE_LHDC_LL))
+        assertEquals("aptX Adaptive", BluetoothAudioTracker.mapCodecType(BluetoothAudioTracker.SOURCE_CODEC_TYPE_APTX_ADAPTIVE))
+        assertEquals("aptX TWS+", BluetoothAudioTracker.mapCodecType(BluetoothAudioTracker.SOURCE_CODEC_TYPE_APTX_TWSP))
+        assertEquals("Vendor Codec (13)", BluetoothAudioTracker.mapCodecType(13))
+        assertEquals("Vendor Codec (14)", BluetoothAudioTracker.mapCodecType(14))
         assertEquals("Unknown", BluetoothAudioTracker.mapCodecType(-1))
     }
 

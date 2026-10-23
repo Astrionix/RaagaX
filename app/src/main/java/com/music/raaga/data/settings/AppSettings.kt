@@ -330,6 +330,8 @@ object AppSettings {
      * chasing an untouched signal would do.
      */
     val loudnessNormalization = MutableStateFlow(true)
+    /** Skip loudness normalization while the active output is the phone's own speaker. */
+    val loudnessOffOnSpeaker = MutableStateFlow(true)
 
     /**
      * Whether a source offering a Dolby Atmos rendition is allowed to serve it.
@@ -437,6 +439,9 @@ object AppSettings {
     /** Swiping a song row plays it next instead of adding it to the end of the queue. */
     val swipeToPlayNext = MutableStateFlow(false)
 
+    /** Uses an Apple Music-style star icon instead of a heart for favoriting songs. */
+    val useStarFavorite = MutableStateFlow(false)
+
     /** Once a song has been suggested or played this session, AutoPlay won't offer it again. */
     val dontRepeatSuggestions = MutableStateFlow(false)
 
@@ -520,6 +525,8 @@ object AppSettings {
      * [NowPlayingScreen][com.music.raaga.ui.player.NowPlayingScreen].
      */
     val fullBleedArtwork = MutableStateFlow(true)
+    val hideStatusBarInPlayer = MutableStateFlow(false)
+    val onboardingComplete = MutableStateFlow(false)
 
     /**
      * Puts v1.5's backdrop back on the player: four quantised blobs drifting
@@ -605,6 +612,8 @@ object AppSettings {
     /** Layout used by the Recents shelf on Play; compact tracks are the default. */
     val homeRecentsViewType = MutableStateFlow(LibraryViewType.LIST)
     val librarySort = MutableStateFlow(LibrarySort.DEFAULT)
+    val showQueueHistory = MutableStateFlow(false)
+    val showCacheFolder = MutableStateFlow(false)
 
     /**
      * Each album/playlist page's track-list order, keyed by browse id —
@@ -629,6 +638,10 @@ object AppSettings {
     val webdavUrl = MutableStateFlow("")
     val webdavUsername = MutableStateFlow("")
     val webdavPassword = MutableStateFlow("")
+
+    /** Custom endpoint for artist signatures API */
+    val signatureApiUrl = MutableStateFlow("")
+    val signatureApiEnabled = MutableStateFlow(false)
 
     // ── SMB ───────────────────────────────────────────────────────────────
 
@@ -811,6 +824,8 @@ object AppSettings {
      * a marker that slides around the bar would be worse than no marker.
      */
     val smartTransitionWindow = MutableStateFlow<TransitionWindow?>(null)
+    val smartMixBlend = MutableStateFlow<MixBlend?>(null)
+    val streamCeilingOverride = MutableStateFlow<AudioQuality?>(null)
 
     /** The ceiling that applies to a stream started right now. */
     val effectiveAudioQuality: AudioQuality
@@ -892,6 +907,12 @@ object AppSettings {
         }.getOrDefault(OutputPcmMode.PCM_16)
         preferUsbDac.value = prefs.getBoolean(KEY_PREFER_USB_DAC, false)
         loudnessNormalization.value = prefs.getBoolean(KEY_LOUDNESS_NORMALIZATION, true)
+        loudnessOffOnSpeaker.value = prefs.getBoolean(KEY_LOUDNESS_OFF_ON_SPEAKER, true)
+        onboardingComplete.value = prefs.getBoolean(KEY_ONBOARDING_COMPLETE, false)
+        hideStatusBarInPlayer.value = prefs.getBoolean(KEY_HIDE_STATUS_BAR_IN_PLAYER, false)
+        showQueueHistory.value = prefs.getBoolean(KEY_SHOW_QUEUE_HISTORY, false)
+        signatureApiEnabled.value = prefs.getBoolean(KEY_SIGNATURE_API_ENABLED, false)
+        showCacheFolder.value = prefs.getBoolean(KEY_SHOW_CACHE_FOLDER, false)
         dolbyAtmos.value = prefs.getBoolean(KEY_DOLBY_ATMOS, true)
         spatialAudio.value = prefs.getBoolean(KEY_SPATIAL_AUDIO, false)
         equalizerEnabled.value = prefs.getBoolean(KEY_EQ_ENABLED, false)
@@ -921,6 +942,7 @@ object AppSettings {
         hideVolumeBar.value = prefs.getBoolean(KEY_HIDE_VOLUME_BAR, false)
         hideSongStatus.value = prefs.getBoolean(KEY_HIDE_SONG_STATUS, false)
         swipeToPlayNext.value = prefs.getBoolean(KEY_SWIPE_TO_PLAY_NEXT, false)
+        useStarFavorite.value = prefs.getBoolean(KEY_USE_STAR_FAVORITE, false)
         dontRepeatSuggestions.value = prefs.getBoolean(KEY_DONT_REPEAT_SUGGESTIONS, false)
         preferMusicOnly.value = prefs.getBoolean(KEY_PREFER_MUSIC_ONLY, false)
         smartVersionAlignment.value = prefs.getBoolean(KEY_SMART_VERSION_ALIGNMENT, true)
@@ -985,6 +1007,7 @@ object AppSettings {
         webdavUrl.value = prefs.getString(KEY_WEBDAV_URL, "").orEmpty()
         webdavUsername.value = prefs.getString(KEY_WEBDAV_USERNAME, "").orEmpty()
         webdavPassword.value = authStore.webdavPassword.orEmpty()
+        signatureApiUrl.value = prefs.getString(KEY_SIGNATURE_API_URL, "").orEmpty()
         smbHost.value = prefs.getString(KEY_SMB_HOST, "").orEmpty()
         smbShare.value = prefs.getString(KEY_SMB_SHARE, "").orEmpty()
         smbBasePath.value = prefs.getString(KEY_SMB_BASE_PATH, "").orEmpty()
@@ -1315,6 +1338,11 @@ object AppSettings {
     fun setSwipeToPlayNext(value: Boolean) {
         swipeToPlayNext.value = value
         prefs.edit().putBoolean(KEY_SWIPE_TO_PLAY_NEXT, value).apply()
+    }
+
+    fun setUseStarFavorite(value: Boolean) {
+        useStarFavorite.value = value
+        prefs.edit().putBoolean(KEY_USE_STAR_FAVORITE, value).apply()
     }
 
     fun setDontRepeatSuggestions(value: Boolean) {
@@ -2036,6 +2064,12 @@ object AppSettings {
     private const val KEY_OUTPUT_PCM_MODE = "output_pcm_mode"
     private const val KEY_PREFER_USB_DAC = "prefer_usb_dac"
     private const val KEY_LOUDNESS_NORMALIZATION = "loudness_normalization"
+    private const val KEY_LOUDNESS_OFF_ON_SPEAKER = "loudness_off_on_speaker"
+    private const val KEY_ONBOARDING_COMPLETE = "onboarding_complete"
+    private const val KEY_HIDE_STATUS_BAR_IN_PLAYER = "hide_status_bar_in_player"
+    private const val KEY_SHOW_QUEUE_HISTORY = "show_queue_history"
+    private const val KEY_SIGNATURE_API_ENABLED = "signature_api_enabled"
+    private const val KEY_SHOW_CACHE_FOLDER = "show_cache_folder"
     private const val KEY_DOLBY_ATMOS = "dolby_atmos"
     private const val KEY_SPATIAL_AUDIO = "spatial_audio"
     private const val KEY_EQ_ENABLED = "equalizer_enabled"
@@ -2059,6 +2093,7 @@ object AppSettings {
     private const val KEY_HIDE_VOLUME_BAR = "hide_volume_bar"
     private const val KEY_HIDE_SONG_STATUS = "hide_song_status"
     private const val KEY_SWIPE_TO_PLAY_NEXT = "swipe_to_play_next"
+    private const val KEY_USE_STAR_FAVORITE = "use_star_favorite"
     private const val KEY_DONT_REPEAT_SUGGESTIONS = "dont_repeat_suggestions"
     private const val KEY_PREFER_MUSIC_ONLY = "prefer_music_only"
     private const val KEY_SMART_VERSION_ALIGNMENT = "smart_version_alignment"
@@ -2133,6 +2168,15 @@ object AppSettings {
     private const val KEY_DISCORD_BUTTON_2_VISIBLE = "discord_button_2_visible"
     private const val KEY_DISCORD_INFO_DISMISSED = "discord_info_dismissed"
     private const val KEY_LAST_VERSION_CODE = "last_version_code"
+    private const val KEY_SIGNATURE_API_URL = "signature_api_url"
+
+    fun normalizeSignatureApiUrl(url: String): String = url.trim().trimEnd('/')
+
+    fun setSignatureApiUrl(url: String) {
+        val trimmed = normalizeSignatureApiUrl(url)
+        signatureApiUrl.value = trimmed
+        prefs.edit().putString(KEY_SIGNATURE_API_URL, trimmed).apply()
+    }
 }
 
 /**
@@ -2189,3 +2233,20 @@ data class SmartAnalysis(
  * transition is planned to occupy.
  */
 data class TransitionWindow(val start: Float, val end: Float)
+
+/**
+ * An Automix blend in flight, as the scrubber draws it: the beat it is running
+ * on, and whether it is moving. Only republished when one of those changes.
+ */
+data class MixBlend(
+    /**
+     * Wall-clock length of one beat at the tempo the blend is actually playing
+     * -- after any beatmatch stretch and the listener's own speed -- or 0 when
+     * neither track's tempo is known.
+     */
+    val beatMs: Float,
+    /** A `System.nanoTime()` at which a beat landed; with [beatMs], places every other one. */
+    val beatAnchorNanos: Long,
+    /** Whether the blend is playing rather than paused; a paused blend holds still. */
+    val playing: Boolean,
+)

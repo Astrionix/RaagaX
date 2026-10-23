@@ -26,6 +26,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
@@ -262,6 +263,17 @@ private const val DRIFT_RADIANS = (PI * 0.45f).toFloat()
  * purple. So the whole swatch list is read instead, and any shortfall is
  * derived from the art's own colours rather than borrowed.
  */
+
+/**
+ * The player's four mesh colours for [bitmap], for surfaces that draw the mesh
+ * somewhere this code doesn't run — the watch app is sent these rather than
+ * running Palette on a watch.
+ */
+fun artworkMeshColors(bitmap: androidx.compose.ui.graphics.ImageBitmap): List<Color> =
+    paletteOf(bitmap.asAndroidBitmap())
+
+fun artworkMeshColors(bitmap: Bitmap): List<Color> = paletteOf(bitmap)
+
 private fun paletteOf(bitmap: Bitmap): List<Color> {
     fun swatchesOf(builder: Palette.Builder): List<Color> =
         builder.maximumColorCount(24).generate().swatches
@@ -332,3 +344,47 @@ private fun Color.dimmed(): Color {
     hsl[2] = 0.12f
     return Color(ColorUtils.HSLToColor(hsl))
 }
+
+/**
+ * How long each palette in a [cyclingMeshPalette] is held, which is also how
+ * long the fade into it takes — pass it as `colorFadeMillis` so one crossfade
+ * runs straight into the next and the colour is never at rest.
+ */
+const val MESH_CYCLE_MILLIS = 3_600
+
+/**
+ * Raaga's own colours, for surfaces that have no artwork to take them
+ * from: the welcome pages and sign-in cards. Starts on vivid red and wanders
+ * through ambient auroras.
+ */
+val WelcomeMeshPalettes: List<MeshPalette> = listOf(
+    // Red, violet, ember.
+    MeshPalette(listOf(Color(0xFFFA2D48), Color(0xFF7B2FF7), Color(0xFFFF7A45), Color(0xFF2E1A8A))),
+    // Sunset.
+    MeshPalette(listOf(Color(0xFFFF4E8A), Color(0xFFFF9A3C), Color(0xFFE0245E), Color(0xFF6A1B9A))),
+    // Ocean.
+    MeshPalette(listOf(Color(0xFF1E88E5), Color(0xFF00BFA5), Color(0xFF5E35B1), Color(0xFF0D47A1))),
+    // Aurora.
+    MeshPalette(listOf(Color(0xFF00C853), Color(0xFF00B8D4), Color(0xFF7C4DFF), Color(0xFF1A237E))),
+    // Grape and rose.
+    MeshPalette(listOf(Color(0xFFD500F9), Color(0xFFFF4081), Color(0xFF651FFF), Color(0xFF4A148C))),
+    // Gold.
+    MeshPalette(listOf(Color(0xFFFFB300), Color(0xFFFF5252), Color(0xFFF06292), Color(0xFF6D2E46))),
+)
+
+/**
+ * Steps through [palettes] for as long as the caller is composed, one every
+ * [stepMillis].
+ */
+@Composable
+fun cyclingMeshPalette(palettes: List<MeshPalette>, stepMillis: Int = MESH_CYCLE_MILLIS): MeshPalette {
+    var step by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    LaunchedEffect(stepMillis) {
+        while (isActive) {
+            kotlinx.coroutines.delay(stepMillis.toLong())
+            step++
+        }
+    }
+    return palettes[step % palettes.size]
+}
+

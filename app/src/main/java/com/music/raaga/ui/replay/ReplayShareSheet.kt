@@ -10,6 +10,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -27,6 +28,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.IosShare
 import androidx.compose.material3.CircularProgressIndicator
@@ -197,12 +199,13 @@ fun ReplayShareSheet(
 }
 
 @Composable
-private fun ShareAction(
+internal fun ShareAction(
     label: String,
     icon: ImageVector,
-    /** The one that sends it, which is the one that should be reached for. */
     accent: Boolean,
     enabled: Boolean,
+    saved: Boolean = false,
+    savedLabel: String? = null,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
@@ -219,68 +222,60 @@ private fun ShareAction(
             .clip(RoundedCornerShape(14.dp))
             .background(background.copy(alpha = if (enabled) 1f else 0.4f))
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(vertical = 15.dp),
+            .padding(horizontal = 18.dp, vertical = 15.dp),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = foreground,
-            modifier = Modifier.size(19.dp),
-        )
-        Spacer(Modifier.width(10.dp))
-        Text(
-            text = label,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.W700,
-            color = foreground,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        Crossfade(targetState = saved, label = "shareAction") { isSaved ->
+            Row(
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = if (isSaved) Icons.Rounded.Check else icon,
+                    contentDescription = null,
+                    tint = foreground,
+                    modifier = Modifier.size(19.dp),
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    text = if (isSaved) (savedLabel ?: label) else label,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.W700,
+                    color = foreground,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
     }
 }
 
-private fun sendIntent(uri: Uri) = Intent(Intent.ACTION_SEND)
+internal fun sendIntent(uri: Uri) = Intent(Intent.ACTION_SEND)
     .setType(MIME)
     .putExtra(Intent.EXTRA_STREAM, uri)
     .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
 
-/**
- * Writes the poster somewhere another app can read it.
- *
- * The app's own cache, exposed through a [FileProvider] rather than by handing
- * out a `file://` path: that has been illegal since API 24, and a content URI is
- * what lets the read grant travel with the intent and expire with it — the other
- * app gets this one picture and nothing else in the folder.
- */
-private suspend fun cacheForSharing(context: Context, bitmap: Bitmap): Uri? =
-    withContext(Dispatchers.IO) {
+internal suspend fun cacheForSharing(
+    context: Context,
+    bitmap: Bitmap,
+    fileName: String = "replay.png",
+): Uri? = withContext(Dispatchers.IO) {
     runCatching {
         val folder = File(context.cacheDir, SHARE_FOLDER).apply { mkdirs() }
-        // One name, overwritten: the folder is a hand-off point, not an album,
-        // and a file per share would accumulate megabytes nobody ever looks at.
-        val file = File(folder, "replay.png")
+        val file = File(folder, fileName)
         FileOutputStream(file).use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
         FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
     }.getOrNull()
 }
 
-/**
- * Saves the poster to the device's pictures, where a gallery will find it.
- *
- * Through MediaStore, which from API 29 needs no permission at all for a row the
- * app created. Below that it writes into the public Pictures folder directly,
- * which is why the legacy branch exists — and why saving is offered rather than
- * assumed: on an older device it can fail on a permission this app doesn't ask
- * for until a download is started.
- */
-private suspend fun saveToGallery(
+internal suspend fun saveToGallery(
     context: Context,
     bitmap: Bitmap,
     label: String,
+    prefix: String = "raaga-replay",
 ): Boolean = withContext(Dispatchers.IO) {
-    val name = "raaga-replay-${label.replace(' ', '-').lowercase(Locale.ROOT)}.png"
+    val name = "$prefix-${label.replace(' ', '-').lowercase(Locale.ROOT)}.png"
     runCatching {
         val values = ContentValues().apply {
             put(MediaStore.Images.Media.DISPLAY_NAME, name)

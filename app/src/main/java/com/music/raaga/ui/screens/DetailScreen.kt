@@ -55,6 +55,23 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.unit.Constraints
+import coil3.compose.AsyncImage
+import coil3.compose.AsyncImagePainter
+import coil3.compose.LocalPlatformContext
+import coil3.request.ImageRequest
+import coil3.request.transformations
+import com.music.raaga.data.canvas.ArtistSignature
+import com.music.raaga.data.canvas.ArtistSignatureRepository
+import com.music.raaga.data.canvas.SignatureInkTransformation
+import kotlinx.coroutines.delay
+import kotlin.math.roundToInt
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -71,10 +88,8 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -149,6 +164,14 @@ private const val SLEEVE_FRACTION = 0.80f
 
 private val SLEEVE_SHAPE = RoundedCornerShape(12.dp)
 private val PILL_SHAPE = RoundedCornerShape(12.dp)
+
+/** The title logo/signature's widest share of the page, and tallest share of the photo. */
+private const val ARTIST_LOGO_WIDTH = 0.82f
+private const val ARTIST_LOGO_MAX_HEIGHT = 0.30f
+private const val SIGNATURE_SCALE = 0.7f
+private const val SVG_DECODE_WIDTH = 1600
+private val CREDIT_SEPARATOR = Regex(""",\s|\s&\s|\s(?:x|and|feat\.?|ft\.?|with)\s""", RegexOption.IGNORE_CASE)
+private fun String.looksLikeCredit() = CREDIT_SEPARATOR.containsMatchIn(this)
 
 /**
  * Where the search field sits once it is open — directly under the header,
@@ -264,6 +287,24 @@ fun DetailScreen(
     }
     val isArtist = page.type == BrowseType.ARTIST
     val isPlaylist = page.type == BrowseType.PLAYLIST
+
+    val signatureApiUrl by AppSettings.signatureApiUrl.collectAsStateWithLifecycle()
+    val signatureUpdates by ArtistSignatureRepository.updates.collectAsStateWithLifecycle()
+    var signature by remember(page.browseId) { mutableStateOf<ArtistSignature?>(null) }
+    val nameSettled = !page.title.looksLikeCredit() || page.songs !is UiState.Loading
+    LaunchedEffect(page.browseId, page.title, nameSettled, signatureApiUrl, signatureUpdates) {
+        if (!isArtist || !nameSettled) return@LaunchedEffect
+        if (signatureApiUrl.isBlank()) {
+            signature = null
+            return@LaunchedEffect
+        }
+        val backoff = listOf(0L, 3_000L, 10_000L)
+        for (wait in backoff) {
+            if (wait > 0) delay(wait)
+            signature = ArtistSignatureRepository.get(page.title) ?: signature
+            if (signature != null) return@LaunchedEffect
+        }
+    }
 
     // For playlists: if the user set a local gallery image as cover, use it
     // for both the artwork display AND the palette extraction, so the whole
@@ -400,7 +441,7 @@ fun DetailScreen(
                 ) {
             item(key = "header") {
                 if (isArtist) {
-                    ArtistHeader(page = page, palette = palette, artHeight = artHeight)
+                    ArtistHeader(page = page, palette = palette, artHeight = artHeight, signature = signature)
                 } else {
                     ReleaseHeader(
                         page = page,
@@ -945,24 +986,107 @@ internal fun List<Song>.matching(query: String): List<IndexedValue<Song>> {
  * drawing behind this. See [ReleaseHeader] for why the picture isn't here.
  */
 @Composable
-private fun ArtistHeader(page: DetailPage, palette: ArtworkPalette, artHeight: Dp) {
+private fun ArtistHeader(
+    page: DetailPage,
+    palette: ArtworkPalette,
+    artHeight: Dp,
+    signature: ArtistSignature? = null,
+) {
     Box(Modifier.fillMaxWidth()) {
         Spacer(Modifier.fillMaxWidth().height(artHeight + HEADER_DROP))
-        Text(
-            text = page.title,
-            style = MaterialTheme.typography.displayLarge,
-            color = palette.onBackground,
-            textAlign = TextAlign.Center,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                // Bottom is half the top inset — the stats pills (or, absent
-                // those, the action row) sit closer under the name than the
-                // name sits under the artwork.
-                .padding(start = HEADER_GUTTER, end = HEADER_GUTTER, top = 14.dp, bottom = 7.dp),
-        )
+        var logoShown by remember(signature?.imageUrl) { mutableStateOf(false) }
+        val imageUrl = signature?.imageUrl
+        if (imageUrl != null) {
+            val context = LocalPlatformContext.current
+            val isSvg = signature.format == "svg"
+            val aspect = signature.aspect.coerceIn(0.4f, 6f)
+            val request = remember(imageUrl) {
+                ImageRequest.Builder(context).data(imageUrl).apply {
+                    if (isSvg) {
+                        size(SVG_DECODE_WIDTH, (SVG_DECODE_WIDTH / aspect).roundToInt())
+                    } else {
+                        size(coil3.size.Size.ORIGINAL)
+                        transformations(SignatureInkTransformation)
+                    }
+                }.build()
+            }
+            val maxLogoHeight = artHeight * ARTIST_LOGO_MAX_HEIGHT * SIGNATURE_SCALE
+            Column(
+                modifier = Modifier.align(Alignment.BottomCenter),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                AsyncImage(
+                    model = request,
+                    contentDescription = page.title,
+                    contentScale = ContentScale.Fit,
+                    colorFilter = if (isSvg) ColorFilter.tint(Color.White) else null,
+                    onState = { state ->
+                        if (state is AsyncImagePainter.State.Success) {
+                            logoShown = true
+                        }
+                    },
+                    modifier = Modifier
+                        .padding(top = 14.dp, bottom = 6.dp)
+                        .layout { measurable, constraints ->
+                            val widest = constraints.maxWidth * ARTIST_LOGO_WIDTH * SIGNATURE_SCALE
+                            val height = minOf(widest / aspect, maxLogoHeight.toPx()).roundToInt()
+                            val width = (height * aspect).roundToInt()
+                            val placeable = measurable.measure(Constraints.fixed(width, height))
+                            layout(width, height) { placeable.place(0, 0) }
+                        },
+                )
+                if (logoShown) {
+                    SignedByCaption(
+                        name = page.title,
+                        palette = palette,
+                        modifier = Modifier.padding(horizontal = HEADER_GUTTER).padding(bottom = 20.dp),
+                    )
+                }
+            }
+        }
+        if (!logoShown) {
+            Text(
+                text = page.title,
+                style = MaterialTheme.typography.displayLarge,
+                color = palette.onBackground,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    // Bottom is half the top inset — the stats pills (or, absent
+                    // those, the action row) sit closer under the name than the
+                    // name sits under the artwork.
+                    .padding(start = HEADER_GUTTER, end = HEADER_GUTTER, top = 14.dp, bottom = 7.dp),
+            )
+        }
     }
+}
+
+/** "Signed by **Name**" — the artist's name in bold, whatever order the language puts it in. */
+@Composable
+private fun SignedByCaption(
+    name: String,
+    palette: ArtworkPalette,
+    modifier: Modifier = Modifier,
+    textAlign: TextAlign = TextAlign.Center,
+) {
+    val signed = stringResource(R.string.signed_by, name)
+    val nameAt = signed.indexOf(name)
+    Text(
+        text = buildAnnotatedString {
+            append(signed)
+            if (nameAt >= 0) {
+                addStyle(SpanStyle(fontWeight = FontWeight.Bold), nameAt, nameAt + name.length)
+            }
+        },
+        style = MaterialTheme.typography.bodyMedium,
+        color = palette.onBackground.copy(alpha = 0.8f),
+        textAlign = textAlign,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = modifier,
+    )
 }
 
 /**

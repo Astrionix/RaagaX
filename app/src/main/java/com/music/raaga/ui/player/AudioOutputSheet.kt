@@ -36,6 +36,7 @@ import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Bluetooth
 import androidx.compose.material.icons.rounded.Cast
+import androidx.compose.material.icons.rounded.CastConnected
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ContentCopy
@@ -92,6 +93,8 @@ import com.music.raaga.data.connect.PairedDeviceWithStatus
 import com.music.raaga.data.connect.RaagaConnectManager
 import com.music.raaga.playback.AudioOutputStatus
 import com.music.raaga.playback.AudioRouting
+import com.music.raaga.playback.cast.CastController
+import com.music.raaga.ui.components.CastDialog
 import com.music.raaga.ui.haptics.Haptic
 import com.music.raaga.ui.haptics.rememberHaptics
 import dev.chrisbanes.haze.HazeState
@@ -131,6 +134,8 @@ internal fun AudioOutputSheet(
         context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     }
     val outputs = rememberAudioOutputs()
+    val castState by CastController.state.collectAsStateWithLifecycle()
+    var showCastDialog by remember { mutableStateOf(false) }
 
     PlayerDrawer(
         hazeState = hazeState,
@@ -161,7 +166,7 @@ internal fun AudioOutputSheet(
                 modifier = Modifier.padding(vertical = 2.dp),
             )
 
-            // Local phone audio routing
+            // Local phone audio routing & Google Cast
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -183,11 +188,25 @@ internal fun AudioOutputSheet(
                     )
                 }
 
+                if (castState.supported) {
+                    CastRow(
+                        cast = castState,
+                        onClick = { showCastDialog = true },
+                    )
+                }
+
                 VolumeRow(manager, routeKey = outputs)
 
                 AudioPipelineRow(onClick = onOpenPipeline)
             }
         }
+    }
+
+    if (showCastDialog) {
+        CastDialog(
+            hazeState = hazeState,
+            onDismiss = { showCastDialog = false },
+        )
     }
 }
 
@@ -392,6 +411,128 @@ private fun OutputRow(
                     modifier = Modifier.size(16.dp),
                 )
             }
+        }
+    }
+}
+
+/**
+ * Opens the Google Cast receiver picker dialog. Lit like the playing output while music
+ * is streaming to a Cast speaker or display.
+ */
+@Composable
+private fun CastRow(
+    cast: CastController.State,
+    onClick: () -> Unit,
+) {
+    val haptics = rememberHaptics()
+    val casting = cast.casting
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (isPressed) 0.97f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMediumLow,
+        ),
+        label = "castRowScale",
+    )
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .graphicsLayer {
+                scaleX = pressScale
+                scaleY = pressScale
+            }
+            .liquidGlassCard(active = casting)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+            ) {
+                haptics.play(Haptic.Select)
+                onClick()
+            }
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(
+                    if (casting) {
+                        Brush.radialGradient(
+                            listOf(Color.White.copy(alpha = 0.35f), Color(0xFF1DB954).copy(alpha = 0.30f))
+                        )
+                    } else {
+                        Brush.radialGradient(
+                            listOf(Color.White.copy(alpha = 0.14f), Color.White.copy(alpha = 0.04f))
+                        )
+                    }
+                )
+                .border(
+                    1.dp,
+                    if (casting) Color.White.copy(alpha = 0.55f) else Color.White.copy(alpha = 0.18f),
+                    CircleShape
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = if (casting) Icons.Rounded.CastConnected else Icons.Rounded.Cast,
+                contentDescription = null,
+                tint = if (casting) Color.White else Color.White.copy(alpha = 0.75f),
+                modifier = Modifier.size(21.dp),
+            )
+        }
+        Spacer(Modifier.width(13.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = cast.connectedName ?: stringResource(R.string.cast),
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    fontWeight = if (casting) FontWeight.SemiBold else FontWeight.Normal,
+                ),
+                color = if (casting) Color.White else Color.White.copy(alpha = 0.85f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = stringResource(
+                    when {
+                        cast.connecting -> R.string.cast_connecting
+                        casting -> R.string.cast_casting
+                        else -> R.string.cast_row_subtitle
+                    }
+                ),
+                style = MaterialTheme.typography.labelMedium,
+                color = if (casting) Color(0xFF4ADE80) else Color.White.copy(alpha = 0.55f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (casting) {
+            Box(
+                modifier = Modifier
+                    .size(26.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF1DB954).copy(alpha = 0.25f))
+                    .border(1.dp, Color(0xFF1DB954).copy(alpha = 0.6f), CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Check,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+        } else {
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                contentDescription = null,
+                tint = Color.White.copy(alpha = 0.35f),
+                modifier = Modifier.size(20.dp),
+            )
         }
     }
 }

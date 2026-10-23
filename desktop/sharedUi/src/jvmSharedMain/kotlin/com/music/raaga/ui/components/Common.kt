@@ -455,6 +455,69 @@ private fun QueueSwipeLabel(playNext: Boolean) {
     }
 }
 
+/**
+ * Wraps any composable with swipe-to-queue behavior (haptic feedback, peek reveal, and auto-snap back).
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SwipeToQueueBox(
+    onSwipeToQueue: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+    rowBackground: Color = MaterialTheme.colorScheme.background,
+    content: @Composable () -> Unit,
+) {
+    if (onSwipeToQueue == null) {
+        content()
+        return
+    }
+    val haptics = rememberHaptics()
+    val swipeStateHolder = remember { mutableStateOf<SwipeToDismissBoxState?>(null) }
+    var boxWidth by remember { mutableFloatStateOf(0f) }
+    val currentOnSwipeToQueue by rememberUpdatedState(onSwipeToQueue)
+
+    val swipeState = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            if (value != SwipeToDismissBoxValue.Settled && currentOnSwipeToQueue != null) {
+                val offset = try { swipeStateHolder.value?.requireOffset() ?: 0f } catch (e: Exception) { 0f }
+                if (abs(offset) >= boxWidth * 0.45f) {
+                    haptics.play(Haptic.Select)
+                    currentOnSwipeToQueue?.invoke()
+                }
+            }
+            false // never actually dismiss; snap back
+        },
+        positionalThreshold = { distance -> distance * 0.5f },
+    )
+    swipeStateHolder.value = swipeState
+
+    LaunchedEffect(swipeState, boxWidth) {
+        if (boxWidth <= 0f) return@LaunchedEffect
+        val armAt = boxWidth * 0.45f
+        var armed = false
+        snapshotFlow { try { swipeState.requireOffset() } catch (e: Exception) { 0f } }
+            .collect { offset ->
+                val travelled = abs(offset)
+                when {
+                    !armed && travelled >= armAt -> {
+                        armed = true
+                        haptics.play(Haptic.Tick)
+                    }
+                    armed && travelled < armAt * 0.8f -> armed = false
+                }
+            }
+    }
+
+    SwipeToDismissBox(
+        state = swipeState,
+        modifier = modifier.onSizeChanged { boxWidth = it.width.toFloat() },
+        backgroundContent = { QueueSwipeBackground(swipeState) },
+    ) {
+        Box(Modifier.background(rowBackground)) {
+            content()
+        }
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun SongRowContent(

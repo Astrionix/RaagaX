@@ -2,7 +2,7 @@
  * Ported from Orchard (https://github.com/SFG5453/Orchard).
  *
  * Copyright (C) 2026 SFG545 (original Orchard implementation)
- * Copyright (C) 2026 Raaga Contributors
+ * Copyright (C) 2026 Kushagra Singh (Raaga adaptation)
  *
  * Orchard's original source is licensed under the GNU Affero General Public
  * License, version 3 or later. Per AGPLv3 section 13, this file is combined
@@ -61,6 +61,26 @@ const val MAX_BPM = 220.0
 const val MAX_STRETCH_DEVIATION = 0.04
 
 /**
+ * Advanced Automix's window: how far either track may be *sped up* to meet
+ * the other. Only ever up — a time-stretch that speeds up drops slivers of
+ * audio, which stays clean well past 4%, while one that slows down has to
+ * repeat them, which is where the metallic smear comes from. So the slower
+ * track is always the one moved: the incoming one when it is slower, the
+ * outgoing one (over its last beats, before the blend) when it is.
+ */
+const val MAX_SPEED_UP = 0.10
+
+/**
+ * The speed-up that meets [outgoingBpm] and [incomingBpm] (octave-aligned),
+ * as a factor above 1 — whichever track it applies to.
+ */
+fun speedUpBetween(outgoingBpm: Double, incomingBpm: Double): Double {
+    if (outgoingBpm <= 0 || incomingBpm <= 0) return Double.POSITIVE_INFINITY
+    val ratio = outgoingBpm / alignTempoOctave(outgoingBpm, incomingBpm)
+    return max(ratio, 1 / ratio)
+}
+
+/**
  * A vocal-activity mask value at or above this counts as singing. A fallback
  * analyzer that emits a flat 0.5 mask never trips vocal logic; only a real
  * mask can.
@@ -104,11 +124,11 @@ private val MIX_OUT_TYPE_SCORE = mapOf(
 )
 
 /** Non-finite guards, matching the desktop planner's coercion of `NaN`/`Infinity` to zero. */
-internal fun Double.orZero(): Double = if (isFinite()) this else 0.0
+ fun Double.orZero(): Double = if (isFinite()) this else 0.0
 
-internal fun Double?.orZero(): Double = if (this != null && isFinite()) this else 0.0
+ fun Double?.orZero(): Double = if (this != null && isFinite()) this else 0.0
 
-internal fun clamp(value: Double, min: Double, max: Double): Double =
+ fun clamp(value: Double, min: Double, max: Double): Double =
     if (value.isFinite()) max(min, min(max, value)) else min
 
 /**
@@ -282,7 +302,7 @@ fun audibleSecondsBetween(analysis: TrackAnalysis, start: Double, end: Double): 
  * grid, which silently overrides a measured `audibleStartTime` and tells the
  * planner the whole head of the track is intro it can fade across.
  */
-internal fun audibleStartOf(analysis: TrackAnalysis): Double {
+ fun audibleStartOf(analysis: TrackAnalysis): Double {
     val firstBeat = analysis.firstBeat.takeIf { it.isFinite() && it > 0 }
     val candidates = listOfNotNull(analysis.audibleStartTime, analysis.pickupTime, firstBeat)
         .filter { it.isFinite() && it >= 0 }
@@ -290,7 +310,7 @@ internal fun audibleStartOf(analysis: TrackAnalysis): Double {
 }
 
 /** The value in [values] closest to [target] within [tolerance], or null when none qualifies. */
-internal fun nearestValue(values: List<Double>, target: Double, tolerance: Double): Double? =
+ fun nearestValue(values: List<Double>, target: Double, tolerance: Double): Double? =
     values.filter { it.isFinite() && abs(it - target) <= tolerance }
         .minByOrNull { abs(it - target) }
 
@@ -430,6 +450,8 @@ fun resolveMixOutAnchor(
 fun assessTransitionTier(
     analysis: TrackAnalysis,
     nextAnalysis: TrackAnalysis,
+    /** Advanced Automix: tempi within [MAX_SPEED_UP] of each other may beat-match, by speeding one up. */
+    advanced: Boolean = false,
 ): TransitionPolicyVerdict {
     val outgoingBpm = analysis.bpm.orZero()
     val incomingBpm = nextAnalysis.bpm.orZero()
@@ -453,7 +475,12 @@ fun assessTransitionTier(
     }
 
     val stretchRatio = outgoingBpm / alignTempoOctave(outgoingBpm, incomingBpm)
-    if (abs(stretchRatio - 1) > MAX_STRETCH_DEVIATION) reasons += "tempo-distance"
+    val tempoTooFar = if (advanced) {
+        speedUpBetween(outgoingBpm, incomingBpm) - 1 > MAX_SPEED_UP
+    } else {
+        abs(stretchRatio - 1) > MAX_STRETCH_DEVIATION
+    }
+    if (tempoTooFar) reasons += "tempo-distance"
     if (outgoingConfidence < MIN_BEATMATCH_CONFIDENCE || incomingConfidence < MIN_BEATMATCH_CONFIDENCE) {
         reasons += "beat-confidence"
     }

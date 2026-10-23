@@ -43,6 +43,7 @@ import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.Dns
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.FileDownload
 import androidx.compose.material.icons.rounded.FileUpload
@@ -182,6 +183,8 @@ fun SettingsScreen(
     onListenTogether: () -> Unit,
     onSpotifyCanvasAuth: () -> Unit,
     onAppLanguage: () -> Unit,
+    onWearOs: () -> Unit = {},
+    onArtistSignatures: () -> Unit = {},
     checkingForUpdate: Boolean = false,
     updateAvailable: AppUpdateChecker.UpdateInfo? = null,
     onCheckForUpdate: () -> Unit = {},
@@ -235,6 +238,7 @@ fun SettingsScreen(
     val hideVolumeBar by AppSettings.hideVolumeBar.collectAsStateWithLifecycle()
     val hideSongStatus by AppSettings.hideSongStatus.collectAsStateWithLifecycle()
     val swipeToPlayNext by AppSettings.swipeToPlayNext.collectAsStateWithLifecycle()
+    val useStarFavorite by AppSettings.useStarFavorite.collectAsStateWithLifecycle()
     val dontRepeatSuggestions by AppSettings.dontRepeatSuggestions.collectAsStateWithLifecycle()
     val preferMusicOnly by AppSettings.preferMusicOnly.collectAsStateWithLifecycle()
     val smartVersionAlignment by AppSettings.smartVersionAlignment.collectAsStateWithLifecycle()
@@ -938,6 +942,18 @@ fun SettingsScreen(
                     }
                 }
             }
+            val signatureApiUrl by AppSettings.signatureApiUrl.collectAsStateWithLifecycle()
+            val signaturesTitle = stringResource(R.string.artist_signatures)
+            row(signaturesTitle, "signature", "artist", "handwritten") {
+                SettingsRow(
+                    icon = Icons.Rounded.Edit,
+                    title = signaturesTitle,
+                    subtitle = signatureApiUrl.ifBlank {
+                        stringResource(R.string.artist_signatures_unconfigured)
+                    },
+                    onClick = onArtistSignatures,
+                )
+            }
             val syncedLyricsTitle = stringResource(R.string.synced_lyrics)
             // Same reasoning as Animated cover art above: the lyrics source and
             // translation rows are only here while this is on.
@@ -1222,6 +1238,15 @@ fun SettingsScreen(
             }
         }
 
+        // Wear OS watch app installer and manager
+        if (remember { com.music.raaga.wear.WatchInstaller.available(context) }) {
+            SearchableSettingsGroup(search) {
+                row(stringResource(R.string.wear_os_section), "watch", "wear os", "galaxy watch", "pixel watch", "install") {
+                    WearOsSettingsRow(onClick = onWearOs)
+                }
+            }
+        }
+
         // No footer: it only restated the stop-on-close row's own subtitle,
         // which sits four rows above it and says the same thing in fewer words.
         SearchableSettingsGroup(search, header = stringResource(R.string.miscellaneous)) {
@@ -1246,6 +1271,25 @@ fun SettingsScreen(
                         )
                     },
                     onClick = { AppSettings.setSwipeToPlayNext(!swipeToPlayNext) },
+                )
+            }
+            val starFavoriteTitle = stringResource(R.string.star_favorite_title)
+            row(starFavoriteTitle, "star", "heart", "favorite", "like") {
+                SettingsRow(
+                    icon = if (useStarFavorite) RaagaIcons.StarFilled else RaagaIcons.HeartFilled,
+                    title = starFavoriteTitle,
+                    subtitle = stringResource(R.string.star_favorite_description),
+                    trailing = {
+                        Switch(
+                            checked = useStarFavorite,
+                            onCheckedChange = AppSettings::setUseStarFavorite,
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                checkedBorderColor = MaterialTheme.colorScheme.primary,
+                            ),
+                        )
+                    },
+                    onClick = { AppSettings.setUseStarFavorite(!useStarFavorite) },
                 )
             }
             val dontRepeatSongsTitle = stringResource(R.string.dont_repeat_songs)

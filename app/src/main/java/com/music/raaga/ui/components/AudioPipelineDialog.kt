@@ -912,7 +912,7 @@ private fun PipelineRow(label: String, value: String) {
 
 /** Hairline separator between stages, indented to align with the text column and clear the signal lane. */
 @Composable
-private fun PipelineRule(modifier: Modifier = Modifier.padding(start = 52.dp, end = 16.dp)) {
+internal fun PipelineRule(modifier: Modifier = Modifier.padding(start = 52.dp, end = 16.dp)) {
     Box(
         modifier
             .fillMaxWidth()
@@ -923,7 +923,7 @@ private fun PipelineRule(modifier: Modifier = Modifier.padding(start = 52.dp, en
 
 /** Full-bleed closing action, [AlertAction]'s shape fixed to this screen's white-on-dark palette. */
 @Composable
-private fun PipelineDoneAction(label: String, onClick: () -> Unit) {
+internal fun PipelineDoneAction(label: String, onClick: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
     Box(

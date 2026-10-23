@@ -44,6 +44,11 @@ data class BluetoothTelemetry(
     val isHighRes: Boolean
         get() = (sampleRateHz != null && sampleRateHz > 48000) || (bitDepth != null && bitDepth > 16)
 
+    val isLossless: Boolean
+        get() = (codecName == "LDAC" && (mode?.contains("990") == true || mode?.contains("High Quality") == true)) ||
+                (codecName.contains("SSC UHQ", ignoreCase = true) && (sampleRateHz ?: 0) >= 96000) ||
+                (codecName.contains("LHDC", ignoreCase = true) && (sampleRateHz ?: 0) >= 96000)
+
     /**
      * Whether [codecName] names a codec Android actually reported. False for every
      * placeholder ("System Managed", "Unknown"), so callers never render a stand-in
@@ -356,10 +361,23 @@ class BluetoothAudioTracker(private val context: Context) {
             else -> null
         }
 
+        var resolvedCodecName = codecName
+        if (resolvedCodecName.contains("Scalable", ignoreCase = true) ||
+            resolvedCodecName.contains("Seamless", ignoreCase = true) ||
+            resolvedCodecName.contains("Samsung", ignoreCase = true) ||
+            resolvedCodecName.contains("SSC", ignoreCase = true)
+        ) {
+            resolvedCodecName = if ((sampleRateHz ?: 0) >= 96000 && (bitDepth ?: 0) >= 24) {
+                "Samsung SSC UHQ"
+            } else {
+                "Samsung Seamless Codec"
+            }
+        }
+
         return BluetoothTelemetry(
             isConnected = true,
             deviceName = deviceName,
-            codecName = codecName,
+            codecName = resolvedCodecName,
             sampleRateHz = sampleRateHz,
             bitDepth = bitDepth,
             bitrateLabel = "Not exposed by Android",
@@ -414,10 +432,23 @@ class BluetoothAudioTracker(private val context: Context) {
             else -> null
         }
 
+        var resolvedCodecName = codecName
+        if (resolvedCodecName.contains("Scalable", ignoreCase = true) ||
+            resolvedCodecName.contains("Seamless", ignoreCase = true) ||
+            resolvedCodecName.contains("Samsung", ignoreCase = true) ||
+            resolvedCodecName.contains("SSC", ignoreCase = true)
+        ) {
+            resolvedCodecName = if ((sampleRateHz ?: 0) >= 96000 && (bitDepth ?: 0) >= 24) {
+                "Samsung SSC UHQ"
+            } else {
+                "Samsung Seamless Codec"
+            }
+        }
+
         return BluetoothTelemetry(
             isConnected = true,
             deviceName = deviceName,
-            codecName = codecName,
+            codecName = resolvedCodecName,
             sampleRateHz = sampleRateHz,
             bitDepth = bitDepth,
             bitrateLabel = "Not exposed by Android",
@@ -441,6 +472,12 @@ class BluetoothAudioTracker(private val context: Context) {
         const val SOURCE_CODEC_TYPE_LDAC = 4
         const val SOURCE_CODEC_TYPE_LC3 = 5
         const val SOURCE_CODEC_TYPE_OPUS = 6
+        const val SOURCE_CODEC_TYPE_SSC = 7
+        const val SOURCE_CODEC_TYPE_SSC_UHQ = 8
+        const val SOURCE_CODEC_TYPE_LHDC = 9
+        const val SOURCE_CODEC_TYPE_LHDC_LL = 10
+        const val SOURCE_CODEC_TYPE_APTX_ADAPTIVE = 11
+        const val SOURCE_CODEC_TYPE_APTX_TWSP = 12
 
         fun mapCodecType(type: Int): String = when (type) {
             SOURCE_CODEC_TYPE_SBC -> "SBC"
@@ -450,7 +487,13 @@ class BluetoothAudioTracker(private val context: Context) {
             SOURCE_CODEC_TYPE_LDAC -> "LDAC"
             SOURCE_CODEC_TYPE_LC3 -> "LC3"
             SOURCE_CODEC_TYPE_OPUS -> "Opus"
-            else -> if (type > 6) "Vendor Codec ($type)" else "Unknown"
+            SOURCE_CODEC_TYPE_SSC -> "Samsung Seamless Codec"
+            SOURCE_CODEC_TYPE_SSC_UHQ -> "Samsung SSC UHQ"
+            SOURCE_CODEC_TYPE_LHDC -> "LHDC"
+            SOURCE_CODEC_TYPE_LHDC_LL -> "LHDC-V"
+            SOURCE_CODEC_TYPE_APTX_ADAPTIVE -> "aptX Adaptive"
+            SOURCE_CODEC_TYPE_APTX_TWSP -> "aptX TWS+"
+            else -> if (type > 12) "Vendor Codec ($type)" else "Unknown"
         }
 
         fun mapSampleRate(mask: Int): Int? = when {

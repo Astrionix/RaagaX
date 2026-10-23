@@ -432,6 +432,36 @@ object RaagaIcons {
             }
         }.build()
 
+    val Star: ImageVector by lazy { star("raaga_star", filled = false) }
+    val StarFilled: ImageVector by lazy { star("raaga_star_filled", filled = true) }
+
+    private fun star(name: String, filled: Boolean): ImageVector =
+        ImageVector.Builder(
+            name = name,
+            defaultWidth = 24.dp, defaultHeight = 24.dp,
+            viewportWidth = 24f, viewportHeight = 24f,
+        ).apply {
+            path(
+                stroke = stroke,
+                strokeLineWidth = STROKE,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
+                fill = if (filled) stroke else null,
+            ) {
+                moveTo(12f, 2.5f)
+                lineTo(15.09f, 8.26f)
+                lineTo(21.45f, 9.27f)
+                lineTo(16.82f, 13.97f)
+                lineTo(17.91f, 20.32f)
+                lineTo(12f, 17.27f)
+                lineTo(6.09f, 20.32f)
+                lineTo(7.18f, 13.97f)
+                lineTo(2.55f, 9.27f)
+                lineTo(8.91f, 8.26f)
+                close()
+            }
+        }.build()
+
     /** Adding something — a new playlist, on the library shelf. */
     val Plus: ImageVector by lazy {
         ImageVector.Builder(

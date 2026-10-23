@@ -930,6 +930,49 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
+     * Appends [song] to every playlist in [playlists].
+     *
+     * Runs in parallel up to the collection size: adding a song to a few
+     * playlists is usually 2–4 calls, which lands well within what Google serves
+     * with a rate limit. The duplicate check is per playlist, so a track
+     * already in one of them is skipped there and still added to the rest.
+     */
+    fun addToPlaylists(
+        playlists: List<UserPlaylist>,
+        song: Song,
+        onResult: (added: Int, alreadyThere: Int, failed: Int) -> Unit = { _, _, _ -> },
+    ) {
+        if (!requireSignIn() || playlists.isEmpty()) return
+        viewModelScope.launch {
+            val outcomes = playlists.map { addOne(it, song) }
+            onResult(
+                outcomes.count { it == AddOutcome.ADDED },
+                outcomes.count { it == AddOutcome.ALREADY_THERE },
+                outcomes.count { it == AddOutcome.FAILED },
+            )
+        }
+    }
+
+    private enum class AddOutcome { ADDED, ALREADY_THERE, FAILED }
+
+    private suspend fun addOne(playlist: UserPlaylist, song: Song): AddOutcome {
+        val openSongs = (_detailStack.value.firstOrNull { it.browseId == playlist.browseId }
+            ?.songs as? UiState.Success)?.data
+        val known = openSongs
+            ?: YtMusicRepository.allSongs(playlist.browseId).getOrNull()
+        if (known?.any { it.videoId == song.videoId } == true) return AddOutcome.ALREADY_THERE
+        return YtMusicRepository.addToPlaylist(playlist.playlistId, listOf(song.videoId)).fold(
+            onSuccess = { added ->
+                libraryStale = true
+                appendToOpenPlaylist(playlist.browseId, song, added[song.videoId])
+                autoDownloadIfEnabled(song, playlist.title)
+                AddOutcome.ADDED
+            },
+            onFailure = { AddOutcome.FAILED },
+        )
+    }
+
+    /**
      * Creates a playlist, seeded with [song] when the flow started from a
      * track's menu — one request, so it can't half-succeed into an empty
      * playlist the user has to add to again.
@@ -1125,6 +1168,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
         currentImportJob = job
         return job
+    }
+
+    fun downloadPlaylistById(playlistId: String, title: String? = null) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val browseId = if (playlistId.startsWith("VL")) playlistId else "VL$playlistId"
+            val result = YtMusicRepository.allSongs(browseId)
+            val songs = result.getOrNull().orEmpty()
+            if (songs.isNotEmpty()) {
+                val app = getApplication<android.app.Application>()
+                songs.forEach { song ->
+                    Downloads.enqueue(app, song, from = title)
+                }
+            }
+        }
     }
 
     /**

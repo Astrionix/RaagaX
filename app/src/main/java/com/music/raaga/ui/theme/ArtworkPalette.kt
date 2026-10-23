@@ -69,6 +69,13 @@ data class ArtworkPalette(
 )
 
 /**
+ * Colours that came with the artwork rather than from decoding it — Apple
+ * Music publishes a background and a text colour for every artist photograph.
+ */
+@androidx.compose.runtime.Immutable
+data class ArtworkKeyColors(val background: Color, val accent: Color)
+
+/**
  * Pulls [ArtworkPalette] out of the artwork at [imageUrl].
  *
  * Artwork that has already been read once is tinted on the very first frame,

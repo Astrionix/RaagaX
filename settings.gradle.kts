@@ -17,4 +17,7 @@ dependencyResolutionManagement {
 
 rootProject.name = "Raaga"
 include(":app")
+include(":tv")
+include(":wearos")
+
  

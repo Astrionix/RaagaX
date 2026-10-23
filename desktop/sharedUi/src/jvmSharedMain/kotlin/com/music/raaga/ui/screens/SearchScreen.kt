@@ -81,6 +81,7 @@ import com.music.raaga.ui.components.PlayingAccent
 import com.music.raaga.ui.components.ROW_DIVIDER_INSET
 import com.music.raaga.ui.components.SearchField
 import com.music.raaga.ui.components.SongRow
+import com.music.raaga.ui.components.SwipeToQueueBox
 import com.music.raaga.ui.components.SearchPlayingBars
 import com.music.raaga.ui.components.thumbnailBorder
 import com.music.raaga.ui.components.songListSkeleton
@@ -296,12 +297,16 @@ fun SearchScreen(
                     val topResult = results.data.filterIsInstance<SearchResult.TopTrack>().firstOrNull()
                     if (filter == SearchFilter.ALL && topResult != null) {
                         item(key = "search:top-result:${topResult.song.videoId}") {
-                            TopResultCard(
-                                song = topResult.song,
-                                onPlay = { onTopResultPlay(topResult.song) },
-                                onPlaylist = { onTopResultPlaylist(topResult.song) },
-                                onLongPress = { onSongLongPress(topResult.song) },
-                            )
+                            SwipeToQueueBox(
+                                onSwipeToQueue = { onSongSwipe(topResult.song) },
+                            ) {
+                                TopResultCard(
+                                    song = topResult.song,
+                                    onPlay = { onTopResultPlay(topResult.song) },
+                                    onPlaylist = { onTopResultPlaylist(topResult.song) },
+                                    onLongPress = { onSongLongPress(topResult.song) },
+                                )
+                            }
                         }
                     }
                     searchSections(results.data, filter).forEach { section ->

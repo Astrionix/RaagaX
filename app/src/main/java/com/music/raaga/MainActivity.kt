@@ -149,6 +149,8 @@ import com.music.raaga.ui.screens.HistoryScreen
 import com.music.raaga.ui.screens.ListenTogetherScreen
 import com.music.raaga.ui.screens.PartyServerEditor
 import com.music.raaga.ui.screens.SettingsScreen
+import com.music.raaga.ui.screens.WearOsScreen
+import com.music.raaga.ui.screens.SignatureApiEditor
 import com.music.raaga.ui.screens.SourceEditorAlert
 import com.music.raaga.ui.screens.SourcesScreen
 import com.music.raaga.ui.screens.SpotifyCanvasAuthScreen
@@ -497,6 +499,7 @@ private fun RaagaApp(
     var showSources by remember { mutableStateOf(false) }
     var showListenTogether by remember { mutableStateOf(false) }
     var showEqualizer by remember { mutableStateOf(false) }
+    var showWearOs by remember { mutableStateOf(false) }
     var showSpotifyCanvasAuth by remember { mutableStateOf(false) }
 
     // Hosted here rather than inside SourcesScreen so its frosted card has
@@ -507,6 +510,7 @@ private fun RaagaApp(
     var editingSource by remember { mutableStateOf<SourceConfig?>(null) }
     var confirmJioSaavn by remember { mutableStateOf(false) }
     var editingPartyServer by remember { mutableStateOf(false) }
+    var editingSignatureApi by remember { mutableStateOf(false) }
     var showHistory by remember { mutableStateOf(false) }
     // A Library shelf's "Show all" — the shelf it was opened from, so its own
     // cards can be laid out again as a full-screen grid. See [LibraryGridPage].
@@ -2344,6 +2348,7 @@ private fun RaagaApp(
                 showAccountScrobbling = false
                 showSources = false
                 showListenTogether = false
+                showWearOs = false
                 showEqualizer = false
                 showReplay = false
                 showHistory = false
@@ -2447,6 +2452,9 @@ private fun RaagaApp(
         BackHandler(enabled = showEqualizer) {
             showEqualizer = false
         }
+        BackHandler(enabled = showWearOs) {
+            showWearOs = false
+        }
         // One back step out of Settings, or out of any tab but Home, lands on
         // Home rather than exiting — only Home itself hands back to the system,
         // which is what actually closes/minimizes the app.
@@ -2470,6 +2478,7 @@ private fun RaagaApp(
         BackHandler(enabled = discordDialog != null) { discordDialog = null }
         BackHandler(enabled = editingSource != null) { editingSource = null }
         BackHandler(enabled = editingPartyServer) { editingPartyServer = false }
+        BackHandler(enabled = editingSignatureApi) { editingSignatureApi = false }
         BackHandler(enabled = showHistory) { showHistory = false }
         // Disabled while a detail page is open over the grid: that one's own
         // BackHandler below has to close first, or back would skip past it
@@ -2498,6 +2507,7 @@ private fun RaagaApp(
                         showAccountScrobbling -> "account_scrobbling"
                         showSources -> "sources"
                         showListenTogether -> "listen_together"
+                        showWearOs -> "wear_os"
                         showEqualizer -> "equalizer"
                         // Above Replay, not below it. The top bar's account
                         // button sets `showSettings` from every page including
@@ -2705,6 +2715,8 @@ private fun RaagaApp(
                             contentPadding = listPadding,
                             onEditServer = { editingPartyServer = true },
                         )
+                    } else if (key == "wear_os") {
+                        WearOsScreen(contentPadding = listPadding)
                     } else if (key == "equalizer") {
                         EqualizerScreen(contentPadding = listPadding)
                     } else if (key == "settings") {
@@ -2728,8 +2740,10 @@ private fun RaagaApp(
                             onTranslationLanguage = { showTranslationLanguage = true },
                             onSources = { showSources = true },
                             onListenTogether = { showListenTogether = true },
+                            onWearOs = { showWearOs = true },
                             onSpotifyCanvasAuth = { showSpotifyCanvasAuth = true },
                             onAppLanguage = { showAppLanguage = true },
+                            onArtistSignatures = { editingSignatureApi = true },
                             checkingForUpdate = isCheckingForUpdates,
                             updateAvailable = updateAvailable,
                             onCheckForUpdate = {
@@ -3245,6 +3259,7 @@ private fun RaagaApp(
                         showAccountScrobbling -> stringResource(R.string.account_scrobbling)
                         showSources -> stringResource(R.string.sources)
                         showListenTogether -> stringResource(R.string.listen_together)
+                        showWearOs -> stringResource(R.string.wear_os_page_title)
                         showEqualizer -> stringResource(R.string.equalizer)
                         showSettings -> stringResource(R.string.settings)
                         showReplay -> stringResource(R.string.replay)
@@ -3263,7 +3278,7 @@ private fun RaagaApp(
                     // the field takes that space — so its bar title is always up.
                     scrolled = when {
                         showSettings || showAccountScrobbling || showSources || showListenTogether ||
-                            showEqualizer ||
+                            showWearOs || showEqualizer ||
                             showDiscord || showHistory ||
                             (libraryShowAll != null && detail == null) ||
                             (detail != null && detailActiveShelf != null) ||
@@ -3283,6 +3298,7 @@ private fun RaagaApp(
                         showAccountScrobbling -> ({ showAccountScrobbling = false })
                         showSources -> ({ showSources = false })
                         showListenTogether -> ({ showListenTogether = false })
+                        showWearOs -> ({ showWearOs = false })
                         showEqualizer -> ({ showEqualizer = false })
                         showSettings -> ({ showSettings = false })
                         showReplay -> ({ showReplay = false })
@@ -4736,6 +4752,13 @@ private fun RaagaApp(
             PartyServerEditor(
                 hazeState = hazeState,
                 onDismiss = { editingPartyServer = false },
+            )
+        }
+
+        if (editingSignatureApi) {
+            SignatureApiEditor(
+                hazeState = hazeState,
+                onDismiss = { editingSignatureApi = false },
             )
         }
 

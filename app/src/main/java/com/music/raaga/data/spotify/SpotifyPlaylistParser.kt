@@ -23,9 +23,28 @@ data class SpotifyTrack(
     val title: String,
     val artist: String,
     val durationMs: Long? = null,
+    val album: String? = null,
     val id: String? = null,
+    val imageUrl: String? = null,
     val isrc: String? = null,
-)
+) {
+    constructor(
+        id: String,
+        title: String,
+        artist: String,
+        album: String?,
+        durationMs: Int,
+        imageUrl: String?,
+    ) : this(
+        title = title,
+        artist = artist,
+        durationMs = durationMs.toLong(),
+        album = album,
+        id = id,
+        imageUrl = imageUrl,
+        isrc = null,
+    )
+}
 
 data class SpotifyUserProfile(
     val id: String,
