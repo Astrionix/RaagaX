@@ -229,6 +229,18 @@ function libraryToggle(header: YTNodes.MusicResponsiveHeader | null | undefined)
   return null;
 }
 
+export function cleanDescription(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  let text = raw.trim();
+  const trailingAttribution = /(?:\r?\n)+[^\r\n]*(?:from\s+wikipedia|source:\s*wikipedia|fonte:\s*wikipedia|fuente:\s*wikipedia|quelle:\s*wikipedia|d['’]après\s+wikip[eé]dia|de\s+wikip[eé]dia|aus\s+wikip[eé]dia|da\s+wikip[eé]dia|из\s+википедии|विकिपीडिया\s*से|వికీపీడియా\s*నుండి|ウィキペディア|来自维基百科|維基百科|https?:\/\/[^\s]*wikipedia\.org)[\s\S]*$/i;
+  text = text.replace(trailingAttribution, '').trim();
+  const inlineAttribution = /\s*\(?\s*(?:from\s+wikipedia|source:\s*wikipedia)[^)]*\)?\s*$/i;
+  text = text.replace(inlineAttribution, '').trim();
+  const ccRegex = /\s*\(?\s*(?:under\s+creative\s+commons|https?:\/\/creativecommons\.org)[^)]*\)?\s*$/i;
+  text = text.replace(ccRegex, '').trim();
+  return text || null;
+}
+
 function headerInfo(header: YTNodes.MusicResponsiveHeader | null | undefined): HeaderInfo {
   const strapline = header?.strapline_text_one as unknown as { text?: string; runs?: { text: string; endpoint?: unknown }[] } | undefined;
   const artists: ArtistRef[] = (strapline?.runs ?? [])
@@ -239,7 +251,7 @@ function headerInfo(header: YTNodes.MusicResponsiveHeader | null | undefined): H
     title: text(header?.title),
     subtitle: text(header?.subtitle),
     meta: text(header?.second_subtitle),
-    description: text(header?.description?.description as TextLike) || null,
+    description: cleanDescription(text(header?.description?.description as TextLike)),
     thumbnail: thumbnailOf(header ?? {}),
     artists,
     explicit: explicitOf(header?.subtitle_badge),
@@ -282,7 +294,7 @@ export function mapArtist(id: string, artist: Pick<YTMusic.Artist, 'header' | 's
   return {
     id,
     name: text(header?.title),
-    description: header && 'description' in header ? text(header.description) || null : null,
+    description: cleanDescription(header && 'description' in header ? text(header.description) || null : null),
     heroImage: thumbnailOf(header ?? {}),
     audience: text(subscribe?.subscriber_count) || null,
     topSongs: (topShelf?.contents ?? []).map(mapTrack).filter((t): t is Track => !!t),

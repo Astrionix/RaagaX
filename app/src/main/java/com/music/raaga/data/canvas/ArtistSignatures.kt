@@ -86,6 +86,10 @@ object ArtistSignatureRepository {
         for (i in 0 until signatures.length()) {
             val sig = signatures.optJSONObject(i) ?: continue
             val url = extractUrl(sig) ?: continue
+            val lowerUrl = url.lowercase(Locale.ROOT)
+            if (lowerUrl.contains("logo") && !lowerUrl.contains("sig") && !lowerUrl.contains("autograph")) {
+                continue
+            }
             val score = rank(sig, url)
             val area = extractArea(sig)
             if (best == null || score > bestScore || (score == bestScore && area > bestArea)) {

@@ -1039,13 +1039,42 @@ object InnertubeParser {
     fun parseDescription(root: JsonElement): String? {
         val shelf = collectRenderers(root, "musicDescriptionShelfRenderer")
             .firstOrNull()?.o("description").runs()
-        if (shelf.isNotBlank()) return shelf
+        if (shelf.isNotBlank()) return cleanDescription(shelf)
         val onHeader = (HEADER_RENDERERS + "musicImmersiveHeaderRenderer")
             .firstNotNullOfOrNull { name ->
                 collectRenderers(root, name).firstOrNull()
                     ?.o("description").runs().takeIf { it.isNotBlank() }
             }
-        return onHeader
+        return onHeader?.let { cleanDescription(it) }
+    }
+
+    /**
+     * Cleans editorial descriptions by removing raw Wikipedia citations,
+     * Creative Commons attribution clauses, and trailing encyclopedia URLs.
+     */
+    fun cleanDescription(raw: String?): String? {
+        if (raw.isNullOrBlank()) return null
+        var text = raw.trim()
+
+        // 1. Strip trailing Wikipedia attribution blocks ("From Wikipedia...", "Source: Wikipedia", license notices, URLs)
+        val trailingAttributionRegex = Regex(
+            "(?is)(?:\\r?\\n)+[^\\r\\n]*(?:from\\s+wikipedia|source:\\s*wikipedia|fonte:\\s*wikipedia|fuente:\\s*wikipedia|quelle:\\s*wikipedia|d['’]après\\s+wikip[eé]dia|de\\s+wikip[eé]dia|aus\\s+wikip[eé]dia|da\\s+wikip[eé]dia|из\\s+википедии|विकिपीडिया\\s*से|వికీపీడియా\\s*నుండి|ウィキペディア|来自维基百科|維基百科|https?://[^\\s]*wikipedia\\.org).*$"
+        )
+        text = text.replace(trailingAttributionRegex, "").trim()
+
+        // 2. Strip inline or parenthetical "(From Wikipedia...)" at the end of the text
+        val inlineAttributionRegex = Regex(
+            "(?is)\\s*\\(?\\s*(?:from\\s+wikipedia|source:\\s*wikipedia)[^)]*\\)?\\s*$"
+        )
+        text = text.replace(inlineAttributionRegex, "").trim()
+
+        // 3. Strip trailing Creative Commons clauses or license URLs if any remain
+        val ccRegex = Regex(
+            "(?is)\\s*\\(?\\s*(?:under\\s+creative\\s+commons|https?://creativecommons\\.org)[^)]*\\)?\\s*$"
+        )
+        text = text.replace(ccRegex, "").trim()
+
+        return text.takeIf { it.isNotBlank() }
     }
 
     /**

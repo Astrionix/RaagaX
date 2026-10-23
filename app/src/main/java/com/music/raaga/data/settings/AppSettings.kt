@@ -639,9 +639,11 @@ object AppSettings {
     val webdavUsername = MutableStateFlow("")
     val webdavPassword = MutableStateFlow("")
 
+    const val DEFAULT_SIGNATURE_API_URL = "https://yellow-king-f562.chandu3319r.workers.dev"
+
     /** Custom endpoint for artist signatures API */
-    val signatureApiUrl = MutableStateFlow("")
-    val signatureApiEnabled = MutableStateFlow(false)
+    val signatureApiUrl = MutableStateFlow(DEFAULT_SIGNATURE_API_URL)
+    val signatureApiEnabled = MutableStateFlow(true)
 
     // ── SMB ───────────────────────────────────────────────────────────────
 
@@ -1007,7 +1009,12 @@ object AppSettings {
         webdavUrl.value = prefs.getString(KEY_WEBDAV_URL, "").orEmpty()
         webdavUsername.value = prefs.getString(KEY_WEBDAV_USERNAME, "").orEmpty()
         webdavPassword.value = authStore.webdavPassword.orEmpty()
-        signatureApiUrl.value = prefs.getString(KEY_SIGNATURE_API_URL, "").orEmpty()
+        val storedSigUrl = prefs.getString(KEY_SIGNATURE_API_URL, null)
+        signatureApiUrl.value = if (storedSigUrl.isNullOrBlank() || storedSigUrl.contains("signature.raaga.me")) {
+            DEFAULT_SIGNATURE_API_URL
+        } else {
+            storedSigUrl
+        }
         smbHost.value = prefs.getString(KEY_SMB_HOST, "").orEmpty()
         smbShare.value = prefs.getString(KEY_SMB_SHARE, "").orEmpty()
         smbBasePath.value = prefs.getString(KEY_SMB_BASE_PATH, "").orEmpty()

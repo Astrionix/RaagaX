@@ -261,6 +261,64 @@ fun MediaController.setQueueDragActive(active: Boolean) {
     )
 }
 
+/**
+ * Threshold below which a buffering burst is considered a micro-glitch (e.g.
+ * an Add-on / quality-upgrade stream swap) and the loading spinner is *not*
+ * shown.  Matches the Apple Music / Spotify approach of ignoring transitions
+ * shorter than ~300–350 ms.
+ */
+const val LOADING_DEBOUNCE_MS = 350L
+
+/**
+ * Returns a debounced loading flag suitable for driving a spinner.
+ *
+ * The raw [PlayerState.isLoading] can flip true for as little as 50–200 ms
+ * during seamless quality-upgrade / Add-on stream swaps: ExoPlayer briefly
+ * enters STATE_BUFFERING while the new MediaItem is prepared even though
+ * audio never actually drops out. Showing a spinner for that window blinks
+ * the play button visibly.
+ *
+ * This composable returns `false` until buffering has lasted at least
+ * [LOADING_DEBOUNCE_MS]. If the player recovers within that window the flag
+ * stays false and nothing visible happens.  When a quality upgrade lands
+ * ([PlayerState.isQualityUpgraded] flips true while loading is still active)
+ * the flag is forced to false immediately so no spinner lingers after the
+ * new stream has already started playing.
+ *
+ * Pass this value wherever [PlayerState.isLoading] would have been passed.
+ */
+@Composable
+fun rememberDebouncedLoading(state: PlayerState): Boolean {
+    // displayedLoading is what the UI actually sees — it starts false and
+    // only flips true after LOADING_DEBOUNCE_MS of continuous buffering.
+    var displayedLoading by remember { mutableStateOf(false) }
+
+    LaunchedEffect(state.isLoading, state.isQualityUpgraded) {
+        when {
+            // A quality-upgrade swap just landed — the new stream is already
+            // producing audio.  Force the spinner off immediately.
+            state.isQualityUpgraded && state.isLoading -> {
+                displayedLoading = false
+            }
+            state.isLoading -> {
+                // Buffering started.  Wait the debounce window before revealing
+                // the spinner.  If the buffering resolves in the meantime the
+                // LaunchedEffect key changes, this coroutine is cancelled, and
+                // the next launch (with isLoading=false) clears the flag—so the
+                // spinner is never shown for short bursts.
+                delay(LOADING_DEBOUNCE_MS)
+                displayedLoading = true
+            }
+            else -> {
+                // Buffering ended — hide the spinner immediately.
+                displayedLoading = false
+            }
+        }
+    }
+
+    return displayedLoading
+}
+
 /** Mirrors the controller into Compose state, polling position while playing. */
 @Composable
 fun rememberPlayerState(controller: MediaController?): PlayerState {

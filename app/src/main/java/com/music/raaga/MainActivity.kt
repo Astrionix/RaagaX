@@ -176,6 +176,7 @@ import com.music.raaga.playback.playSongs
 import com.music.raaga.playback.toMediaItem
 import com.music.raaga.playback.toSong
 import com.music.raaga.playback.toDirectYouTubeMediaItem
+import com.music.raaga.playback.rememberDebouncedLoading
 import com.music.raaga.playback.toggleAutoplay
 import com.music.raaga.playback.toggleShuffle
 import com.music.raaga.playback.upgradeQuality
@@ -797,7 +798,11 @@ private fun RaagaApp(
     // Folded into the buffering flag every play button already answers to, since
     // to a listener the two are the same fact: it is coming, wait.
     val awaitingPartyStart by ListenTogether.awaitingStart.collectAsStateWithLifecycle()
-    val playPauseBusy = player.isLoading || awaitingPartyStart
+    // Use the debounced loading flag so micro-buffering bursts during Add-on /
+    // quality-upgrade stream swaps (< 350 ms) never flip the play button to a
+    // spinner. Only genuine long stalls (new track buffer, poor network) show it.
+    val debouncedLoading = rememberDebouncedLoading(player)
+    val playPauseBusy = debouncedLoading || awaitingPartyStart
     // Listening in a party whose host has taken the controls. Read once here
     // and handed to every surface, so the player, the mini player and the glass
     // bar can never disagree about whether this device may drive the music.

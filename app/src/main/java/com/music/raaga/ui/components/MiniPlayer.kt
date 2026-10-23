@@ -2,11 +2,16 @@ package com.music.raaga.ui.components
 
 import com.music.raaga.R
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -380,44 +385,56 @@ fun MiniPlayer(
                     )
                 }
             }
-            if (isLoading) {
-                Box(Modifier.size(GLYPH_SLOT), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(
-                        color = MaterialTheme.colorScheme.onBackground,
-                        strokeWidth = 2.dp,
-                        modifier = Modifier.size(SPINNER_SIZE),
+            // Crossfade between the spinner and the play/pause button so the
+            // swap is a gentle alpha blend rather than an instant layout switch.
+            // Combined with the debounced isLoading in MainActivity, Add-on
+            // stream swaps produce zero visible blink in the mini player too.
+            AnimatedContent(
+                targetState = isLoading,
+                transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(200)) },
+                label = "miniPlayPauseOrSpinner",
+                modifier = Modifier.size(GLYPH_SLOT),
+                contentAlignment = Alignment.Center,
+            ) { loading ->
+                if (loading) {
+                    Box(Modifier.size(GLYPH_SLOT), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(
+                            color = MaterialTheme.colorScheme.onBackground,
+                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(SPINNER_SIZE),
+                        )
+                    }
+                } else {
+                    val playInteractionSource = remember { MutableInteractionSource() }
+                    val playPressed by playInteractionSource.collectIsPressedAsState()
+                    val playScale by animateFloatAsState(
+                        targetValue = if (playPressed) 0.88f else 1f,
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioNoBouncy,
+                            stiffness = Spring.StiffnessMediumLow,
+                        ),
+                        label = "miniPlayerPlayScale",
                     )
-                }
-            } else {
-                val playInteractionSource = remember { MutableInteractionSource() }
-                val playPressed by playInteractionSource.collectIsPressedAsState()
-                val playScale by animateFloatAsState(
-                    targetValue = if (playPressed) 0.88f else 1f,
-                    animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioNoBouncy,
-                        stiffness = Spring.StiffnessMediumLow,
-                    ),
-                    label = "miniPlayerPlayScale",
-                )
-                IconButton(
-                    onClick = {
-                        haptics.play(if (isPlaying) Haptic.Pause else Haptic.Resume)
-                        onPlayPause()
-                    },
-                    interactionSource = playInteractionSource,
-                    modifier = Modifier
-                        .size(GLYPH_SLOT)
-                        .graphicsLayer {
-                            scaleX = playScale
-                            scaleY = playScale
+                    IconButton(
+                        onClick = {
+                            haptics.play(if (isPlaying) Haptic.Pause else Haptic.Resume)
+                            onPlayPause()
                         },
-                ) {
-                    Icon(
-                        imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                        contentDescription = stringResource(if (isPlaying) R.string.pause else R.string.play),
-                        tint = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier.size(GLYPH_SIZE),
-                    )
+                        interactionSource = playInteractionSource,
+                        modifier = Modifier
+                            .size(GLYPH_SLOT)
+                            .graphicsLayer {
+                                scaleX = playScale
+                                scaleY = playScale
+                            },
+                    ) {
+                        Icon(
+                            imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                            contentDescription = stringResource(if (isPlaying) R.string.pause else R.string.play),
+                            tint = MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier.size(GLYPH_SIZE),
+                        )
+                    }
                 }
             }
             Spacer(Modifier.width(TRANSPORT_GAP))

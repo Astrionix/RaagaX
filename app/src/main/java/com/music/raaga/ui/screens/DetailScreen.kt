@@ -55,8 +55,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.SpanStyle
@@ -70,6 +72,7 @@ import coil3.request.transformations
 import com.music.raaga.data.canvas.ArtistSignature
 import com.music.raaga.data.canvas.ArtistSignatureRepository
 import com.music.raaga.data.canvas.SignatureInkTransformation
+import com.music.raaga.data.innertube.InnertubeParser
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 import androidx.compose.runtime.Composable
@@ -346,6 +349,9 @@ fun DetailScreen(
     val suggested = remember(page.suggestedSongs, query) {
         page.suggestedSongs.matching(query).map { it.value }
     }
+    val cleanedDescription = remember(page.description) {
+        InnertubeParser.cleanDescription(page.description)
+    }
 
     // What marks a row as already downloaded, tinted from the sleeve like the
     // rest of the page. Null on any page that is itself a reading of this
@@ -502,7 +508,7 @@ fun DetailScreen(
                         // Halved when an About section follows directly — see
                         // [AboutSection]'s own top inset, which makes up the
                         // rest of that shorter gap.
-                        bottomSpace = if (page.description.isNullOrBlank()) 22.dp else 11.dp,
+                        bottomSpace = if (cleanedDescription.isNullOrBlank()) 22.dp else 11.dp,
                     )
                 }
             }
@@ -510,7 +516,7 @@ fun DetailScreen(
             // YouTube's own editorial blurb — an album or an artist only, per
             // [DetailPage.description]. A playlist never carries one, and the
             // section is skipped for it even on the rare response that does.
-            if (!page.description.isNullOrBlank() &&
+            if (!cleanedDescription.isNullOrBlank() &&
                 (page.type == BrowseType.ALBUM || isArtist)
             ) {
                 item(key = "about") {
@@ -518,7 +524,7 @@ fun DetailScreen(
                         title = stringResource(
                             if (isArtist) R.string.about_artist else R.string.about_album,
                         ),
-                        text = page.description,
+                        text = cleanedDescription,
                         palette = palette,
                     )
                 }
@@ -996,12 +1002,12 @@ private fun ArtistHeader(
         Spacer(Modifier.fillMaxWidth().height(artHeight + HEADER_DROP))
         var logoShown by remember(signature?.imageUrl) { mutableStateOf(false) }
         val imageUrl = signature?.imageUrl
-        if (imageUrl != null) {
-            val context = LocalPlatformContext.current
-            val isSvg = signature.format == "svg"
-            val aspect = signature.aspect.coerceIn(0.4f, 6f)
-            val request = remember(imageUrl) {
-                ImageRequest.Builder(context).data(imageUrl).apply {
+        val context = LocalPlatformContext.current
+        val isSvg = signature?.format == "svg"
+        val aspect = (signature?.aspect ?: 2.5f).coerceIn(0.4f, 6f)
+        val request = remember(imageUrl) {
+            imageUrl?.let {
+                ImageRequest.Builder(context).data(it).apply {
                     if (isSvg) {
                         size(SVG_DECODE_WIDTH, (SVG_DECODE_WIDTH / aspect).roundToInt())
                     } else {
@@ -1010,54 +1016,73 @@ private fun ArtistHeader(
                     }
                 }.build()
             }
-            val maxLogoHeight = artHeight * ARTIST_LOGO_MAX_HEIGHT * SIGNATURE_SCALE
-            Column(
-                modifier = Modifier.align(Alignment.BottomCenter),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                AsyncImage(
-                    model = request,
-                    contentDescription = page.title,
-                    contentScale = ContentScale.Fit,
-                    colorFilter = if (isSvg) ColorFilter.tint(Color.White) else null,
-                    onState = { state ->
-                        if (state is AsyncImagePainter.State.Success) {
-                            logoShown = true
-                        }
-                    },
-                    modifier = Modifier
-                        .padding(top = 14.dp, bottom = 6.dp)
-                        .layout { measurable, constraints ->
-                            val widest = constraints.maxWidth * ARTIST_LOGO_WIDTH * SIGNATURE_SCALE
-                            val height = minOf(widest / aspect, maxLogoHeight.toPx()).roundToInt()
-                            val width = (height * aspect).roundToInt()
-                            val placeable = measurable.measure(Constraints.fixed(width, height))
-                            layout(width, height) { placeable.place(0, 0) }
-                        },
-                )
-                if (logoShown) {
+        }
+        val maxLogoHeight = artHeight * ARTIST_LOGO_MAX_HEIGHT * SIGNATURE_SCALE
+
+        AnimatedContent(
+            targetState = logoShown && imageUrl != null,
+            transitionSpec = { fadeIn(tween(380)) togetherWith fadeOut(tween(220)) },
+            label = "artistTitleOrSignature",
+            modifier = Modifier.align(Alignment.BottomCenter),
+        ) { isLogo ->
+            if (isLogo && request != null) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    AsyncImage(
+                        model = request,
+                        contentDescription = page.title,
+                        contentScale = ContentScale.Fit,
+                        colorFilter = if (isSvg) ColorFilter.tint(Color.White) else null,
+                        modifier = Modifier
+                            .padding(top = 14.dp, bottom = 6.dp)
+                            .drawBehind {
+                                drawCircle(
+                                    color = Color.Black.copy(alpha = 0.24f),
+                                    radius = size.maxDimension * 0.55f,
+                                )
+                            }
+                            .layout { measurable, constraints ->
+                                val widest = constraints.maxWidth * ARTIST_LOGO_WIDTH * SIGNATURE_SCALE
+                                val height = minOf(widest / aspect, maxLogoHeight.toPx()).roundToInt()
+                                val width = (height * aspect).roundToInt()
+                                val placeable = measurable.measure(Constraints.fixed(width, height))
+                                layout(width, height) { placeable.place(0, 0) }
+                            },
+                    )
                     SignedByCaption(
                         name = page.title,
                         palette = palette,
                         modifier = Modifier.padding(horizontal = HEADER_GUTTER).padding(bottom = 20.dp),
                     )
                 }
+            } else {
+                Text(
+                    text = page.title,
+                    style = MaterialTheme.typography.displayLarge,
+                    color = palette.onBackground,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = HEADER_GUTTER, end = HEADER_GUTTER, top = 14.dp, bottom = 7.dp),
+                )
             }
         }
-        if (!logoShown) {
-            Text(
-                text = page.title,
-                style = MaterialTheme.typography.displayLarge,
-                color = palette.onBackground,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    // Bottom is half the top inset — the stats pills (or, absent
-                    // those, the action row) sit closer under the name than the
-                    // name sits under the artwork.
-                    .padding(start = HEADER_GUTTER, end = HEADER_GUTTER, top = 14.dp, bottom = 7.dp),
+
+        if (request != null && !logoShown) {
+            // Invisible prefetcher to trigger AsyncImagePainter state
+            AsyncImage(
+                model = request,
+                contentDescription = null,
+                onState = { state ->
+                    if (state is AsyncImagePainter.State.Success) {
+                        logoShown = true
+                    }
+                },
+                modifier = Modifier.size(1.dp).graphicsLayer { alpha = 0f },
             )
         }
     }

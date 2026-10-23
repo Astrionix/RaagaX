@@ -400,25 +400,39 @@ internal fun TransportRow(
             enabled = previousEnabled,
             haptic = Haptic.SkipPrevious,
         )
-        if (isLoading) {
-            // Same footprint as the play/pause target — a smaller box here
-            // would shunt everything below it on every load.
-            Box(Modifier.size(playTouch), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(
-                    color = Color.White,
-                    strokeWidth = 3.dp,
-                    modifier = Modifier.size(if (compact) 30.dp else 38.dp),
+        // Crossfade between the spinner and the play/pause glyph so the
+        // transition is always a gentle alpha blend rather than a hard swap.
+        // Combined with the debounced isLoading from rememberDebouncedLoading,
+        // Add-on / quality-upgrade stream swaps produce zero visible blink.
+        AnimatedContent(
+            targetState = isLoading,
+            transitionSpec = {
+                fadeIn(tween(200)) togetherWith fadeOut(tween(200))
+            },
+            label = "playPauseOrSpinner",
+            modifier = Modifier.size(playTouch),
+            contentAlignment = Alignment.Center,
+        ) { loading ->
+            if (loading) {
+                // Keep the same footprint as the play/pause target so siblings
+                // don't shift when the spinner appears.
+                Box(Modifier.size(playTouch), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(
+                        color = Color.White,
+                        strokeWidth = 3.dp,
+                        modifier = Modifier.size(if (compact) 30.dp else 38.dp),
+                    )
+                }
+            } else {
+                TransportGlyph(
+                    icon = if (isPlaying) R.drawable.ic_player_pause else R.drawable.ic_player_play,
+                    contentDescription = stringResource(if (isPlaying) R.string.pause else R.string.play),
+                    size = playSize,
+                    touchSize = playTouch,
+                    onClick = onPlayPause,
+                    haptic = if (isPlaying) Haptic.Pause else Haptic.Resume,
                 )
             }
-        } else {
-            TransportGlyph(
-                icon = if (isPlaying) R.drawable.ic_player_pause else R.drawable.ic_player_play,
-                contentDescription = stringResource(if (isPlaying) R.string.pause else R.string.play),
-                size = playSize,
-                touchSize = playTouch,
-                onClick = onPlayPause,
-                haptic = if (isPlaying) Haptic.Pause else Haptic.Resume,
-            )
         }
         TransportGlyph(
             icon = R.drawable.ic_player_next,
