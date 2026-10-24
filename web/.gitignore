@@ -5,5 +5,3 @@ dist/
 *.tsbuildinfo
 .env.local
 
-# Built extension zips (web/extension: pnpm package)
-app/public/downloads/
