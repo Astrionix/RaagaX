@@ -266,6 +266,7 @@ object FriendActivityEngine {
                 albumName = effectiveSong.albumName,
                 durationText = effectiveSong.durationText,
                 isPlaying = isPlaying,
+                joinedAt = me.joinedAt,
             )
         }
     }

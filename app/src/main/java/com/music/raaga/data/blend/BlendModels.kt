@@ -9,6 +9,7 @@ data class RaagaUserIdentity(
     val userId: String,
     val userTag: String, // e.g. "AETH-7W4Q"
     val userName: String,
+    val joinedAt: String? = null,
 )
 
 /**

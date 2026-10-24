@@ -23,6 +23,7 @@ object BlendEngine {
     private const val KEY_USER_ID = "user_id"
     private const val KEY_USER_TAG = "user_tag"
     private const val KEY_USER_NAME = "user_name"
+    private const val KEY_JOINED_AT = "user_joined_at"
 
     @Volatile
     private var cachedIdentity: RaagaUserIdentity? = null
@@ -41,6 +42,12 @@ object BlendEngine {
             val code = (1..4).map { chars[Random.nextInt(chars.length)] }.joinToString("")
             userTag = "AETH-$code"
             prefs.edit().putString(KEY_USER_TAG, userTag).apply()
+        }
+
+        var joinedAt = prefs.getString(KEY_JOINED_AT, null)
+        if (joinedAt.isNullOrBlank()) {
+            joinedAt = java.time.format.DateTimeFormatter.ISO_INSTANT.format(java.time.Instant.now())
+            prefs.edit().putString(KEY_JOINED_AT, joinedAt).apply()
         }
 
         // If user is logged into an account, use their account/profile name as identity
@@ -66,7 +73,7 @@ object BlendEngine {
             }
         }
 
-        val identity = RaagaUserIdentity(userId = userId, userTag = userTag, userName = userName)
+        val identity = RaagaUserIdentity(userId = userId, userTag = userTag, userName = userName, joinedAt = joinedAt)
         cachedIdentity = identity
         return identity
     }

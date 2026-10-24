@@ -51,13 +51,14 @@ object SupabaseActivityClient {
         albumName: String? = null,
         durationText: String? = null,
         isPlaying: Boolean = true,
+        joinedAt: String? = null,
     ): Boolean = withContext(Dispatchers.IO) {
         if (supabaseUrl.isBlank() || anonKey.isBlank() || userTag.isBlank()) {
             return@withContext false
         }
 
         runCatching {
-            val payload = buildJsonObject {
+            fun createPayload(withJoinedAt: Boolean) = buildJsonObject {
                 put("user_tag", userTag)
                 put("user_name", userName)
                 put("song_title", songTitle)
@@ -68,24 +69,41 @@ object SupabaseActivityClient {
                 put("duration_text", durationText ?: "")
                 put("is_playing", isPlaying)
                 put("updated_at", DateTimeFormatter.ISO_INSTANT.format(Instant.now()))
+                if (withJoinedAt && !joinedAt.isNullOrBlank()) {
+                    put("joined_at", joinedAt)
+                }
             }.toString()
 
             val url = "$supabaseUrl/rest/v1/user_activity"
-            val request = Request.Builder()
+            fun buildReq(jsonPayload: String) = Request.Builder()
                 .url(url)
-                .post(payload.toRequestBody(JSON_MEDIA_TYPE))
+                .post(jsonPayload.toRequestBody(JSON_MEDIA_TYPE))
                 .header("apikey", anonKey)
                 .header("Authorization", "Bearer $anonKey")
                 .header("Content-Type", "application/json")
                 .header("Prefer", "resolution=merge-duplicates")
                 .build()
 
-            Http.client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
+            val primaryPayload = createPayload(withJoinedAt = !joinedAt.isNullOrBlank())
+            var ok = false
+            Http.client.newCall(buildReq(primaryPayload)).execute().use { response ->
+                if (response.isSuccessful) {
+                    ok = true
+                } else if (!joinedAt.isNullOrBlank()) {
+                    val body = response.body?.string().orEmpty()
+                    // Fallback gracefully if Supabase table does not yet have joined_at column
+                    if (body.contains("joined_at") || body.contains("PGRST204")) {
+                        Http.client.newCall(buildReq(createPayload(withJoinedAt = false))).execute().use { fallbackResp ->
+                            ok = fallbackResp.isSuccessful
+                        }
+                    } else {
+                        Log.w(TAG, "Failed to publish activity to Supabase: HTTP ${response.code}")
+                    }
+                } else {
                     Log.w(TAG, "Failed to publish activity to Supabase: HTTP ${response.code}")
                 }
-                response.isSuccessful
             }
+            ok
         }.getOrElse { e ->
             Log.w(TAG, "Error publishing activity to Supabase", e)
             false

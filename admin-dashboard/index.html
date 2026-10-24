@@ -530,6 +530,8 @@
       border-top: 1px solid rgba(255, 255, 255, 0.05);
       font-size: 12px;
       color: var(--text-subtle);
+      flex-wrap: wrap;
+      gap: 6px;
     }
 
     /* Equalizer Bars Animation */
@@ -838,6 +840,7 @@
         <thead>
           <tr>
             <th>Listener</th>
+            <th>Joined Date</th>
             <th>Current Track</th>
             <th>Album</th>
             <th>State</th>
@@ -1187,6 +1190,8 @@
         const isStale = diffMinutes > 15;
         const badgeClass = isLive ? 'badge-playing' : (isStale ? 'badge-offline' : 'badge-paused');
         const badgeLabel = isLive ? 'Playing' : (isStale ? 'Offline' : 'Paused');
+        const joinedIso = resolveJoinedDate(item);
+        const joinedDateFormatted = formatJoinedDate(joinedIso);
 
         return `
           <div class="user-card">
@@ -1230,6 +1235,7 @@
 
             <div class="card-footer">
               <span>Duration: <strong>${escapeHtml(item.duration_text || '—')}</strong></span>
+              <span>Joined: <strong style="color: #c084fc;" title="${escapeHtml(joinedIso)}">${escapeHtml(joinedDateFormatted)}</strong></span>
               <span>Updated: <strong>${timeAgo}</strong></span>
             </div>
           </div>
@@ -1242,7 +1248,7 @@
     function renderTelemetryTable(items) {
       const tbody = document.getElementById("telemetryTableBody");
       if (items.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-subtle); padding: 30px;">No telemetry logs</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-subtle); padding: 30px;">No telemetry logs</td></tr>`;
         return;
       }
 
@@ -1258,6 +1264,9 @@
         const isStale = diffMinutes > 15;
         const badgeClass = isLive ? 'badge-playing' : (isStale ? 'badge-offline' : 'badge-paused');
         const badgeLabel = isLive ? 'Playing' : (isStale ? 'Offline' : 'Paused');
+        const joinedIso = resolveJoinedDate(item);
+        const joinedDateFormatted = formatJoinedDate(joinedIso);
+        const joinedAgo = formatTimeAgo(joinedIso);
 
         return `
           <tr>
@@ -1267,6 +1276,12 @@
                 <span class="user-role-badge ${isRegistered ? 'member' : 'guest'}">${isRegistered ? 'Verified' : 'Guest'}</span>
               </div>
               <span class="user-tag">${escapeHtml(item.user_tag || "AETH-????")}</span>
+            </td>
+            <td>
+              <div style="display: flex; flex-direction: column;">
+                <span style="font-weight: 600; color: #c084fc;">${escapeHtml(joinedDateFormatted)}</span>
+                <span style="font-size: 11px; color: var(--text-subtle);">${escapeHtml(joinedAgo)}</span>
+              </div>
             </td>
             <td>
               <div class="track-cell">
@@ -1288,6 +1303,54 @@
           </tr>
         `;
       }).join("");
+    }
+
+    // First-seen / Joined Date Registry
+    const FIRST_SEEN_STORAGE_KEY = "raaga_admin_user_first_seen_v1";
+
+    function getFirstSeenRegistry() {
+      try {
+        return JSON.parse(localStorage.getItem(FIRST_SEEN_STORAGE_KEY) || "{}");
+      } catch (e) {
+        return {};
+      }
+    }
+
+    function recordUserFirstSeen(userTag, timestamp) {
+      if (!userTag || !timestamp) return;
+      const reg = getFirstSeenRegistry();
+      if (!reg[userTag]) {
+        reg[userTag] = timestamp;
+        try {
+          localStorage.setItem(FIRST_SEEN_STORAGE_KEY, JSON.stringify(reg));
+        } catch (e) {}
+      }
+    }
+
+    function resolveJoinedDate(item) {
+      if (!item) return "";
+      if (item.joined_at) {
+        recordUserFirstSeen(item.user_tag, item.joined_at);
+        return item.joined_at;
+      }
+      if (item.created_at) {
+        recordUserFirstSeen(item.user_tag, item.created_at);
+        return item.created_at;
+      }
+      const reg = getFirstSeenRegistry();
+      if (reg[item.user_tag]) {
+        return reg[item.user_tag];
+      }
+      const fallback = item.updated_at || new Date().toISOString();
+      recordUserFirstSeen(item.user_tag, fallback);
+      return fallback;
+    }
+
+    function formatJoinedDate(dateStr) {
+      if (!dateStr) return "—";
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return "—";
+      return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
     }
 
     // Utility Helpers
@@ -1315,7 +1378,11 @@
     }
 
     function exportDataJson() {
-      const jsonStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(activityData, null, 2));
+      const enriched = activityData.map(item => ({
+        ...item,
+        joined_at: resolveJoinedDate(item)
+      }));
+      const jsonStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(enriched, null, 2));
       const downloadAnchor = document.createElement('a');
       downloadAnchor.setAttribute("href", jsonStr);
       downloadAnchor.setAttribute("download", `raaga_activity_${new Date().toISOString().slice(0, 10)}.json`);
