@@ -49,6 +49,7 @@ node_modules/
 **/.wxt/
 .turbo/
 portfolio/
+.wrangler/
 
 # iOS / Xcode
 *.ipa
