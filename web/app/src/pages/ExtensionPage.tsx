@@ -30,7 +30,7 @@ interface Download {
  * has loaded, the configured URLs and the unversioned names stand in.
  */
 function downloadsFor(published: PublishedExtension | null): Download[] {
-  const folder = (browser: Browser) => `bitchord-extension-${browser}${published ? ` (${published.version})` : ''}`;
+  const folder = (browser: Browser) => `raaga-extension-${browser}${published ? ` (${published.version})` : ''}`;
   return [
     {
       browser: 'chrome',
@@ -39,15 +39,16 @@ function downloadsFor(published: PublishedExtension | null): Download[] {
       href: published ? downloadUrl(published.files.chrome) : config.extensionChromeUrl,
       Icon: FaChrome,
       steps: [
-        `Extract the zip somewhere you’ll keep it. It holds one folder, ${folder('chrome')}.`,
-        'Open chrome://extensions and turn on Developer mode.',
-        'Choose Load unpacked and select that folder.',
-        'Come back to this page: the status above turns to Installed.',
+        `Extract the downloaded ZIP. It contains the folder '${folder('chrome')}'.`,
+        'Open a new tab, navigate to chrome://extensions (or edge://extensions) in your address bar.',
+        'Turn on "Developer mode" using the toggle in the top-right corner.',
+        `Click "Load unpacked" (top-left) and select the extracted '${folder('chrome')}' folder.`,
+        'Come back to this page: the status badge above will instantly turn to "Installed".',
       ],
       updateSteps: [
-        `Extract the new zip. It holds ${folder('chrome')}.`,
-        'In chrome://extensions, choose Load unpacked and select that folder. It has the same ID, so it takes the old one’s place and keeps your settings.',
-        'Delete the old folder, then come back to this page: the version above updates on its own.',
+        `Extract the new zip. It holds '${folder('chrome')}'.`,
+        'In chrome://extensions, choose Load unpacked and select that folder. It keeps your existing settings.',
+        'Delete the old folder, then come back to this page: the version above updates automatically.',
       ],
     },
     {
@@ -111,7 +112,7 @@ export default function ExtensionPage() {
   const update = useExtensionUpdate();
   const DOWNLOADS = downloadsFor(usePublishedExtension());
   const auth = useYtAuth();
-  const [chosen, setChosen] = useState<Browser | null>(null);
+  const [chosen, setChosen] = useState<Browser | null>(currentBrowser);
   const [updating, setUpdating] = useState(false);
   const downloads = [...DOWNLOADS].sort((a, b) => Number(b.browser === currentBrowser) - Number(a.browser === currentBrowser));
   const installedBrowser: Browser | null =
@@ -121,7 +122,7 @@ export default function ExtensionPage() {
 
   return (
     <div className={settingsUi.centered}>
-      <PageHeader title="BitChord Extension" />
+      <PageHeader title="Raaga Extension" />
       <div className={settingsUi.body}>
         <section className={settingsUi.group} aria-live="polite">
           <div className={settingsUi.row}>
@@ -161,7 +162,7 @@ export default function ExtensionPage() {
             <a
               className={`${settingsUi.group} ${settingsUi.download} mt-3`}
               href={forUpdate.href}
-              download
+              download={`raaga-extension-${forUpdate.browser}.zip`}
               onClick={() => setUpdating(true)}
             >
               <span className={settingsUi.updateDot} aria-hidden="true" />
@@ -195,7 +196,7 @@ export default function ExtensionPage() {
               key={browser}
               className={settingsUi.download}
               href={href}
-              download
+              download={`raaga-extension-${browser}.zip`}
               onClick={() => setChosen(browser)}
             >
               <Icon size={28} className="text-primary" />

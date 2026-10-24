@@ -36,14 +36,15 @@ export function parseInvite(value: string): { code: string; serverUrl: string | 
     const code = cleanCode(url.pathname.replace(/^\/+|\/+$/g, '') || url.searchParams.get('code') || '');
     return code ? { code, serverUrl: server } : null;
   }
-  const match = url.pathname.match(/^\/invite\/([A-Za-z0-9]{6})$/);
+  const match = url.pathname.match(/^\/(?:invite|jam)\/([A-Za-z0-9]{6})$/);
   if ((url.protocol === 'https:' || url.protocol === 'http:') && match) return { code: match[1]!.toUpperCase(), serverUrl: server };
   return null;
 }
 
-/** The link to share (JamInviteLink.url): a custom server's own invite page, else the public site's. */
+/** The link to share (JamInviteLink.url): a custom server's own invite page, else current web origin. */
 export function inviteUrl(code: string, customServer: string | null): string {
   const base = customServer?.trim().replace(/\/+$/, '');
-  const origin = base && base.toLowerCase() !== INVITE_ORIGIN ? base : INVITE_ORIGIN;
-  return `${origin}/invite/${code.toUpperCase()}`;
+  const siteOrigin = typeof window !== 'undefined' && window.location.origin ? window.location.origin : INVITE_ORIGIN;
+  const origin = base && base.toLowerCase() !== INVITE_ORIGIN ? base : siteOrigin;
+  return `${origin}/jam/${code.toUpperCase()}`;
 }

@@ -28,9 +28,9 @@
   --default-transition-duration: 0.15s;
 
   --breakpoint-*: initial;
-  --breakpoint-sm: 484px; /* below: phone, the sidebar becomes a drawer */
-  --breakpoint-md: 768px;
-  --breakpoint-lg: 1000px;
+  --breakpoint-sm: 640px; /* below: mobile phone, the sidebar becomes a drawer */
+  --breakpoint-md: 768px; /* tablet */
+  --breakpoint-lg: 1024px; /* desktop */
 
   /* Film grain over the 2D mesh fallback (MeshBackdrop). */
   --background-image-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
@@ -277,7 +277,7 @@
  * system fonts. Its own family name, so a copy installed on a Mac can't stand in.
  */
 @font-face {
-  font-family: 'BitChord SF Pro Display';
+  font-family: 'Raaga SF Pro Display';
   src: url('../assets/fonts/sf-pro-display-regular.woff2') format('woff2');
   font-weight: 400;
   font-display: block;
@@ -286,7 +286,7 @@
 }
 
 @font-face {
-  font-family: 'BitChord SF Pro Display';
+  font-family: 'Raaga SF Pro Display';
   src: url('../assets/fonts/sf-pro-display-bold.woff2') format('woff2');
   font-weight: 700;
   font-display: block;

@@ -155,13 +155,23 @@ async function sha256(value: string): Promise<string> {
 async function identity(): Promise<Omit<JoinRequest, 'maxMembers' | 'autoplayEnabled'>> {
   const auth = ytAuthSnapshot();
   const active = auth.signedIn ? auth.active : null;
-  if (!active) throw new PartyError('not_signed_in', 'Sign in to YouTube Music to listen together.');
-  const name = partySettings().nickname.trim() || active.name;
+  const devId = deviceId();
+  if (active) {
+    const name = partySettings().nickname.trim() || active.name;
+    return {
+      userId: (await sha256(`${active.authUser}:${active.id}`)).slice(0, 32),
+      deviceId: devId,
+      displayName: name,
+      avatarUrl: active.avatarUrl?.startsWith('http') ? active.avatarUrl : null,
+    };
+  }
+  const customName = partySettings().nickname.trim();
+  const name = customName || `Raaga Guest ${devId.slice(0, 4)}`;
   return {
-    userId: (await sha256(`${active.authUser}:${active.id}`)).slice(0, 32),
-    deviceId: deviceId(),
+    userId: (await sha256(`guest:${devId}`)).slice(0, 32),
+    deviceId: devId,
     displayName: name,
-    avatarUrl: active.avatarUrl?.startsWith('http') ? active.avatarUrl : null,
+    avatarUrl: null,
   };
 }
 

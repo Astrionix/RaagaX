@@ -14,13 +14,42 @@ function devExtensionId(): string {
   }
 }
 
+function downloadsHeadersPlugin() {
+  return {
+    name: 'downloads-headers',
+    configureServer(server: { middlewares: { use: (fn: (req: any, res: any, next: () => void) => void) => void } }) {
+      server.middlewares.use((req, res, next) => {
+        if (req.url && req.url.startsWith('/downloads/') && req.url.includes('.zip')) {
+          const isFirefox = req.url.includes('firefox');
+          const cleanName = isFirefox ? 'raaga-extension-firefox.zip' : 'raaga-extension-chrome.zip';
+          res.setHeader('Content-Disposition', `attachment; filename="${cleanName}"`);
+          res.setHeader('Content-Type', 'application/zip');
+        }
+        next();
+      });
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), downloadsHeadersPlugin()],
   define: {
     DEV_EXTENSION_ID: JSON.stringify(devExtensionId()),
   },
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
+    dedupe: ['react', 'react-dom', 'react-router', 'react-dom/client'],
+  },
+  optimizeDeps: {
+    include: [
+      'react',
+      'react/jsx-runtime',
+      'react/jsx-dev-runtime',
+      'react-dom',
+      'react-dom/client',
+      'react-router',
+      '@tanstack/react-query',
+    ],
   },
   server: {
     // The extension's externally_connectable and DNR rules name this origin

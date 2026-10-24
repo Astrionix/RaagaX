@@ -120,7 +120,7 @@ export function AccountButton() {
               connect.mutate(false);
             }}
           >
-            Disconnect from BitChord
+            Disconnect from Raaga
           </MenuItem>
         </Menu>
       )}

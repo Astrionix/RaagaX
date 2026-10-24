@@ -145,7 +145,7 @@
   }
 }
 
-@media (min-width: 484px) and (max-width: 767.31px) {
+@media (min-width: 640px) and (max-width: 767.31px) {
   :root {
     --web-navigation-width: 33.8842975207vw;
   }

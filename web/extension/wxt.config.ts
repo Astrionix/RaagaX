@@ -26,8 +26,8 @@ export default defineConfig({
     },
   }),
   manifest: ({ browser }) => ({
-    name: 'BitChord',
-    description: 'Connects the BitChord web player to YouTube Music, Spotify and Discord.',
+    name: 'Raaga',
+    description: 'Connects the Raaga web player to YouTube Music, Spotify and Discord.',
     homepage_url: SITE_ORIGINS[0],
     // `cookies` reads the YouTube session for signed-in requests (phase 5);
     // the cookies themselves never leave the extension (lib/ytAuth.ts).
@@ -58,7 +58,7 @@ export default defineConfig({
       ? {
           browser_specific_settings: {
             gecko: {
-              id: 'extension@bitchord.kushagrasingh.in',
+              id: 'extension@raaga.app',
               strict_min_version: '128.0',
               data_collection_permissions: { required: ['none'] },
             },

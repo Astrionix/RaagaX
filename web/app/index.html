@@ -2,17 +2,21 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <script>
-      // The extension trusts https://bitchord.in only (web/extension/site.config.ts),
-      // so www goes there before anything loads, keeping its path and query.
-      if (location.hostname === 'www.bitchord.in') location.replace('https://bitchord.in' + location.pathname + location.search + location.hash);
-    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
-    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1f1f1f" />
-    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
-    <title>BitChord</title>
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0b0c10" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#FA233B" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Raaga" />
+    <title>Raaga</title>
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/icon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/icon-16.png" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
     <!-- DM Sans is the app's typeface (web/docs/apple-music-dom.md, "Font"). -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -23,6 +27,18 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').then((reg) => {
+            console.log('[PWA] Service Worker registered with scope:', reg.scope);
+            reg.update();
+          }).catch((err) => {
+            console.warn('[PWA] Service Worker registration failed:', err);
+          });
+        });
+      }
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

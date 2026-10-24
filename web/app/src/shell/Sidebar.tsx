@@ -1,6 +1,7 @@
-import { ArrowUpRight, ListMusic, Settings } from 'lucide-react';
+import { ArrowUpRight, Download, ListMusic, Settings, Users } from 'lucide-react';
 import { MdOutlineExtension } from 'react-icons/md';
 import { PrefetchLink, PrefetchNavLink } from '@/components/PrefetchLink';
+import { usePwaInstall } from '@/lib/usePwaInstall';
 import { LogoMark } from '@/components/icons/LogoMark';
 import {
   AlbumsIcon,
@@ -21,6 +22,7 @@ import { useLibraryPlaylists, useSignedIn } from '@/data/music/queries';
 import { useSpotifyPlaylists } from '@/data/spotify/queries';
 import { useExtensionUpdate } from '@/extension/useExtensionUpdate';
 import { useSpotifySignedIn } from '@/extension/useSpotifyAuth';
+import { useParty } from '@/party/listenTogether';
 import { useUi } from '@/state/ui';
 import { AccountButton } from './AccountButton';
 
@@ -34,6 +36,7 @@ const PRIMARY: NavItem[] = [
   { to: '/search', label: 'Search', Icon: SearchIcon },
   { to: '/home', label: 'Home', Icon: HomeIcon },
   { to: '/new', label: 'New', Icon: NewIcon },
+  { to: '/jam', label: 'Raaga Jam', Icon: (props) => <Users size={props.size ?? 22} className="stroke-[1.9]" /> },
 ];
 
 const LIBRARY_ICONS: Record<Exclude<LibrarySection, 'playlists'>, NavItem['Icon']> = {
@@ -61,6 +64,9 @@ const sectionHeader = 'mt-4 px-2 py-1 type-callout-emphasized text-secondary';
 const list = 'flex flex-col';
 
 function NavList({ items, onNavigate }: { items: NavItem[]; onNavigate: () => void }) {
+  const partyCode = useParty((s) => s.code);
+  const memberCount = useParty((s) => s.members.length);
+
   return (
     <ul className={list}>
       {items.map(({ to, label, Icon }) => (
@@ -68,6 +74,12 @@ function NavList({ items, onNavigate }: { items: NavItem[]; onNavigate: () => vo
           <PrefetchNavLink to={to} className={item} onClick={onNavigate}>
             <Icon size={24} className={icon} />
             <span className={navLabel}>{label}</span>
+            {to === '/jam' && partyCode && (
+              <span className="ml-auto flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
+                <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                {memberCount > 1 ? `${memberCount}` : 'Live'}
+              </span>
+            )}
           </PrefetchNavLink>
         </li>
       ))}
@@ -140,6 +152,7 @@ export function Sidebar() {
   const update = useExtensionUpdate();
   const signedIn = useSignedIn();
   const spotifySignedIn = useSpotifySignedIn();
+  const { isInstallable, installPwa } = usePwaInstall();
   const close = () => setDrawerOpen(false);
 
   return (
@@ -150,11 +163,16 @@ export function Sidebar() {
         data-open={drawerOpen}
         aria-label="Main"
       >
-        <div className="mt-2 ml-2 flex h-18 items-center px-5">
-          <PrefetchLink to="/home" className="inline-flex items-center gap-2 rounded-[6px]" aria-label="BitChord, Home" onClick={close}>
-            {/* White on dark, as Apple's own wordmark; it follows the label colour so it stays visible in light. */}
-            <LogoMark size={22} className="text-primary" />
-            <span className="type-[700_19px/24px] tracking-[-0.01em]">BitChord</span>
+        <div className="mt-2 ml-2 flex h-18 items-center px-4">
+          <PrefetchLink to="/home" className="inline-flex items-center rounded-[8px] group py-1 select-none" aria-label="Raaga, Home" onClick={close}>
+            <picture className="inline-flex items-center">
+              <source srcSet="/raaga_icon.png" media="(prefers-color-scheme: dark)" />
+              <img
+                src="/raaga_logo_dark.png"
+                alt="Raaga"
+                className="h-9 w-auto max-w-[170px] object-contain drop-shadow-[0_2px_10px_rgba(239,68,68,0.25)] group-hover:scale-105 transition-transform duration-200"
+              />
+            </picture>
           </PrefetchLink>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto pr-3 pl-5 [scrollbar-width:none]">
@@ -163,12 +181,25 @@ export function Sidebar() {
           {spotifySignedIn && <SpotifyNav onNavigate={close} />}
         </div>
         <div className="flex flex-col gap-2 pt-3 pr-3 pb-5 pl-5">
+          {isInstallable && (
+            <button
+              type="button"
+              onClick={installPwa}
+              className="group flex h-9 items-center gap-2 mb-0.5 p-1 px-2.5 rounded-nav type-body-reduced text-white bg-red-600/30 hover:bg-red-600/40 border border-red-500/50 transition-colors w-full cursor-pointer text-left shadow-sm"
+              title="Install Raaga as Progressive Web App"
+            >
+              <span className="inline-grid size-5 flex-none place-items-center text-red-400">
+                <Download size={16} />
+              </span>
+              <span className="min-w-0 truncate font-semibold">Install Raaga App</span>
+            </button>
+          )}
           <PrefetchNavLink to="/extension" className={item} onClick={close}>
             {/* Chrome's own toolbar glyph for extensions (Material "extension"). */}
             <span className={icon}>
               <MdOutlineExtension size={18} />
             </span>
-            <span className={navLabel}>BitChord Extension</span>
+            <span className={navLabel}>Raaga Extension</span>
             {update.state === 'available' && (
               <span className="ml-auto rounded-[10px] bg-key px-[7px] py-0.5 type-subhead-emphasized text-white" title={`Version ${update.latest.version} is available`}>
                 Update
@@ -178,7 +209,7 @@ export function Sidebar() {
           <AccountButton />
           <div className="flex items-center justify-between">
             <a className="inline-flex items-center gap-1 ps-1 type-callout text-primary hover:underline" href={config.androidAppUrl} target="_blank" rel="noreferrer">
-              <span>Get the Android app</span>
+              <span>Android APK</span>
               <ArrowUpRight size={14} strokeWidth={2} />
             </a>
             <PrefetchNavLink to="/settings" className="grid size-7 place-items-center rounded-nav text-secondary hover:bg-quinary hover:text-primary aria-[current=page]:bg-quinary aria-[current=page]:text-primary" aria-label="Settings" title="Settings" onClick={close}>

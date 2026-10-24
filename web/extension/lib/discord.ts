@@ -32,8 +32,8 @@ const GATEWAY = 'wss://gateway.discord.gg/?v=9&encoding=json';
 const API = 'https://discord.com/api/v9';
 const PROJECT_URL = 'https://github.com/kushagrasinghx/BitChord';
 const DEFAULT_BUTTON_1 = 'Listen on YouTube Music';
-const DEFAULT_BUTTON_2 = 'Visit BitChord';
-const APP_NAME = 'BitChord';
+const DEFAULT_BUTTON_2 = 'Visit Raaga';
+const APP_NAME = 'Raaga';
 
 const INITIAL_RECONNECT_MS = 1_000;
 const MAX_RECONNECT_MS = 60_000;
