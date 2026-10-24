@@ -811,8 +811,9 @@
       <div class="filter-pills">
         <button class="filter-pill active" data-filter="all" onclick="setFilter('all')">All (<span id="countAll">0</span>)</button>
         <button class="filter-pill" data-filter="playing" onclick="setFilter('playing')">Playing Now (<span id="countPlaying">0</span>)</button>
-        <button class="filter-pill" data-filter="recent" onclick="setFilter('recent')">Active &lt; 10m (<span id="countRecent">0</span>)</button>
+        <button class="filter-pill" data-filter="recent" onclick="setFilter('recent')">Active &lt; 15m (<span id="countRecent">0</span>)</button>
         <button class="filter-pill" data-filter="paused" onclick="setFilter('paused')">Paused (<span id="countPaused">0</span>)</button>
+        <button class="filter-pill" data-filter="offline" onclick="setFilter('offline')">Offline (<span id="countOffline">0</span>)</button>
       </div>
     </div>
 
@@ -897,15 +898,17 @@
     }
 
     // Initialize Dashboard
-    function initDashboard() {
+    async function initDashboard() {
       if (!supabaseClient) {
         supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
       }
       feather.replace();
-      // Automatically prune ghost sessions (>15 min) on launch
-      cleanStaleSessions(true);
-      fetchLiveActivity();
+      // Fetch initial dataset first to populate UI
+      await fetchLiveActivity();
       subscribeToRealtime();
+
+      // Automatically prune ghost sessions (>15 min) in background
+      cleanStaleSessions(true);
 
       // Periodically clean stale sessions in the background every 60 seconds
       if (!window._staleCleanerInterval) {
@@ -915,23 +918,34 @@
       }
     }
 
-    // Fetch initial dataset
+    // Fetch initial dataset (paginated to load ALL users, no 100 limit cap!)
     async function fetchLiveActivity() {
       const refreshBtn = document.getElementById("btnRefresh");
-      refreshBtn.classList.add("loading");
+      if (refreshBtn) refreshBtn.classList.add("loading");
 
       try {
-        const { data, error } = await supabaseClient
-          .from("user_activity")
-          .select("*")
-          .order("updated_at", { ascending: false })
-          .limit(100);
+        let allRecords = [];
+        let from = 0;
+        const PAGE_SIZE = 1000;
 
-        if (error) throw error;
+        while (true) {
+          const { data, error } = await supabaseClient
+            .from("user_activity")
+            .select("*")
+            .order("updated_at", { ascending: false })
+            .range(from, from + PAGE_SIZE - 1);
+
+          if (error) throw error;
+          if (!data || data.length === 0) break;
+          allRecords = allRecords.concat(data);
+          if (data.length < PAGE_SIZE) break;
+          from += PAGE_SIZE;
+          if (from >= 10000) break; // safety upper bound
+        }
 
         // Guarantee 100% unique users: keep latest activity per user_tag
         const uniqueMap = new Map();
-        (data || []).forEach(item => {
+        allRecords.forEach(item => {
           const tag = (item.user_tag || '').trim();
           if (tag && !uniqueMap.has(tag)) {
             uniqueMap.set(tag, item);
@@ -944,16 +958,33 @@
         console.error("Failed to fetch activity:", err);
         setConnectionState(false, "Connection Error");
       } finally {
-        refreshBtn.classList.remove("loading");
+        if (refreshBtn) refreshBtn.classList.remove("loading");
       }
     }
 
     // Helper: A session is only actively playing if is_playing is true AND updated within last 15 minutes
     function isActivelyPlaying(item) {
       if (!item || !item.is_playing) return false;
-      const updatedTime = new Date(item.updated_at).getTime();
+      const updatedTime = item.updated_at ? new Date(item.updated_at).getTime() : 0;
+      if (isNaN(updatedTime) || updatedTime === 0) return false;
       const diffMinutes = (Date.now() - updatedTime) / (1000 * 60);
       return diffMinutes <= 15;
+    }
+
+    function isPausedRecently(item) {
+      if (!item || item.is_playing) return false;
+      const updatedTime = item.updated_at ? new Date(item.updated_at).getTime() : 0;
+      if (isNaN(updatedTime) || updatedTime === 0) return false;
+      const diffMinutes = (Date.now() - updatedTime) / (1000 * 60);
+      return diffMinutes <= 15;
+    }
+
+    function isOffline(item) {
+      if (!item) return true;
+      const updatedTime = item.updated_at ? new Date(item.updated_at).getTime() : 0;
+      if (isNaN(updatedTime) || updatedTime === 0) return true;
+      const diffMinutes = (Date.now() - updatedTime) / (1000 * 60);
+      return diffMinutes > 15;
     }
 
     // Clean stale sessions stuck in is_playing = true older than 15 minutes
@@ -982,8 +1013,13 @@
     }
 
     // Subscribe to Supabase Realtime WebSocket
+    let realtimeChannel = null;
     function subscribeToRealtime() {
-      supabaseClient
+      if (realtimeChannel) {
+        try { supabaseClient.removeChannel(realtimeChannel); } catch (e) {}
+      }
+
+      realtimeChannel = supabaseClient
         .channel("admin-user-activity-feed")
         .on(
           "postgres_changes",
@@ -1005,30 +1041,39 @@
     function handleRealtimeEvent(payload) {
       const { eventType, new: newRecord, old: oldRecord } = payload;
       
-      if (eventType === "INSERT" || eventType === "UPDATE") {
+      if ((eventType === "INSERT" || eventType === "UPDATE") && newRecord && newRecord.user_tag) {
         const idx = activityData.findIndex(item => item.user_tag === newRecord.user_tag);
         if (idx !== -1) {
-          activityData[idx] = newRecord;
+          activityData[idx] = { ...activityData[idx], ...newRecord };
         } else {
           activityData.unshift(newRecord);
         }
       } else if (eventType === "DELETE") {
-        activityData = activityData.filter(item => item.user_tag !== oldRecord.user_tag);
+        const targetTag = (oldRecord && oldRecord.user_tag) || (newRecord && newRecord.user_tag);
+        if (targetTag) {
+          activityData = activityData.filter(item => item.user_tag !== targetTag);
+        }
       }
 
       // Re-sort by updated_at
-      activityData.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+      activityData.sort((a, b) => {
+        const timeA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+        const timeB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+        return timeB - timeA;
+      });
       updateDashboardUI();
     }
 
     function setConnectionState(isOnline, text) {
       const statusElem = document.getElementById("connectionStatus");
       const textElem = document.getElementById("connectionText");
-      textElem.textContent = text;
-      if (isOnline) {
-        statusElem.classList.remove("offline");
-      } else {
-        statusElem.classList.add("offline");
+      if (textElem) textElem.textContent = text;
+      if (statusElem) {
+        if (isOnline) {
+          statusElem.classList.remove("offline");
+        } else {
+          statusElem.classList.add("offline");
+        }
       }
     }
 
@@ -1042,18 +1087,22 @@
     }
 
     function applyFilterAndSearch() {
-      const query = document.getElementById("searchInput").value.trim().toLowerCase();
+      const searchInput = document.getElementById("searchInput");
+      const query = (searchInput ? searchInput.value : "").trim().toLowerCase();
       const now = Date.now();
 
       const filtered = activityData.filter(item => {
-        const updatedTime = new Date(item.updated_at).getTime();
+        const updatedTime = item.updated_at ? new Date(item.updated_at).getTime() : 0;
         const diffMinutes = (now - updatedTime) / (1000 * 60);
         const isLive = isActivelyPlaying(item);
+        const isPaused = isPausedRecently(item);
+        const isOff = isOffline(item);
 
         // Filter condition
         if (currentFilter === "playing" && !isLive) return false;
-        if (currentFilter === "paused" && isLive) return false;
+        if (currentFilter === "paused" && !isPaused) return false;
         if (currentFilter === "recent" && diffMinutes > 15) return false;
+        if (currentFilter === "offline" && !isOff) return false;
 
         // Search condition
         if (query) {
@@ -1069,7 +1118,10 @@
 
       renderUsersGrid(filtered);
       renderTelemetryTable(filtered);
-      document.getElementById("resultsCounter").textContent = `Showing ${filtered.length} of ${activityData.length} listeners`;
+      const counterEl = document.getElementById("resultsCounter");
+      if (counterEl) {
+        counterEl.textContent = `Showing ${filtered.length} of ${activityData.length} listeners`;
+      }
     }
 
     // UI Renderers
@@ -1077,20 +1129,33 @@
       // Calculate Stats
       const now = Date.now();
       const active15m = activityData.filter(item => {
-        const diffMinutes = (now - new Date(item.updated_at).getTime()) / (1000 * 60);
-        return diffMinutes <= 15;
+        const updatedTime = item.updated_at ? new Date(item.updated_at).getTime() : 0;
+        return (now - updatedTime) / (1000 * 60) <= 15;
       });
       const playingNow = activityData.filter(isActivelyPlaying);
+      const pausedNow = activityData.filter(isPausedRecently);
+      const offlineUsers = activityData.filter(isOffline);
 
-      document.getElementById("statActiveUsers").textContent = active15m.length;
-      document.getElementById("statCurrentlyPlaying").textContent = playingNow.length;
-      document.getElementById("statTotalTracks").textContent = activityData.length;
+      const statActive = document.getElementById("statActiveUsers");
+      const statPlaying = document.getElementById("statCurrentlyPlaying");
+      const statTotal = document.getElementById("statTotalTracks");
+
+      if (statActive) statActive.textContent = active15m.length;
+      if (statPlaying) statPlaying.textContent = playingNow.length;
+      if (statTotal) statTotal.textContent = activityData.length;
 
       // Filter badge counts
-      document.getElementById("countAll").textContent = activityData.length;
-      document.getElementById("countPlaying").textContent = playingNow.length;
-      document.getElementById("countRecent").textContent = active15m.length;
-      document.getElementById("countPaused").textContent = activityData.filter(i => !isActivelyPlaying(i)).length;
+      const countAll = document.getElementById("countAll");
+      const countPlaying = document.getElementById("countPlaying");
+      const countRecent = document.getElementById("countRecent");
+      const countPaused = document.getElementById("countPaused");
+      const countOffline = document.getElementById("countOffline");
+
+      if (countAll) countAll.textContent = activityData.length;
+      if (countPlaying) countPlaying.textContent = playingNow.length;
+      if (countRecent) countRecent.textContent = active15m.length;
+      if (countPaused) countPaused.textContent = pausedNow.length;
+      if (countOffline) countOffline.textContent = offlineUsers.length;
 
       applyFilterAndSearch();
     }
@@ -1229,7 +1294,9 @@
     function formatTimeAgo(dateStr) {
       if (!dateStr) return "—";
       const past = new Date(dateStr).getTime();
+      if (isNaN(past) || past === 0) return "—";
       const diffSec = Math.floor((Date.now() - past) / 1000);
+      if (diffSec < 0) return "Just now";
       if (diffSec < 15) return "Just now";
       if (diffSec < 60) return `${diffSec}s ago`;
       const diffMin = Math.floor(diffSec / 60);
@@ -1259,9 +1326,10 @@
 
     // Keyboard Shortcuts
     document.addEventListener("keydown", (e) => {
-      if (e.key === "/" && document.activeElement.tagName !== "INPUT") {
+      if (e.key === "/" && document.activeElement.tagName !== "INPUT" && document.activeElement.tagName !== "TEXTAREA") {
         e.preventDefault();
-        document.getElementById("searchInput").focus();
+        const searchInput = document.getElementById("searchInput");
+        if (searchInput) searchInput.focus();
       }
     });
 
