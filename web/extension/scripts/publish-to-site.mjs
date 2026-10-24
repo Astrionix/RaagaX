@@ -49,13 +49,12 @@ for (const [browser, folder] of Object.entries(builds)) {
   }
   version = manifest.version;
 
-  // The version in brackets, on the zip and the folder inside it: "raaga-extension-chrome (0.4.4)".
-  const parent = `raaga-extension-${browser} (${manifest.version})`;
+  // Store files at root of zip so extracted folder contains manifest.json directly
   const entries = {};
   for (const file of filesUnder(root)) {
-    entries[`${parent}/${relative(root, file).split(sep).join('/')}`] = readFileSync(file);
+    entries[relative(root, file).split(sep).join('/')] = readFileSync(file);
   }
-  const name = `${parent}.zip`;
+  const name = `raaga-extension-${browser}.zip`;
   const zipBuffer = zipSync(entries, { level: 9 });
   
   // Write versioned zip
@@ -65,7 +64,7 @@ for (const [browser, folder] of Object.entries(builds)) {
   writeFileSync(join(target, `bitchord-extension-${browser}.zip`), zipBuffer);
 
   files[browser] = `raaga-extension-${browser}.zip`;
-  console.log(`${folder} -> app/public/downloads/${name} (${parent}/, v${version})`);
+  console.log(`${folder} -> app/public/downloads/${name} (v${version})`);
 }
 
 writeFileSync(
