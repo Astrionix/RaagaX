@@ -26,9 +26,9 @@ const SLOW_RECHECK_MS = 5000;
  */
 async function detect(): Promise<DetectedExtension | null> {
   const known = queryClient.getQueryData<DetectedExtension | null>(extensionQueryKey) ?? null;
-  const found = await detectExtension({ chromiumExtensionId: config.chromiumExtensionId });
+  const found = await detectExtension({ chromiumExtensionId: config.chromiumExtensionIds });
   if (found || !known) return found;
-  return (await detectExtension({ chromiumExtensionId: config.chromiumExtensionId, timeoutMs: 4000 })) ?? known;
+  return (await detectExtension({ chromiumExtensionId: config.chromiumExtensionIds, timeoutMs: 4000 })) ?? known;
 }
 
 /**

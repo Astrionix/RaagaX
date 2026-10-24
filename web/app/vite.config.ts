@@ -10,7 +10,7 @@ function devExtensionId(): string {
   try {
     return readFileSync(new URL('../extension/dev-key/extension-id.txt', import.meta.url), 'utf8').trim();
   } catch {
-    return '';
+    return 'pkddffeebcmhhanjcigilehaeonkkfih';
   }
 }
 
