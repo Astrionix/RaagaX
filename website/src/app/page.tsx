@@ -1,86 +1,36 @@
+"use client";
+
 import React from "react";
 import { Navbar } from "@/components/Navbar";
 import { Hero } from "@/components/Hero";
-import { WhatsNew197 } from "@/components/WhatsNew197";
-import { DownloadPanel } from "@/components/DownloadPanel";
-import { ProductIntro } from "@/components/ProductIntro";
-import { FeatureShowcase } from "@/components/FeatureShowcase";
-import { ListenTogether } from "@/components/ListenTogether";
-import { CrossDevice } from "@/components/CrossDevice";
-import { Architecture } from "@/components/Architecture";
-import { NativeAudio } from "@/components/NativeAudio";
-import { BackendDeepDive } from "@/components/BackendDeepDive";
-import { EngineeringDecisions } from "@/components/EngineeringDecisions";
-import { ReliabilityTesting } from "@/components/ReliabilityTesting";
-import { ProductScreens } from "@/components/ProductScreens";
-import { TechStack } from "@/components/TechStack";
-import { DevelopmentJourney } from "@/components/DevelopmentJourney";
-import { WhatIBuilt } from "@/components/WhatIBuilt";
+import { IntegrationsRibbon } from "@/components/IntegrationsRibbon";
+import { MusicDiscovery } from "@/components/MusicDiscovery";
+import { BigScreenShowcase } from "@/components/BigScreenShowcase";
 import { DownloadSection } from "@/components/DownloadSection";
-import { SourceCode } from "@/components/SourceCode";
 import { Footer } from "@/components/Footer";
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-[#04060a] text-zinc-100 flex flex-col selection:bg-red-500/30 selection:text-white">
-      {/* Global Transparent / Frosted Navigation */}
+    <main className="min-h-screen w-full max-w-[100vw] overflow-x-hidden bg-[#040507] text-zinc-100 flex flex-col selection:bg-red-500/30 selection:text-white">
+      {/* 01: Ultra-sleek Floating Glass Navigation */}
       <Navbar />
 
-      {/* Section 01: Hero Product Launch */}
+      {/* 02: Centerpiece Hero with Mesh Drift Blobs & Live Synced Lyrics Player */}
       <Hero />
 
-      {/* Latest Release Highlights: What's New in v1.9.7 */}
-      <WhatsNew197 />
+      {/* 03: Ecosystem & Compatibility Ribbon */}
+      <IntegrationsRibbon />
 
-      {/* Primary APK Download Action Card */}
-      <DownloadPanel />
+      {/* 04: Curated Sounds & High-Res Music Discovery Carousel */}
+      <MusicDiscovery />
 
-      {/* Section 02: Product Introduction & Flow Composition */}
-      <ProductIntro />
+      {/* 05: Big Screen Display & Compose Multiplatform Desktop Showcase */}
+      <BigScreenShowcase />
 
-      {/* Section 03: Feature Showcase (5 Deep Visual Capabilities) */}
-      <FeatureShowcase />
-
-      {/* Section 04: Listen Together Distributed Systems Centerpiece */}
-      <ListenTogether />
-
-      {/* Section 05: Cross-Device Playback Specification */}
-      <CrossDevice />
-
-      {/* Section 06: Under the Interface System Architecture */}
-      <Architecture />
-
-      {/* Section 07: Native C++ Audio Engineering */}
-      <NativeAudio />
-
-      {/* Section 08: Go Jam Hub Backend Deep-Dive */}
-      <BackendDeepDive />
-
-      {/* Section 09: Engineering Decisions Editorial Cards */}
-      <EngineeringDecisions />
-
-      {/* Section 10: Reliability & Verified Test Suite Matrix */}
-      <ReliabilityTesting />
-
-      {/* Section 11: 10 Designed & Implemented Screens */}
-      <ProductScreens />
-
-      {/* Section 12: Production Technology Matrix */}
-      <TechStack />
-
-      {/* Section 13: Development Journey Milestones */}
-      <DevelopmentJourney />
-
-      {/* Section 14: What I Built (Authorship & Full-Stack Ownership) */}
-      <WhatIBuilt />
-
-      {/* Section 15: Download Experience Final CTA */}
+      {/* 06: Final Closing CTA Experience */}
       <DownloadSection />
 
-      {/* Section 16: Source Code & GitHub Repository */}
-      <SourceCode />
-
-      {/* Footer & Disclaimer */}
+      {/* 07: Clean Minimalist Footer */}
       <Footer />
     </main>
   );

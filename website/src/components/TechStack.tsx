@@ -90,7 +90,7 @@ export const TechStack: React.FC = () => {
           </h2>
 
           <p className="text-base sm:text-lg text-zinc-400 leading-relaxed">
-            Every technology in RaagaX was picked for reliability, determinism, and performance.
+            Every technology in Raaga was picked for reliability, determinism, and performance.
             No superficial wrapper frameworks — true native code at every tier.
           </p>
         </div>

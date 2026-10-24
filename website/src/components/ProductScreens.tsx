@@ -20,20 +20,20 @@ export const ProductScreens: React.FC = () => {
     },
     {
       num: "02",
-      title: "Now Playing",
+      title: "Now Playing (Lossless FLAC)",
       tag: "IMPLEMENTED" as const,
-      desc: "Dynamic cover art mesh backdrop with custom glass transport controls, real-time seek bar, and AAC 44.1 kHz Stereo lossless audio badge.",
+      desc: "Live capture of bit-perfect lossless playback with dynamic electric aura, custom glass controls, and 24-bit 44.1 kHz FLAC (2116 kbps) Hi-Res Lossless badge.",
       preview: "/screenshots/now_playing.png",
-      highlight: "Palette extraction with Android 12+ RenderEffect backdrop blur",
-      meta: "Media3 ExoPlayer • 24-bit Flac/AAC",
+      highlight: "Palette extraction with Android 12+ RenderEffect backdrop blur & CMF Buds 2 routing",
+      meta: "Media3 ExoPlayer • 24-bit FLAC (2116 kbps)",
     },
     {
       num: "03",
       title: "Synchronized Lyrics",
       tag: "IMPLEMENTED" as const,
-      desc: "Syllable and line-synchronized Apple-Music-style karaoke text, Romanized translations, and manual timing offset calibration.",
+      desc: "Real-time Apple Music style synchronized karaoke lyrics with BiniLyrics multi-source resolver and character-level tracking.",
       preview: "/screenshots/lyrics.png",
-      highlight: "LRCLIB, Musixmatch, and Kugou KRC multi-source resolver",
+      highlight: "BiniLyrics & LRCLIB multi-source resolver with instant millisecond tracking",
       meta: "Real-time Millisecond Interpolation",
     },
     {
@@ -172,7 +172,7 @@ export const ProductScreens: React.FC = () => {
                   <div className="relative rounded-[34px] overflow-hidden bg-black aspect-[1220/2712] border border-white/10 shadow-inner">
                     <Image
                       src={current.preview}
-                      alt={`RaagaX ${current.title} Screen Capture via ADB`}
+                      alt={`Raaga ${current.title} Screen Capture via ADB`}
                       width={1220}
                       height={2712}
                       className="w-full h-full object-cover transition-opacity duration-300"
@@ -217,13 +217,13 @@ export const ProductScreens: React.FC = () => {
           </div>
         </div>
 
-        {/* Horizontal Screen Selector Strip */}
-        <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-2">
+        {/* Horizontal Screen Selector Strip - Touch scroll on mobile, grid on desktop */}
+        <div className="flex overflow-x-auto no-scrollbar gap-2 sm:grid sm:grid-cols-5 lg:grid-cols-10 pb-2">
           {screens.map((sc, i) => (
             <button
               key={sc.num}
               onClick={() => setSelectedIdx(i)}
-              className={`p-3 rounded-2xl border text-center transition-all ${
+              className={`p-2.5 sm:p-3 rounded-2xl border text-center transition-all shrink-0 w-24 sm:w-auto ${
                 selectedIdx === i
                   ? "liquid-glass bg-red-500/25 border-red-500/60 text-white font-bold shadow-lg shadow-red-500/20 scale-[1.02]"
                   : "liquid-glass-subtle text-zinc-400 hover:text-white hover:border-white/20"

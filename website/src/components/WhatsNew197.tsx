@@ -59,7 +59,7 @@ export const WhatsNew197: React.FC = () => {
               rel="noopener noreferrer"
               className="px-4 py-2.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-zinc-300 font-semibold text-xs border border-white/10 flex items-center gap-1.5 transition-colors"
             >
-              <span>GitHub Tag</span>
+              <span>Release Tag</span>
               <ExternalLink className="w-3.5 h-3.5" />
             </a>
           </div>

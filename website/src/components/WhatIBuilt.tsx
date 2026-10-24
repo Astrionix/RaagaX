@@ -85,7 +85,7 @@ export const WhatIBuilt: React.FC = () => {
           </h2>
 
           <p className="text-base sm:text-lg text-zinc-400 leading-relaxed">
-            RaagaX required working across multiple layers of the stack — from Android UI
+            Raaga required working across multiple layers of the stack — from Android UI
             and media playback to real-time synchronization, backend services, offline storage,
             and native audio processing.
           </p>

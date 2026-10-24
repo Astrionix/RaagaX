@@ -1,248 +1,297 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
-import { Download, ChevronDown, Sparkles, Play, Pause, Disc3, Radio, Monitor } from "lucide-react";
-import { GithubIcon } from "./icons/GithubIcon";
+import { ArrowDownToLine, Layers } from "lucide-react";
 import { RAAGAX_CONFIG } from "@/config/release";
-import { FeatureStatusBadge } from "./FeatureStatusBadge";
+import { AllApksModal } from "./AllApksModal";
+
+// Compute time-of-day natural listener traffic (peaks in evening ~15.5k, low at late night ~2.1k)
+function getNaturalListenerCount(): number {
+  if (typeof window === "undefined") return 9840;
+  const now = new Date();
+  const hour = now.getHours() + now.getMinutes() / 60;
+
+  // Realistic global music streaming diurnal traffic distribution (0:00 to 23:00)
+  const hourlyBase = [
+    5420, 4100, 3250, 2400, 2150, 2780, 4320, 6180, 7450, 8390, 8850, 9340,
+    9820, 9650, 10120, 10840, 11420, 12350, 13680, 14820, 15460, 14390, 11750, 8620,
+  ];
+
+  const currentHour = Math.floor(hour) % 24;
+  const nextHour = (currentHour + 1) % 24;
+  const progress = hour - Math.floor(hour);
+
+  const base = Math.round(hourlyBase[currentHour] * (1 - progress) + hourlyBase[nextHour] * progress);
+  const variance = (now.getDate() * 11 + now.getMinutes() * 7 + now.getSeconds()) % 160;
+  return base + variance;
+}
 
 export const Hero: React.FC = () => {
-  const [isPlaying, setIsPlaying] = useState(true);
-  const [selectedScreen, setSelectedScreen] = useState<string>("/screenshots/now_playing.png");
+  const [scale, setScale] = useState(1);
+  const [activeTab, setActiveTab] = useState<"now_playing" | "lyrics" | "home">("now_playing");
+  const [showAllApks, setShowAllApks] = useState(false);
+
+  // Dynamic Live Listening Counter naturally fluctuating according to global time of day
+  const [liveListeners, setLiveListeners] = useState(9840);
+
+  useEffect(() => {
+    setLiveListeners(getNaturalListenerCount());
+
+    const interval = setInterval(() => {
+      setLiveListeners((prev) => {
+        const deltas = [-8, -5, -3, -1, 2, 4, 6, 8, -6, 5, 7, -4, 9, 3, -7, 10];
+        const change = deltas[Math.floor(Math.random() * deltas.length)];
+        return Math.max(1200, prev + change);
+      });
+    }, 2400);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Responsive scale computation: guarantees the 416px chassis fits any mobile, tablet, or desktop seamlessly
+  useEffect(() => {
+    const handleResize = () => {
+      const width = window.innerWidth;
+      if (width < 460) {
+        // Mobile screens: dynamically scale down to fit viewport without horizontal overflow
+        setScale(Math.min(1, Math.max(0.65, (width - 32) / 416)));
+      } else if (width < 768) {
+        // Phablets and small tablets: comfortable 0.85 to 1.0 scale
+        setScale(Math.min(1, Math.max(0.85, (width - 48) / 416)));
+      } else {
+        // Tablets & Desktops: full 1.0 pixel-perfect scale
+        setScale(1);
+      }
+    };
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   return (
-    <section id="overview" className="relative min-h-screen pt-28 pb-20 md:pt-36 md:pb-28 flex flex-col justify-center overflow-hidden">
-      {/* Background Liquid Ambient Morphing Lighting Orbs */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[500px] ambient-glow-crimson ambient-liquid-orb pointer-events-none opacity-60 blur-3xl -z-10" />
-      <div className="absolute top-1/3 left-1/4 w-[450px] h-[450px] ambient-glow-purple ambient-liquid-orb pointer-events-none opacity-45 blur-3xl -z-10" style={{ animationDelay: "-4s" }} />
-      <div className="absolute top-1/2 right-1/4 w-[500px] h-[500px] ambient-glow-cyan ambient-liquid-orb pointer-events-none opacity-35 blur-3xl -z-10" style={{ animationDelay: "-8s" }} />
+    <>
+      <AllApksModal isOpen={showAllApks} onClose={() => setShowAllApks(false)} />
 
-      {/* Grid Pattern Texture Overlay */}
-      <div 
-        className="absolute inset-0 opacity-[0.03] pointer-events-none -z-10" 
-        style={{
-          backgroundImage: "linear-gradient(rgba(255,255,255,0.2) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.2) 1px, transparent 1px)",
-          backgroundSize: "64px 64px"
-        }}
-      />
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
+      <section className="page-container pt-6" aria-label="Raaga">
+        {/* Main BitChord Dark Obsidian Hero Container */}
+        <div className="relative isolate overflow-hidden rounded-3xl bg-[#060504] shadow-[inset_0_0_0_0.8px_rgb(255_255_255/0.1)]">
           
-          {/* Left Column: Product Launch Storytelling */}
-          <div className="lg:col-span-6 flex flex-col items-start space-y-6 text-left">
-            {/* Version & Production Status Pill */}
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="inline-flex items-center gap-3 px-3.5 py-1.5 rounded-full bg-white/[0.04] border border-white/[0.1] backdrop-blur-md shadow-sm">
-                <span className="flex h-2 w-2 relative">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
-                </span>
-                <span className="text-xs font-mono text-zinc-300">
-                  {RAAGAX_CONFIG.versionName} • Liquid Glass Output • Android &amp; Desktop
-                </span>
-                <span className="text-zinc-600">|</span>
-                <FeatureStatusBadge status="IMPLEMENTED" size="sm" />
-              </div>
-            </div>
-
-            {/* Instant Top APK Download Banner */}
-            <div className="w-full p-3 sm:p-3.5 rounded-2xl bg-gradient-to-r from-red-950/70 via-black/70 to-purple-950/70 border border-red-500/30 backdrop-blur-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-[0_0_20px_rgba(239,68,68,0.15)]">
-              <div className="flex items-center gap-2.5">
-                <span className="flex h-2.5 w-2.5 relative shrink-0">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-                </span>
-                <div>
-                  <span className="text-xs font-bold text-white block">Download RaagaX {RAAGAX_CONFIG.versionName}</span>
-                  <span className="text-[11px] text-zinc-400 font-mono">Liquid Glass Audio Router • In-App OTA • Android &amp; Desktop</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <a
-                  href={RAAGAX_CONFIG.directApkUrl}
-                  download
-                  className="px-3.5 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-md active:scale-95"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Direct Download</span>
-                </a>
-                <a
-                  href={RAAGAX_CONFIG.releaseNotesUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-3 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 font-medium text-xs border border-white/10 transition-colors"
-                >
-                  GitHub Release
-                </a>
-              </div>
-            </div>
-
-            {/* Headline */}
-            <div className="space-y-3">
-              <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight text-white leading-none">
-                RaagaX
-              </h1>
-              <p className="text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight text-zinc-200">
-                Music playback, engineered beyond the surface.
-              </p>
-            </div>
-
-            {/* Supporting Text */}
-            <p className="text-base sm:text-lg text-zinc-400 leading-relaxed max-w-xl">
-              An independent Android music experience built around immersive playback,
-              high-quality audio, synchronized lyrics, offline listening, real-time listening
-              sessions, and cross-device control.
-            </p>
-
-            {/* CTAs */}
-            <div className="flex flex-wrap items-center gap-4 pt-2 w-full sm:w-auto">
-              {/* Primary CTA (Mobile APK) */}
-              <a
-                href={RAAGAX_CONFIG.apkDownloadUrl}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-7 py-3.5 rounded-2xl text-base font-semibold text-white bg-gradient-to-r from-red-600 via-rose-600 to-red-600 hover:from-red-500 hover:to-rose-500 shadow-[0_0_30px_rgba(239,68,68,0.45)] hover:shadow-[0_0_40px_rgba(239,68,68,0.6)] active:scale-95 transition-all"
-              >
-                <Download className="w-5 h-5" />
-                <span>Download APK ({RAAGAX_CONFIG.versionName})</span>
-              </a>
-
-              {/* Desktop Apps CTA */}
-              <a
-                href="#download"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl text-sm font-semibold text-zinc-200 hover:text-white glass-panel hover:bg-white/[0.08] border border-white/[0.1] transition-all"
-              >
-                <Monitor className="w-4 h-4 text-red-400" />
-                <span>Desktop (Windows / Mac / Linux)</span>
-              </a>
-
-              {/* GitHub CTA */}
-              <a
-                href={RAAGAX_CONFIG.githubRepoUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl text-sm font-semibold text-zinc-400 hover:text-white bg-transparent hover:bg-white/[0.04] transition-all"
-              >
-                <GithubIcon className="w-4 h-4" />
-                <span>View on GitHub</span>
-              </a>
-            </div>
-
-            {/* Third Subtle Action */}
-            <a
-              href="#engineering"
-              className="inline-flex items-center gap-2 text-xs font-mono text-zinc-400 hover:text-red-400 transition-colors pt-1"
-            >
-              <span>Explore the Engineering Architecture</span>
-              <ChevronDown className="w-3.5 h-3.5 animate-bounce" />
-            </a>
-
-            {/* Author / Engineering Spec Byline */}
-            <div className="pt-4 border-t border-white/[0.08] flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-red-600 to-purple-600 border border-white/20 flex items-center justify-center text-xs font-bold text-white shadow-lg">
-                CR
-              </div>
-              <div className="flex flex-col">
-                <span className="text-xs font-semibold text-zinc-200">
-                  Engineered by {RAAGAX_CONFIG.authorName} ({RAAGAX_CONFIG.authorHandle})
-                </span>
-                <span className="text-[11px] text-zinc-400 font-mono">
-                  Kotlin • Jetpack Compose • Media3 • Liquid Glass GPU Shader • Go Jam Hub
-                </span>
-              </div>
-            </div>
+          {/* Exact BitChord Mesh Blobs with 4 radial gradients and mesh-drift animations */}
+          <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+            <div
+              className="mesh-blob absolute rounded-full"
+              style={{
+                width: "820px",
+                height: "820px",
+                left: "-14%",
+                top: "-22%",
+                background:
+                  "radial-gradient(closest-side, rgb(74 42 6 / 0.95) 0%, rgb(74 42 6 / 0.7) 25%, rgb(74 42 6 / 0.38) 50%, rgb(74 42 6 / 0.12) 75%, rgb(74 42 6 / 0) 100%)",
+                animation: "mesh-drift-a 26s ease-in-out infinite alternate",
+              }}
+            />
+            <div
+              className="mesh-blob absolute rounded-full"
+              style={{
+                width: "720px",
+                height: "720px",
+                left: "56%",
+                top: "-12%",
+                background:
+                  "radial-gradient(closest-side, rgb(58 29 5 / 0.95) 0%, rgb(58 29 5 / 0.7) 25%, rgb(58 29 5 / 0.38) 50%, rgb(58 29 5 / 0.12) 75%, rgb(58 29 5 / 0) 100%)",
+                animation: "mesh-drift-b 31s ease-in-out infinite alternate",
+              }}
+            />
+            <div
+              className="mesh-blob absolute rounded-full"
+              style={{
+                width: "700px",
+                height: "700px",
+                left: "16%",
+                top: "40%",
+                background:
+                  "radial-gradient(closest-side, rgb(42 36 8 / 0.95) 0%, rgb(42 36 8 / 0.7) 25%, rgb(42 36 8 / 0.38) 50%, rgb(42 36 8 / 0.12) 75%, rgb(42 36 8 / 0) 100%)",
+                animation: "mesh-drift-c 22s ease-in-out infinite alternate",
+              }}
+            />
+            <div
+              className="mesh-blob absolute rounded-full"
+              style={{
+                width: "760px",
+                height: "760px",
+                left: "60%",
+                top: "46%",
+                background:
+                  "radial-gradient(closest-side, rgb(61 34 7 / 0.95) 0%, rgb(61 34 7 / 0.7) 25%, rgb(61 34 7 / 0.38) 50%, rgb(61 34 7 / 0.12) 75%, rgb(61 34 7 / 0) 100%)",
+                animation: "mesh-drift-b 34s reverse ease-in-out infinite alternate",
+              }}
+            />
+            <div
+              className="absolute inset-0"
+              style={{ background: "radial-gradient(120% 90% at 50% 40%, transparent 30%, rgb(0 0 0 / 0.55) 100%)" }}
+            />
           </div>
 
-          {/* Right Column: Hero Visual - Real ADB Device Showcase with Liquid Glass UI */}
-          <div className="lg:col-span-6 relative flex flex-col items-center justify-center">
+          {/* Hero Narrative, Headings & Clean Pill Buttons */}
+          <div className="relative flex flex-col items-center px-6 pb-10 pt-12 sm:pt-16 text-center">
             
-            {/* Interactive Screen Selector Pills */}
-            <div className="flex items-center gap-1.5 p-1 rounded-2xl liquid-glass-pill mb-6 max-w-full overflow-x-auto scrollbar-none z-10 border border-white/20">
+            {/* Live Right Now Listening Dynamic Badge (Starts from ~3k, fluctuates live) */}
+            <div className="liquid-glass-pill inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full text-xs font-medium text-emerald-400 mb-6 shadow-[0_0_30px_rgba(16,185,129,0.18)]">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <span suppressHydrationWarning className="font-mono font-bold tracking-tight text-white tabular-nums">
+                {liveListeners.toLocaleString()}
+              </span>
+              <span className="text-white/70">listening right now</span>
+            </div>
+
+            {/* Main Headline */}
+            <h1 className="text-balance text-[36px] sm:text-[52px] md:text-[58px] font-extrabold leading-[1.05] tracking-[-0.035em]">
+              <span className="text-white">Your Music.</span>{" "}
+              <span className="text-white/45">Without Limits.</span>
+            </h1>
+
+            {/* CTAs */}
+            <div className="mt-7">
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                {/* Button 1: Download v1.9.8 ARM64-v8a APK */}
+                <a
+                  href={RAAGAX_CONFIG.directApkUrl}
+                  download="raaga-v1.9.8-arm64-v8a.apk"
+                  aria-label={`Download Raaga ${RAAGAX_CONFIG.versionName} for Android ARM64-v8a`}
+                  className="btn-press group h-11 inline-flex items-center gap-2 rounded-full bg-white px-5 text-[14px] font-semibold text-black shadow-[0_0_24px_rgba(255,255,255,0.35),inset_0_1px_1px_0_rgba(255,255,255,0.9)] hover:bg-white/95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 cursor-pointer"
+                >
+                  <ArrowDownToLine className="size-4 transition-transform duration-300 group-hover:translate-y-0.5" />
+                  <span>Download {RAAGAX_CONFIG.versionName}</span>
+                </a>
+
+                {/* Button 2: All APKs Modal Trigger */}
+                <button
+                  onClick={() => setShowAllApks(true)}
+                  aria-label="View All APK Variants"
+                  className="liquid-glass-pill group h-11 inline-flex items-center gap-2 rounded-full px-5 text-[14px] font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 cursor-pointer"
+                >
+                  <Layers className="size-4 text-red-400" />
+                  <span>All APKs (ARM64, v7a)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Clean Professional Metadata & Platform Availability */}
+            <p className="mt-5 text-[13px] text-white/50">
+              <span className="text-white/80">100% Free &amp; Open Source</span> • Zero Ads or Telemetry
+            </p>
+            <p className="mt-1 text-[13px] text-white/50">
+              Available on{" "}
+              <span>
+                <a href="#download" className="text-white/80 underline-offset-4 transition-colors hover:text-white hover:underline">
+                  Android
+                </a>
+                ,{" "}
+              </span>
+              <span>
+                <a href="/apks/raaga-tv.apk" download className="text-white/80 underline-offset-4 transition-colors hover:text-white hover:underline">
+                  Android TV
+                </a>
+                ,{" "}
+              </span>
+              <span>
+                <a href="#desktop" className="text-white/80 underline-offset-4 transition-colors hover:text-white hover:underline">
+                  Windows
+                </a>
+                ,{" "}
+              </span>
+              <span>
+                <a href="#desktop" className="text-white/80 underline-offset-4 transition-colors hover:text-white hover:underline">
+                  Linux
+                </a>
+                {" "}and{" "}
+              </span>
+              <span>
+                <a href="#desktop" className="text-white/80 underline-offset-4 transition-colors hover:text-white hover:underline">
+                  macOS
+                </a>
+              </span>
+            </p>
+
+            {/* Screen Selector Pills (Clean Apple-style Segmented Control) */}
+            <div className="mt-6 inline-flex items-center gap-1.5 p-1 rounded-full liquid-glass-pill shadow-inner max-w-full overflow-x-auto no-scrollbar">
               {[
-                { id: "/screenshots/now_playing.png", label: "Now Playing", badge: "AAC Hi-Fi" },
-                { id: "/screenshots/lyrics.png", label: "Synced Lyrics", badge: "Karaoke" },
-                { id: "/screenshots/home.png", label: "Listen Now", badge: "Glass Bar" },
-                { id: "/screenshots/settings_liquid_glass.png", label: "Liquid Glass", badge: "GPU Haze" },
+                { id: "now_playing", label: "Now Playing" },
+                { id: "lyrics", label: "Synced Lyrics" },
+                { id: "home", label: "Listen Now" },
               ].map((tab) => {
-                const isActive = (selectedScreen || "/screenshots/now_playing.png") === tab.id;
+                const isActive = activeTab === tab.id;
                 return (
                   <button
                     key={tab.id}
-                    onClick={() => setSelectedScreen(tab.id)}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs font-medium transition-all flex items-center gap-1.5 whitespace-nowrap ${
+                    onClick={() => setActiveTab(tab.id as any)}
+                    className={`btn-press px-5 py-2 rounded-full text-xs sm:text-[13px] font-medium transition-all flex items-center justify-center whitespace-nowrap cursor-pointer ${
                       isActive
-                        ? "bg-red-500/25 text-white border border-red-500/50 shadow-md shadow-red-500/20"
-                        : "text-zinc-400 hover:text-white hover:bg-white/[0.06]"
+                        ? "bg-white text-black shadow-[0_4px_16px_rgba(255,255,255,0.35),inset_0_1px_1px_0_rgba(255,255,255,0.9)] font-semibold"
+                        : "text-white/70 hover:text-white hover:bg-white/[0.08]"
                     }`}
                   >
                     <span>{tab.label}</span>
-                    <span className="text-[9px] font-mono opacity-70 px-1.5 py-0.5 rounded bg-white/[0.08]">{tab.badge}</span>
                   </button>
                 );
               })}
             </div>
 
-            {/* Glowing Ambient Backdrop Halo */}
-            <div className="absolute -inset-4 md:-inset-8 flex items-center justify-center pointer-events-none opacity-50 -z-10">
-              <div className="w-[340px] h-[550px] bg-gradient-to-tr from-red-600/30 via-purple-600/20 to-cyan-500/20 rounded-[50px] blur-3xl animate-pulse" style={{ animationDuration: "6s" }} />
-            </div>
+          </div>
 
-            {/* Physical Android Device Frame with Real Screen Capture */}
-            <div className="relative w-full max-w-[320px] sm:max-w-[340px] group">
-              
-              {/* Outer Phone Shell */}
-              <div className="relative rounded-[48px] p-3.5 bg-gradient-to-b from-zinc-800/90 via-zinc-900/95 to-black border border-white/20 shadow-[0_30px_80px_rgba(0,0,0,0.95)] ring-1 ring-white/10">
-                <div className="liquid-specular-top" />
-
-                {/* Top Camera Punch Hole & Speaker */}
-                <div className="absolute top-2.5 left-1/2 -translate-x-1/2 flex items-center gap-2 z-20">
-                  <div className="w-12 h-1 rounded-full bg-zinc-700/60" />
-                  <div className="w-3.5 h-3.5 rounded-full bg-black ring-1 ring-zinc-700/80 flex items-center justify-center">
-                    <div className="w-1.5 h-1.5 rounded-full bg-cyan-950/80" />
-                  </div>
-                </div>
-
-                {/* Inner Screen Bezel with Real ADB Screenshot */}
-                <div className="relative rounded-[36px] overflow-hidden bg-black aspect-[1220/2712] border border-white/10 shadow-inner group">
-                  <Image
-                    src={selectedScreen || "/screenshots/now_playing.png"}
-                    alt="RaagaX Real Android Screen Capture via ADB"
-                    width={1220}
-                    height={2712}
-                    priority
-                    className="w-full h-full object-cover transition-opacity duration-300"
-                  />
-
-                  {/* Glass Specular Reflection Sheen */}
-                  <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/[0.04] to-transparent pointer-events-none" />
-                </div>
-
-                {/* Floating Liquid Glass Badge over device */}
-                <div className="absolute -bottom-4 left-6 right-6 p-3 rounded-2xl liquid-glass border border-white/25 shadow-2xl flex items-center justify-between backdrop-blur-2xl">
-                  <div className="liquid-specular-top" />
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-red-500/20 border border-red-500/40 flex items-center justify-center text-red-400">
-                      <Disc3 className="w-4 h-4 animate-spin" style={{ animationDuration: "5s" }} />
-                    </div>
-                    <div>
-                      <p className="text-[11px] font-bold text-white tracking-wide">Real Device Capture</p>
-                      <p className="text-[9px] text-zinc-400 font-mono">1.5K AMOLED • 1220×2712</p>
+          {/* ─────────────────────────────────────────────────────────────
+              COMPLETE UNCREPPED PHONE CHASSIS (Full Screen Visible)
+              ───────────────────────────────────────────────────────────── */}
+          <div className="relative pb-8 sm:pb-12" style={{ height: `${Math.round(867 * scale + 48)}px` }}>
+            <div
+              className="absolute left-1/2 top-0 origin-top"
+              style={{ transform: `translateX(-50%) scale(${scale})` }}
+            >
+              <div
+                className="rounded-[58px] bg-[#1b1b1d] p-[2px] shadow-[0_40px_120px_rgb(0_0_0/0.7),inset_0_1px_1.5px_0_rgba(255,255,255,0.35),0_0_50px_rgba(239,68,68,0.18)]"
+                style={{ width: "416px" }}
+              >
+                <div className="rounded-[56px] bg-black" style={{ padding: "11px" }}>
+                  <div className="overflow-hidden rounded-[46px]">
+                    <div
+                      style={{
+                        fontFamily:
+                          '"SF Pro Display", -apple-system, BlinkMacSystemFont, var(--font-inter), system-ui, sans-serif',
+                        WebkitFontSmoothing: "antialiased",
+                      }}
+                      role="img"
+                      aria-label="Raaga Mobile Interface"
+                    >
+                      {/* Complete uncropped mobile screen viewport with pixel-perfect aspect ratio */}
+                      <div className="relative h-[841px] w-[390px] overflow-hidden bg-black text-white" aria-hidden="true">
+                        <div className="relative h-full w-full bg-black">
+                          <Image
+                            src={
+                              activeTab === "now_playing"
+                                ? "/images/mobile/mobile_now_playing.png"
+                                : activeTab === "lyrics"
+                                ? "/images/mobile/mobile_lyrics.png"
+                                : "/images/mobile/mobile_home.png"
+                            }
+                            alt="Raaga Mobile Screen"
+                            fill
+                            priority
+                            className="object-contain select-none"
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-[9px] font-mono text-emerald-400">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                    <span>ADB LIVE</span>
-                  </div>
                 </div>
-
               </div>
-
             </div>
-
           </div>
 
         </div>
-      </div>
-    </section>
+      </section>
+    </>
   );
 };

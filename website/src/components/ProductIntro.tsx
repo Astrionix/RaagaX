@@ -11,64 +11,92 @@ export const ProductIntro: React.FC = () => {
   const flowSteps = [
     {
       id: 0,
-      label: "Home",
-      desc: "Dynamic recommendations and personalized mood carousels",
+      label: "Home / Listen Now",
+      desc: "Curated playlists, recent drops, dynamic mood carousels & floating liquid glass nav bar",
       icon: Compass,
       status: "IMPLEMENTED" as const,
       details: "Jetpack Compose lazy grids with hardware-accelerated image caching using Coil3 and material surface shaders.",
+      primaryScreen: "/images/mobile/mobile_home.png",
+      primaryLabel: "01 • Listen Now Feed",
+      secondaryScreen: "/images/mobile/mobile_explore_new.png",
+      secondaryLabel: "02 • Curated Drops",
     },
     {
       id: 1,
-      label: "Search",
-      desc: "Fast unified catalog querying across providers",
+      label: "Unified Search",
+      desc: "Fast catalog querying across songs, videos, albums, and artists with cached history",
       icon: Search,
       status: "IMPLEMENTED" as const,
-      details: "Debounced multi-source query pipeline with instant phonetic and fuzzy song, album, and artist matching.",
+      details: "Debounced multi-source query pipeline with instant phonetic and fuzzy matching across YouTube Music.",
+      primaryScreen: "/images/mobile/mobile_search_results.png",
+      primaryLabel: "01 • Search Query Engine",
+      secondaryScreen: "/images/mobile/mobile_now_playing.png",
+      secondaryLabel: "02 • Direct Playback",
     },
     {
       id: 2,
-      label: "Album",
-      desc: "High-resolution artwork & full track listings",
-      icon: Disc,
+      label: "Now Playing (Lossless FLAC)",
+      desc: "Electric aura, custom glass controls & 24-bit FLAC badge",
+      icon: PlayCircle,
       status: "IMPLEMENTED" as const,
-      details: "Lossless FLAC/ALAC availability checks with full metadata preservation and batch queue operations.",
+      details: "FLAC 24-bit 44.1 kHz (2116 kbps) Bit-Perfect playback with live CMF Buds 2 audio device routing.",
+      primaryScreen: "/images/mobile/mobile_now_playing.png",
+      primaryLabel: "01 • Now Playing (2116 kbps)",
+      secondaryScreen: "/images/mobile/mobile_lyrics.png",
+      secondaryLabel: "02 • Synchronized Lyrics",
     },
     {
       id: 3,
-      label: "Now Playing",
-      desc: "Immersive mesh gradient backdrop with custom controls",
-      icon: PlayCircle,
+      label: "Synchronized Lyrics",
+      desc: "Apple Music style word-by-word karaoke typography with dynamic background blur",
+      icon: AlignLeft,
       status: "IMPLEMENTED" as const,
-      details: "Real-time color extraction from album art into a 60fps GPU-accelerated backdrop, Media3 session, and gapless crossfade.",
+      details: "High-precision word-level timing parser with real-time character highlighting.",
+      primaryScreen: "/images/mobile/mobile_lyrics.png",
+      primaryLabel: "01 • Real-time Karaoke",
+      secondaryScreen: "/images/mobile/mobile_now_playing.png",
+      secondaryLabel: "02 • Aura Player",
     },
     {
       id: 4,
-      label: "Lyrics",
-      desc: "Word and syllable synchronized karaoke engine",
-      icon: AlignLeft,
+      label: "Offline Library",
+      desc: "Local SQLite database, downloaded FLACs & listening statistics (1,355+ mins)",
+      icon: Library,
       status: "IMPLEMENTED" as const,
-      details: "High-precision word-level timing parser resolving across LRCLIB, Musixmatch, Kugou, and Genius.",
+      details: "Encrypted Room SQLite store with automatic ID3 tagging, listening history statistics, and WebDAV sync.",
+      primaryScreen: "/images/mobile/mobile_library.png",
+      primaryLabel: "01 • Downloaded FLACs",
+      secondaryScreen: "/images/mobile/mobile_home.png",
+      secondaryLabel: "02 • Quick Resume",
     },
     {
       id: 5,
-      label: "Library",
-      desc: "Offline downloads & scanned local device audio",
-      icon: Library,
+      label: "Lossless DSP & Shaders",
+      desc: "Per-network quality governors and real AGSL optical refraction at 120 FPS",
+      icon: Disc,
       status: "IMPLEMENTED" as const,
-      details: "Encrypted SQLite/Room local store with automatic ID3 tag injection and network-aware background downloader.",
+      details: "AGSL shader pipeline on Android 13+ simulating real glass refraction over album art at 120 FPS.",
+      primaryScreen: "/images/mobile/mobile_settings_liquid_glass.png",
+      primaryLabel: "01 • Liquid Glass AGSL",
+      secondaryScreen: "/images/mobile/mobile_screen_settings_full.png",
+      secondaryLabel: "02 • Lossless Bitrate DSP",
     },
     {
       id: 6,
-      label: "Listen Together",
-      desc: "Synchronized group playback via server-time anchors",
+      label: "Multi-Account & Cloud Sync",
+      desc: "Instant profile switching, backup, and cross-device session synchronization",
       icon: Users,
       status: "IMPLEMENTED" as const,
-      details: "Go-powered WebSocket cluster synchronizing up to 5 devices within milliseconds using NTP-style clock offset estimation.",
+      details: "Seamless account switching between personal profiles and cloud sync across all your Android & desktop devices.",
+      primaryScreen: "/images/mobile/mobile_screen_avatar_tap.png",
+      primaryLabel: "01 • Profile & Cloud Sync",
+      secondaryScreen: "/images/mobile/mobile_now_playing.png",
+      secondaryLabel: "02 • Synchronized Playhead",
     },
   ];
 
   return (
-    <section className="relative py-24 border-t border-white/[0.06] bg-[#04060a]/60">
+    <section id="experience" className="relative py-24 border-t border-white/[0.06] bg-[#04060a]/60" aria-labelledby="experience-title">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Section Header */}
@@ -79,12 +107,12 @@ export const ProductIntro: React.FC = () => {
             </span>
           </div>
           
-          <h2 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-white">
+          <h2 id="experience-title" className="text-4xl sm:text-5xl font-extrabold tracking-tight text-white">
             Not just another music player.
           </h2>
 
           <p className="text-lg sm:text-xl text-zinc-400 leading-relaxed">
-            RaagaX was built as a complete playback experience — from audio delivery
+            Raaga was built as a complete playback experience — from audio delivery
             and media controls to synchronized lyrics, offline storage, real-time sessions,
             and device handoff.
           </p>
@@ -102,41 +130,41 @@ export const ProductIntro: React.FC = () => {
               {/* Dual Phones Container */}
               <div className="flex items-center justify-center gap-4 sm:gap-6 py-4">
                 
-                {/* Left Device: Home & Curated Feed */}
+                {/* Left Device */}
                 <div className="relative w-1/2 max-w-[240px] rounded-[36px] p-2 bg-gradient-to-b from-zinc-800/90 to-black border border-white/20 shadow-2xl transition-transform duration-500 group-hover:-translate-y-1">
                   <div className="liquid-specular-top" />
                   {/* Speaker & Camera Notch */}
                   <div className="absolute top-2 left-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-full bg-black ring-1 ring-zinc-700 z-10" />
                   <div className="rounded-[28px] overflow-hidden aspect-[1220/2712] bg-zinc-950 border border-white/10">
                     <Image
-                      src="/screenshots/home.png"
-                      alt="RaagaX Listen Now Screen"
+                      src={flowSteps[activeStep].primaryScreen}
+                      alt={flowSteps[activeStep].primaryLabel}
                       width={1220}
                       height={2712}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover transition-all duration-300"
                     />
                   </div>
                   <div className="mt-2 text-center">
-                    <span className="text-[10px] font-mono text-zinc-400">01 • Listen Now</span>
+                    <span className="text-[10px] font-mono text-zinc-400">{flowSteps[activeStep].primaryLabel}</span>
                   </div>
                 </div>
 
-                {/* Right Device: Now Playing & Lossless AAC */}
+                {/* Right Device */}
                 <div className="relative w-1/2 max-w-[240px] rounded-[36px] p-2 bg-gradient-to-b from-zinc-800/90 to-black border border-white/20 shadow-2xl transition-transform duration-500 group-hover:translate-y-1">
                   <div className="liquid-specular-top" />
                   {/* Speaker & Camera Notch */}
                   <div className="absolute top-2 left-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-full bg-black ring-1 ring-zinc-700 z-10" />
                   <div className="rounded-[28px] overflow-hidden aspect-[1220/2712] bg-zinc-950 border border-white/10">
                     <Image
-                      src="/screenshots/now_playing.png"
-                      alt="RaagaX Now Playing Screen"
+                      src={flowSteps[activeStep].secondaryScreen}
+                      alt={flowSteps[activeStep].secondaryLabel}
                       width={1220}
                       height={2712}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover transition-all duration-300"
                     />
                   </div>
                   <div className="mt-2 text-center">
-                    <span className="text-[10px] font-mono text-red-400 font-semibold">02 • Now Playing</span>
+                    <span className="text-[10px] font-mono text-red-400 font-semibold">{flowSteps[activeStep].secondaryLabel}</span>
                   </div>
                 </div>
 

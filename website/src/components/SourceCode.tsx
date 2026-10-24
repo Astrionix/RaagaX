@@ -39,7 +39,7 @@ export const SourceCode: React.FC = () => {
                 <h3 className="text-xl font-bold text-white font-mono flex items-center gap-2">
                   <span>Astrionix</span>
                   <span className="text-zinc-600">/</span>
-                  <span className="text-red-400">RaagaX</span>
+                  <span className="text-red-400">Raaga</span>
                 </h3>
                 <p className="text-xs text-zinc-400 font-mono mt-0.5">
                   Modern Android music streaming and playback platform

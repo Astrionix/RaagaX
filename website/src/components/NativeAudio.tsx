@@ -66,7 +66,7 @@ export const NativeAudio: React.FC = () => {
 
           <p className="text-base sm:text-lg text-zinc-400 leading-relaxed">
             For computationally heavy audio analysis tasks such as beat tracking,
-            spectral extraction, and tempo discovery, RaagaX bypasses JVM garbage collection
+            spectral extraction, and tempo discovery, Raaga bypasses JVM garbage collection
             overheads by compiling optimized C++ routines directly through CMake and Android NDK.
           </p>
         </div>

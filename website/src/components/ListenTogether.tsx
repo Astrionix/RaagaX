@@ -91,7 +91,7 @@ export const ListenTogether: React.FC = () => {
           </h2>
 
           <p className="text-lg text-zinc-400 leading-relaxed">
-            Instead of telling every device to &ldquo;play now&rdquo;, RaagaX synchronizes
+            Instead of telling every device to &ldquo;play now&rdquo;, Raaga synchronizes
             playback using a shared server-time anchor. Network delays can vary by hundreds
             of milliseconds across cellular towers — but a time-anchored playhead converges
             authoritatively.

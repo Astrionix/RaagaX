@@ -24,6 +24,17 @@ export interface DesktopConfig {
   };
 }
 
+export interface TvConfig {
+  version: string;
+  directApkUrl: string;
+  universalApkUrl: string;
+  arm64ApkUrl: string;
+  armeabiV7aApkUrl: string;
+  x86_64ApkUrl: string;
+  size: string;
+  minAndroid: string;
+}
+
 export interface ReleaseConfig {
   appName: string;
   tagline: string;
@@ -45,6 +56,8 @@ export interface ReleaseConfig {
   authorHandle: string;
   authorRole: string;
   license: string;
+  // Android TV
+  tv: TvConfig;
   // Desktop (Windows, macOS, Linux)
   desktop: DesktopConfig;
   stats: {
@@ -56,45 +69,56 @@ export interface ReleaseConfig {
 }
 
 export const RAAGAX_CONFIG: ReleaseConfig = {
-  appName: "RaagaX",
-  tagline: "Music playback, engineered beyond the surface.",
+  appName: "Raaga",
+  tagline: "Your Music. Without Limits.",
   versionName: "v1.9.8",
   versionCode: 40,
   minAndroid: "Android 8.0+ (Oreo, API 26)",
   targetAndroid: "Android 15+ (Vanilla Ice Cream, API 36)",
   ndkVersion: "27.2.12479018",
   cmakeVersion: "3.22.1",
-  fileSize: "~54 MB",
+  fileSize: "~60 MB",
   releaseDate: "October 2026",
   buildType: "Release Signed (R8 Minified, NDK 27)",
   // Mobile APK configurations
-  directApkUrl: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/app-prod-universal-release.apk",
-  apkDownloadUrl: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/app-prod-arm64-v8a-release.apk",
-  releaseNotesUrl: "https://github.com/Astrionix/RaagaX/releases/tag/v1.9.8",
-  githubRepoUrl: "https://github.com/Astrionix/RaagaX",
+  directApkUrl: "/apks/raaga-arm64-v8a.apk",
+  apkDownloadUrl: "/apks/raaga-arm64-v8a.apk",
+  releaseNotesUrl: "https://github.com/Astrionix/Raaga/releases/tag/v1.9.8",
+  githubRepoUrl: "https://github.com/Astrionix/Raaga",
   liveDomainUrl: "https://raaga.me",
   authorName: "Chandra Reddy",
   authorHandle: "@Astrionix",
-  authorRole: "Lead Mobile Systems & Full-Stack Architect",
+  authorRole: "Lead Systems & Audio Architect",
   license: "GNU General Public License v3.0",
+  // Android TV Builds (Google TV, Fire TV, Android TV)
+  tv: {
+    version: "v1.9.8",
+    directApkUrl: "/apks/raaga-tv.apk",
+    universalApkUrl: "/apks/raaga-tv-universal.apk",
+    arm64ApkUrl: "/apks/raaga-tv-arm64-v8a.apk",
+    armeabiV7aApkUrl: "/apks/raaga-tv-armeabi-v7a.apk",
+    x86_64ApkUrl: "/apks/raaga-tv-x86_64.apk",
+    size: "~87 MB",
+    minAndroid: "Android TV 8.0+ / Google TV / Fire TV",
+  },
   // Dedicated Desktop Applications Configuration (Windows, macOS, Linux)
   desktop: {
     version: "v1.9.8",
-    releaseNotesUrl: "https://github.com/Astrionix/RaagaX/releases/tag/v1.9.8",
+    releaseNotesUrl: "https://github.com/Astrionix/Raaga/releases/tag/v1.9.8",
     windows: {
-      setupExe: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/Raaga-1.9.8-windows-setup.exe",
-      portableZip: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/Raaga-1.9.8-windows-portable.zip",
-      size: "~300 MB",
+      setupExe: "https://github.com/Astrionix/Raaga/releases/download/v1.9.8/Raaga-1.9.8-windows-setup.exe",
+      portableZip: "https://github.com/Astrionix/Raaga/releases/download/v1.9.8/Raaga-1.9.8-windows-portable.zip",
+      size: "~315 MB",
     },
     macOS: {
-      arm64Dmg: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/Raaga-1.9.8-macos-arm64.dmg",
-      x64Dmg: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/Raaga-1.9.8-macos-x64.dmg",
+      arm64Dmg: "https://github.com/Astrionix/Raaga/releases/download/v1.9.8/Raaga-1.9.8-macos-arm64.dmg",
+      x64Dmg: "https://github.com/Astrionix/Raaga/releases/download/v1.9.8/Raaga-1.9.8-macos-x64.dmg",
       size: "~180 MB",
     },
     linux: {
-      appImage: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/Raaga-1.9.8-linux-x86_64.AppImage",
-      deb: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/Raaga-1.9.8-linux-amd64.deb",
-      rpm: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/Raaga-1.9.8-linux-x86_64.rpm",
+      appImage: "https://github.com/Astrionix/Raaga/releases/download/v1.9.8/Raaga-1.9.8-linux-x86_64.AppImage",
+      deb: "https://github.com/Astrionix/Raaga/releases/download/v1.9.8/Raaga-1.9.8-linux-amd64.deb",
+      rpm: "https://github.com/Astrionix/Raaga/releases/download/v1.9.8/Raaga-1.9.8-linux-x86_64.rpm",
       size: "~160 MB",
     },
   },

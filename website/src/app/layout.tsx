@@ -1,7 +1,14 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { RAAGAX_CONFIG } from "@/config/release";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  themeColor: "#04060a",
+};
 
 const jakartaSans = Plus_Jakarta_Sans({
   variable: "--font-sans",
@@ -19,28 +26,32 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL(RAAGAX_CONFIG.liveDomainUrl),
-  title: `${RAAGAX_CONFIG.appName} — Music playback, engineered beyond the surface`,
+  title: `${RAAGAX_CONFIG.appName} — Your Music. Without Limits.`,
   description:
-    "An independent Android music experience built around immersive playback, high-quality audio, synchronized lyrics, offline listening, real-time listening sessions, and cross-device control.",
+    "Your Music. Without Limits. An independent, bit-perfect music playback platform for Android and Desktop built around immersive listening, synchronized lyrics, and lossless FLAC streams.",
+  icons: {
+    icon: "/app_icon.png",
+    shortcut: "/app_icon.png",
+    apple: "/app_icon.png",
+  },
   keywords: [
-    "RaagaX",
+    "Raaga",
+    "Raaga Music",
     "Android Music Player",
-    "Jetpack Compose",
+    "Compose Multiplatform",
     "Media3",
     "ExoPlayer",
     "Synchronized Lyrics",
-    "Listen Together",
     "Lossless FLAC",
-    "C++ NDK Audio Analysis",
-    "WebSocket Jam Sessions",
+    "C++ NDK Audio Engine",
     "Chandra Reddy",
     "Astrionix",
   ],
-  authors: [{ name: RAAGAX_CONFIG.authorName, url: RAAGAX_CONFIG.githubRepoUrl }],
+  authors: [{ name: RAAGAX_CONFIG.authorName, url: RAAGAX_CONFIG.liveDomainUrl }],
   openGraph: {
-    title: `${RAAGAX_CONFIG.appName} — An Operating System for Music`,
+    title: `${RAAGAX_CONFIG.appName} — Your Music. Without Limits.`,
     description:
-      "A cinematic, high-performance Android music player with real-time synchronized playback, lossless audio streaming, and C++ spectral audio engineering.",
+      "Your Music. Without Limits. A cinematic, high-performance music player with real-time synchronized lyrics and lossless audio streaming.",
     url: RAAGAX_CONFIG.liveDomainUrl,
     siteName: RAAGAX_CONFIG.appName,
     locale: "en_US",
@@ -48,9 +59,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary",
-    title: `${RAAGAX_CONFIG.appName} — Music playback, engineered beyond the surface`,
+    title: `${RAAGAX_CONFIG.appName} — Your Music. Without Limits.`,
     description:
-      "Modern Android music streaming and playback platform engineered by Chandra Reddy (@Astrionix).",
+      "Your Music. Without Limits. Modern music streaming and playback platform engineered by Chandra Reddy (@Astrionix).",
   },
 };
 
@@ -60,8 +71,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${jakartaSans.variable} ${jetbrainsMono.variable} dark scroll-smooth`}>
-      <body className="bg-[#04060a] text-zinc-100 antialiased font-sans selection:bg-red-500/30 selection:text-white">
+    <html lang="en" suppressHydrationWarning className={`${jakartaSans.variable} ${jetbrainsMono.variable} dark scroll-smooth`}>
+      <body suppressHydrationWarning className="bg-[#04060a] text-zinc-100 antialiased font-sans selection:bg-red-500/30 selection:text-white">
         {children}
       </body>
     </html>

@@ -3,7 +3,6 @@
 import React from "react";
 import Image from "next/image";
 import { Globe, Heart, Shield, Terminal } from "lucide-react";
-import { GithubIcon } from "./icons/GithubIcon";
 import { RAAGAX_CONFIG } from "@/config/release";
 
 export const Footer: React.FC = () => {
@@ -16,27 +15,25 @@ export const Footer: React.FC = () => {
           {/* Brand Info (Left) */}
           <div className="md:col-span-6 space-y-4">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-xl overflow-hidden p-0.5 bg-gradient-to-tr from-red-600 to-purple-600">
+              <div className="w-8 h-8 rounded-xl overflow-hidden bg-black/60 border border-white/20 p-1 shadow-[0_0_15px_rgba(239,68,68,0.3),inset_0_1px_1px_0_rgba(255,255,255,0.4)]">
                 <Image
                   src="/app_icon.png"
-                  alt="RaagaX Logo"
+                  alt="Raaga Logo"
                   width={32}
                   height={32}
-                  className="w-full h-full object-cover rounded-[10px]"
+                  className="w-full h-full object-contain"
                 />
               </div>
               <span className="font-bold text-lg text-white tracking-tight">
                 {RAAGAX_CONFIG.appName}
               </span>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/[0.06] text-zinc-300">
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full liquid-glass-pill text-zinc-200">
                 {RAAGAX_CONFIG.versionName}
               </span>
             </div>
 
             <p className="text-xs text-zinc-400 max-w-md leading-relaxed">
-              An independent Android music experience built around immersive playback,
-              high-quality audio, synchronized lyrics, offline listening, real-time listening
-              sessions, and cross-device control.
+              <span className="text-white font-medium">Your Music. Without Limits.</span> An independent, bit-perfect music playback platform for Android and Desktop built around immersive listening, synchronized lyrics, lossless FLAC streams, and real-time audio engineering.
             </p>
 
             <div className="pt-2 text-xs font-mono text-zinc-500">
@@ -51,22 +48,16 @@ export const Footer: React.FC = () => {
             </h4>
             <ul className="space-y-2 text-xs font-mono">
               <li>
-                <a href="#overview" className="hover:text-white transition-colors">Overview</a>
+                <a href="#top" className="hover:text-white transition-colors">Overview</a>
               </li>
               <li>
-                <a href="#features" className="hover:text-white transition-colors">Playback Features</a>
+                <a href="#music-discovery" className="hover:text-white transition-colors">Music Catalog</a>
               </li>
               <li>
-                <a href="#architecture" className="hover:text-white transition-colors">System Architecture</a>
+                <a href="#desktop" className="hover:text-white transition-colors">Desktop App</a>
               </li>
               <li>
-                <a href="#listen-together" className="hover:text-white transition-colors">Listen Together Engine</a>
-              </li>
-              <li>
-                <a href="#engineering" className="hover:text-white transition-colors">Engineering Decisions</a>
-              </li>
-              <li>
-                <a href="#screens" className="hover:text-white transition-colors">Screen Gallery</a>
+                <a href="#download" className="hover:text-white transition-colors">Downloads</a>
               </li>
             </ul>
           </div>
@@ -74,15 +65,25 @@ export const Footer: React.FC = () => {
           {/* External & Distribution Links */}
           <div className="md:col-span-3 space-y-3">
             <h4 className="text-xs font-mono text-white uppercase tracking-wider font-semibold">
-              Distribution &amp; Code
+              Distribution &amp; Downloads
             </h4>
             <ul className="space-y-2 text-xs font-mono">
               <li>
                 <a
                   href={RAAGAX_CONFIG.apkDownloadUrl}
+                  download="raaga-v1.9.8-arm64-v8a.apk"
                   className="text-red-400 hover:text-red-300 transition-colors"
                 >
                   Download APK ({RAAGAX_CONFIG.versionName})
+                </a>
+              </li>
+              <li>
+                <a
+                  href={RAAGAX_CONFIG.tv.directApkUrl}
+                  download
+                  className="text-amber-400 hover:text-amber-300 transition-colors"
+                >
+                  Android TV APK ({RAAGAX_CONFIG.tv.version})
                 </a>
               </li>
               <li>
@@ -111,27 +112,6 @@ export const Footer: React.FC = () => {
               </li>
               <li>
                 <a
-                  href={RAAGAX_CONFIG.releaseNotesUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-white transition-colors"
-                >
-                  GitHub Releases
-                </a>
-              </li>
-              <li>
-                <a
-                  href={RAAGAX_CONFIG.githubRepoUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-white transition-colors flex items-center gap-1.5"
-                >
-                  <GithubIcon className="w-3.5 h-3.5" />
-                  <span>GitHub Repository</span>
-                </a>
-              </li>
-              <li>
-                <a
                   href={RAAGAX_CONFIG.liveDomainUrl}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -153,14 +133,14 @@ export const Footer: React.FC = () => {
             <span className="font-semibold uppercase tracking-wider">Independent Research &amp; Disclaimer Notice</span>
           </div>
           <p>
-            RaagaX is an independent, community-driven third-party audio player and client. It is <strong>not</strong> affiliated with, endorsed by, or connected to Google LLC, YouTube Music, Deezer, Apple Inc., Spotify AB, or Telegram in any way.
+            Raaga is an independent, community-driven third-party audio player and client. It is <strong>not</strong> affiliated with, endorsed by, or connected to Google LLC, YouTube Music, Deezer, Apple Inc., Spotify AB, or Telegram in any way.
           </p>
           <p>
-            RaagaX does not host, upload, or store copyrighted music files. It operates strictly as an interface to scan local device storage or stream media directly from public-facing or user-authenticated APIs. Built under the GNU General Public License v3.0 (GPLv3).
+            Raaga does not host, upload, or store copyrighted music files. It operates strictly as an interface to scan local device storage or stream media directly from public-facing or user-authenticated APIs. Built under the GNU General Public License v3.0 (GPLv3).
           </p>
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pt-4 text-zinc-600">
             <span>© 2026 Chandra Reddy ({RAAGAX_CONFIG.authorHandle}). All rights reserved.</span>
-            <span>RaagaX Architecture Portfolio • {RAAGAX_CONFIG.versionName} (Code {RAAGAX_CONFIG.versionCode})</span>
+            <span>Raaga Architecture Portfolio • {RAAGAX_CONFIG.versionName} (Code {RAAGAX_CONFIG.versionCode})</span>
           </div>
         </div>
 

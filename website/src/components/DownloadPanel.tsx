@@ -14,7 +14,6 @@ import {
   Terminal,
   Sparkles,
 } from "lucide-react";
-import { GithubIcon } from "./icons/GithubIcon";
 import { RAAGAX_CONFIG } from "../config/release";
 import { FeatureStatusBadge } from "./FeatureStatusBadge";
 
@@ -170,18 +169,8 @@ export const DownloadPanel: React.FC = () => {
                   rel="noopener noreferrer"
                   className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-xs font-semibold text-zinc-300 hover:text-white bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] transition-all"
                 >
-                  <span>View GitHub Release Notes</span>
+                  <span>View Release Notes</span>
                   <ExternalLink className="w-3.5 h-3.5" />
-                </a>
-
-                <a
-                  href={RAAGAX_CONFIG.githubRepoUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-xs font-semibold text-zinc-400 hover:text-zinc-200 bg-transparent hover:bg-white/[0.03] border border-white/[0.06] transition-all"
-                >
-                  <GithubIcon className="w-3.5 h-3.5" />
-                  <span>View Full Source Code</span>
                 </a>
 
                 <button
@@ -266,7 +255,7 @@ export const DownloadPanel: React.FC = () => {
                   className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-xs font-semibold text-zinc-400 hover:text-zinc-200 bg-transparent hover:bg-white/[0.03] border border-white/[0.06] transition-all"
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
-                  <span>View {RAAGAX_CONFIG.desktop.version} Release on GitHub</span>
+                  <span>View {RAAGAX_CONFIG.desktop.version} Release Notes</span>
                 </a>
 
                 <button
@@ -351,7 +340,7 @@ export const DownloadPanel: React.FC = () => {
                   className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-xs font-semibold text-zinc-400 hover:text-zinc-200 bg-transparent hover:bg-white/[0.03] border border-white/[0.06] transition-all"
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
-                  <span>View GitHub Release</span>
+                  <span>View Release Notes</span>
                 </a>
               </div>
             </div>
@@ -438,7 +427,7 @@ export const DownloadPanel: React.FC = () => {
                   className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-xs font-semibold text-zinc-400 hover:text-zinc-200 bg-transparent hover:bg-white/[0.03] border border-white/[0.06] transition-all"
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
-                  <span>View GitHub Release</span>
+                  <span>View Release Notes</span>
                 </a>
               </div>
             </div>
