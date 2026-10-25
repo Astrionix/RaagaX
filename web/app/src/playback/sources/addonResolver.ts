@@ -128,6 +128,37 @@ interface SaavnRawSong {
   };
 }
 
+async function fetchSaavn(params: URLSearchParams): Promise<string | null> {
+  const queryStr = params.toString();
+  const endpoints =
+    typeof window !== 'undefined'
+      ? [
+          `/api/jiosaavn/api.php?${queryStr}`,
+          `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://www.jiosaavn.com/api.php?${queryStr}`)}`,
+          `https://www.jiosaavn.com/api.php?${queryStr}`,
+        ]
+      : [`https://www.jiosaavn.com/api.php?${queryStr}`];
+
+  for (const ep of endpoints) {
+    try {
+      const res = await fetch(ep, {
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/141.0.0.0 Safari/537.36',
+          Cookie: 'explicit_content=1',
+        },
+        signal: AbortSignal.timeout(5000),
+      });
+      if (res.ok) {
+        return await res.text();
+      }
+    } catch {
+      // try next endpoint
+    }
+  }
+  return null;
+}
+
 export async function searchJioSaavn(query: string, limit = 15): Promise<Array<MatchCandidate & { raw: SaavnRawSong }>> {
   try {
     const params = new URLSearchParams({
@@ -141,17 +172,9 @@ export async function searchJioSaavn(query: string, limit = 15): Promise<Array<M
       n: String(limit),
     });
 
-    const res = await fetch(`${SAAVN_BASE}?${params.toString()}`, {
-      headers: {
-        Accept: 'application/json',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/141.0.0.0 Safari/537.36',
-        Cookie: 'explicit_content=1',
-      },
-      signal: AbortSignal.timeout(6000),
-    });
+    const text = await fetchSaavn(params);
+    if (!text) return [];
 
-    if (!res.ok) return [];
-    const text = await res.text();
     const data = JSON.parse(text) as { results?: SaavnRawSong[] };
     if (!data.results || !Array.isArray(data.results)) return [];
 
@@ -355,8 +378,8 @@ export async function resolveLiveAddonStream(
   track: Track,
   quality: AudioQualitySetting = 'lossless',
 ): Promise<ResolvedStream | null> {
-  // If user selected low/medium, let YouTube handle it
-  if (quality === 'low' || quality === 'medium') {
+  // If user explicitly selected low bandwidth saver, let YouTube handle it
+  if (quality === 'low') {
     return null;
   }
 
@@ -372,12 +395,20 @@ export async function resolveLiveAddonStream(
     isVideo: false,
   };
 
-  const enabledAddons = useAddons.getState().addons.filter((a) => a.enabled && a.status !== 'offline');
+  const allConfigured = useAddons.getState().addons;
+  const enabledAddons = allConfigured.filter(
+    (a) => a.enabled && a.baseUrl?.trim().length > 0 && !a.id.includes('jiosaavn'),
+  );
+  const isJioEnabled =
+    allConfigured.length === 0 ||
+    allConfigured.some(
+      (a) => (a.id === 'jiosaavn-stream-addon' || a.name.toLowerCase().includes('jiosaavn')) && a.enabled !== false,
+    );
   const tier = tierFor(quality);
 
   trackLog.i(`Searching high quality sources for '${track.title}' (tier: ${tier})...`, track.videoId);
 
-  // 1. If Lossless requested, query enabled Addons in parallel first
+  // 1. Query enabled Addons in parallel
   const addonPromises = enabledAddons.map(async (addon) => {
     try {
       const qList = queries(target);
@@ -396,8 +427,8 @@ export async function resolveLiveAddonStream(
     return null;
   });
 
-  // 2. Also query JioSaavn (320kbps AAC) in parallel
-  const jioPromise = resolveJioSaavnStream(target).catch(() => null);
+  // 2. Query JioSaavn native 320kbps engine in parallel
+  const jioPromise = isJioEnabled ? resolveJioSaavnStream(target).catch(() => null) : Promise.resolve(null);
 
   // Race or await responses
   const allResults = await Promise.allSettled([...addonPromises, jioPromise]);

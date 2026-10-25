@@ -30,4 +30,17 @@ describe('addonResolver', () => {
       expect(stream.codec).toBe('mp4');
     }
   }, 10000);
+
+  it('searches and matches Pavazha Malli', async () => {
+    const { resolveJioSaavnStream } = await import('./addonResolver');
+    const stream = await resolveJioSaavnStream({
+      title: 'Pavazha Malli',
+      artist: 'Vivek',
+      durationSec: 180,
+    });
+    console.log('Pavazha Malli resolved:', stream?.streamInfo, stream?.url);
+    if (stream) {
+      expect(stream.bitrateKbps).toBe(320);
+    }
+  }, 10000);
 });

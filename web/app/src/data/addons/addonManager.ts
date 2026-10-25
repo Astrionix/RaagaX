@@ -82,7 +82,12 @@ function loadSavedAddons(): AddonSource[] {
     if (!raw) return DEFAULT_ADDONS;
     const parsed = JSON.parse(raw) as AddonSource[];
     if (!Array.isArray(parsed) || parsed.length === 0) return DEFAULT_ADDONS;
-    return parsed;
+    return parsed.map((a) => {
+      if (a.id === 'jiosaavn-stream-addon' && a.enabled === false && a.isDefault) {
+        return { ...a, enabled: true };
+      }
+      return a;
+    });
   } catch {
     return DEFAULT_ADDONS;
   }

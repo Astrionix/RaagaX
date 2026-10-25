@@ -56,5 +56,16 @@ export default defineConfig({
     // exactly, so the port must not drift to 5174 when 5173 is busy.
     port: 5173,
     strictPort: true,
+    proxy: {
+      '/api/jiosaavn': {
+        target: 'https://www.jiosaavn.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/jiosaavn/, ''),
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/141.0.0.0 Safari/537.36',
+          'Cookie': 'explicit_content=1',
+        },
+      },
+    },
   },
 });

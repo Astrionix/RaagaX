@@ -444,8 +444,23 @@ async function playDirectStream(
   await deck.engine.stop().catch(() => {});
   deck.audio.src = stream.url;
   if (startSec > 0) {
-    deck.audio.currentTime = startSec;
+    if (deck.audio.readyState >= HTMLMediaElement.HAVE_METADATA) {
+      deck.audio.currentTime = startSec;
+    } else {
+      deck.audio.addEventListener(
+        'loadedmetadata',
+        () => {
+          try {
+            deck.audio.currentTime = startSec;
+          } catch {
+            // ignore
+          }
+        },
+        { once: true },
+      );
+    }
   }
+  applyVolumes();
 
   const nowPlaying: NowPlaying = {
     videoId: fromTrack.videoId,
@@ -529,7 +544,7 @@ async function startAt(at: number, { startSec = 0, auto = false, autoplay = true
     if (isHighQualityCeiling) {
       earlyAddon = await Promise.race([
         addonLookup,
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), 500)),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 1000)),
       ]);
     }
 
