@@ -30,7 +30,6 @@ import { albumPageFor } from './nowPlayingLinks';
 import { UpNext } from './UpNext';
 import { MixWindowHighlight, NerdStats } from './NerdStats';
 import { useScrubber } from './useScrubber';
-import { VideoQuality } from './VideoQuality';
 import { fadeForVolume, VolumeControl } from './VolumeControl';
 
 function useBrowserFullScreen(): boolean {
@@ -259,16 +258,6 @@ export function FullScreenPlayer() {
       >
         <X size={20} />
       </button>
-      {/* The music video's quality, just inside the full-screen button. */}
-      {video && (
-        <VideoQuality
-          className={`absolute top-[max(18px,env(safe-area-inset-top,18px))] z-1${hidden}${
-            document.fullscreenEnabled
-              ? ' right-[max(60px,calc(env(safe-area-inset-right,0px)+60px))]'
-              : ' right-[max(20px,env(safe-area-inset-right,20px))]'
-          }`}
-        />
-      )}
       {document.fullscreenEnabled && (
         <button
           className={`${corner} top-[max(16px,env(safe-area-inset-top,16px))] right-[max(20px,env(safe-area-inset-right,20px))]`}
