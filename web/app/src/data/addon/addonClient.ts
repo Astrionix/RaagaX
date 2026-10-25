@@ -137,6 +137,7 @@ export class AddonClient {
 
     const url = new URL(`${this.baseUrl}/search`);
     url.searchParams.set('q', trimmed);
+    url.searchParams.set('quality', tier.toLowerCase());
     url.searchParams.set('tier', tier.toLowerCase());
 
     const data = await fetchJson<AddonSearchResponse | AddonTrack[]>(url.toString());
@@ -162,6 +163,7 @@ export class AddonClient {
   async stream(trackId: string, tier: AddonTier = 'LOSSLESS'): Promise<AddonStream | null> {
     const encodedId = encodeURIComponent(trackId);
     const url = new URL(`${this.baseUrl}/stream/${encodedId}`);
+    url.searchParams.set('quality', tier.toLowerCase());
     url.searchParams.set('tier', tier.toLowerCase());
 
     try {

@@ -47,7 +47,18 @@ export async function findAddonUpgrade(target: MatchTarget): Promise<AddonUpgrad
 
         const matched = best(candidates, target);
         if (matched) {
-          // Resolve stream
+          // If candidate row already provides direct streamUrl, use it immediately
+          if (matched.streamUrl) {
+            const absoluteUrl = new URL(matched.streamUrl, addon.baseUrl).toString();
+            return {
+              streamUrl: absoluteUrl,
+              addonId: addon.id,
+              addonName: addon.name,
+              quality: matched.quality || addon.tier,
+            };
+          }
+
+          // Otherwise query /stream/{id}
           const stream = await client.stream(matched.id, addon.tier);
           if (stream?.url) {
             return {
