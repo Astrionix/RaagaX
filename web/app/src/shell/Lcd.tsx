@@ -15,6 +15,7 @@ import { useUi } from '@/state/ui';
 import { useHasVideo } from '@/state/video';
 import { albumPageFor, artistPageFor } from './nowPlayingLinks';
 import { useScrubber } from './useScrubber';
+import { parseNerdStats, shortNerdStats, describeNerdStats } from '@/playback/nerdStats';
 
 // The title and each artist: plain until hovered, then underlined on their own.
 export const pageLink = 'cursor-pointer text-start hover:underline focus-visible:underline aria-busy:cursor-progress';
@@ -114,6 +115,7 @@ export function Lcd() {
   }
 
   const showNerdStats = useDesktopSettings((s) => s.showNerdStats);
+  const audioQuality = useDesktopSettings((s) => s.audioQuality);
   const { videoId, title, artist } = nowPlaying;
   const album = track?.album ?? null;
   return (
@@ -163,8 +165,11 @@ export function Lcd() {
             </PageLink>
             {track?.explicit && <ExplicitBadge size={11} />}
             {showNerdStats && (
-              <span className="ml-1.5 flex-none rounded bg-emerald-500/20 px-1 py-0.2 text-[9px] font-mono text-emerald-400">
-                {nowPlaying.streamInfo || 'FLAC 48kHz'}
+              <span
+                className="ml-1.5 flex-none rounded bg-emerald-500/20 px-1 py-0.2 text-[9px] font-mono text-emerald-400 border border-emerald-500/30 cursor-help"
+                title={describeNerdStats(parseNerdStats(nowPlaying.streamInfo, audioQuality))}
+              >
+                {shortNerdStats(parseNerdStats(nowPlaying.streamInfo, audioQuality))}
               </span>
             )}
           </div>

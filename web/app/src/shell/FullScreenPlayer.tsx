@@ -12,15 +12,19 @@ import {
   RepeatOneIcon,
   ShuffleIcon,
   UpNextIcon,
+  VolumeIcon,
 } from '@/components/icons/Transport';
 import { ExplicitBadge } from '@/components/music/ExplicitBadge';
 import { FavoriteButton } from '@/components/music/FavoriteButton';
+import { PlaybackQualityLabel } from '@/components/music/PlaybackQualityLabel';
 import { albumHref } from '@/components/music/links';
 import { MotionArtwork } from '@/components/music/MotionArtwork';
 import { VideoSurface } from '@/components/music/VideoSurface';
 import { useTrackMotion } from '@/data/apple/motionArt';
 import { sizedArtwork } from '@/lib/artwork';
 import { useLyrics } from '@/lyrics/useLyrics';
+import { parseNerdStats, describeNerdStats } from '@/playback/nerdStats';
+import { useDesktopSettings } from '@/state/desktopSettings';
 import { usePlayer } from '@/state/player';
 import { useUi } from '@/state/ui';
 import { useHasVideo, useVideo } from '@/state/video';
@@ -155,6 +159,22 @@ export function FullScreenPlayer() {
   // Whether this player put the page in the browser's full screen, so closing it leaves it again.
   const enteredBrowserFullScreen = useRef(false);
 
+  const showNerdStats = useDesktopSettings((s) => s.showNerdStats);
+  const hideVolumeBar = useDesktopSettings((s) => s.hideVolumeBar);
+  const ambientBackdrop = useDesktopSettings((s) => s.ambientBackdrop);
+  const fullBleedArtwork = useDesktopSettings((s) => s.fullBleedArtwork);
+  const automix = useDesktopSettings((s) => s.automix);
+  const audioQuality = useDesktopSettings((s) => s.audioQuality);
+
+  const volume = usePlayer((s) => s.volume);
+  const muted = usePlayer((s) => s.muted);
+  const setVolume = usePlayer((s) => s.setVolume);
+  const toggleMute = usePlayer((s) => s.toggleMute);
+  const volumeLevel = muted ? 0 : volume;
+
+  const nerd = parseNerdStats(nowPlaying?.streamInfo, audioQuality);
+  const nerdStatsText = describeNerdStats(nerd);
+
   // The lyrics column is there while lyrics are on and there are lyrics, or might be.
   const hasLyrics = !!lyrics.data || (lyrics.isPending && lyrics.fetchStatus !== 'idle');
   const showLyrics = panel === 'lyrics' && hasLyrics;
@@ -237,7 +257,13 @@ export function FullScreenPlayer() {
       onKeyDown={wake}
       style={theater && playing && idle ? { cursor: 'none' } : undefined}
     >
-      <MeshBackdrop artworkUrl={nowPlaying.artworkUrl} playing={playing} />
+      <MeshBackdrop artworkUrl={ambientBackdrop ? nowPlaying.artworkUrl : null} playing={playing} />
+      {fullBleedArtwork && nowPlaying.artworkUrl && !theater && (
+        <div
+          className="pointer-events-none absolute inset-0 -z-1 opacity-25 blur-3xl scale-125 transition-opacity duration-700 bg-cover bg-center"
+          style={{ backgroundImage: `url(${sizedArtwork(nowPlaying.artworkUrl, 600)})` }}
+        />
+      )}
       {theater && (
         <div className="absolute inset-0 animate-fade-in bg-black">
           <VideoSurface fit="contain" className="size-full" />
@@ -315,6 +341,23 @@ export function FullScreenPlayer() {
               />
             )}
             {video && !theater && <VideoSurface className="absolute inset-0" />}
+            {showNerdStats && (
+              <div
+                className="absolute inset-x-0 bottom-2 z-10 flex flex-col items-center justify-center px-2.5 pointer-events-none"
+                style={{
+                  filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.85)) drop-shadow(0 0 1px rgba(0,0,0,0.95))',
+                }}
+              >
+                <span className="max-w-full truncate text-center text-[11px] font-medium tracking-wide text-white/90">
+                  {nerdStatsText}
+                </span>
+                {automix && (
+                  <span className="text-[10px] text-emerald-400 tracking-wider uppercase font-semibold">
+                    Automix Active
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
           <div className={`flex items-center gap-3${theater ? '' : ' mt-[clamp(20px,3.2vh,32px)]'}${column ? ' max-md:mt-0' : ''}`}>
@@ -352,7 +395,38 @@ export function FullScreenPlayer() {
           </div>
 
           <Scrubber />
+          <div className="mt-1 flex justify-center">
+            <PlaybackQualityLabel stats={nerd} />
+          </div>
           <Transport />
+          {!hideVolumeBar ? (
+            <div className="mx-auto mt-[clamp(10px,1.8vh,18px)] flex w-[min(100%,315px)] items-center gap-3 px-1 text-secondary">
+              <button
+                className="grid size-8 place-items-center rounded-full text-secondary transition-colors hover:bg-quinary hover:text-primary"
+                onClick={toggleMute}
+                aria-label={muted ? 'Unmute' : 'Mute'}
+              >
+                <VolumeIcon level={volumeLevel} size={18} />
+              </button>
+              <div className="relative flex-1 flex items-center h-4 cursor-pointer touch-none">
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={volumeLevel}
+                  onChange={(e) => setVolume(Number(e.currentTarget.value))}
+                  className="w-full accent-white h-1 rounded-full bg-white/20 cursor-pointer transition-[height] hover:h-1.5"
+                  aria-label="Volume slider"
+                />
+              </div>
+              <span className="type-[500_11px/14px] tabular-nums text-tertiary w-8 text-right">
+                {Math.round(volumeLevel * 100)}%
+              </span>
+            </div>
+          ) : (
+            <div className="h-4" />
+          )}
         </section>
 
         {showLyrics && (
