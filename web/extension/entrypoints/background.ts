@@ -24,7 +24,7 @@ const ALLOWED_ORIGINS = new Set(__SITE_ORIGINS__);
 const OWN_ORIGIN = new URL(browser.runtime.getURL('/')).origin;
 
 /** Grows as each phase lands its methods; Discord only in builds that include it. */
-const CAPABILITIES: Capability[] = ['yt', 'yt.auth', 'yt.stats', 'lyrics', 'spotify', ...(discord.AVAILABLE ? (['discord'] as const) : [])];
+const CAPABILITIES: Capability[] = ['yt', 'yt.auth', 'yt.stats', 'addon', 'lyrics', 'spotify', ...(discord.AVAILABLE ? (['discord'] as const) : [])];
 
 function originOf(sender: Browser.runtime.MessageSender): string | null {
   if (sender.origin) return sender.origin;
@@ -96,6 +96,26 @@ async function handle(request: BridgeRequest): Promise<BridgeResponse> {
       case 'lyrics.requestPermissions':
         await requestOrigins((request as BridgeRequest<'lyrics.requestPermissions'>).params.origins ?? []);
         return okResponse<'lyrics.requestPermissions'>(request.id, {});
+      case 'addon.fetch': {
+        const { url, method = 'GET', headers = {}, body } = (request as BridgeRequest<'addon.fetch'>).params;
+        const res = await fetch(url, {
+          method,
+          headers,
+          body: body ? body : undefined,
+        });
+        const text = await res.text();
+        const respHeaders: Record<string, string> = {};
+        res.headers.forEach((v, k) => {
+          respHeaders[k] = v;
+        });
+        return okResponse<'addon.fetch'>(request.id, {
+          status: res.status,
+          headers: respHeaders,
+          body: text,
+          bodyEncoding: 'text',
+          url: res.url,
+        });
+      }
       case 'spotify.authState': {
         if ((request as BridgeRequest<'spotify.authState'>).params.refresh) spotify.invalidateSession();
         return okResponse<'spotify.authState'>(request.id, await spotify.authState());

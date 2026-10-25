@@ -13,6 +13,7 @@ import { Select } from '@/components/Select';
 import { AUTOMIX_BARS } from '@/playback/automix/choices';
 import { CROSSFADE_CHOICES, usePlayer } from '@/state/player';
 import { AppleMusicIntegration, AppleMusicToggles, CanvasToggle, DiscordIntegration, LyricSourcesAccess, SpotifyIntegration, Toggle } from './IntegrationSettings';
+import { AddonSettings } from './AddonSettings';
 import { settingsUi } from './settingsStyles';
 
 const LyricsSettings = lazy(() => import('@/shell/LyricsSettings').then((m) => ({ default: m.LyricsSettings })));
@@ -137,6 +138,9 @@ export default function SettingsPage() {
             value={party.code ? `In party ${party.code}` : 'Listen in sync with friends'}
           />
         </section>
+
+        <h2 className={settingsUi.sectionHeader}>Audio Sources &amp; Add-ons</h2>
+        <AddonSettings />
 
         <h2 className={settingsUi.sectionHeader}>Playback</h2>
         <section className={settingsUi.group}>

@@ -8,8 +8,8 @@ export const config = {
   /** The version the zips above hold, for the "update available" notice. */
   extensionManifestUrl: import.meta.env.VITE_EXTENSION_MANIFEST_URL || '/downloads/extension.json',
   androidAppUrl: import.meta.env.VITE_ANDROID_APP_URL || 'https://github.com/Astrionix/RaagaX/releases/latest',
-  /** Raaga's Listen Together server. vite.config.ts refuses a production build without it. */
-  partyServerUrl: import.meta.env.VITE_PARTY_SERVER_URL ?? '',
+  /** Raaga's Listen Together server (falls back to default Render server if unset). */
+  partyServerUrl: import.meta.env.VITE_PARTY_SERVER_URL || 'https://raagax.onrender.com',
   /** Desktop Compose Multiplatform release downloads (Windows, macOS, Linux). */
   desktopDownloads: {
     version: 'v1.9.8',

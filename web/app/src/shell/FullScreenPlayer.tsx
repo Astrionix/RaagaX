@@ -14,6 +14,7 @@ import {
   UpNextIcon,
 } from '@/components/icons/Transport';
 import { ExplicitBadge } from '@/components/music/ExplicitBadge';
+import { LosslessBadge } from '@/components/music/LosslessBadge';
 import { FavoriteButton } from '@/components/music/FavoriteButton';
 import { albumHref } from '@/components/music/links';
 import { MotionArtwork } from '@/components/music/MotionArtwork';
@@ -331,7 +332,7 @@ export function FullScreenPlayer() {
           <div className={`flex items-center gap-3${theater ? '' : ' mt-[clamp(20px,3.2vh,32px)]'}${column ? ' max-md:mt-0' : ''}`}>
             {/* As the mini player's: the title opens the album, each credited name its artist. */}
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <div className="flex min-w-0 items-center">
+              <div className="flex min-w-0 items-center gap-2">
                 <PageLink
                   className={`min-w-0 max-w-full self-start truncate type-[600_17px/22px] ${pageLink}`}
                   href={albumHref(album?.id ?? null)}
@@ -340,6 +341,7 @@ export function FullScreenPlayer() {
                   {title}
                 </PageLink>
                 {track?.explicit && <ExplicitBadge size={14} />}
+                <LosslessBadge size="md" />
               </div>
               <span className="truncate type-title-3 text-secondary">
                 {artist && <Credits videoId={videoId} line={artist} artists={track?.artists ?? []} className={pageLink} />}

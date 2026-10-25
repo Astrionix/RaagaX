@@ -14,18 +14,17 @@ function devExtensionId(): string {
   }
 }
 
-// The party server's address stays out of the repo: .env.local here, a
-// Cloudflare Pages variable in production. Without it Listen Together can't
-// make a party, so a production build stops instead of shipping that.
-function requirePartyServer(mode: string): void {
+// The party server's address: .env.local here, a Cloudflare Pages variable in production,
+// or falling back to the primary Render cluster if unset.
+function ensurePartyServer(mode: string): void {
   const env = loadEnv(mode, fileURLToPath(new URL('.', import.meta.url)), 'VITE_');
-  if (!env.VITE_PARTY_SERVER_URL?.trim()) {
-    throw new Error('VITE_PARTY_SERVER_URL is not set (app/.env.local, or the Cloudflare Pages environment).');
+  if (!env.VITE_PARTY_SERVER_URL?.trim() && !process.env.VITE_PARTY_SERVER_URL?.trim()) {
+    process.env.VITE_PARTY_SERVER_URL = 'https://raagax.onrender.com';
   }
 }
 
 export default defineConfig(({ command, mode }) => {
-  if (command === 'build') requirePartyServer(mode);
+  if (command === 'build') ensurePartyServer(mode);
   return {
     plugins: [
       react(),

@@ -350,6 +350,7 @@ function automixHandoff() {
   applyTrack(loaded.track, entry.track);
   afterTrackStarted();
   intent();
+  void import('@/data/addon/addonResolver').then((m) => m.attemptAddonUpgrade(entry.track));
 }
 
 /** Starts or stops the mix loop to match the setting; the first start builds the graph. */
@@ -675,11 +676,56 @@ async function startAt(at: number, { startSec = 0, auto = false, autoplay = true
   const token = ++loadToken;
 
   if (!extensionReady()) {
+    const { findAddonUpgrade } = await import('@/data/addon/addonResolver');
+    const { useAddonStore } = await import('@/data/addon/addonStore');
+    const artistName = entry.track.artists?.map((a) => a.name).join(', ') || '';
+    const addonUpgrade = await findAddonUpgrade({
+      title: entry.track.title,
+      artist: artistName,
+      durationSec: entry.track.durationSec ?? null,
+      album: entry.track.album?.name ?? null,
+    }).catch(() => null);
+
+    if (addonUpgrade) {
+      usePlayer.setState({ index: at, nowPlaying: hintOf(entry.track), status: 'loading', error: null });
+      const all = await getDecks();
+      const deck = all[active]!;
+      deck.audio.src = addonUpgrade.streamUrl;
+      deck.audio.currentTime = startSec;
+      if (autoplay) void deck.audio.play().catch(() => {});
+      useAddonStore.getState().setUpgradeState({
+        active: true,
+        addonId: addonUpgrade.addonId,
+        addonName: addonUpgrade.addonName,
+        quality: addonUpgrade.quality,
+        streamUrl: addonUpgrade.streamUrl,
+        format: addonUpgrade.format,
+      });
+      usePlayer.setState({
+        status: autoplay ? 'playing' : 'paused',
+        nowPlaying: {
+          ...hintOf(entry.track),
+          streamInfo: `FLAC · Lossless (Addon: ${addonUpgrade.addonName})`,
+          stream: {
+            codec: 'FLAC',
+            itag: null,
+            bitrateKbps: 1411,
+            sampleRateHz: 44100,
+            channels: 2,
+            client: `Addon: ${addonUpgrade.addonName}`,
+            mode: 'direct',
+          },
+        },
+      });
+      afterTrackStarted();
+      return;
+    }
+
     usePlayer.setState({
       index: at,
       nowPlaying: { ...hintOf(entry.track), title: entry.track.title || 'Can’t play this here yet' },
       status: 'error',
-      error: 'YouTube playback needs the Raaga extension.',
+      error: 'YouTube playback needs the Raaga extension, or add an Add-on in Settings.',
     });
     return;
   }
@@ -698,6 +744,7 @@ async function startAt(at: number, { startSec = 0, auto = false, autoplay = true
     if (!autoplay) usePlayer.setState({ status: 'paused' });
     afterTrackStarted();
     syncAutomix();
+    void import('@/data/addon/addonResolver').then((m) => m.attemptAddonUpgrade(entry.track));
   } catch (error) {
     if (token !== loadToken || (error instanceof Error && error.name === 'SupersededError')) return;
     const message = error instanceof Error ? error.message : String(error);
