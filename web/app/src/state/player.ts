@@ -21,7 +21,9 @@ import {
   type QueueSource,
 } from '@/playback/queue/timeline';
 import { trackLog } from '@/playback/trackLog';
+import { resolveLiveAddonStream, type ResolvedStream } from '@/playback/sources/addonResolver';
 import type { LoadedTrack, YouTubeEngine } from '@/playback/youtube/engine';
+import { useDesktopSettings } from '@/state/desktopSettings';
 
 export interface NowPlaying {
   videoId: string;
@@ -431,6 +433,41 @@ function insertUser(tracks: Track[], source: QueueSource | null, isNext: boolean
   usePlayer.setState({ queue: [...queue.slice(0, at), ...entries, ...queue.slice(at)] });
 }
 
+// ---- Direct Audio Stream Playback (Addons & JioSaavn) ------------------------------
+
+async function playDirectStream(
+  deck: Deck,
+  stream: ResolvedStream,
+  fromTrack: Track,
+  { startSec = 0, autoplay = true } = {},
+): Promise<void> {
+  await deck.engine.stop().catch(() => {});
+  deck.audio.src = stream.url;
+  if (startSec > 0) {
+    deck.audio.currentTime = startSec;
+  }
+
+  const nowPlaying: NowPlaying = {
+    videoId: fromTrack.videoId,
+    title: fromTrack.title,
+    artist: artistNames(fromTrack),
+    artworkUrl: fromTrack.thumbnail,
+    durationSec: stream.durationSec || fromTrack.durationSec || 0,
+    streamInfo: stream.streamInfo,
+  };
+
+  usePlayer.setState({ nowPlaying, error: null, status: autoplay ? 'playing' : 'paused' });
+  updateMediaSession(nowPlaying);
+
+  if (autoplay) {
+    try {
+      await deck.audio.play();
+    } catch (e: unknown) {
+      trackLog.w(`play() failed on stream from ${stream.sourceName}: ${String(e)}`, fromTrack.videoId);
+    }
+  }
+}
+
 // ---- Loading and moving through the queue -------------------------------------------
 
 /** Loads queue[at] into the deck in front and plays it. `auto` marks a move the player made on its own. */
@@ -441,7 +478,34 @@ async function startAt(at: number, { startSec = 0, auto = false, autoplay = true
   cancelCrossfade();
   const token = ++loadToken;
 
+  const audioQuality = useDesktopSettings.getState().audioQuality;
+  const isHighQualityCeiling = audioQuality === 'lossless' || audioQuality === 'high';
+
+  // Live lookup for Addon / JioSaavn streams matching desktop multi-source priority
+  const addonLookup = isHighQualityCeiling
+    ? resolveLiveAddonStream(entry.track, audioQuality)
+    : Promise.resolve<ResolvedStream | null>(null);
+
   if (!extensionReady()) {
+    // If extension is not installed, direct Addon / JioSaavn streams can still play!
+    usePlayer.setState({ index: at, nowPlaying: hintOf(entry.track), status: 'loading', error: null });
+    try {
+      const addonStream = await addonLookup;
+      if (token !== loadToken) return;
+      if (addonStream) {
+        const all = await getDecks();
+        const deck = all[active]!;
+        all[1 - active]!.engine.stop().catch(() => {});
+        deck.gain = 1;
+        applyVolumes();
+        await playDirectStream(deck, addonStream, entry.track, { startSec, autoplay });
+        afterTrackStarted();
+        return;
+      }
+    } catch {
+      // Fall through to extension error
+    }
+
     usePlayer.setState({
       index: at,
       nowPlaying: { ...hintOf(entry.track), title: entry.track.title || 'Can’t play this here yet' },
@@ -459,13 +523,66 @@ async function startAt(at: number, { startSec = 0, auto = false, autoplay = true
     all[1 - active]!.engine.stop().catch(() => {});
     deck.gain = 1;
     applyVolumes();
+
+    // Check if high-quality addon stream arrived quickly (in the race window)
+    let earlyAddon: ResolvedStream | null = null;
+    if (isHighQualityCeiling) {
+      earlyAddon = await Promise.race([
+        addonLookup,
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 500)),
+      ]);
+    }
+
+    if (earlyAddon && token === loadToken) {
+      await playDirectStream(deck, earlyAddon, entry.track, { startSec, autoplay });
+      afterTrackStarted();
+      return;
+    }
+
+    // Start on YouTube immediately to eliminate delay
     const track = await deck.engine.load(entry.track.videoId, { startSec, autoplay });
     if (token !== loadToken) return;
     applyTrack(track, entry.track);
     if (!autoplay) usePlayer.setState({ status: 'paused' });
     afterTrackStarted();
+
+    // Background upgrade: when addon stream resolves, upgrade seamlessly if it beats current
+    if (isHighQualityCeiling) {
+      addonLookup
+        .then((betterStream) => {
+          if (!betterStream || token !== loadToken) return;
+          const current = usePlayer.getState().nowPlaying;
+          if (current?.videoId !== entry.track.videoId) return;
+
+          // Don't downgrade if already lossless
+          if (current.streamInfo?.toLowerCase().includes('flac') && !betterStream.isLossless) return;
+          if (current.streamInfo?.includes(betterStream.sourceName)) return;
+
+          const resumeAt = deck.audio.currentTime;
+          const wasPlaying = !deck.audio.paused;
+          trackLog.i(`seamlessly upgrading to ${betterStream.streamInfo}`, entry.track.videoId);
+          void playDirectStream(deck, betterStream, entry.track, { startSec: resumeAt, autoplay: wasPlaying });
+        })
+        .catch(() => {});
+    }
   } catch (error) {
     if (token !== loadToken || (error instanceof Error && error.name === 'SupersededError')) return;
+
+    // YouTube failed: attempt fallback to Addon / JioSaavn
+    try {
+      const fallbackStream = await addonLookup.catch(() => null);
+      if (token === loadToken && fallbackStream) {
+        trackLog.i(`YouTube failed, falling back to ${fallbackStream.sourceName}`, entry.track.videoId);
+        const all = await getDecks();
+        const deck = all[active]!;
+        await playDirectStream(deck, fallbackStream, entry.track, { startSec, autoplay });
+        afterTrackStarted();
+        return;
+      }
+    } catch {
+      // Fall through to error handler
+    }
+
     const message = error instanceof Error ? error.message : String(error);
     usePlayer.setState({ status: 'error', error: message });
     // A track the player reached on its own that can't play is skipped, as on the phone.

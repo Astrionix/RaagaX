@@ -67,7 +67,7 @@ const DEFAULT_ADDONS: AddonSource[] = [
     name: 'JioSaavn',
     baseUrl: 'https://jiosaavn-addon.raaga.app',
     version: '2.0.4',
-    enabled: false,
+    enabled: true,
     isDefault: true,
     resources: ['search', 'stream'],
     allowDownloads: true,
