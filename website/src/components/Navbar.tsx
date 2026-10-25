@@ -110,11 +110,11 @@ export const Navbar: React.FC = () => {
             <a
               href={desktopDownload.url}
               download={desktopDownload.fileName}
+              title={`Download Raaga Desktop for ${desktopDownload.name}`}
               aria-label={`Download Raaga Desktop for ${desktopDownload.name}`}
-              className="liquid-glass-pill h-8 sm:h-9 inline-flex items-center gap-1.5 px-3.5 rounded-full text-xs font-semibold text-white/90 hover:text-white cursor-pointer"
+              className="liquid-glass-pill size-8 sm:size-9 grid place-items-center rounded-full text-white/90 hover:text-white cursor-pointer btn-press"
             >
-              <Monitor className="w-3.5 h-3.5 text-blue-400" />
-              <span>Desktop ({desktopDownload.name})</span>
+              <ArrowDownToLine className="w-4 h-4 text-white/90 hover:text-white" />
             </a>
 
             <button
