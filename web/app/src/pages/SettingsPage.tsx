@@ -1,10 +1,23 @@
 import { lazy, Suspense, useState, type ChangeEvent, type ComponentType, type ReactNode } from 'react';
-import { ChevronRight, Puzzle, Search, Users, X } from 'lucide-react';
+import {
+  AudioWaveform,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  ChevronUp,
+  Network,
+  Plus,
+  Puzzle,
+  Search,
+  Share2,
+  Trash2,
+  Users,
+  X,
+} from 'lucide-react';
 import { MdOutlineExtension } from 'react-icons/md';
 import { SiApplemusic, SiDiscord, SiSpotify, SiYoutubemusic } from 'react-icons/si';
-import { PageHeader } from '@/components/PageHeader';
 import { PrefetchLink } from '@/components/PrefetchLink';
-import { useAddons } from '@/data/addons/addonManager';
+import { useAddons, type AddonSource } from '@/data/addons/addonManager';
 import { useDiscord } from '@/extension/useDiscord';
 import { useExtension } from '@/extension/useExtension';
 import { useYtAuth } from '@/extension/useYtAuth';
@@ -40,16 +53,51 @@ function Glyph({ Icon, color, ink }: { Icon: ComponentType<{ size?: number }>; c
 }
 
 /** A row that opens a page of its own */
-function LinkRow({ to, icon, title, value }: { to: string; icon?: ReactNode; title: string; value?: string | null }) {
-  return (
-    <PrefetchLink to={to} className={`${icon ? settingsUi.integration : settingsUi.integrationPlain} ${settingsUi.linkRow}`}>
+function LinkRow({
+  to,
+  icon,
+  title,
+  subtitle,
+  value,
+  onClick,
+}: {
+  to?: string;
+  icon?: ReactNode;
+  title: string;
+  subtitle?: string;
+  value?: string | null;
+  onClick?: () => void;
+}) {
+  const content = (
+    <>
       {icon}
-      <span className={settingsUi.integrationName}>{title}</span>
+      <span className={settingsUi.rowText}>
+        <span className="font-semibold text-sm text-primary">{title}</span>
+        {subtitle && <span className={settingsUi.rowDetail}>{subtitle}</span>}
+      </span>
       <span className={settingsUi.value}>
         {value}
         <ChevronRight size={16} />
       </span>
-    </PrefetchLink>
+    </>
+  );
+
+  if (to) {
+    return (
+      <PrefetchLink to={to} className={`${icon ? settingsUi.integration : settingsUi.integrationPlain} ${settingsUi.linkRow}`}>
+        {content}
+      </PrefetchLink>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`${icon ? settingsUi.integration : settingsUi.integrationPlain} ${settingsUi.linkRow}`}
+    >
+      {content}
+    </button>
   );
 }
 
@@ -114,6 +162,129 @@ function youtubeText(auth: ReturnType<typeof useYtAuth>): string {
   return active ? active.name : 'Signed in';
 }
 
+/** Modal to add a new custom addon source URL */
+function AddSourceModal({
+  onClose,
+  onAdded,
+}: {
+  onClose: () => void;
+  onAdded: (addon: AddonSource) => void;
+}) {
+  const [url, setUrl] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { addAddonByUrl } = useAddons();
+
+  const handleAdd = async (targetUrl?: string) => {
+    const toAdd = targetUrl || url.trim();
+    if (!toAdd) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const added = await addAddonByUrl(toAdd);
+      onAdded(added);
+      onClose();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to connect to addon server.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const presets = [
+    { name: 'Qobuz Heisenbergg', url: 'https://qobuz.heisenbergg.de', note: 'Lossless FLAC Master' },
+    { name: 'Chan Streamer', url: 'https://eljohnzc.raaga.app', note: 'High-Res Audio' },
+    { name: 'Tidal FLAC', url: 'https://tidal.raaga.app', note: 'Hi-Fi 24-bit streams' },
+  ];
+
+  return (
+    <div
+      className="fixed inset-0 z-(--z-modal) grid animate-fade place-items-center bg-scrim p-4"
+      onPointerDown={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div
+        className="flex max-h-[min(680px,calc(100vh-48px))] w-[min(500px,calc(100vw-32px))] animate-zoom flex-col rounded-[14px] bg-page shadow-glass p-5"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Add a source"
+      >
+        <div className="flex items-center justify-between pb-3 border-b border-quaternary">
+          <div>
+            <h2 className="type-title-2-emphasized text-primary">Add a source</h2>
+            <p className="type-callout text-secondary mt-0.5">
+              Connect an HTTP audio provider without installing code.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid size-[30px] place-items-center rounded-full bg-quaternary text-secondary hover:text-primary transition-colors cursor-pointer"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="py-4 space-y-4">
+          <div>
+            <label className="type-caption-emphasized text-secondary uppercase block mb-1.5">
+              Addon Server URL
+            </label>
+            <input
+              type="url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://my-addon-server.com"
+              className="w-full rounded-xl border border-quaternary bg-quinary px-3.5 py-2.5 type-body text-primary placeholder:text-secondary focus:border-key focus:ring-1 focus:ring-key outline-none transition-all"
+            />
+            {error && <p className="text-xs text-rose-500 font-medium mt-1.5">{error}</p>}
+          </div>
+
+          <div>
+            <span className="type-caption text-secondary block mb-2 font-medium">Quick Presets:</span>
+            <div className="grid gap-2">
+              {presets.map((preset) => (
+                <button
+                  key={preset.url}
+                  type="button"
+                  onClick={() => handleAdd(preset.url)}
+                  disabled={loading}
+                  className="flex items-center justify-between p-2.5 rounded-xl bg-quaternary/60 hover:bg-quaternary text-left transition-colors cursor-pointer"
+                >
+                  <div>
+                    <span className="font-semibold text-xs text-primary block">{preset.name}</span>
+                    <span className="type-caption text-secondary">{preset.note}</span>
+                  </div>
+                  <span className="text-key type-caption-emphasized">Connect</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 pt-3 border-t border-quaternary">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-pill px-4 py-1.5 type-callout text-secondary hover:text-primary transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => handleAdd()}
+            disabled={loading || !url.trim()}
+            className="rounded-pill bg-key text-white px-5 py-1.5 type-callout-emphasized hover:opacity-90 active:scale-95 disabled:opacity-40 transition-all cursor-pointer shadow-xs"
+          >
+            {loading ? 'Connecting…' : 'Add Source'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const extension = useExtension();
   const yt = useYtAuth();
@@ -128,14 +299,21 @@ export default function SettingsPage() {
   // Desktop App Settings Store
   const desktop = useDesktopSettings();
 
-  // Search filter
-  const [searchQuery, setSearchQuery] = useState('');
+  // Addon Manager Store
+  const { addons, toggleAddon, moveAddon, removeAddon } = useAddons();
 
-  // Modals & Feedback toasts
+  // Custom UI state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [accountExpanded, setAccountExpanded] = useState(false);
+  const [addSourceOpen, setAddSourceOpen] = useState(false);
   const [lyricsOpen, setLyricsOpen] = useState(false);
   const [licensesOpen, setLicensesOpen] = useState(false);
   const [cacheToast, setCacheToast] = useState<string | null>(null);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
+
+  // Separate custom addons (e.g. Qobuz, Chan) from built-in sources
+  const customAddons = addons.filter((a) => a.id !== 'jiosaavn-stream-addon');
+  const jioSaavnAddon = addons.find((a) => a.id === 'jiosaavn-stream-addon');
 
   const present = extension.state === 'present';
   const discordText =
@@ -146,8 +324,6 @@ export default function SettingsPage() {
       : discord.state === 'ready' && discord.discord.available
         ? 'Not connected'
         : null;
-
-  const activeAddonsCount = useAddons((s) => s.addons.filter((a) => a.enabled).length);
 
   const filterMatches = (text: string, ...extraTexts: (string | undefined | null)[]): boolean => {
     if (!searchQuery.trim()) return true;
@@ -177,46 +353,34 @@ export default function SettingsPage() {
     }, 800);
   };
 
-  const hasAnyMatches = [
-    filterMatches('Audio Sources', 'Addons', 'Lossless Core', 'FLAC', 'JioSaavn', 'Tidal'),
-    filterMatches('Audio quality', 'Bitrate', 'Precision', 'Lossless', 'FLAC', 'PCM'),
-    filterMatches('Playback', 'Crossfade', 'Automix', 'Silence', 'Spatial', 'Speed', 'Sleep'),
-    filterMatches('Appearance', 'Cover', 'Blur', 'Mesh', 'Volume'),
-    filterMatches('Lyrics', 'Synced', 'Blur', 'Musixmatch', 'LRCLIB'),
-    filterMatches('Storage', 'Cache', 'Disk', 'Clear'),
-    filterMatches('Account', 'YouTube', 'Spotify', 'Discord', 'Extension'),
-    filterMatches('Apple Music', 'Access'),
-    filterMatches('Miscellaneous', 'Advanced', 'Nerd', 'Repeat', 'Session'),
-    filterMatches('Listen Together', 'Party', 'Sync', 'Friends'),
-  ].some(Boolean);
-
   return (
     <div className={settingsUi.centered}>
-      <PageHeader title="Settings" />
-
-      <div className={settingsUi.body}>
-        {/* Search Field (Desktop Feature) */}
-        <div className="relative mb-6">
-          <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-secondary" />
+      {/* Header Row: Title on Left, Search on Right (as in screenshot) */}
+      <div className="mx-(--body-gutter) pt-8 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <h1 className="type-header-emphasized text-primary">Settings</h1>
+        <div className="relative w-full sm:w-64">
+          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-secondary" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search settings, playback, audio quality..."
-            className="h-10 w-full rounded-xl border border-transparent bg-quaternary pl-10 pr-9 type-body text-primary placeholder:text-secondary outline-none focus:border-key focus:ring-1 focus:ring-key transition-all"
+            placeholder="Search settings"
+            className="h-9 w-full rounded-xl border border-transparent bg-quaternary pl-9 pr-8 text-sm text-primary placeholder:text-secondary outline-none focus:border-key focus:ring-1 focus:ring-key transition-all"
           />
           {searchQuery && (
             <button
               type="button"
               onClick={() => setSearchQuery('')}
-              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-secondary hover:text-primary transition-colors cursor-pointer"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-secondary hover:text-primary transition-colors cursor-pointer"
               aria-label="Clear search"
             >
-              <X size={15} />
+              <X size={14} />
             </button>
           )}
         </div>
+      </div>
 
+      <div className={settingsUi.body}>
         {/* Action feedback toast */}
         {cacheToast && (
           <div className="mb-5 flex items-center justify-between rounded-xl bg-emerald-500/10 border border-emerald-500/25 px-4 py-2.5 text-xs font-medium text-emerald-600 dark:text-emerald-400 animate-in fade-in">
@@ -227,77 +391,284 @@ export default function SettingsPage() {
           </div>
         )}
 
-        {!hasAnyMatches && searchQuery.trim() && (
-          <div className="py-12 text-center text-secondary">
-            <p className="type-title-3 font-semibold text-primary">No settings found</p>
-            <p className="type-callout mt-1">Try searching for &ldquo;quality&rdquo;, &ldquo;crossfade&rdquo;, &ldquo;cache&rdquo;, or &ldquo;addons&rdquo;</p>
-          </div>
-        )}
-
-        {/* 1. AUDIO SOURCES & ADDONS */}
-        {filterMatches('Audio Sources', 'Addons', 'Lossless Core', 'FLAC', 'JioSaavn', 'Tidal') && (
+        {/* 1. ACCOUNT */}
+        {filterMatches('Account', 'Integrations', 'Discord', 'Spotify', 'YouTube', 'Last.fm', 'ListenBrainz') && (
           <>
-            <h2 className={settingsUi.sectionHeader}>Audio Sources & Addons</h2>
+            <h2 className={settingsUi.sectionHeader}>Account</h2>
             <section className={settingsUi.group}>
               <LinkRow
-                to="/addons"
-                icon={<Glyph Icon={Puzzle} color="#f59e0b" />}
-                title="Audio Addons Manager"
-                value={activeAddonsCount > 0 ? `${activeAddonsCount} active · Lossless Priority` : 'Configure sources'}
+                icon={<Glyph Icon={Share2} color="#3b82f6" />}
+                title="Account & integrations"
+                subtitle="Discord rich presence, Last.fm and ListenBrainz"
+                onClick={() => setAccountExpanded((prev) => !prev)}
+              />
+
+              {accountExpanded && (
+                <div className="bg-quaternary/20 border-t border-quaternary/40 animate-in fade-in duration-200">
+                  <div className={settingsUi.integration}>
+                    <Glyph Icon={SiYoutubemusic} color="#ffffff" ink="#ff0033" />
+                    <span className={settingsUi.integrationName}>YouTube Music</span>
+                    <span className={settingsUi.value}>{youtubeText(yt)}</span>
+                  </div>
+                  <div className={settingsUi.integration}>
+                    <Glyph Icon={SiSpotify} color="#1ed760" />
+                    <span className={settingsUi.integrationName}>Spotify</span>
+                    {present ? <SpotifyIntegration /> : <span className={settingsUi.value}>Needs the extension</span>}
+                  </div>
+                  {present && discord.state === 'ready' && discord.discord.available && (
+                    <LinkRow to="/settings/discord" icon={<Glyph Icon={SiDiscord} color="#5865f2" />} title="Discord" value={discordText} />
+                  )}
+                  <LinkRow
+                    to="/extension"
+                    icon={<Glyph Icon={MdOutlineExtension} color="#636366" />}
+                    title="Raaga Extension"
+                    value={present ? `v${extension.extension.info.version}` : 'Not installed'}
+                  />
+                  <div className="hairline-[16px]">
+                    <Toggle
+                      label="Share Listening Activity to YouTube"
+                      detail="Songs you play here go to your YouTube Music history and shape its recommendations."
+                      checked={shareHistory}
+                      onChange={setShareHistory}
+                    />
+                  </div>
+                </div>
+              )}
+            </section>
+          </>
+        )}
+
+        {/* 2. LISTEN TOGETHER */}
+        {filterMatches('Listen Together', 'Party', 'Sync', 'Friends') && (
+          <>
+            <h2 className={settingsUi.sectionHeader}>Listen Together</h2>
+            <section className={settingsUi.group}>
+              <LinkRow
+                to="/settings/listen-together"
+                title="Listen together"
+                subtitle="Get a code to share with friends"
+                value={party.code ? `In party ${party.code}` : null}
               />
             </section>
+          </>
+        )}
+
+        {/* 3. SOURCES, TRIED IN THIS ORDER (MATCHING SCREENSHOT) */}
+        {filterMatches('Sources', 'Addon', 'Qobuz', 'Chan', 'JioSaavn', 'YouTube', 'FLAC', 'Lossless') && (
+          <>
+            <h2 className={settingsUi.sectionHeader}>Sources, tried in this order</h2>
+            <section className={settingsUi.group}>
+              {/* Custom Addons List */}
+              {customAddons.map((addon, index) => (
+                <div key={addon.id} className="relative flex items-center justify-between px-4 py-3 hairline-[16px] group">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <span className="text-secondary text-sm font-semibold w-5 text-center flex-none">
+                      {index + 1}
+                    </span>
+                    <span className="grid size-7 place-items-center rounded-lg bg-amber-500/15 text-amber-400 flex-none">
+                      <Puzzle size={16} />
+                    </span>
+                    <div className="flex flex-col min-w-0 flex-1">
+                      <span className="font-semibold text-sm text-primary truncate">{addon.name}</span>
+                      <span className="type-caption text-secondary truncate">
+                        {addon.description || `${addon.name} v${addon.version}`}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 ml-3 flex-none">
+                    {/* Reorder Chevrons (Up / Down) */}
+                    <div className="flex items-center gap-0.5">
+                      {index > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => moveAddon(index, 'up')}
+                          className="p-1 rounded-md text-secondary hover:text-primary hover:bg-quaternary transition-colors cursor-pointer"
+                          title="Move up"
+                          aria-label="Move up"
+                        >
+                          <ChevronUp size={16} />
+                        </button>
+                      )}
+                      {index < customAddons.length - 1 && (
+                        <button
+                          type="button"
+                          onClick={() => moveAddon(index, 'down')}
+                          className="p-1 rounded-md text-secondary hover:text-primary hover:bg-quaternary transition-colors cursor-pointer"
+                          title="Move down"
+                          aria-label="Move down"
+                        >
+                          <ChevronDown size={16} />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Delete button (hover) */}
+                    <button
+                      type="button"
+                      onClick={() => removeAddon(addon.id)}
+                      className="opacity-0 group-hover:opacity-100 p-1 rounded-md text-secondary hover:text-rose-400 transition-all cursor-pointer"
+                      title="Remove addon"
+                      aria-label="Remove addon"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+
+                    {/* Switch Toggle */}
+                    <input
+                      type="checkbox"
+                      className={settingsUi.switch}
+                      checked={addon.enabled}
+                      onChange={(e) => toggleAddon(addon.id, e.currentTarget.checked)}
+                    />
+                  </div>
+                </div>
+              ))}
+
+              {/* Built-in JioSaavn Source */}
+              <div className="relative flex items-center justify-between px-4 py-3 hairline-[16px]">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <span className="text-secondary text-sm font-semibold w-5 text-center flex-none">
+                    {customAddons.length + 1}
+                  </span>
+                  <span className="grid size-7 place-items-center rounded-lg bg-teal-500/15 text-teal-400 flex-none">
+                    <AudioWaveform size={16} />
+                  </span>
+                  <div className="flex flex-col min-w-0 flex-1">
+                    <span className="font-semibold text-sm text-primary">JioSaavn</span>
+                    <span className="type-caption text-secondary">High Quality · 320kbps</span>
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  className={settingsUi.switch}
+                  checked={jioSaavnAddon ? jioSaavnAddon.enabled : false}
+                  onChange={(e) => {
+                    if (jioSaavnAddon) toggleAddon(jioSaavnAddon.id, e.currentTarget.checked);
+                  }}
+                />
+              </div>
+
+              {/* Built-in YouTube Music Source */}
+              <div className="relative flex items-center justify-between px-4 py-3 hairline-[16px]">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <span className="text-secondary text-sm font-semibold w-5 text-center flex-none">
+                    {customAddons.length + 2}
+                  </span>
+                  <span className="grid size-7 place-items-center rounded-lg bg-red-500/15 text-red-500 flex-none">
+                    <SiYoutubemusic size={16} />
+                  </span>
+                  <div className="flex flex-col min-w-0 flex-1">
+                    <span className="font-semibold text-sm text-primary">YouTube Music</span>
+                    <span className="type-caption text-secondary">Lossy · Full catalogue · Radio</span>
+                  </div>
+                </div>
+                <span className="text-xs text-secondary font-medium mr-1 flex-none">Always on</span>
+              </div>
+
+              {/* Add a source row */}
+              <button
+                type="button"
+                onClick={() => setAddSourceOpen(true)}
+                className="relative flex items-center justify-between w-full text-left px-4 py-3 hairline-[16px] hover:bg-quaternary transition-colors cursor-pointer"
+              >
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <span className="grid size-7 place-items-center rounded-lg bg-quaternary text-primary flex-none">
+                    <Plus size={16} />
+                  </span>
+                  <div className="flex flex-col min-w-0 flex-1">
+                    <span className="font-semibold text-sm text-primary">Add a source</span>
+                    <span className="type-caption text-secondary leading-normal">
+                      An addon server you host or were given a link to. Searched and streamed over plain HTTP — no code is downloaded or run.
+                    </span>
+                  </div>
+                </div>
+                <ChevronRight size={16} className="text-secondary ml-3 flex-none" />
+              </button>
+            </section>
+          </>
+        )}
+
+        {/* 4. AUDIO QUALITY (MATCHING SCREENSHOT) */}
+        {filterMatches('Audio quality', 'Bitrate', 'Precision', 'Lossless', 'FLAC', 'PCM') && (
+          <>
+            <h2 className={settingsUi.sectionHeader}>Audio Quality</h2>
+            <div className="mx-4 mb-2 flex flex-wrap gap-2">
+              {(
+                [
+                  { id: 'low', label: 'Low' },
+                  { id: 'medium', label: 'Medium' },
+                  { id: 'high', label: 'High' },
+                  { id: 'lossless', label: 'Lossless' },
+                ] as const
+              ).map((q) => {
+                const active =
+                  (desktop.audioQuality === 'standard' && q.id === 'medium') || desktop.audioQuality === q.id;
+                return (
+                  <button
+                    key={q.id}
+                    type="button"
+                    onClick={() => desktop.updateSetting('audioQuality', q.id)}
+                    className={`rounded-xl px-5 py-2 text-xs font-semibold transition-all cursor-pointer ${
+                      active
+                        ? 'bg-neutral-900 text-white dark:bg-white dark:text-black shadow-md'
+                        : 'bg-quaternary/70 hover:bg-quaternary text-secondary hover:text-primary'
+                    }`}
+                  >
+                    {q.label}
+                  </button>
+                );
+              })}
+            </div>
             <p className={settingsUi.footer}>
-              Connect high-bitrate external sources, FLAC lossless mirrors, or self-hosted Raaga Addons.
+              {desktop.audioQuality === 'lossless'
+                ? 'Your addons + JioSaavn, bit-exact where available'
+                : desktop.audioQuality === 'high'
+                  ? 'High Quality · 320kbps high-bitrate streaming'
+                  : desktop.audioQuality === 'medium'
+                    ? 'Balanced data usage and playback fidelity'
+                    : 'Fast buffering with lowest bandwidth consumption'}
             </p>
           </>
         )}
 
-        {/* 2. AUDIO QUALITY & PRECISION (DESKTOP FEATURE) */}
-        {filterMatches('Audio quality', 'Bitrate', 'Precision', 'Lossless', 'FLAC', 'PCM') && (
+        {/* 5. DOWNLOADS (MATCHING SCREENSHOT) */}
+        {filterMatches('Downloads', 'Offline', 'Quality') && (
           <>
-            <h2 className={settingsUi.sectionHeader}>Audio Quality & Bitrate</h2>
-            <section className={settingsUi.group}>
-              <div className="relative px-4 py-3.5 hairline-[16px]">
-                <div className="mb-2">
-                  <div className="text-primary font-medium">Stream Quality</div>
-                  <div className={settingsUi.rowDetail}>
-                    Decides which audio sources and formats are preferred during playback.
-                  </div>
-                </div>
-                <div className="flex rounded-xl bg-quaternary p-1 gap-1">
-                  {(
-                    [
-                      { id: 'standard', label: 'Standard' },
-                      { id: 'high', label: 'High (320kbps)' },
-                      { id: 'lossless', label: 'Lossless (FLAC)' },
-                    ] as const
-                  ).map((item) => {
-                    const active = desktop.audioQuality === item.id;
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => desktop.updateSetting('audioQuality', item.id)}
-                        className={`flex-1 rounded-lg py-1.5 text-xs font-medium transition-all cursor-pointer ${
-                          active
-                            ? 'bg-key text-white font-semibold shadow-xs'
-                            : 'text-secondary hover:text-primary'
-                        }`}
-                      >
-                        {item.label}
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="mt-2 type-caption text-secondary">
-                  {desktop.audioQuality === 'lossless'
-                    ? 'Lossless: Queries bit-exact FLAC audio up to 192kHz/24-bit.'
-                    : desktop.audioQuality === 'high'
-                      ? 'High: Direct 320kbps streams for high fidelity.'
-                      : 'Standard: Fast buffering with optimized data usage.'}
-                </div>
-              </div>
+            <h2 className={settingsUi.sectionHeader}>Downloads</h2>
+            <div className="mx-4 mb-2 flex flex-wrap gap-2">
+              {(
+                [
+                  { id: 'standard', label: 'Standard' },
+                  { id: 'high', label: 'High' },
+                  { id: 'lossless', label: 'Lossless' },
+                ] as const
+              ).map((q) => {
+                const active = desktop.downloadQuality === q.id;
+                return (
+                  <button
+                    key={q.id}
+                    type="button"
+                    onClick={() => desktop.updateSetting('downloadQuality', q.id)}
+                    className={`rounded-xl px-5 py-2 text-xs font-semibold transition-all cursor-pointer ${
+                      active
+                        ? 'bg-neutral-900 text-white dark:bg-white dark:text-black shadow-md'
+                        : 'bg-quaternary/70 hover:bg-quaternary text-secondary hover:text-primary'
+                    }`}
+                  >
+                    {q.label}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
 
+        {/* 6. PLAYBACK ENGINE & AUTOMIX */}
+        {filterMatches('Playback', 'Crossfade', 'Automix', 'Silence', 'Spatial', 'Speed', 'Sleep') && (
+          <>
+            <h2 className={settingsUi.sectionHeader}>Playback & Audio Engine</h2>
+            <section className={settingsUi.group}>
               <SelectRow
                 label="Output Precision"
                 detail="Audio decoding float vs integer representation."
@@ -307,26 +678,6 @@ export default function SettingsPage() {
                 <option value="FLOAT_32">32-bit Float (Recommended)</option>
                 <option value="PCM_16">16-bit PCM</option>
               </SelectRow>
-
-              <SelectRow
-                label="Offline Download Quality"
-                detail="Default audio tier for saved tracks."
-                value={desktop.downloadQuality}
-                onChange={(e) => desktop.updateSetting('downloadQuality', e.target.value as AudioQualitySetting)}
-              >
-                <option value="lossless">Lossless Master (FLAC)</option>
-                <option value="high">High (320kbps)</option>
-                <option value="standard">Standard (128kbps)</option>
-              </SelectRow>
-            </section>
-          </>
-        )}
-
-        {/* 3. PLAYBACK ENGINE & AUTOMIX (DESKTOP FEATURE) */}
-        {filterMatches('Playback', 'Crossfade', 'Automix', 'Silence', 'Spatial', 'Speed', 'Sleep') && (
-          <>
-            <h2 className={settingsUi.sectionHeader}>Playback & Audio Engine</h2>
-            <section className={settingsUi.group}>
               <Toggle
                 label="AutoPlay"
                 detail="When the queue ends, seamlessly keep playing similar songs."
@@ -464,7 +815,7 @@ export default function SettingsPage() {
           </>
         )}
 
-        {/* 4. APPEARANCE & CUSTOMIZATION (DESKTOP FEATURE) */}
+        {/* 7. APPEARANCE & VISUALS */}
         {filterMatches('Appearance', 'Cover', 'Blur', 'Mesh', 'Volume') && (
           <>
             <h2 className={settingsUi.sectionHeader}>Appearance & Visuals</h2>
@@ -502,7 +853,7 @@ export default function SettingsPage() {
           </>
         )}
 
-        {/* 5. LYRICS SETTINGS */}
+        {/* 8. LYRICS SETTINGS */}
         {filterMatches('Lyrics', 'Synced', 'Blur', 'Musixmatch', 'LRCLIB') && (
           <>
             <h2 className={settingsUi.sectionHeader}>Lyrics</h2>
@@ -537,7 +888,7 @@ export default function SettingsPage() {
           </>
         )}
 
-        {/* 6. STORAGE & CACHE (DESKTOP FEATURE) */}
+        {/* 9. STORAGE & CACHE */}
         {filterMatches('Storage', 'Cache', 'Disk', 'Clear') && (
           <>
             <h2 className={settingsUi.sectionHeader}>Storage & Cache</h2>
@@ -571,48 +922,7 @@ export default function SettingsPage() {
           </>
         )}
 
-        {/* 7. ACCOUNT & INTEGRATIONS */}
-        {filterMatches('Account', 'YouTube', 'Spotify', 'Discord', 'Extension') && (
-          <>
-            <h2 className={settingsUi.sectionHeader}>Account & Integrations</h2>
-            <section className={settingsUi.group}>
-              <div className={settingsUi.integration}>
-                <Glyph Icon={SiYoutubemusic} color="#ffffff" ink="#ff0033" />
-                <span className={settingsUi.integrationName}>YouTube Music</span>
-                <span className={settingsUi.value}>{youtubeText(yt)}</span>
-              </div>
-              <div className={settingsUi.integration}>
-                <Glyph Icon={SiSpotify} color="#1ed760" />
-                <span className={settingsUi.integrationName}>Spotify</span>
-                {present ? <SpotifyIntegration /> : <span className={settingsUi.value}>Needs the extension</span>}
-              </div>
-              {present && discord.state === 'ready' && discord.discord.available && (
-                <LinkRow to="/settings/discord" icon={<Glyph Icon={SiDiscord} color="#5865f2" />} title="Discord" value={discordText} />
-              )}
-              <LinkRow
-                to="/extension"
-                icon={<Glyph Icon={MdOutlineExtension} color="#636366" />}
-                title="Raaga Extension"
-                value={present ? `v${extension.extension.info.version}` : 'Not installed'}
-              />
-            </section>
-
-            <section className={`${settingsUi.group} mt-3 empty:hidden`}>
-              <Toggle
-                label="Share Listening Activity to YouTube"
-                detail={
-                  present && !extension.extension.info.capabilities.includes('yt.stats')
-                    ? 'Update the Raaga extension to share: this version can’t send plays to YouTube.'
-                    : 'Songs you play here go to your YouTube Music history and shape its recommendations.'
-                }
-                checked={shareHistory}
-                onChange={setShareHistory}
-              />
-            </section>
-          </>
-        )}
-
-        {/* 8. APPLE MUSIC ACCESS */}
+        {/* 10. APPLE MUSIC ACCESS */}
         {filterMatches('Apple Music', 'Access') && (
           <>
             <h2 className={settingsUi.sectionHeader}>Apple Music</h2>
@@ -627,7 +937,7 @@ export default function SettingsPage() {
           </>
         )}
 
-        {/* 9. MISCELLANEOUS & ADVANCED (DESKTOP FEATURE) */}
+        {/* 11. MISCELLANEOUS & ADVANCED */}
         {filterMatches('Miscellaneous', 'Advanced', 'Nerd', 'Repeat', 'Session') && (
           <>
             <h2 className={settingsUi.sectionHeader}>Miscellaneous & Advanced</h2>
@@ -649,22 +959,7 @@ export default function SettingsPage() {
           </>
         )}
 
-        {/* 10. LISTEN TOGETHER */}
-        {filterMatches('Listen Together', 'Party', 'Sync', 'Friends') && (
-          <>
-            <h2 className={settingsUi.sectionHeader}>Listen Together</h2>
-            <section className={settingsUi.group}>
-              <LinkRow
-                to="/settings/listen-together"
-                icon={<Glyph Icon={Users} color="#fa2d48" />}
-                title="Listen Together"
-                value={party.code ? `In party ${party.code}` : 'Listen in sync with friends'}
-              />
-            </section>
-          </>
-        )}
-
-        {/* FOOTER (MATCHING DESKTOP APP) */}
+        {/* FOOTER */}
         <div className="mt-12 mb-6 flex flex-col items-center justify-center gap-2 text-center text-xs text-secondary">
           <div className="flex flex-wrap items-center justify-center gap-2 font-medium">
             <span>Raaga v1.9.7 (Desktop Web)</span>
@@ -691,6 +986,17 @@ export default function SettingsPage() {
           </p>
         </div>
       </div>
+
+      {/* Add Custom Source Modal */}
+      {addSourceOpen && (
+        <AddSourceModal
+          onClose={() => setAddSourceOpen(false)}
+          onAdded={(newSource) => {
+            setCacheToast(`Source "${newSource.name}" successfully added!`);
+            setTimeout(() => setCacheToast(null), 3500);
+          }}
+        />
+      )}
 
       {/* Lyrics Provider Order Dialog */}
       {lyricsOpen && (

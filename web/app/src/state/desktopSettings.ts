@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type AudioQualitySetting = 'standard' | 'high' | 'lossless';
+export type AudioQualitySetting = 'low' | 'medium' | 'high' | 'lossless' | 'standard';
 export type AutomixPerformanceSetting = 'efficient' | 'balanced' | 'performance';
 export type OutputPrecisionSetting = 'PCM_16' | 'FLOAT_32';
 

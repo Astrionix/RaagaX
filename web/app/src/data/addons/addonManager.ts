@@ -39,28 +39,40 @@ const STORAGE_KEY = 'raaga:addons';
 
 const DEFAULT_ADDONS: AddonSource[] = [
   {
-    id: 'raaga-lossless-builtin',
-    name: 'Raaga Lossless Core',
-    baseUrl: 'https://lossless.raaga.app',
-    version: '1.2.0',
+    id: 'qobuz-heisenbergg',
+    name: 'Qobuz [Heisenbergg]',
+    baseUrl: 'https://qobuz.heisenbergg.de',
+    version: '1.0.0-de',
     enabled: true,
-    isDefault: true,
+    isDefault: false,
     resources: ['search', 'stream'],
     allowDownloads: true,
     status: 'online',
-    description: 'Bit-exact FLAC (up to 24-bit / 192kHz) and Hi-Fi streaming engine.',
+    description: 'Qobuz [Heisenbergg] v1.0.0-de',
+  },
+  {
+    id: 'chan-addon',
+    name: 'Chan',
+    baseUrl: 'https://eljohnzc.raaga.app',
+    version: '5.5.5',
+    enabled: true,
+    isDefault: false,
+    resources: ['search', 'stream'],
+    allowDownloads: true,
+    status: 'online',
+    description: 'Eljohnzc Addon v5.5.5 · Streaming only',
   },
   {
     id: 'jiosaavn-stream-addon',
-    name: 'JioSaavn Hi-Res Streamer',
+    name: 'JioSaavn',
     baseUrl: 'https://jiosaavn-addon.raaga.app',
     version: '2.0.4',
-    enabled: true,
+    enabled: false,
     isDefault: true,
     resources: ['search', 'stream'],
     allowDownloads: true,
     status: 'online',
-    description: 'Direct 320kbps AAC and lossless master audio stream mirror.',
+    description: 'High Quality · 320kbps',
   },
 ];
 
@@ -98,6 +110,7 @@ interface AddonStore {
   error: string | null;
   addAddonByUrl: (url: string) => Promise<AddonSource>;
   toggleAddon: (id: string, enabled?: boolean) => void;
+  moveAddon: (index: number, direction: 'up' | 'down') => void;
   removeAddon: (id: string) => void;
   checkStatus: (id: string) => Promise<void>;
   checkAllStatuses: () => Promise<void>;
@@ -195,6 +208,19 @@ export const useAddons = create<AddonStore>((set, get) => ({
     });
     persistAddons(updated);
     set({ addons: updated });
+  },
+
+  moveAddon: (index: number, direction: 'up' | 'down') => {
+    const current = [...get().addons];
+    const target = direction === 'up' ? index - 1 : index + 1;
+    if (target < 0 || target >= current.length) return;
+    const item = current[index];
+    const targetItem = current[target];
+    if (!item || !targetItem) return;
+    current[index] = targetItem;
+    current[target] = item;
+    persistAddons(current);
+    set({ addons: current });
   },
 
   removeAddon: (id: string) => {
