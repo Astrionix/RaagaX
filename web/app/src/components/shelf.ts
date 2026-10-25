@@ -17,7 +17,7 @@ export const shelfList = [
   'grid grid-flow-col grid-rows-[repeat(var(--rows),max-content)] auto-cols-(--xs-width) gap-x-2.5 gap-y-(--row-gap)',
   // 15px bleed so hover shadows aren't clipped (--standard-lockup-shadow-offset).
   '-my-[15px] px-(--body-gutter) py-[15px] scroll-px-(--body-gutter)',
-  'overflow-x-auto overflow-y-hidden overscroll-x-none snap-x snap-mandatory scroll-smooth motion-reduce:scroll-auto',
+  'overflow-x-auto overflow-y-hidden snap-x snap-mandatory scroll-smooth motion-reduce:scroll-auto [-webkit-overflow-scrolling:touch] touch-pan-x',
   '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden *:min-w-0 *:snap-start',
   '[--gap:20px] [--n:var(--cols-s)] min-[1260px]:[--n:var(--cols-m)] min-[1580px]:[--n:var(--cols-l)] min-[1940px]:[--n:var(--cols-xl)]',
   'lg:auto-cols-[calc((100%-(var(--n)-1)*var(--gap))/var(--n))] lg:gap-x-(--gap)',

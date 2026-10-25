@@ -44,7 +44,7 @@ export function AppShell() {
   const fullScreen = useUi((s) => s.fullScreen);
 
   let banner = null;
-  if (mobile) {
+  if (mobile && !bannerDismissed) {
     banner = (
       <Banner
         title="Raaga is better in the app."
@@ -54,6 +54,7 @@ export function AppShell() {
             Get the App
           </a>
         }
+        onDismiss={dismissBanner}
       />
     );
   } else if (extension.state === 'missing' && !bannerDismissed) {
@@ -78,12 +79,13 @@ export function AppShell() {
         <Sidebar />
         <MobileTopBar />
         {/* The page scrolls under the fixed sidebar and the floating player. */}
+        {/* On tablet portrait and mobile (< 1000px), full width is available with top bar offset. */}
         <main
           id="scrollable-page"
-          className="absolute inset-0 overflow-x-hidden overflow-y-auto pl-(--web-navigation-width) [scrollbar-gutter:stable] data-tint:bg-(--page-tint) data-tint:transition-[background-color] data-tint:duration-300 data-tint:ease-in max-sm:pt-(--mobile-top-bar-height) max-sm:pl-0"
+          className="absolute inset-0 overflow-x-hidden overflow-y-auto pl-(--web-navigation-width) [scrollbar-gutter:stable] data-tint:bg-(--page-tint) data-tint:transition-[background-color] data-tint:duration-300 data-tint:ease-in max-lg:pt-(--mobile-top-bar-height) max-lg:pl-0 [-webkit-overflow-scrolling:touch]"
         >
           {/* Clears the floating pill: its height, its offset, and some air. */}
-          <div className="min-h-full pb-[calc(var(--player-pill-height)+var(--player-bottom-offset)+40px)]">
+          <div className="min-h-full pb-[calc(var(--player-pill-height)+var(--player-bottom-offset)+36px)] max-sm:pb-[calc(var(--player-pill-height)+var(--player-bottom-offset)+20px)]">
             <Outlet />
           </div>
         </main>

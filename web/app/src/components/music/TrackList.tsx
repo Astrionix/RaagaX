@@ -8,6 +8,7 @@ import { Artwork } from './Artwork';
 import { ExplicitBadge } from './ExplicitBadge';
 import { albumHref, artistHref, formatDuration } from './links';
 import { playList, playTrack, type ListContext } from './play';
+import { isTouchDevice } from '@/lib/platform';
 import { TrackMenu } from './TrackMenu';
 
 type Variant = 'album' | 'playlist';
@@ -98,6 +99,10 @@ function Row({ track, variant, position, fallbackArtwork, onPlayRow }: RowProps)
   const togglePlay = usePlayer((s) => s.togglePlay);
   const unavailable = track.unavailable;
   const onPlay = () => (unavailable ? undefined : current ? togglePlay() : onPlayRow());
+  const onRowClick = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest('a, button')) return;
+    if (isTouchDevice()) onPlay();
+  };
 
   return (
     <div
@@ -106,6 +111,7 @@ function Row({ track, variant, position, fallbackArtwork, onPlayRow }: RowProps)
       data-current={current || undefined}
       data-unavailable={unavailable}
       title={unavailable === 'matching' ? 'Looking for this on YouTube Music…' : unavailable === 'missing' ? 'Not found on YouTube Music' : undefined}
+      onClick={onRowClick}
       onDoubleClick={onPlay}
     >
       <div className={`${cell} gap-3`}>
@@ -181,14 +187,14 @@ function Row({ track, variant, position, fallbackArtwork, onPlayRow }: RowProps)
         </>
       )}
       <div className={`${cell} ${time[variant]} ${dimmed}`}>
-        {/* The ⋯ button (TrackMenu) takes the time's place on hover, as Apple's rows do. */}
-        <span className={unavailable ? undefined : 'group-focus-within/row:invisible group-hover/row:invisible group-has-[[data-open]]/row:invisible'}>
+        {/* The ⋯ button (TrackMenu) takes the time's place on hover, as Apple's rows do, or on touch devices. */}
+        <span className={unavailable ? undefined : 'group-focus-within/row:invisible group-hover/row:invisible group-has-[[data-open]]/row:invisible [@media(pointer:coarse)]:invisible'}>
           {unavailable === 'missing' ? 'Not found' : formatDuration(track.durationSec)}
         </span>
         {!unavailable && (
           <TrackMenu
             track={track}
-            className="absolute end-2.5 hidden size-7 place-items-center rounded-full text-key group-focus-within/row:grid group-hover/row:grid hover:bg-quinary data-open:grid"
+            className="absolute end-2.5 hidden size-7 place-items-center rounded-full text-key group-focus-within/row:grid group-hover/row:grid hover:bg-quinary data-open:grid [@media(pointer:coarse)]:grid touch-manipulation"
           />
         )}
       </div>

@@ -48,8 +48,8 @@ function Scrubber() {
   const { bar, elapsed, remaining, mixLabel, dragging, handlers } = useScrubber();
   return (
     <div className="group/scrub mt-3.5" data-dragging={dragging || undefined}>
-      {/* A taller hit area than the line it carries. */}
-      <div className="group/hit flex h-4 cursor-pointer touch-none items-center" {...handlers}>
+      {/* A taller hit area on touch devices (h-6 sm:h-4) with touch-none */}
+      <div className="group/hit flex h-6 sm:h-4 cursor-pointer touch-none items-center py-1 sm:py-0" {...handlers}>
         <div
           className="relative h-1 flex-1 overflow-hidden rounded-[999px] bg-quaternary transition-[height] duration-120 ease-in group-hover/hit:h-2 group-data-dragging/scrub:h-2"
           aria-hidden="true"
@@ -73,7 +73,7 @@ function Scrubber() {
 }
 
 const transportButton =
-  'grid place-items-center rounded-full transition-[background-color,scale] duration-100 ease-in enabled:hover:bg-quinary enabled:active:scale-90 disabled:opacity-40';
+  'grid place-items-center rounded-full transition-[background-color,scale] duration-100 ease-in enabled:hover:bg-quinary enabled:active:scale-90 disabled:opacity-40 touch-manipulation';
 // Shuffle and repeat, when on: full white on the mesh, where red would clash.
 const toggle = `${transportButton} size-9 text-tertiary aria-pressed:text-primary`;
 const skip = `${transportButton} size-12 text-primary`;
@@ -115,7 +115,7 @@ function Transport() {
 
 // Close, browser full screen, the column toggles and the speaker, in the corners.
 const chromeButton =
-  'grid size-8 place-items-center rounded-full text-secondary transition-[background-color,color] duration-100 ease-in hover:bg-quinary hover:text-primary';
+  'grid size-8 place-items-center rounded-full text-secondary touch-manipulation transition-[background-color,color] duration-100 ease-in hover:bg-quinary hover:text-primary';
 const chrome = `absolute z-1 ${chromeButton}`;
 const artworkLayer = 'absolute inset-0 size-full rounded-[inherit] object-cover opacity-0 transition-opacity duration-300 ease-in';
 
@@ -233,7 +233,7 @@ export function FullScreenPlayer() {
     <div
       // Over everything but menus and dialogs, which portal above it. The on-dark colours come from tokens.css (data-full-screen).
       // --art, the artwork's side: Apple's 461px at 1440px wide, and never taller than the screen leaves room for.
-      className="fixed inset-0 z-[calc(var(--z-contextual-menus)-2)] isolate animate-enter overflow-hidden text-primary [--art:min(32vw,calc(100dvh-330px),720px)] motion-reduce:[animation-name:fade-in] max-md:[--art:min(84vw,calc(100dvh-330px),420px)]"
+      className="fixed inset-0 z-[calc(var(--z-contextual-menus)-2)] isolate animate-enter overflow-hidden text-primary [--art:min(32vw,calc(100dvh-330px),720px)] motion-reduce:[animation-name:fade-in] max-lg:[--art:min(40vw,calc(100dvh-320px),460px)] max-md:[--art:min(84vw,calc(100dvh-330px),420px)]"
       role="dialog"
       aria-modal="true"
       aria-label="Now Playing"
@@ -251,16 +251,27 @@ export function FullScreenPlayer() {
         </div>
       )}
 
-      <button ref={close} className={`${corner} top-4 left-5`} aria-label="Close" onClick={() => setFullScreen(false)}>
+      <button
+        ref={close}
+        className={`${corner} top-[max(16px,env(safe-area-inset-top,16px))] left-[max(20px,env(safe-area-inset-left,20px))]`}
+        aria-label="Close"
+        onClick={() => setFullScreen(false)}
+      >
         <X size={20} />
       </button>
       {/* The music video's quality, just inside the full-screen button. */}
       {video && (
-        <VideoQuality className={`absolute top-[18px] z-1${hidden}${document.fullscreenEnabled ? ' right-15' : ' right-5'}`} />
+        <VideoQuality
+          className={`absolute top-[max(18px,env(safe-area-inset-top,18px))] z-1${hidden}${
+            document.fullscreenEnabled
+              ? ' right-[max(60px,calc(env(safe-area-inset-right,0px)+60px))]'
+              : ' right-[max(20px,env(safe-area-inset-right,20px))]'
+          }`}
+        />
       )}
       {document.fullscreenEnabled && (
         <button
-          className={`${corner} top-4 right-5`}
+          className={`${corner} top-[max(16px,env(safe-area-inset-top,16px))] right-[max(20px,env(safe-area-inset-right,20px))]`}
           aria-label={browserFullScreen ? 'Exit full screen' : 'Enter full screen'}
           onClick={toggleBrowserFullScreen}
         >
@@ -273,9 +284,9 @@ export function FullScreenPlayer() {
         className={
           theater
             ? `absolute inset-x-0 bottom-0 flex justify-center bg-[linear-gradient(to_top,rgb(0_0_0/0.72),rgb(0_0_0/0.35)_55%,transparent)] px-6 pt-32 pb-16 transition-opacity duration-300${hidden}`
-            : `grid h-full items-center justify-center gap-x-[clamp(48px,7vw,144px)] px-[clamp(24px,9vw,144px)] py-16 max-md:px-6 max-md:pb-18 ${
+            : `grid h-full items-center justify-center gap-x-[clamp(32px,6vw,144px)] px-[clamp(20px,7vw,144px)] py-12 sm:py-16 max-md:px-6 max-md:pb-18 ${
                 column
-                  ? 'grid-cols-[var(--art)_minmax(0,38vw)] max-md:grid-cols-[minmax(0,1fr)] max-md:grid-rows-[minmax(0,1fr)_auto] max-md:items-stretch max-md:gap-y-4'
+                  ? 'grid-cols-[var(--art)_minmax(0,38vw)] max-lg:grid-cols-[var(--art)_minmax(0,1fr)] max-md:grid-cols-[minmax(0,1fr)] max-md:grid-rows-[minmax(0,1fr)_auto] max-md:items-stretch max-md:gap-y-4'
                   : 'grid-cols-[var(--art)]'
               }`
         }
@@ -384,7 +395,7 @@ export function FullScreenPlayer() {
       </div>
 
       <button
-        className={`${corner} bottom-5 left-5 aria-pressed:text-primary`}
+        className={`${corner} bottom-[max(20px,env(safe-area-inset-bottom,20px))] left-[max(20px,env(safe-area-inset-left,20px))] aria-pressed:text-primary`}
         aria-label="Lyrics"
         aria-pressed={showLyrics}
         onClick={() => togglePanel('lyrics')}
@@ -393,7 +404,7 @@ export function FullScreenPlayer() {
       </button>
       {/* Up Next, with the speaker beside it: the level slides in over Up Next, as it does in the pill. */}
       <div
-        className={`group/actions absolute right-5 bottom-5 z-1 flex items-center [--volume-gap:36px] transition-opacity duration-300${hidden}`}
+        className={`group/actions absolute right-[max(20px,env(safe-area-inset-right,20px))] bottom-[max(20px,env(safe-area-inset-bottom,20px))] z-1 flex items-center [--volume-gap:36px] transition-opacity duration-300${hidden}`}
         data-volume-open={volumeOpen || undefined}
         onPointerLeave={() => setVolumeOpen(false)}
         onBlur={(event) => {

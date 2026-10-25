@@ -144,9 +144,9 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Below 484px the sidebar is a drawer opened from the top bar's menu button. */}
+      {/* On tablets in portrait and phones (< 1000px) the sidebar is a drawer opened from the top bar's menu button. */}
       <nav
-        className="absolute inset-y-0 left-0 z-(--z-web-chrome) flex w-(--web-navigation-width) flex-col glass-material max-sm:w-[min(300px,82vw)] max-sm:-translate-x-full max-sm:shadow-glass max-sm:transition-transform max-sm:duration-(--duration-panel) max-sm:ease-panel max-sm:data-[open=true]:translate-none"
+        className="absolute inset-y-0 left-0 z-(--z-web-chrome) flex w-(--web-navigation-width) flex-col glass-material max-lg:w-[min(320px,85vw)] max-lg:-translate-x-full max-lg:shadow-glass max-lg:transition-transform max-lg:duration-(--duration-panel) max-lg:ease-panel max-lg:data-[open=true]:translate-none select-none pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)] pl-[env(safe-area-inset-left,0px)]"
         data-open={drawerOpen}
         aria-label="Main"
       >
@@ -192,7 +192,13 @@ export function Sidebar() {
           </div>
         </div>
       </nav>
-      {drawerOpen && <div className="absolute inset-0 z-[calc(var(--z-web-chrome)-1)] hidden bg-scrim max-sm:block" onClick={close} aria-hidden="true" />}
+      {drawerOpen && (
+        <div
+          className="absolute inset-0 z-[calc(var(--z-web-chrome)-1)] hidden bg-black/50 backdrop-blur-xs max-lg:block animate-fade"
+          onClick={close}
+          aria-hidden="true"
+        />
+      )}
     </>
   );
 }

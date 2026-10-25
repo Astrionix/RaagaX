@@ -125,7 +125,7 @@ function Landing() {
   if (categories.isError) return <LoadError error={categories.error} onRetry={() => void categories.refetch()} />;
   if (!categories.data) {
     return (
-      <div className="mx-(--body-gutter) mt-[46px] mb-8 grid grid-cols-4 gap-5" aria-busy="true">
+      <div className="mx-(--body-gutter) mt-[46px] mb-8 grid grid-cols-4 gap-5 max-lg:grid-cols-3 max-[607px]:grid-cols-2 max-[607px]:gap-2.5" aria-busy="true">
         {Array.from({ length: 12 }, (_, i) => (
           <SkeletonBlock key={i} aspectRatio="16 / 9" radius="var(--radius-artwork-large)" />
         ))}

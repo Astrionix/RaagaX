@@ -314,6 +314,7 @@
   body {
     margin: 0;
     height: 100%;
+    -webkit-overflow-scrolling: touch;
   }
 
   body {
@@ -329,6 +330,15 @@
 
   #root {
     height: 100%;
+  }
+
+  /* Prevent iOS / iPadOS Safari auto-zoom on input focus */
+  @media screen and (max-width: 1024px) {
+    input,
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
   }
 
   h1,
