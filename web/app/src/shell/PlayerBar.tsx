@@ -17,6 +17,7 @@ import {
 } from '@/components/icons/Transport';
 import { FavoriteButton } from '@/components/music/FavoriteButton';
 import { useLyrics } from '@/lyrics/useLyrics';
+import { useDesktopSettings } from '@/state/desktopSettings';
 import { usePlayer } from '@/state/player';
 import { useUi } from '@/state/ui';
 import { Lcd } from './Lcd';
@@ -201,6 +202,7 @@ export function PlayerBar() {
   const toggleSidePanel = useUi((s) => s.toggleSidePanel);
   const jamOpen = useUi((s) => s.jamOpen);
   const toggleJam = useUi((s) => s.toggleJam);
+  const hideVolumeBar = useDesktopSettings((s) => s.hideVolumeBar);
   const lyrics = useLyrics();
   const hasLyrics = !!lyrics.data || sidePanel === 'lyrics';
   const hasTrack = usePlayer((s) => s.nowPlaying !== null);
@@ -300,7 +302,7 @@ export function PlayerBar() {
             >
               <UpNextIcon size={18} />
             </button>
-            <VolumeControl open={volumeOpen} onOpen={() => setVolumeOpen(true)} />
+            {!hideVolumeBar && <VolumeControl open={volumeOpen} onOpen={() => setVolumeOpen(true)} />}
           </div>
         </div>
       </div>

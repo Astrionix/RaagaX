@@ -9,6 +9,7 @@ import { PrefetchLink } from '@/components/PrefetchLink';
 import { artistCredits, creditSegments } from '@/lib/artistCredits';
 import { sizedArtwork } from '@/lib/artwork';
 import type { Track } from '@/data/music/types';
+import { useDesktopSettings } from '@/state/desktopSettings';
 import { usePlayer } from '@/state/player';
 import { useUi } from '@/state/ui';
 import { useHasVideo } from '@/state/video';
@@ -112,6 +113,7 @@ export function Lcd() {
     );
   }
 
+  const showNerdStats = useDesktopSettings((s) => s.showNerdStats);
   const { videoId, title, artist } = nowPlaying;
   const album = track?.album ?? null;
   return (
@@ -160,6 +162,11 @@ export function Lcd() {
               {title}
             </PageLink>
             {track?.explicit && <ExplicitBadge size={11} />}
+            {showNerdStats && (
+              <span className="ml-1.5 flex-none rounded bg-emerald-500/20 px-1 py-0.2 text-[9px] font-mono text-emerald-400">
+                {nowPlaying.streamInfo || 'FLAC 48kHz'}
+              </span>
+            )}
           </div>
         ) : (
           <span className={titleClass}>{status === 'loading' ? 'Loading…' : ''}</span>
