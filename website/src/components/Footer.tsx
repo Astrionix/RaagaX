@@ -112,6 +112,17 @@ export const Footer: React.FC = () => {
               </li>
               <li>
                 <a
+                  href={RAAGAX_CONFIG.webAppUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-cyan-400 hover:text-cyan-300 transition-colors flex items-center gap-1.5"
+                >
+                  <Globe className="w-3.5 h-3.5" />
+                  <span>web.raaga.me (Web Player)</span>
+                </a>
+              </li>
+              <li>
+                <a
                   href={RAAGAX_CONFIG.liveDomainUrl}
                   target="_blank"
                   rel="noopener noreferrer"

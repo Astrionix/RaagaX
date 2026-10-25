@@ -80,8 +80,8 @@ object JamInviteLink {
             return ParsedJamInvite(code = code, serverUrl = server)
         }
 
-        // 2. Official web domain: https://raaga.app/invite/<CODE>
-        if (scheme == "https" && host == HOST) {
+        // 2. Official web domain: https://web.raaga.me/invite/<CODE> or https://raaga.app/invite/<CODE>
+        if (scheme == "https" && (host == HOST || host == "web.raaga.me" || host == "raaga.me")) {
             val match = INVITE_PATH.matchEntire(uri.path.orEmpty()) ?: return null
             val code = match.groupValues[1].uppercase()
             return ParsedJamInvite(code = code, serverUrl = server)

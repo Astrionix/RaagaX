@@ -52,6 +52,7 @@ export interface ReleaseConfig {
   releaseNotesUrl: string;
   githubRepoUrl: string;
   liveDomainUrl: string;
+  webAppUrl: string;
   authorName: string;
   authorHandle: string;
   authorRole: string;
@@ -86,6 +87,7 @@ export const RAAGAX_CONFIG: ReleaseConfig = {
   releaseNotesUrl: "https://github.com/Astrionix/RaagaX/releases/tag/v1.9.8",
   githubRepoUrl: "https://github.com/Astrionix/RaagaX",
   liveDomainUrl: "https://raaga.me",
+  webAppUrl: "https://web.raaga.me",
   authorName: "Chandra Reddy",
   authorHandle: "@Astrionix",
   authorRole: "Lead Systems & Audio Architect",

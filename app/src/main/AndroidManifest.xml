@@ -210,6 +210,10 @@
                     android:scheme="https"
                     android:host="raaga.app"
                     android:pathPattern="/invite/......" />
+                <data
+                    android:scheme="https"
+                    android:host="web.raaga.me"
+                    android:pathPattern="/invite/......" />
             </intent-filter>
 
             <!-- Custom scheme for Listen Together invites on custom server deployments. -->

@@ -1,10 +1,11 @@
 /**
- * Party invites (JamInviteLink.kt): `https://raaga.app/invite/<CODE>`,
+ * Party invites (JamInviteLink.kt): `https://web.raaga.me/invite/<CODE>`, `https://raaga.app/invite/<CODE>`,
  * optionally `?server=<custom server>`, and `raaga://party/<CODE>`. On the
  * web the first is a route of this app (`/invite/:code`).
  */
 
-export const INVITE_ORIGIN = 'https://raaga.app';
+export const INVITE_ORIGIN = 'https://web.raaga.me';
+export const LEGACY_INVITE_ORIGIN = 'https://raaga.app';
 export const CODE_LENGTH = 6;
 
 /** Letters and digits only, upper case; null unless it's six of them. */
@@ -44,6 +45,6 @@ export function parseInvite(value: string): { code: string; serverUrl: string | 
 /** The link to share (JamInviteLink.url): a custom server's own invite page, else the public site's. */
 export function inviteUrl(code: string, customServer: string | null): string {
   const base = customServer?.trim().replace(/\/+$/, '');
-  const origin = base && base.toLowerCase() !== INVITE_ORIGIN ? base : INVITE_ORIGIN;
+  const origin = base && base.toLowerCase() !== INVITE_ORIGIN && base.toLowerCase() !== LEGACY_INVITE_ORIGIN ? base : INVITE_ORIGIN;
   return `${origin}/invite/${code.toUpperCase()}`;
 }
