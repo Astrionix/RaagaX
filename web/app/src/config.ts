@@ -10,4 +10,14 @@ export const config = {
   androidAppUrl: import.meta.env.VITE_ANDROID_APP_URL || 'https://github.com/Astrionix/RaagaX/releases/latest',
   /** Raaga's Listen Together server. vite.config.ts refuses a production build without it. */
   partyServerUrl: import.meta.env.VITE_PARTY_SERVER_URL ?? '',
+  /** Desktop Compose Multiplatform release downloads (Windows, macOS, Linux). */
+  desktopDownloads: {
+    version: 'v1.9.8',
+    windowsSetup: 'https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/Raaga-1.9.8-windows-setup.exe',
+    macArm64: 'https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/Raaga-1.9.8-macos-arm64.dmg',
+    macX64: 'https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/Raaga-1.9.8-macos-x64.dmg',
+    linuxAppImage: 'https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/Raaga-1.9.8-linux-x86_64.AppImage',
+    linuxDeb: 'https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/Raaga-1.9.8-linux-amd64.deb',
+    releasePage: 'https://github.com/Astrionix/RaagaX/releases/tag/v1.9.8',
+  },
 } as const;

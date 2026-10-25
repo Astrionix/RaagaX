@@ -11,6 +11,36 @@ export const Navbar: React.FC = () => {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showAllApks, setShowAllApks] = useState(false);
+  const [desktopDownload, setDesktopDownload] = useState<{ name: string; url: string; fileName: string }>({
+    name: "Windows",
+    url: RAAGAX_CONFIG.desktop.windows.setupExe,
+    fileName: "Raaga-1.9.8-windows-setup.exe",
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof navigator === "undefined") return;
+    const ua = navigator.userAgent;
+    const platform = (navigator as unknown as { userAgentData?: { platform?: string } }).userAgentData?.platform || navigator.platform || "";
+    if (/Macintosh|MacIntel|Mac OS X/i.test(ua) || /Mac/i.test(platform)) {
+      setDesktopDownload({
+        name: "macOS",
+        url: RAAGAX_CONFIG.desktop.macOS.arm64Dmg,
+        fileName: "Raaga-1.9.8-macos-arm64.dmg",
+      });
+    } else if ((/Linux/i.test(ua) || /Linux/i.test(platform)) && !/Android/i.test(ua)) {
+      setDesktopDownload({
+        name: "Linux",
+        url: RAAGAX_CONFIG.desktop.linux.appImage,
+        fileName: "Raaga-1.9.8-linux-x86_64.AppImage",
+      });
+    } else {
+      setDesktopDownload({
+        name: "Windows",
+        url: RAAGAX_CONFIG.desktop.windows.setupExe,
+        fileName: "Raaga-1.9.8-windows-setup.exe",
+      });
+    }
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -77,6 +107,16 @@ export const Navbar: React.FC = () => {
 
           {/* Right: Quick Download & Architecture Selector Actions */}
           <div className="hidden sm:flex items-center gap-2">
+            <a
+              href={desktopDownload.url}
+              download={desktopDownload.fileName}
+              aria-label={`Download Raaga Desktop for ${desktopDownload.name}`}
+              className="liquid-glass-pill h-8 sm:h-9 inline-flex items-center gap-1.5 px-3.5 rounded-full text-xs font-semibold text-white/90 hover:text-white cursor-pointer"
+            >
+              <Monitor className="w-3.5 h-3.5 text-blue-400" />
+              <span>Desktop ({desktopDownload.name})</span>
+            </a>
+
             <button
               onClick={() => setShowAllApks(true)}
               className="liquid-glass-pill h-8 sm:h-9 inline-flex items-center gap-1.5 px-3.5 rounded-full text-xs font-semibold text-white/90 cursor-pointer"
@@ -92,7 +132,7 @@ export const Navbar: React.FC = () => {
               className="btn-press h-8 sm:h-9 inline-flex items-center gap-1.5 px-4 rounded-full text-xs font-semibold text-black bg-white hover:bg-white/95 shadow-[0_0_20px_rgba(255,255,255,0.28),inset_0_1px_1px_0_rgba(255,255,255,0.8)] cursor-pointer"
             >
               <ArrowDownToLine className="w-3.5 h-3.5" />
-              <span>Download</span>
+              <span>Download APK</span>
             </a>
           </div>
 
@@ -122,6 +162,16 @@ export const Navbar: React.FC = () => {
             ))}
             
             <div className="pt-4 border-t border-white/10 space-y-2">
+              <a
+                href={desktopDownload.url}
+                download={desktopDownload.fileName}
+                aria-label={`Download Raaga Desktop for ${desktopDownload.name}`}
+                className="liquid-glass-pill w-full h-10 inline-flex items-center justify-center gap-2 rounded-full text-xs font-semibold text-white/90"
+              >
+                <Monitor className="w-4 h-4 text-blue-400" />
+                <span>Download Desktop for {desktopDownload.name}</span>
+              </a>
+
               <button
                 onClick={() => {
                   setMobileMenuOpen(false);

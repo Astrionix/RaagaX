@@ -1,3 +1,5 @@
+import { config } from '@/config';
+
 /**
  * Detects whether the current device is a tablet or iPad (iOS/iPadOS or Android tablet).
  */
@@ -28,4 +30,60 @@ export function isTouchDevice(): boolean {
   if (typeof window === 'undefined') return false;
   return isTablet() || isMobileBrowser() || (typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches);
 }
+
+export type DesktopOs = 'windows' | 'mac' | 'linux';
+
+export interface DetectedDesktop {
+  os: DesktopOs;
+  name: string;
+  url: string;
+  fileName: string;
+}
+
+/**
+ * Auto-detects the desktop operating system (macOS, Windows, or Linux)
+ * and returns the appropriate installer URL and filename.
+ */
+export function detectDesktopOs(): DetectedDesktop {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') {
+    return {
+      os: 'windows',
+      name: 'Windows',
+      url: config.desktopDownloads.windowsSetup,
+      fileName: 'Raaga-1.9.8-windows-setup.exe',
+    };
+  }
+
+  const ua = navigator.userAgent;
+  const platform = (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform || navigator.platform || '';
+
+  // macOS (Mac desktop/laptop, excluding iPad/iPhone)
+  if ((/Macintosh|MacIntel|MacPPC|Mac68K|Mac OS X/i.test(ua) || /Mac/i.test(platform)) && !isTablet() && !/iPhone|iPod/i.test(ua)) {
+    return {
+      os: 'mac',
+      name: 'macOS',
+      url: config.desktopDownloads.macArm64,
+      fileName: 'Raaga-1.9.8-macos-arm64.dmg',
+    };
+  }
+
+  // Linux (desktop, excluding Android)
+  if ((/Linux/i.test(ua) || /Linux/i.test(platform)) && !/Android/i.test(ua)) {
+    return {
+      os: 'linux',
+      name: 'Linux',
+      url: config.desktopDownloads.linuxAppImage,
+      fileName: 'Raaga-1.9.8-linux-x86_64.AppImage',
+    };
+  }
+
+  // Windows (default for desktop/unknown)
+  return {
+    os: 'windows',
+    name: 'Windows',
+    url: config.desktopDownloads.windowsSetup,
+    fileName: 'Raaga-1.9.8-windows-setup.exe',
+  };
+}
+
 

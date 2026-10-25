@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { DesktopDownloadButton } from '@/components/DesktopDownloadButton';
 import { PageHeader } from '@/components/PageHeader';
 import { Shelves, TrackShelf } from '@/components/music/ShelfView';
 import { LoadError, LoadMoreError, NeedsExtension } from '@/components/music/States';
@@ -48,7 +49,7 @@ export default function HomePage() {
   if (missing) {
     return (
       <>
-        <PageHeader title="Home" />
+        <PageHeader title="Home" action={<DesktopDownloadButton />} />
         <NeedsExtension />
       </>
     );
@@ -57,7 +58,7 @@ export default function HomePage() {
   if (home.isError && !home.data) {
     return (
       <>
-        <PageHeader title="Home" />
+        <PageHeader title="Home" action={<DesktopDownloadButton />} />
         <LoadError error={home.error} onRetry={() => void home.refetch()} />
       </>
     );
@@ -70,7 +71,7 @@ export default function HomePage() {
     .filter((shelf) => !(recent.length > 0 && shelf.title.trim().toLowerCase() === RECENT_TITLE.toLowerCase()));
   return (
     <>
-      <PageHeader title="Home" />
+      <PageHeader title="Home" action={<DesktopDownloadButton />} />
       {recent.length > 0 && <TrackShelf title={RECENT_TITLE} to="/library/recent" tracks={recent} source={RECENT_SOURCE} />}
       <Shelves shelves={shelves} />
       <div ref={sentinel} />
