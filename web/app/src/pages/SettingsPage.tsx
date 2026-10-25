@@ -1,9 +1,10 @@
-import { ChevronRight, Users } from 'lucide-react';
+import { ChevronRight, Puzzle, Users } from 'lucide-react';
 import { lazy, Suspense, useState, type ComponentType, type ReactNode } from 'react';
 import { MdOutlineExtension } from 'react-icons/md';
 import { SiApplemusic, SiDiscord, SiSpotify, SiYoutubemusic } from 'react-icons/si';
 import { PageHeader } from '@/components/PageHeader';
 import { PrefetchLink } from '@/components/PrefetchLink';
+import { useAddons } from '@/data/addons/addonManager';
 import { useDiscord } from '@/extension/useDiscord';
 import { useExtension } from '@/extension/useExtension';
 import { useYtAuth } from '@/extension/useYtAuth';
@@ -71,6 +72,7 @@ export default function SettingsPage() {
       : discord.state === 'ready' && discord.discord.available
         ? 'Not connected'
         : null;
+  const activeAddonsCount = useAddons((s) => s.addons.filter((a) => a.enabled).length);
 
   return (
     <div className={settingsUi.centered}>
@@ -98,6 +100,7 @@ export default function SettingsPage() {
             value={present ? `v${extension.extension.info.version}` : 'Not installed'}
           />
         </section>
+
         <section className={`${settingsUi.group} mt-3 empty:hidden`}>
           <Toggle
             label="Share Listening Activity to YouTube"
@@ -122,6 +125,16 @@ export default function SettingsPage() {
           <AppleMusicToggles />
         </section>
         <p className={settingsUi.footer}>From Apple Music’s public pages. No Apple Music account or sign-in needed.</p>
+
+        <h2 className={settingsUi.sectionHeader}>Audio Sources & Addons</h2>
+        <section className={settingsUi.group}>
+          <LinkRow
+            to="/addons"
+            icon={<Glyph Icon={Puzzle} color="#f59e0b" />}
+            title="Audio Addons"
+            value={activeAddonsCount > 0 ? `${activeAddonsCount} active` : 'Manage sources'}
+          />
+        </section>
 
         <h2 className={settingsUi.sectionHeader}>Listen Together</h2>
         <section className={settingsUi.group}>

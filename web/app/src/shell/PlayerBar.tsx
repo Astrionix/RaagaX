@@ -20,6 +20,7 @@ import { useLyrics } from '@/lyrics/useLyrics';
 import { usePlayer } from '@/state/player';
 import { useUi } from '@/state/ui';
 import { Lcd } from './Lcd';
+import { RaagaJamPopover } from './RaagaJamPopover';
 
 const control = 'grid place-items-center rounded-[6px] disabled:opacity-40';
 // Shuffle and repeat: secondary, and the key colour when on, as Apple's toggles.
@@ -88,6 +89,8 @@ function MobileMiniPlayer() {
   const hasNext = usePlayer((s) => s.index + 1 < s.queue.length || s.repeat !== 'off' || (s.autoplay && s.index >= 0));
   const { togglePlay, next } = usePlayer.getState();
   const setFullScreen = useUi((s) => s.setFullScreen);
+  const toggleJam = useUi((s) => s.toggleJam);
+  const jamOpen = useUi((s) => s.jamOpen);
   const { bar } = useScrubber();
   const partyCode = useParty((s) => s.code);
   const navigate = useNavigate();
@@ -138,20 +141,25 @@ function MobileMiniPlayer() {
         </button>
 
         {/* Action buttons */}
-        <div className="flex items-center gap-1.5 flex-none pl-1">
-          {partyCode && (
-            <button
-              type="button"
-              className="grid size-8 place-items-center rounded-full text-emerald-400 active:scale-95"
-              onClick={(e) => {
-                e.stopPropagation();
-                navigate('/jam');
-              }}
-              title={`In Jam (${partyCode})`}
-            >
-              <Users size={17} />
-            </button>
-          )}
+        <div className="flex items-center gap-1 flex-none pl-1">
+          <button
+            type="button"
+            data-jam-trigger="true"
+            className={`grid size-8 place-items-center rounded-full active:scale-95 transition-all ${
+              partyCode
+                ? 'text-emerald-400 bg-emerald-500/20 shadow-xs'
+                : jamOpen
+                  ? 'text-emerald-400 bg-white/15'
+                  : 'text-primary/70 hover:text-primary'
+            }`}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleJam();
+            }}
+            title={partyCode ? `In Jam (${partyCode})` : 'Raaga Jam'}
+          >
+            <Users size={16} />
+          </button>
           <FavoriteButton videoId={nowPlaying.videoId} className="grid size-8 place-items-center rounded-full text-primary active:scale-95" />
           <button
             type="button"
@@ -191,6 +199,8 @@ function MobileMiniPlayer() {
 export function PlayerBar() {
   const sidePanel = useUi((s) => s.sidePanel);
   const toggleSidePanel = useUi((s) => s.toggleSidePanel);
+  const jamOpen = useUi((s) => s.jamOpen);
+  const toggleJam = useUi((s) => s.toggleJam);
   const lyrics = useLyrics();
   const hasLyrics = !!lyrics.data || sidePanel === 'lyrics';
   const hasTrack = usePlayer((s) => s.nowPlaying !== null);
@@ -208,6 +218,7 @@ export function PlayerBar() {
   return (
     <>
       <MobileMiniPlayer />
+      <RaagaJamPopover />
       {/* Desktop & Tablet Pill: The side panel overlays the page; the pill re-centres in what's left. */}
       <div
         className="pointer-events-none absolute right-0 bottom-(--player-bottom-offset) left-(--web-navigation-width) z-[calc(var(--z-web-chrome)-1)] hidden sm:flex justify-center px-4 transition-[padding-inline-end] duration-(--duration-panel) ease-panel min-[1140px]:data-[panel-open=true]:pe-[calc(var(--side-panel-width)+20px)]"
@@ -257,10 +268,12 @@ export function PlayerBar() {
           >
             <FavoriteButton videoId={videoId} className={fading} />
             <button
-              className={`${fading} ${partyCode ? 'text-emerald-400!' : ''}`}
+              className={`${fading} ${partyCode ? 'text-emerald-400!' : jamOpen ? 'text-emerald-400!' : ''}`}
               aria-label="Raaga Jam"
+              aria-pressed={jamOpen}
+              data-jam-trigger="true"
               title={partyCode ? `In Jam (${partyCode}) · ${partyMembers} listening` : 'Start or Join Raaga Jam'}
-              onClick={() => navigate('/jam')}
+              onClick={toggleJam}
             >
               <span className="relative grid place-items-center">
                 <Users size={17} />

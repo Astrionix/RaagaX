@@ -46,5 +46,5 @@ export function inviteUrl(code: string, customServer: string | null): string {
   const base = customServer?.trim().replace(/\/+$/, '');
   const siteOrigin = typeof window !== 'undefined' && window.location.origin ? window.location.origin : INVITE_ORIGIN;
   const origin = base && base.toLowerCase() !== INVITE_ORIGIN ? base : siteOrigin;
-  return `${origin}/jam/${code.toUpperCase()}`;
+  return `${origin}/invite/${code.toUpperCase()}`;
 }

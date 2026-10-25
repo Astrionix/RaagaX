@@ -1,4 +1,4 @@
-import { ArrowUpRight, Download, ListMusic, Settings, Users } from 'lucide-react';
+import { ArrowUpRight, Download, ListMusic, Puzzle, Settings } from 'lucide-react';
 import { MdOutlineExtension } from 'react-icons/md';
 import { PrefetchLink, PrefetchNavLink } from '@/components/PrefetchLink';
 import { usePwaInstall } from '@/lib/usePwaInstall';
@@ -17,12 +17,12 @@ import {
 } from '@/components/icons/NavIcons';
 import { hrefFor } from '@/components/music/links';
 import { config } from '@/config';
+import { useAddons } from '@/data/addons/addonManager';
 import { LIBRARY_SECTIONS, type LibrarySection } from '@/data/music/library';
 import { useLibraryPlaylists, useSignedIn } from '@/data/music/queries';
 import { useSpotifyPlaylists } from '@/data/spotify/queries';
 import { useExtensionUpdate } from '@/extension/useExtensionUpdate';
 import { useSpotifySignedIn } from '@/extension/useSpotifyAuth';
-import { useParty } from '@/party/listenTogether';
 import { useUi } from '@/state/ui';
 import { AccountButton } from './AccountButton';
 
@@ -36,7 +36,7 @@ const PRIMARY: NavItem[] = [
   { to: '/search', label: 'Search', Icon: SearchIcon },
   { to: '/home', label: 'Home', Icon: HomeIcon },
   { to: '/new', label: 'New', Icon: NewIcon },
-  { to: '/jam', label: 'Raaga Jam', Icon: (props) => <Users size={props.size ?? 22} className="stroke-[1.9]" /> },
+  { to: '/addons', label: 'Audio Addons', Icon: (props) => <Puzzle size={props.size ?? 22} className="stroke-[1.9]" /> },
 ];
 
 const LIBRARY_ICONS: Record<Exclude<LibrarySection, 'playlists'>, NavItem['Icon']> = {
@@ -64,8 +64,7 @@ const sectionHeader = 'mt-4 px-2 py-1 type-callout-emphasized text-secondary';
 const list = 'flex flex-col';
 
 function NavList({ items, onNavigate }: { items: NavItem[]; onNavigate: () => void }) {
-  const partyCode = useParty((s) => s.code);
-  const memberCount = useParty((s) => s.members.length);
+  const activeAddons = useAddons((s) => s.addons.filter((a) => a.enabled).length);
 
   return (
     <ul className={list}>
@@ -74,10 +73,10 @@ function NavList({ items, onNavigate }: { items: NavItem[]; onNavigate: () => vo
           <PrefetchNavLink to={to} className={item} onClick={onNavigate}>
             <Icon size={24} className={icon} />
             <span className={navLabel}>{label}</span>
-            {to === '/jam' && partyCode && (
-              <span className="ml-auto flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
-                <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                {memberCount > 1 ? `${memberCount}` : 'Live'}
+            {to === '/addons' && activeAddons > 0 && (
+              <span className="ml-auto flex items-center gap-1.5 rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-400">
+                <span className="size-1.5 rounded-full bg-amber-400" />
+                {activeAddons}
               </span>
             )}
           </PrefetchNavLink>

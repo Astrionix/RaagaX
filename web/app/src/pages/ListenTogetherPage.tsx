@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Check, Copy, Crown, LogOut, QrCode, Radio, Share2, Sparkles, UserMinus, Users } from 'lucide-react';
+import { Check, Copy, Crown, LogOut, Radio, Share2, Sparkles, UserMinus, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { PageHeader } from '@/components/PageHeader';
@@ -209,7 +209,6 @@ function InParty() {
   const navigate = useNavigate();
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
-  const [showQr, setShowQr] = useState(false);
   const isHost = state.you?.isHost === true;
   const locked = controlsLocked(state);
   const custom = partyServer() && partyServer() !== DEFAULT_SERVER ? partyServer() : null;
@@ -269,31 +268,7 @@ function InParty() {
             {copiedLink ? <Check size={14} /> : <Share2 size={14} />}
             {copiedLink ? 'Link Copied!' : 'Share Jam Link'}
           </button>
-
-          <button
-            type="button"
-            className={`inline-flex items-center gap-1.5 rounded-pill px-3.5 py-1.5 type-callout-emphasized transition-all active:scale-95 ${
-              showQr ? 'bg-white text-black' : 'bg-quaternary hover:bg-quinary text-primary'
-            }`}
-            onClick={() => setShowQr(!showQr)}
-            title="Scan QR Code to join on phone"
-          >
-            <QrCode size={14} />
-            {showQr ? 'Hide QR' : 'Scan QR'}
-          </button>
         </div>
-
-        {showQr && (
-          <div className="mt-2 flex flex-col items-center gap-2 rounded-2xl bg-black/50 p-4 border border-white/10 shadow-inner">
-            <img
-              src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(link)}&color=ffffff&bgcolor=18181b`}
-              alt="Scan to join Jam"
-              className="size-40 rounded-xl object-contain shadow-md"
-              loading="lazy"
-            />
-            <p className="text-xs text-secondary">Scan with your phone camera to join instantly</p>
-          </div>
-        )}
       </div>
 
       <h2 className={settingsUi.sectionHeader}>
