@@ -105,6 +105,8 @@ export function Lcd() {
     return entry && entry.videoId === s.nowPlaying?.videoId ? entry : null;
   });
   const video = useHasVideo(nowPlaying?.videoId);
+  const showNerdStats = useDesktopSettings((s) => s.showNerdStats);
+  const audioQuality = useDesktopSettings((s) => s.audioQuality);
 
   if (!nowPlaying) {
     return (
@@ -114,8 +116,6 @@ export function Lcd() {
     );
   }
 
-  const showNerdStats = useDesktopSettings((s) => s.showNerdStats);
-  const audioQuality = useDesktopSettings((s) => s.audioQuality);
   const { videoId, title, artist } = nowPlaying;
   const album = track?.album ?? null;
   return (
