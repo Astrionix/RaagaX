@@ -43,45 +43,48 @@ const LICENSES: LicenseGroup[] = [
 
 export function LicensesModal({ onClose }: { onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-[calc(var(--z-web-chrome)+20)] flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/75 backdrop-blur-md" onClick={onClose} aria-hidden="true" />
-
+    <div className="fixed inset-0 z-(--z-modal) grid animate-fade place-items-center bg-scrim p-4" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
       {/* Modal Dialog */}
-      <div className="relative flex max-h-[85vh] w-[min(560px,94vw)] flex-col overflow-hidden rounded-2xl border border-white/15 bg-neutral-900/95 shadow-2xl backdrop-blur-2xl ring-1 ring-white/10">
-        <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+      <div
+        className="flex max-h-[min(720px,calc(100vh-48px))] w-[min(560px,calc(100vw-32px))] animate-zoom flex-col rounded-[14px] bg-page shadow-glass"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Third-Party Licenses"
+      >
+        <div className="flex items-center justify-between border-b border-quaternary px-5 py-4">
           <div>
-            <h2 className="text-base font-bold text-white">Third-Party Licenses</h2>
-            <p className="text-xs text-neutral-400">Raaga is free software, and so is everything it is built on.</p>
+            <h2 className="type-title-2-emphasized text-primary">Third-Party Licenses</h2>
+            <p className="type-callout text-secondary">Raaga is free software, and so is everything it is built on.</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="grid size-8 place-items-center rounded-lg text-neutral-400 hover:bg-white/10 hover:text-white transition-colors"
+            className="grid size-[30px] place-items-center rounded-full bg-quaternary text-secondary hover:text-primary transition-colors cursor-pointer"
+            aria-label="Close"
           >
-            <X size={18} />
+            <X size={16} />
           </button>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-5 space-y-6 [scrollbar-width:thin]">
           {LICENSES.map((group) => (
             <div key={group.title} className="space-y-3">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-400">{group.title}</h3>
+              <h3 className="type-subhead-emphasized uppercase text-secondary">{group.title}</h3>
               <div className="space-y-2">
                 {group.entries.map((entry) => (
-                  <div key={entry.name} className="rounded-xl bg-white/[0.03] p-3 border border-white/5">
+                  <div key={entry.name} className="rounded-xl bg-quinary p-3.5 border border-quaternary/40">
                     <div className="flex items-center justify-between">
-                      <span className="font-semibold text-sm text-white">{entry.name}</span>
-                      <span className="rounded-md bg-white/10 px-2 py-0.5 text-[10px] font-mono text-neutral-300">
+                      <span className="font-semibold type-body text-primary">{entry.name}</span>
+                      <span className="rounded-md bg-quaternary px-2 py-0.5 text-[10px] font-mono text-secondary">
                         {entry.license}
                       </span>
                     </div>
-                    {entry.note && <p className="text-xs text-neutral-400 mt-1">{entry.note}</p>}
+                    {entry.note && <p className="type-callout text-secondary mt-1">{entry.note}</p>}
                     <a
                       href={entry.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-[11px] text-red-400/80 hover:text-red-300 hover:underline mt-1 inline-block"
+                      className="type-caption text-key hover:underline mt-1.5 inline-block"
                     >
                       {entry.url}
                     </a>
@@ -92,11 +95,11 @@ export function LicensesModal({ onClose }: { onClose: () => void }) {
           ))}
         </div>
 
-        <div className="flex justify-end border-t border-white/10 px-5 py-3 bg-white/[0.02]">
+        <div className="flex justify-end border-t border-quaternary px-5 py-3 bg-quinary/30">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl bg-white/15 hover:bg-white/20 px-5 py-2 text-xs font-semibold text-white transition-all active:scale-95 cursor-pointer"
+            className="rounded-pill bg-key text-white px-5 py-1.5 type-callout-emphasized hover:opacity-90 active:scale-95 transition-all cursor-pointer shadow-xs"
           >
             Done
           </button>

@@ -5,12 +5,12 @@
 
 const row = 'relative flex items-center justify-between px-4 py-[11px] type-title-3 hairline-[16px]';
 const integration = 'relative grid items-center gap-x-3 px-4 py-[11px] type-title-3 hairline-[52px]';
-const field = 'w-[220px] flex-none rounded-[8px] border-0 bg-quaternary px-2.5 py-[5px] type-body text-primary';
+const field = 'max-w-[240px] w-auto sm:w-[220px] flex-none rounded-[8px] border-0 bg-quaternary px-2.5 py-[6px] type-body text-primary cursor-pointer focus:outline-hidden focus:ring-1 focus:ring-key transition-all [&>option]:bg-page [&>option]:text-primary';
 
 export const settingsUi = {
   /** The page title and its rows as one column, centred in the page. */
   centered: 'mx-auto max-w-[calc(640px+2*var(--body-gutter))]',
-  body: 'mx-(--body-gutter) mt-5 mb-[120px] max-w-[640px]',
+  body: 'mx-(--body-gutter) mt-5 mb-[180px] max-w-[640px]',
   group: 'overflow-hidden rounded-[10px] bg-quinary',
   sectionHeader: 'mx-4 mt-7 mb-2 type-subhead-emphasized uppercase text-secondary',
   footer: 'mx-4 mt-2 type-callout text-secondary',
@@ -18,8 +18,8 @@ export const settingsUi = {
   row,
   /** A row holding a switch, a select or a field: the whole row is its label. */
   controlRow: `${row} cursor-pointer gap-4`,
-  rowText: 'flex flex-col gap-0.5',
-  rowDetail: 'type-callout text-secondary',
+  rowText: 'flex flex-col gap-0.5 min-w-0 flex-1',
+  rowDetail: 'type-callout text-secondary leading-normal',
   value: 'inline-flex items-center gap-1.5 text-right type-body-reduced text-secondary',
   dot: 'size-2 rounded-full bg-green',
 
@@ -42,7 +42,7 @@ export const settingsUi = {
   /** Settings: an integration row that opens a page of its own. */
   linkRow: 'w-full cursor-pointer text-start hover:bg-quaternary',
   /** A row's own action, after its status (Connect, Disconnect). */
-  inlineButton: 'ml-2 rounded-[12px] bg-quaternary px-2.5 py-[3px] type-callout-emphasized text-primary disabled:opacity-50',
+  inlineButton: 'ml-2 rounded-[12px] bg-quaternary px-3 py-1 type-callout-emphasized text-primary disabled:opacity-50 hover:bg-quaternary/80 active:scale-95 transition-all cursor-pointer',
   inlineLink: 'text-key',
 
   switch: [

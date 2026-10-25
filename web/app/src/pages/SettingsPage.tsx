@@ -1,24 +1,5 @@
-import { lazy, Suspense, useMemo, useState, type ComponentType, type ReactNode } from 'react';
-import {
-  Check,
-  ChevronRight,
-  HardDrive,
-  Info,
-  Layers,
-  Music2,
-  Palette,
-  Puzzle,
-  RefreshCw,
-  Search,
-  Sliders,
-  Sparkles,
-  Trash2,
-  Users,
-  Volume2,
-  Wand2,
-  X,
-  Zap,
-} from 'lucide-react';
+import { lazy, Suspense, useState, type ChangeEvent, type ComponentType, type ReactNode } from 'react';
+import { ChevronRight, Puzzle, Search, Users, X } from 'lucide-react';
 import { MdOutlineExtension } from 'react-icons/md';
 import { SiApplemusic, SiDiscord, SiSpotify, SiYoutubemusic } from 'react-icons/si';
 import { PageHeader } from '@/components/PageHeader';
@@ -29,14 +10,18 @@ import { useExtension } from '@/extension/useExtension';
 import { useYtAuth } from '@/extension/useYtAuth';
 import { useParty } from '@/party/useParty';
 import { useHistorySettings } from '@/playback/historyReporting';
-import { useDesktopSettings, type AudioQualitySetting, type AutomixPerformanceSetting, type OutputPrecisionSetting } from '@/state/desktopSettings';
-import { CROSSFADE_CHOICES, usePlayer } from '@/state/player';
 import { LicensesModal } from '@/shell/LicensesModal';
+import {
+  useDesktopSettings,
+  type AudioQualitySetting,
+  type AutomixPerformanceSetting,
+  type OutputPrecisionSetting,
+} from '@/state/desktopSettings';
+import { CROSSFADE_CHOICES, usePlayer } from '@/state/player';
 import {
   AppleMusicIntegration,
   AppleMusicToggles,
   CanvasToggle,
-  DiscordIntegration,
   LyricSourcesAccess,
   SpotifyIntegration,
   Toggle,
@@ -65,6 +50,58 @@ function LinkRow({ to, icon, title, value }: { to: string; icon?: ReactNode; tit
         <ChevronRight size={16} />
       </span>
     </PrefetchLink>
+  );
+}
+
+/** A select setting row matching the Toggle styling and alignment */
+function SelectRow({
+  label,
+  detail,
+  value,
+  onChange,
+  children,
+}: {
+  label: string;
+  detail?: string;
+  value: string | number;
+  onChange: (e: ChangeEvent<HTMLSelectElement>) => void;
+  children: ReactNode;
+}) {
+  return (
+    <label className={settingsUi.controlRow}>
+      <span className={settingsUi.rowText}>
+        <span>{label}</span>
+        {detail && <span className={settingsUi.rowDetail}>{detail}</span>}
+      </span>
+      <select value={value} onChange={onChange} className={settingsUi.select}>
+        {children}
+      </select>
+    </label>
+  );
+}
+
+/** An action row with a right-aligned action button */
+function ActionRow({
+  label,
+  detail,
+  buttonLabel,
+  onClick,
+}: {
+  label: string;
+  detail?: string;
+  buttonLabel: string;
+  onClick: () => void;
+}) {
+  return (
+    <div className={settingsUi.row}>
+      <span className={settingsUi.rowText}>
+        <span>{label}</span>
+        {detail && <span className={settingsUi.rowDetail}>{detail}</span>}
+      </span>
+      <button type="button" onClick={onClick} className={settingsUi.inlineButton}>
+        {buttonLabel}
+      </button>
+    </div>
   );
 }
 
@@ -140,38 +177,60 @@ export default function SettingsPage() {
     }, 800);
   };
 
+  const hasAnyMatches = [
+    filterMatches('Audio Sources', 'Addons', 'Lossless Core', 'FLAC', 'JioSaavn', 'Tidal'),
+    filterMatches('Audio quality', 'Bitrate', 'Precision', 'Lossless', 'FLAC', 'PCM'),
+    filterMatches('Playback', 'Crossfade', 'Automix', 'Silence', 'Spatial', 'Speed', 'Sleep'),
+    filterMatches('Appearance', 'Cover', 'Blur', 'Mesh', 'Volume'),
+    filterMatches('Lyrics', 'Synced', 'Blur', 'Musixmatch', 'LRCLIB'),
+    filterMatches('Storage', 'Cache', 'Disk', 'Clear'),
+    filterMatches('Account', 'YouTube', 'Spotify', 'Discord', 'Extension'),
+    filterMatches('Apple Music', 'Access'),
+    filterMatches('Miscellaneous', 'Advanced', 'Nerd', 'Repeat', 'Session'),
+    filterMatches('Listen Together', 'Party', 'Sync', 'Friends'),
+  ].some(Boolean);
+
   return (
     <div className={settingsUi.centered}>
       <PageHeader title="Settings" />
 
       <div className={settingsUi.body}>
         {/* Search Field (Desktop Feature) */}
-        <div className="relative mb-5 mx-4">
-          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+        <div className="relative mb-6">
+          <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-secondary" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search settings, playback, audio quality..."
-            className="w-full rounded-2xl bg-white/5 border border-white/10 pl-10 pr-9 py-2.5 text-sm text-white placeholder:text-neutral-500 focus:outline-hidden focus:border-red-500/50 focus:ring-1 focus:ring-red-500/40 transition-all"
+            className="h-10 w-full rounded-xl border border-transparent bg-quaternary pl-10 pr-9 type-body text-primary placeholder:text-secondary outline-none focus:border-key focus:ring-1 focus:ring-key transition-all"
           />
           {searchQuery && (
             <button
               type="button"
               onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-white"
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-secondary hover:text-primary transition-colors cursor-pointer"
+              aria-label="Clear search"
             >
               <X size={15} />
             </button>
           )}
         </div>
 
+        {/* Action feedback toast */}
         {cacheToast && (
-          <div className="mx-4 mb-4 flex items-center justify-between rounded-xl bg-emerald-500/15 border border-emerald-500/30 px-3.5 py-2 text-xs font-medium text-emerald-300 animate-in fade-in">
+          <div className="mb-5 flex items-center justify-between rounded-xl bg-emerald-500/10 border border-emerald-500/25 px-4 py-2.5 text-xs font-medium text-emerald-600 dark:text-emerald-400 animate-in fade-in">
             <span>{cacheToast}</span>
-            <button type="button" onClick={() => setCacheToast(null)}>
-              <X size={13} />
+            <button type="button" onClick={() => setCacheToast(null)} className="cursor-pointer">
+              <X size={14} />
             </button>
+          </div>
+        )}
+
+        {!hasAnyMatches && searchQuery.trim() && (
+          <div className="py-12 text-center text-secondary">
+            <p className="type-title-3 font-semibold text-primary">No settings found</p>
+            <p className="type-callout mt-1">Try searching for &ldquo;quality&rdquo;, &ldquo;crossfade&rdquo;, &ldquo;cache&rdquo;, or &ldquo;addons&rdquo;</p>
           </div>
         )}
 
@@ -198,72 +257,67 @@ export default function SettingsPage() {
           <>
             <h2 className={settingsUi.sectionHeader}>Audio Quality & Bitrate</h2>
             <section className={settingsUi.group}>
-              <div className="p-4 flex flex-col gap-2 border-b border-white/5">
-                <span className="text-sm font-semibold text-white">Stream Quality</span>
-                <span className="text-xs text-neutral-400 mb-1">
-                  Decides which audio sources and formats are preferred during playback.
-                </span>
-                <div className="flex flex-wrap gap-2">
+              <div className="relative px-4 py-3.5 hairline-[16px]">
+                <div className="mb-2">
+                  <div className="text-primary font-medium">Stream Quality</div>
+                  <div className={settingsUi.rowDetail}>
+                    Decides which audio sources and formats are preferred during playback.
+                  </div>
+                </div>
+                <div className="flex rounded-xl bg-quaternary p-1 gap-1">
                   {(
                     [
-                      { id: 'standard', label: 'Standard', desc: '128kbps AAC / Opus' },
-                      { id: 'high', label: 'High', desc: '320kbps High-Bitrate' },
-                      { id: 'lossless', label: 'Lossless', desc: 'Bit-exact FLAC (24-bit/192kHz)' },
+                      { id: 'standard', label: 'Standard' },
+                      { id: 'high', label: 'High (320kbps)' },
+                      { id: 'lossless', label: 'Lossless (FLAC)' },
                     ] as const
-                  ).map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => desktop.updateSetting('audioQuality', item.id)}
-                      className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
-                        desktop.audioQuality === item.id
-                          ? 'bg-red-500 text-white shadow-md shadow-red-500/20'
-                          : 'bg-white/5 hover:bg-white/10 text-neutral-300'
-                      }`}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
+                  ).map((item) => {
+                    const active = desktop.audioQuality === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => desktop.updateSetting('audioQuality', item.id)}
+                        className={`flex-1 rounded-lg py-1.5 text-xs font-medium transition-all cursor-pointer ${
+                          active
+                            ? 'bg-key text-white font-semibold shadow-xs'
+                            : 'text-secondary hover:text-primary'
+                        }`}
+                      >
+                        {item.label}
+                      </button>
+                    );
+                  })}
                 </div>
-                <span className="text-[11px] text-neutral-400 mt-1">
+                <div className="mt-2 type-caption text-secondary">
                   {desktop.audioQuality === 'lossless'
-                    ? 'Lossless: Queries high-fidelity FLAC audio up to 192kHz/24-bit.'
+                    ? 'Lossless: Queries bit-exact FLAC audio up to 192kHz/24-bit.'
                     : desktop.audioQuality === 'high'
                       ? 'High: Direct 320kbps streams for high fidelity.'
                       : 'Standard: Fast buffering with optimized data usage.'}
-                </span>
+                </div>
               </div>
 
-              <div className="p-4 flex items-center justify-between border-b border-white/5">
-                <div>
-                  <span className="text-sm font-semibold text-white block">Output Precision</span>
-                  <span className="text-xs text-neutral-400">Audio decoding float vs integer representation.</span>
-                </div>
-                <select
-                  value={desktop.outputPrecision}
-                  onChange={(e) => desktop.updateSetting('outputPrecision', e.target.value as OutputPrecisionSetting)}
-                  className={settingsUi.select}
-                >
-                  <option value="FLOAT_32">32-bit Float (Recommended)</option>
-                  <option value="PCM_16">16-bit PCM</option>
-                </select>
-              </div>
+              <SelectRow
+                label="Output Precision"
+                detail="Audio decoding float vs integer representation."
+                value={desktop.outputPrecision}
+                onChange={(e) => desktop.updateSetting('outputPrecision', e.target.value as OutputPrecisionSetting)}
+              >
+                <option value="FLOAT_32">32-bit Float (Recommended)</option>
+                <option value="PCM_16">16-bit PCM</option>
+              </SelectRow>
 
-              <div className="p-4 flex items-center justify-between">
-                <div>
-                  <span className="text-sm font-semibold text-white block">Offline Download Quality</span>
-                  <span className="text-xs text-neutral-400">Default audio tier for saved tracks.</span>
-                </div>
-                <select
-                  value={desktop.downloadQuality}
-                  onChange={(e) => desktop.updateSetting('downloadQuality', e.target.value as AudioQualitySetting)}
-                  className={settingsUi.select}
-                >
-                  <option value="lossless">Lossless Master (FLAC)</option>
-                  <option value="high">High (320kbps)</option>
-                  <option value="standard">Standard (128kbps)</option>
-                </select>
-              </div>
+              <SelectRow
+                label="Offline Download Quality"
+                detail="Default audio tier for saved tracks."
+                value={desktop.downloadQuality}
+                onChange={(e) => desktop.updateSetting('downloadQuality', e.target.value as AudioQualitySetting)}
+              >
+                <option value="lossless">Lossless Master (FLAC)</option>
+                <option value="high">High (320kbps)</option>
+                <option value="standard">Standard (128kbps)</option>
+              </SelectRow>
             </section>
           </>
         )}
@@ -280,28 +334,34 @@ export default function SettingsPage() {
                 onChange={setAutoplay}
               />
 
-              <div className="p-4 flex flex-col gap-2 border-b border-white/5">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-white">Crossfade</span>
-                  <span className="text-xs font-mono text-neutral-400">
-                    {crossfadeSec === 0 ? 'Off' : `${crossfadeSec} seconds`}
+              <div className="relative px-4 py-3.5 hairline-[16px]">
+                <div className="flex items-center justify-between mb-2">
+                  <span className={settingsUi.rowText}>
+                    <span>Crossfade</span>
+                    <span className={settingsUi.rowDetail}>Smoothly overlaps audio when switching tracks.</span>
+                  </span>
+                  <span className="font-mono text-xs text-secondary font-medium shrink-0 ml-3">
+                    {crossfadeSec === 0 ? 'Off' : `${crossfadeSec}s`}
                   </span>
                 </div>
-                <div className="flex gap-2">
-                  {CROSSFADE_CHOICES.map((sec) => (
-                    <button
-                      key={sec}
-                      type="button"
-                      onClick={() => setCrossfade(sec)}
-                      className={`flex-1 rounded-lg py-1 text-xs font-semibold transition-all cursor-pointer ${
-                        crossfadeSec === sec
-                          ? 'bg-red-500 text-white shadow-xs'
-                          : 'bg-white/5 hover:bg-white/10 text-neutral-300'
-                      }`}
-                    >
-                      {sec === 0 ? 'Off' : `${sec}s`}
-                    </button>
-                  ))}
+                <div className="flex rounded-xl bg-quaternary p-1 gap-1">
+                  {CROSSFADE_CHOICES.map((sec) => {
+                    const active = crossfadeSec === sec;
+                    return (
+                      <button
+                        key={sec}
+                        type="button"
+                        onClick={() => setCrossfade(sec)}
+                        className={`flex-1 rounded-lg py-1.5 text-xs font-medium transition-all cursor-pointer ${
+                          active
+                            ? 'bg-key text-white font-semibold shadow-xs'
+                            : 'text-secondary hover:text-primary'
+                        }`}
+                      >
+                        {sec === 0 ? 'Off' : `${sec}s`}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -313,31 +373,34 @@ export default function SettingsPage() {
               />
 
               {desktop.automix && (
-                <div className="p-4 flex flex-col gap-2 border-b border-white/5 bg-white/[0.01]">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-neutral-400">
+                <div className="relative px-4 py-3 hairline-[16px] bg-quaternary/30">
+                  <div className="mb-2 type-caption-emphasized text-secondary uppercase tracking-wider">
                     Automix Analysis Mode
-                  </span>
-                  <div className="flex gap-2">
+                  </div>
+                  <div className="flex rounded-xl bg-quaternary p-1 gap-1">
                     {(
                       [
                         { id: 'efficient', label: 'Efficient (1 thread)' },
                         { id: 'balanced', label: 'Balanced (2 threads)' },
                         { id: 'performance', label: 'Performance (4 threads)' },
                       ] as const
-                    ).map((mode) => (
-                      <button
-                        key={mode.id}
-                        type="button"
-                        onClick={() => desktop.updateSetting('automixPerformance', mode.id)}
-                        className={`flex-1 rounded-lg py-1.5 text-xs font-medium transition-all ${
-                          desktop.automixPerformance === mode.id
-                            ? 'bg-white/20 text-white font-semibold'
-                            : 'bg-white/5 text-neutral-400 hover:text-white'
-                        }`}
-                      >
-                        {mode.label}
-                      </button>
-                    ))}
+                    ).map((mode) => {
+                      const active = desktop.automixPerformance === mode.id;
+                      return (
+                        <button
+                          key={mode.id}
+                          type="button"
+                          onClick={() => desktop.updateSetting('automixPerformance', mode.id as AutomixPerformanceSetting)}
+                          className={`flex-1 rounded-lg py-1.5 text-xs font-medium transition-all cursor-pointer ${
+                            active
+                              ? 'bg-key text-white font-semibold shadow-xs'
+                              : 'text-secondary hover:text-primary'
+                          }`}
+                        >
+                          {mode.label}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -363,50 +426,40 @@ export default function SettingsPage() {
                 onChange={(val) => desktop.updateSetting('dolbyAtmos', val)}
               />
 
-              <div className="p-4 flex items-center justify-between border-b border-white/5">
-                <div>
-                  <span className="text-sm font-semibold text-white block">Playback Speed</span>
-                  <span className="text-xs text-neutral-400">Tempo & pitch scaling</span>
-                </div>
-                <select
-                  value={desktop.playbackSpeed}
-                  onChange={(e) => desktop.updateSetting('playbackSpeed', Number(e.target.value))}
-                  className={settingsUi.select}
-                >
-                  <option value={0.5}>0.5×</option>
-                  <option value={0.75}>0.75×</option>
-                  <option value={1.0}>1.0× (Normal)</option>
-                  <option value={1.25}>1.25×</option>
-                  <option value={1.5}>1.5×</option>
-                  <option value={2.0}>2.0×</option>
-                </select>
-              </div>
+              <SelectRow
+                label="Playback Speed"
+                detail="Tempo & pitch scaling"
+                value={desktop.playbackSpeed}
+                onChange={(e) => desktop.updateSetting('playbackSpeed', Number(e.target.value))}
+              >
+                <option value={0.5}>0.5×</option>
+                <option value={0.75}>0.75×</option>
+                <option value={1.0}>1.0× (Normal)</option>
+                <option value={1.25}>1.25×</option>
+                <option value={1.5}>1.5×</option>
+                <option value={2.0}>2.0×</option>
+              </SelectRow>
 
-              <div className="p-4 flex items-center justify-between">
-                <div>
-                  <span className="text-sm font-semibold text-white block">Sleep Timer</span>
-                  <span className="text-xs text-neutral-400">
-                    {desktop.sleepTimer
-                      ? `Pausing in ${desktop.sleepTimer === 'track' ? 'when track ends' : `${desktop.sleepTimer}m`}`
-                      : 'Automatically pause playback'}
-                  </span>
-                </div>
-                <select
-                  value={desktop.sleepTimer ?? 'off'}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    desktop.setSleepTimer(val === 'off' ? null : val === 'track' ? 'track' : Number(val));
-                  }}
-                  className={settingsUi.select}
-                >
-                  <option value="off">Off</option>
-                  <option value="15">15 minutes</option>
-                  <option value="30">30 minutes</option>
-                  <option value="45">45 minutes</option>
-                  <option value="60">60 minutes</option>
-                  <option value="track">End of this track</option>
-                </select>
-              </div>
+              <SelectRow
+                label="Sleep Timer"
+                detail={
+                  desktop.sleepTimer
+                    ? `Pausing ${desktop.sleepTimer === 'track' ? 'when track ends' : `in ${desktop.sleepTimer}m`}`
+                    : 'Automatically pause playback'
+                }
+                value={desktop.sleepTimer ?? 'off'}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  desktop.setSleepTimer(val === 'off' ? null : val === 'track' ? 'track' : Number(val));
+                }}
+              >
+                <option value="off">Off</option>
+                <option value="15">15 minutes</option>
+                <option value="30">30 minutes</option>
+                <option value="45">45 minutes</option>
+                <option value="60">60 minutes</option>
+                <option value="track">End of this track</option>
+              </SelectRow>
             </section>
           </>
         )}
@@ -489,50 +542,31 @@ export default function SettingsPage() {
           <>
             <h2 className={settingsUi.sectionHeader}>Storage & Cache</h2>
             <section className={settingsUi.group}>
-              <div className="p-4 flex items-center justify-between border-b border-white/5">
-                <div>
-                  <span className="text-sm font-semibold text-white block">Song Audio Cache Limit</span>
-                  <span className="text-xs text-neutral-400">Keeps downloaded streams on disk for instant seeking.</span>
-                </div>
-                <select
-                  value={desktop.songCacheLimitMb}
-                  onChange={(e) => desktop.updateSetting('songCacheLimitMb', Number(e.target.value))}
-                  className={settingsUi.select}
-                >
-                  <option value={512}>512 MB</option>
-                  <option value={1024}>1 GB</option>
-                  <option value={2048}>2 GB (Recommended)</option>
-                  <option value={5120}>5 GB</option>
-                </select>
-              </div>
+              <SelectRow
+                label="Song Audio Cache Limit"
+                detail="Keeps downloaded streams on disk for instant seeking."
+                value={desktop.songCacheLimitMb}
+                onChange={(e) => desktop.updateSetting('songCacheLimitMb', Number(e.target.value))}
+              >
+                <option value={512}>512 MB</option>
+                <option value={1024}>1 GB</option>
+                <option value={2048}>2 GB (Recommended)</option>
+                <option value={5120}>5 GB</option>
+              </SelectRow>
 
-              <div className="p-4 flex items-center justify-between border-b border-white/5">
-                <div>
-                  <span className="text-sm font-semibold text-white block">Clear Song Audio Cache</span>
-                  <span className="text-xs text-neutral-400">Frees space used by cached audio streams.</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleClearSongCache}
-                  className="rounded-xl bg-white/10 hover:bg-white/15 px-3 py-1.5 text-xs font-semibold text-neutral-200 transition-colors cursor-pointer"
-                >
-                  Clear Audio Cache
-                </button>
-              </div>
+              <ActionRow
+                label="Clear Song Audio Cache"
+                detail="Frees space used by cached audio streams."
+                buttonLabel="Clear"
+                onClick={handleClearSongCache}
+              />
 
-              <div className="p-4 flex items-center justify-between">
-                <div>
-                  <span className="text-sm font-semibold text-white block">Clear Artwork Cache</span>
-                  <span className="text-xs text-neutral-400">Frees space used by cached album sleeves.</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleClearImageCache}
-                  className="rounded-xl bg-white/10 hover:bg-white/15 px-3 py-1.5 text-xs font-semibold text-neutral-200 transition-colors cursor-pointer"
-                >
-                  Clear Image Cache
-                </button>
-              </div>
+              <ActionRow
+                label="Clear Artwork Cache"
+                detail="Frees space used by cached album sleeves."
+                buttonLabel="Clear"
+                onClick={handleClearImageCache}
+              />
             </section>
           </>
         )}
@@ -631,15 +665,15 @@ export default function SettingsPage() {
         )}
 
         {/* FOOTER (MATCHING DESKTOP APP) */}
-        <div className="mt-12 mb-6 flex flex-col items-center justify-center gap-2 text-center text-xs text-neutral-400">
-          <div className="flex items-center gap-2 font-medium">
+        <div className="mt-12 mb-6 flex flex-col items-center justify-center gap-2 text-center text-xs text-secondary">
+          <div className="flex flex-wrap items-center justify-center gap-2 font-medium">
             <span>Raaga v1.9.7 (Desktop Web)</span>
             <span>•</span>
             <button
               type="button"
               onClick={handleCheckUpdate}
               disabled={checkingUpdate}
-              className="text-red-400 hover:underline cursor-pointer"
+              className="text-key hover:underline cursor-pointer"
             >
               {checkingUpdate ? 'Checking…' : 'Check for updates'}
             </button>
@@ -647,12 +681,12 @@ export default function SettingsPage() {
             <button
               type="button"
               onClick={() => setLicensesOpen(true)}
-              className="text-red-400 hover:underline cursor-pointer"
+              className="text-key hover:underline cursor-pointer"
             >
               Licenses
             </button>
           </div>
-          <p className="text-[11px] text-neutral-500">
+          <p className="type-caption text-secondary">
             Engineered with bit-exact audio, lossless FLAC streams, and real-time collaborative listening.
           </p>
         </div>
