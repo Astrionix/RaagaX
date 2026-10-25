@@ -9,13 +9,12 @@ import { PrefetchLink } from '@/components/PrefetchLink';
 import { artistCredits, creditSegments } from '@/lib/artistCredits';
 import { sizedArtwork } from '@/lib/artwork';
 import type { Track } from '@/data/music/types';
-import { useDesktopSettings } from '@/state/desktopSettings';
 import { usePlayer } from '@/state/player';
 import { useUi } from '@/state/ui';
 import { useHasVideo } from '@/state/video';
 import { albumPageFor, artistPageFor } from './nowPlayingLinks';
+import { MixWindowHighlight } from './NerdStats';
 import { useScrubber } from './useScrubber';
-import { parseNerdStats, shortNerdStats, describeNerdStats } from '@/playback/nerdStats';
 
 // The title and each artist: plain until hovered, then underlined on their own.
 export const pageLink = 'cursor-pointer text-start hover:underline focus-visible:underline aria-busy:cursor-progress';
@@ -105,8 +104,6 @@ export function Lcd() {
     return entry && entry.videoId === s.nowPlaying?.videoId ? entry : null;
   });
   const video = useHasVideo(nowPlaying?.videoId);
-  const showNerdStats = useDesktopSettings((s) => s.showNerdStats);
-  const audioQuality = useDesktopSettings((s) => s.audioQuality);
 
   if (!nowPlaying) {
     return (
@@ -164,14 +161,6 @@ export function Lcd() {
               {title}
             </PageLink>
             {track?.explicit && <ExplicitBadge size={11} />}
-            {showNerdStats && (
-              <span
-                className="ml-1.5 flex-none rounded bg-emerald-500/20 px-1 py-0.2 text-[9px] font-mono text-emerald-400 border border-emerald-500/30 cursor-help"
-                title={describeNerdStats(parseNerdStats(nowPlaying.streamInfo, audioQuality))}
-              >
-                {shortNerdStats(parseNerdStats(nowPlaying.streamInfo, audioQuality))}
-              </span>
-            )}
           </div>
         ) : (
           <span className={titleClass}>{status === 'loading' ? 'Loading…' : ''}</span>
@@ -213,7 +202,8 @@ function Progress() {
         className="absolute inset-x-0 bottom-1.5 h-0.5 overflow-hidden rounded-[1px] bg-quaternary transition-[height,left,right] duration-100 ease-in group-hover/scrub:bottom-[5px] group-hover/scrub:h-1 group-data-dragging/scrub:bottom-[5px] group-data-dragging/scrub:h-1"
         aria-hidden="true"
       >
-        <div ref={bar} className="size-full origin-left scale-x-(--progress) bg-secondary [--progress:0]" />
+        <MixWindowHighlight />
+        <div ref={bar} className="relative size-full origin-left scale-x-(--progress) bg-secondary [--progress:0]" />
       </div>
     </div>
   );

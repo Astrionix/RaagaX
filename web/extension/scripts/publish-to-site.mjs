@@ -7,8 +7,10 @@
 //
 // Each zip holds a single folder (raaga-extension-<browser> (<version>)/) rather than
 // loose files, so "Extract here" leaves one tidy folder to load unpacked.
+//
+//   corepack pnpm --dir web/extension package   (builds both, then runs this)
 
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { zipSync } from 'fflate';
@@ -16,15 +18,8 @@ import { zipSync } from 'fflate';
 const output = fileURLToPath(new URL('../.output/', import.meta.url));
 const target = fileURLToPath(new URL('../../app/public/downloads/', import.meta.url));
 mkdirSync(target, { recursive: true });
-
-// Clear old zips
-if (existsSync(target)) {
-  for (const name of readdirSync(target)) {
-    if (/^(bitchord|raaga)-extension-.*\.zip$/.test(name)) {
-      rmSync(join(target, name));
-    }
-  }
-}
+// Each version's zips are named for it; the previous ones go.
+for (const name of readdirSync(target)) if (/^raaga-extension-.*\.zip$/.test(name)) rmSync(join(target, name));
 
 function filesUnder(dir) {
   return readdirSync(dir).flatMap((name) => {
@@ -39,31 +34,22 @@ let version;
 
 for (const [browser, folder] of Object.entries(builds)) {
   const root = join(output, folder);
-  if (!existsSync(join(root, 'manifest.json'))) {
-    console.warn(`Skipping ${browser}: manifest.json not found in ${root}`);
-    continue;
-  }
   const manifest = JSON.parse(readFileSync(join(root, 'manifest.json'), 'utf8'));
   if (version && manifest.version !== version) {
     throw new Error(`Chrome and Firefox builds disagree on the version (${version} vs ${manifest.version}); rebuild both`);
   }
   version = manifest.version;
 
-  // Store files at root of zip so extracted folder contains manifest.json directly
+  // Store files directly at the root of the zip so extracted folder contains manifest.json directly
   const entries = {};
   for (const file of filesUnder(root)) {
     entries[relative(root, file).split(sep).join('/')] = readFileSync(file);
   }
   const name = `raaga-extension-${browser}.zip`;
-  const zipBuffer = zipSync(entries, { level: 9 });
-  
-  // Write versioned zip
-  writeFileSync(join(target, name), zipBuffer);
-  // Write unversioned aliases so both URLs always work
-  writeFileSync(join(target, `raaga-extension-${browser}.zip`), zipBuffer);
-  writeFileSync(join(target, `bitchord-extension-${browser}.zip`), zipBuffer);
-
-  files[browser] = `raaga-extension-${browser}.zip`;
+  const zipped = zipSync(entries, { level: 9 });
+  writeFileSync(join(target, name), zipped);
+  writeFileSync(join(target, `raaga-extension-${browser} (${manifest.version}).zip`), zipped);
+  files[browser] = name;
   console.log(`${folder} -> app/public/downloads/${name} (v${version})`);
 }
 

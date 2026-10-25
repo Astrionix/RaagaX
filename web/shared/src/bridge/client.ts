@@ -237,8 +237,8 @@ export interface DetectedExtension {
 }
 
 export interface DetectOptions {
-  /** The Chromium extension id (or array of candidate ids, e.g. dev-key and production). */
-  chromiumExtensionId?: string | readonly string[] | undefined;
+  /** The Chromium extension id (fixed by the manifest `key` in development). */
+  chromiumExtensionId?: string | undefined;
   /** How long to wait for a `ping` answer on each transport. */
   timeoutMs?: number;
 }
@@ -250,17 +250,8 @@ export interface DetectOptions {
 export async function detectExtension(options: DetectOptions = {}): Promise<DetectedExtension | null> {
   const timeoutMs = options.timeoutMs ?? 1500;
   const candidates: Bridge[] = [];
-  const raw = options.chromiumExtensionId;
-  const ids: string[] = Array.isArray(raw)
-    ? raw
-    : typeof raw === 'string' && raw.trim().length > 0
-      ? [raw.trim()]
-      : [];
-
-  for (const id of ids) {
-    const external = externalBridge(id);
-    if (external) candidates.push(external);
-  }
+  const external = options.chromiumExtensionId ? externalBridge(options.chromiumExtensionId) : null;
+  if (external) candidates.push(external);
   if (typeof window !== 'undefined') candidates.push(relayBridge(window));
 
   for (const bridge of candidates) {

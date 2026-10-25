@@ -2,7 +2,7 @@ import { ChevronRight } from 'lucide-react';
 import { useState, type ComponentType } from 'react';
 import { FaChrome, FaFirefoxBrowser } from 'react-icons/fa';
 import { SiDiscord, SiSpotify, SiYoutubemusic } from 'react-icons/si';
-import type { Capability } from '@bitchord/shared/bridge';
+import type { Capability } from '@raaga/shared/bridge';
 import { PageHeader } from '@/components/PageHeader';
 import { config } from '@/config';
 import { useExtension, type ExtensionStatus } from '@/extension/useExtension';
@@ -26,7 +26,7 @@ interface Download {
 
 /**
  * The two builds, as published (extension.json): the zip and the folder in it
- * carry the version, "bitchord-extension-chrome (0.4.3)". Before that file
+ * carry the version, "raaga-extension-chrome (0.4.3)". Before that file
  * has loaded, the configured URLs and the unversioned names stand in.
  */
 function downloadsFor(published: PublishedExtension | null): Download[] {
@@ -39,16 +39,15 @@ function downloadsFor(published: PublishedExtension | null): Download[] {
       href: published ? downloadUrl(published.files.chrome) : config.extensionChromeUrl,
       Icon: FaChrome,
       steps: [
-        `Extract the downloaded ZIP. It contains the folder '${folder('chrome')}'.`,
-        'Open a new tab, navigate to chrome://extensions (or edge://extensions) in your address bar.',
-        'Turn on "Developer mode" using the toggle in the top-right corner.',
-        `Click "Load unpacked" (top-left) and select the extracted '${folder('chrome')}' folder.`,
-        'Come back to this page: the status badge above will instantly turn to "Installed".',
+        'Extract the zip file to a folder.',
+        'Open chrome://extensions and turn on Developer mode.',
+        'Choose Load unpacked and select the extracted folder.',
+        'Come back to this page: the status above turns to Installed.',
       ],
       updateSteps: [
-        `Extract the new zip. It holds '${folder('chrome')}'.`,
-        'In chrome://extensions, choose Load unpacked and select that folder. It keeps your existing settings.',
-        'Delete the old folder, then come back to this page: the version above updates automatically.',
+        'Extract the new zip file.',
+        'In chrome://extensions, choose Load unpacked and select the new folder. It has the same ID, so it takes the old one’s place and keeps your settings.',
+        'Delete the old folder, then come back to this page: the version above updates on its own.',
       ],
     },
     {
@@ -58,13 +57,13 @@ function downloadsFor(published: PublishedExtension | null): Download[] {
       href: published ? downloadUrl(published.files.firefox) : config.extensionFirefoxUrl,
       Icon: FaFirefoxBrowser,
       steps: [
-        `Extract the zip. It holds one folder, ${folder('firefox')}.`,
+        'Extract the zip file.',
         'Open about:debugging#/runtime/this-firefox and choose Load Temporary Add-on.',
         'Select manifest.json inside that folder.',
         'Firefox removes temporary add-ons when it quits; a signed version is coming.',
       ],
       updateSteps: [
-        `Extract the new zip. It holds ${folder('firefox')}.`,
+        'Extract the new zip file.',
         'In about:debugging, choose Load Temporary Add-on and select manifest.json in the new folder.',
         'Come back to this page: the version above updates on its own.',
       ],
@@ -112,7 +111,7 @@ export default function ExtensionPage() {
   const update = useExtensionUpdate();
   const DOWNLOADS = downloadsFor(usePublishedExtension());
   const auth = useYtAuth();
-  const [chosen, setChosen] = useState<Browser | null>(currentBrowser);
+  const [chosen, setChosen] = useState<Browser | null>(null);
   const [updating, setUpdating] = useState(false);
   const downloads = [...DOWNLOADS].sort((a, b) => Number(b.browser === currentBrowser) - Number(a.browser === currentBrowser));
   const installedBrowser: Browser | null =

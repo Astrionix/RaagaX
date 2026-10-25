@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import type { DiscordNowPlaying } from '@bitchord/shared/bridge';
+import type { DiscordNowPlaying } from '@raaga/shared/bridge';
 import { getBridge } from '@/extension/bridge';
 import { useDiscord, useDiscordOptions } from '@/extension/useDiscord';
 import { sizedArtwork } from '@/lib/artwork';

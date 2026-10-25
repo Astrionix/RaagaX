@@ -28,9 +28,9 @@
   --default-transition-duration: 0.15s;
 
   --breakpoint-*: initial;
-  --breakpoint-sm: 640px; /* below: mobile phone, the sidebar becomes a drawer */
-  --breakpoint-md: 768px; /* tablet */
-  --breakpoint-lg: 1024px; /* desktop */
+  --breakpoint-sm: 484px; /* below: phone, the sidebar becomes a drawer */
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1000px;
 
   /* Film grain over the 2D mesh fallback (MeshBackdrop). */
   --background-image-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
@@ -42,6 +42,7 @@
   --animate-zoom: zoom 0.2s ease-out;
   --animate-fade-in: fade-in 0.4s ease;
   --animate-enter: enter 0.3s var(--ease-out-panel);
+  --animate-morph: morph 0.32s var(--ease-out-panel);
   --animate-spin: spin 1s linear infinite;
   --animate-shimmer: shimmer 1.6s ease-in-out infinite;
   --animate-matching: matching 1.4s ease-in-out infinite alternate;
@@ -76,6 +77,14 @@
     from {
       opacity: 0;
       transform: scale(1.02);
+    }
+  }
+  /* One label melting into the next, as the quality switcher's text changes. */
+  @keyframes morph {
+    from {
+      opacity: 0;
+      filter: blur(5px);
+      transform: scale(0.74);
     }
   }
   @keyframes spin {

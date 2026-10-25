@@ -192,7 +192,7 @@ export const Hero: React.FC = () => {
                 ,{" "}
               </span>
               <span>
-                <a href="/apks/raaga-tv.apk" download className="text-white/80 underline-offset-4 transition-colors hover:text-white hover:underline">
+                <a href={RAAGAX_CONFIG.tv.directApkUrl} download className="text-white/80 underline-offset-4 transition-colors hover:text-white hover:underline">
                   Android TV
                 </a>
                 ,{" "}

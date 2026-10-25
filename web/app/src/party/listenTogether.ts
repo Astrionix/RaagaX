@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { config } from '@/config';
 import { ytAuthSnapshot } from '@/extension/useYtAuth';
 import { ServerClock } from './clock';
 import { cleanCode, CODE_LENGTH, sanitizeServerUrl } from './invite';
@@ -35,7 +36,8 @@ import {
  * the server's 45 s grace, so a refresh is invisible to everyone else.
  */
 
-export const DEFAULT_SERVER = 'https://api.bitchord.kushagrasingh.in';
+/** Empty only in a dev build run without VITE_PARTY_SERVER_URL; parties then need a custom server. */
+export const DEFAULT_SERVER = sanitizeServerUrl(config.partyServerUrl) ?? '';
 export const MAX_UPCOMING = 25;
 const PING_INTERVAL_MS = 15_000;
 const REPORT_INTERVAL_MS = 10_000;
@@ -102,8 +104,8 @@ export class PartyError extends Error {
 
 // ---- Settings: the server, a nickname -------------------------------------------------
 
-const SETTINGS_KEY = 'bitchord:party';
-const SESSION_KEY = 'bitchord:party-session';
+const SETTINGS_KEY = 'raaga:party';
+const SESSION_KEY = 'raaga:party-session';
 
 interface Settings {
   customServer: string;
@@ -122,7 +124,7 @@ export function savePartySettings(change: Partial<Settings>): void {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...partySettings(), ...change }));
 }
 
-/** The server parties are made on: the custom one if set, else BitChord's. */
+/** The server parties are made on: the custom one if set, else Raaga's. */
 export function idleServer(): string {
   return sanitizeServerUrl(partySettings().customServer) ?? DEFAULT_SERVER;
 }
@@ -134,10 +136,10 @@ let server: string | null = null;
 export const clock = new ServerClock();
 
 function deviceId(): string {
-  let id = localStorage.getItem('bitchord:deviceId');
+  let id = localStorage.getItem('raaga:deviceId');
   if (!id) {
     id = crypto.randomUUID();
-    localStorage.setItem('bitchord:deviceId', id);
+    localStorage.setItem('raaga:deviceId', id);
   }
   return id;
 }
@@ -155,23 +157,13 @@ async function sha256(value: string): Promise<string> {
 async function identity(): Promise<Omit<JoinRequest, 'maxMembers' | 'autoplayEnabled'>> {
   const auth = ytAuthSnapshot();
   const active = auth.signedIn ? auth.active : null;
-  const devId = deviceId();
-  if (active) {
-    const name = partySettings().nickname.trim() || active.name;
-    return {
-      userId: (await sha256(`${active.authUser}:${active.id}`)).slice(0, 32),
-      deviceId: devId,
-      displayName: name,
-      avatarUrl: active.avatarUrl?.startsWith('http') ? active.avatarUrl : null,
-    };
-  }
-  const customName = partySettings().nickname.trim();
-  const name = customName || `Raaga Guest ${devId.slice(0, 4)}`;
+  if (!active) throw new PartyError('not_signed_in', 'Sign in to YouTube Music to listen together.');
+  const name = partySettings().nickname.trim() || active.name;
   return {
-    userId: (await sha256(`guest:${devId}`)).slice(0, 32),
-    deviceId: devId,
+    userId: (await sha256(`${active.authUser}:${active.id}`)).slice(0, 32),
+    deviceId: deviceId(),
     displayName: name,
-    avatarUrl: null,
+    avatarUrl: active.avatarUrl?.startsWith('http') ? active.avatarUrl : null,
   };
 }
 
@@ -315,7 +307,7 @@ export function partyServer(): string | null {
 
 // ---- Recent kicks (a door that stays shut on this device for a day) ------------------------
 
-const KICKS_KEY = 'bitchord:party-kicked';
+const KICKS_KEY = 'raaga:party-kicked';
 
 function recentKicks(): Record<string, number> {
   try {
@@ -421,7 +413,7 @@ function connect(): void {
     const { code } = useParty.getState();
     if (id !== loopId || !code || !token || !server) return;
     useParty.setState({ connection: 'connecting' });
-    const ws = new WebSocket(`${server.replace(/^http/, 'ws')}/ws/parties/${code}`, ['bitchord.v1', `bitchord.token.${token}`]);
+    const ws = new WebSocket(`${server.replace(/^http/, 'ws')}/ws/parties/${code}`, ['raaga.v1', `raaga.token.${token}`]);
     socket = ws;
     let opened = false;
     ws.onopen = () => {

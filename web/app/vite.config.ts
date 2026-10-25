@@ -1,8 +1,8 @@
-import { readFileSync } from 'node:fs';
+import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
 import { fileURLToPath, URL } from 'node:url';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 
 // The development extension's id, pinned by its manifest `key`
 // (web/extension/dev-key/). Read at build time so the page can message it.
@@ -10,62 +10,72 @@ function devExtensionId(): string {
   try {
     return readFileSync(new URL('../extension/dev-key/extension-id.txt', import.meta.url), 'utf8').trim();
   } catch {
-    return 'pkddffeebcmhhanjcigilehaeonkkfih';
+    return '';
   }
 }
 
-function downloadsHeadersPlugin() {
-  return {
-    name: 'downloads-headers',
-    configureServer(server: { middlewares: { use: (fn: (req: any, res: any, next: () => void) => void) => void } }) {
-      server.middlewares.use((req, res, next) => {
-        if (req.url && req.url.startsWith('/downloads/') && req.url.includes('.zip')) {
-          const isFirefox = req.url.includes('firefox');
-          const cleanName = isFirefox ? 'raaga-extension-firefox.zip' : 'raaga-extension-chrome.zip';
-          res.setHeader('Content-Disposition', `attachment; filename="${cleanName}"`);
-          res.setHeader('Content-Type', 'application/zip');
-        }
-        next();
-      });
-    },
-  };
+// The party server's address stays out of the repo: .env.local here, a
+// Cloudflare Pages variable in production. Without it Listen Together can't
+// make a party, so a production build stops instead of shipping that.
+function requirePartyServer(mode: string): void {
+  const env = loadEnv(mode, fileURLToPath(new URL('.', import.meta.url)), 'VITE_');
+  if (!env.VITE_PARTY_SERVER_URL?.trim()) {
+    throw new Error('VITE_PARTY_SERVER_URL is not set (app/.env.local, or the Cloudflare Pages environment).');
+  }
 }
 
-export default defineConfig({
-  plugins: [react(), tailwindcss(), downloadsHeadersPlugin()],
-  define: {
-    DEV_EXTENSION_ID: JSON.stringify(devExtensionId()),
-  },
-  resolve: {
-    alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
-    dedupe: ['react', 'react-dom', 'react-router', 'react-dom/client'],
-  },
-  optimizeDeps: {
-    include: [
-      'react',
-      'react/jsx-runtime',
-      'react/jsx-dev-runtime',
-      'react-dom',
-      'react-dom/client',
-      'react-router',
-      '@tanstack/react-query',
-    ],
-  },
-  server: {
-    // The extension's externally_connectable and DNR rules name this origin
-    // exactly, so the port must not drift to 5174 when 5173 is busy.
-    port: 5173,
-    strictPort: true,
-    proxy: {
-      '/api/jiosaavn': {
-        target: 'https://www.jiosaavn.com',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/jiosaavn/, ''),
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/141.0.0.0 Safari/537.36',
-          'Cookie': 'explicit_content=1',
+export default defineConfig(({ command, mode }) => {
+  if (command === 'build') requirePartyServer(mode);
+  return {
+    plugins: [
+      react(),
+      tailwindcss(),
+      {
+        name: 'serve-downloads-with-headers',
+        configureServer(server) {
+          server.middlewares.use((req, res, next) => {
+            if (req.url && req.url.startsWith('/downloads/')) {
+              const parsedUrl = new URL(req.url, 'http://localhost');
+              const pathname = decodeURIComponent(parsedUrl.pathname);
+              const filename = pathname.replace('/downloads/', '');
+              if (filename && filename.endsWith('.zip')) {
+                const filePath = fileURLToPath(new URL(`./public/downloads/${filename}`, import.meta.url));
+                if (existsSync(filePath)) {
+                  const stat = statSync(filePath);
+                  res.writeHead(200, {
+                    'Content-Type': 'application/zip',
+                    'Content-Length': stat.size,
+                    'Content-Disposition': `attachment; filename="${filename}"`,
+                    'Cache-Control': 'no-cache',
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Expose-Headers': 'Content-Disposition',
+                  });
+                  createReadStream(filePath).pipe(res);
+                  return;
+                }
+              }
+            }
+            next();
+          });
         },
       },
+    ],
+    define: {
+      DEV_EXTENSION_ID: JSON.stringify(devExtensionId()),
     },
-  },
+    resolve: {
+      alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
+      dedupe: ['react', 'react-dom'],
+    },
+    // AutoMix's analysis worker (playback/automix): essentia.js's 2021-era
+    // Emscripten glue breaks under dep pre-bundling, and the worker is a module.
+    optimizeDeps: { exclude: ['essentia.js'] },
+    worker: { format: 'es' },
+    server: {
+      // The extension's externally_connectable and DNR rules name this origin
+      // exactly, so the port must not drift to 5174 when 5173 is busy.
+      port: 5173,
+      strictPort: true,
+    },
+  };
 });

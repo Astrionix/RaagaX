@@ -1,5 +1,5 @@
 {
-  "name": "bitchord-web",
+  "name": "raaga-web",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@12.11.2",
@@ -7,11 +7,11 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "pnpm --filter @bitchord/app dev",
-    "dev:ext": "pnpm --filter @bitchord/extension dev",
-    "dev:ext:firefox": "pnpm --filter @bitchord/extension dev:firefox",
+    "dev": "pnpm --filter @raaga/app dev",
+    "dev:ext": "pnpm --filter @raaga/extension dev",
+    "dev:ext:firefox": "pnpm --filter @raaga/extension dev:firefox",
     "build": "pnpm -r build",
-    "build:site": "pnpm --filter @bitchord/extension package && pnpm --filter @bitchord/app build",
+    "build:site": "pnpm --filter @raaga/extension package && pnpm --filter @raaga/app build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "fixtures": "node scripts/capture-fixtures.mjs"

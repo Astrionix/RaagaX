@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { DetectedExtension } from '@bitchord/shared/bridge';
+import type { DetectedExtension } from '@raaga/shared/bridge';
 import { getBridge } from '@/extension/bridge';
 import { extensionQueryKey } from '@/extension/useExtension';
 import { ensureYtAuth } from '@/extension/useYtAuth';
@@ -11,7 +11,7 @@ import { trackLog } from './trackLog';
 
 /** Settings › Share Listening Activity: whether plays go to the account's YouTube Music history. On by default, as on the phone. */
 export const useHistorySettings = create<{ share: boolean; setShare: (on: boolean) => void }>()(
-  persist((set) => ({ share: true, setShare: (share) => set({ share }) }), { name: 'bitchord:history', version: 1 }),
+  persist((set) => ({ share: true, setShare: (share) => set({ share }) }), { name: 'raaga:history', version: 1 }),
 );
 
 /**

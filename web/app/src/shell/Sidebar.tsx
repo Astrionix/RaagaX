@@ -1,7 +1,6 @@
-import { ArrowUpRight, Download, ListMusic, Settings } from 'lucide-react';
+import { ArrowUpRight, ListMusic, Settings } from 'lucide-react';
 import { MdOutlineExtension } from 'react-icons/md';
 import { PrefetchLink, PrefetchNavLink } from '@/components/PrefetchLink';
-import { usePwaInstall } from '@/lib/usePwaInstall';
 import { LogoMark } from '@/components/icons/LogoMark';
 import {
   AlbumsIcon,
@@ -141,7 +140,6 @@ export function Sidebar() {
   const update = useExtensionUpdate();
   const signedIn = useSignedIn();
   const spotifySignedIn = useSpotifySignedIn();
-  const { isInstallable, installPwa } = usePwaInstall();
   const close = () => setDrawerOpen(false);
 
   return (
@@ -170,19 +168,6 @@ export function Sidebar() {
           {spotifySignedIn && <SpotifyNav onNavigate={close} />}
         </div>
         <div className="flex flex-col gap-2 pt-3 pr-3 pb-5 pl-5">
-          {isInstallable && (
-            <button
-              type="button"
-              onClick={installPwa}
-              className="group flex h-9 items-center gap-2 mb-0.5 p-1 px-2.5 rounded-nav type-body-reduced text-white bg-red-600/30 hover:bg-red-600/40 border border-red-500/50 transition-colors w-full cursor-pointer text-left shadow-sm"
-              title="Install Raaga as Progressive Web App"
-            >
-              <span className="inline-grid size-5 flex-none place-items-center text-red-400">
-                <Download size={16} />
-              </span>
-              <span className="min-w-0 truncate font-semibold">Install Raaga App</span>
-            </button>
-          )}
           <PrefetchNavLink to="/extension" className={item} onClick={close}>
             {/* Chrome's own toolbar glyph for extensions (Material "extension"). */}
             <span className={icon}>
@@ -198,7 +183,7 @@ export function Sidebar() {
           <AccountButton />
           <div className="flex items-center justify-between">
             <a className="inline-flex items-center gap-1 ps-1 type-callout text-primary hover:underline" href={config.androidAppUrl} target="_blank" rel="noreferrer">
-              <span>Android APK</span>
+              <span>Get the Android app</span>
               <ArrowUpRight size={14} strokeWidth={2} />
             </a>
             <PrefetchNavLink to="/settings" className="grid size-7 place-items-center rounded-nav text-secondary hover:bg-quinary hover:text-primary aria-[current=page]:bg-quinary aria-[current=page]:text-primary" aria-label="Settings" title="Settings" onClick={close}>

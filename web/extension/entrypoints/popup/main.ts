@@ -9,7 +9,7 @@ import {
   type DiscordState,
   type SpotifyAuthState,
   type YtAuthState,
-} from '@bitchord/shared/bridge';
+} from '@raaga/shared/bridge';
 
 declare const __SITE_ORIGINS__: string[];
 

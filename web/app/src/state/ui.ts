@@ -16,13 +16,9 @@ interface UiState {
   /** The extension install banner, dismissed for this tab only. */
   installBannerDismissed: boolean;
   dismissInstallBanner: () => void;
-  /** Floating Raaga Jam popover / sheet */
-  jamOpen: boolean;
-  setJamOpen: (open: boolean) => void;
-  toggleJam: () => void;
 }
 
-const BANNER_KEY = 'bitchord:install-banner-dismissed';
+const BANNER_KEY = 'raaga:install-banner-dismissed';
 
 export const useUi = create<UiState>()((set) => ({
   sidePanel: null,
@@ -37,9 +33,6 @@ export const useUi = create<UiState>()((set) => ({
     sessionStorage.setItem(BANNER_KEY, '1');
     set({ installBannerDismissed: true });
   },
-  jamOpen: false,
-  setJamOpen: (jamOpen) => set({ jamOpen }),
-  toggleJam: () => set((s) => ({ jamOpen: !s.jamOpen })),
 }));
 
 // For browser-driven tests, next to __bcPlayer.

@@ -1,4 +1,4 @@
-import { detectExtension, type DetectedExtension } from '@bitchord/shared/bridge';
+import { detectExtension, type DetectedExtension } from '@raaga/shared/bridge';
 import { useQuery } from '@tanstack/react-query';
 import { config } from '@/config';
 import { queryClient } from '@/lib/queryClient';
@@ -26,9 +26,9 @@ const SLOW_RECHECK_MS = 5000;
  */
 async function detect(): Promise<DetectedExtension | null> {
   const known = queryClient.getQueryData<DetectedExtension | null>(extensionQueryKey) ?? null;
-  const found = await detectExtension({ chromiumExtensionId: config.chromiumExtensionIds });
+  const found = await detectExtension({ chromiumExtensionId: config.chromiumExtensionId });
   if (found || !known) return found;
-  return (await detectExtension({ chromiumExtensionId: config.chromiumExtensionIds, timeoutMs: 4000 })) ?? known;
+  return (await detectExtension({ chromiumExtensionId: config.chromiumExtensionId, timeoutMs: 4000 })) ?? known;
 }
 
 /**

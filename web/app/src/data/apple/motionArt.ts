@@ -24,7 +24,7 @@ export const useAppleSettings = create<{
       setArtistArt: (artistArt) => set({ artistArt }),
       setMotion: (motion) => set({ motion }),
     }),
-    { name: 'bitchord:apple', version: 1 },
+    { name: 'raaga:apple', version: 1 },
   ),
 );
 

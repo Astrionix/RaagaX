@@ -114,8 +114,8 @@ export function excludeClient(videoId: string, client: PlayerClientName, why: st
   entries.set(client, Date.now() + EXCLUDE_MS);
 }
 
-/** Debug override (Debug page): localStorage "bitchord:debug:clients" = "YTMUSIC,WEB". */
-export const DEBUG_CLIENTS_KEY = 'bitchord:debug:clients';
+/** Debug override (Debug page): localStorage "raaga:debug:clients" = "YTMUSIC,WEB". */
+export const DEBUG_CLIENTS_KEY = 'raaga:debug:clients';
 
 function clientOrder(): readonly PlayerClientName[] {
   const forced = localStorage.getItem(DEBUG_CLIENTS_KEY)

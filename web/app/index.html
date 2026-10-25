@@ -2,10 +2,15 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      // The extension trusts https://raaga.app only (web/extension/site.config.ts),
+      // so www goes there before anything loads, keeping its path and query.
+      if (location.hostname === 'www.raaga.app') location.replace('https://raaga.app' + location.pathname + location.search + location.hash);
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
-    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0b0c10" />
-    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#FA233B" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1f1f1f" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -27,18 +32,6 @@
   </head>
   <body>
     <div id="root"></div>
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').then((reg) => {
-            console.log('[PWA] Service Worker registered with scope:', reg.scope);
-            reg.update();
-          }).catch((err) => {
-            console.warn('[PWA] Service Worker registration failed:', err);
-          });
-        });
-      }
-    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

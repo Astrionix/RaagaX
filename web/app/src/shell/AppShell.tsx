@@ -3,12 +3,12 @@ import { resumeSession } from '@/party/listenTogether';
 import { startPartySync } from '@/party/partySync';
 import { useDiscordPresence } from '@/playback/discordPresence';
 import { startHistoryReporting } from '@/playback/historyReporting';
+import { startLivePresence } from '@/playback/livePresence';
 import { Outlet } from 'react-router';
 import { PrefetchLink } from '@/components/PrefetchLink';
 import { config } from '@/config';
 import { useExtension } from '@/extension/useExtension';
 import { isMobileBrowser } from '@/lib/platform';
-import { usePwaInstall } from '@/lib/usePwaInstall';
 import { useUi } from '@/state/ui';
 import { useKeyboardShortcuts } from './useKeyboardShortcuts';
 import { Banner, bannerButtonClass } from './Banner';
@@ -36,37 +36,31 @@ export function AppShell() {
   }, []);
   // Plays into the account's YouTube Music history (Settings › Share Listening Activity).
   useEffect(() => startHistoryReporting(), []);
+  // Counts this tab in the "listening now" figure beside the phone and PC apps.
+  useEffect(() => startLivePresence(), []);
   const extension = useExtension();
   const bannerDismissed = useUi((s) => s.installBannerDismissed);
   const dismissBanner = useUi((s) => s.dismissInstallBanner);
   const fullScreen = useUi((s) => s.fullScreen);
-  const { isInstallable, installPwa } = usePwaInstall();
 
   let banner = null;
   if (mobile) {
     banner = (
       <Banner
-        title="Experience Raaga as a Progressive Web App."
-        detail="Install Raaga on your phone's home screen for an app-like player, or get the native Android APK."
+        title="Raaga is better in the app."
+        detail="Phone browsers can’t run the Raaga extension. The Android app has everything."
         action={
-          <div className="flex items-center gap-2">
-            {isInstallable && (
-              <button type="button" className={bannerButtonClass} onClick={installPwa}>
-                Install App
-              </button>
-            )}
-            <a className={bannerButtonClass} href={config.androidAppUrl} target="_blank" rel="noreferrer">
-              Get Android APK
-            </a>
-          </div>
+          <a className={bannerButtonClass} href={config.androidAppUrl} target="_blank" rel="noreferrer">
+            Get the App
+          </a>
         }
       />
     );
   } else if (extension.state === 'missing' && !bannerDismissed) {
     banner = (
       <Banner
-        title="Stream YouTube Music with the Raaga extension."
-        detail="Playback, YouTube Music sign-in, Spotify and Discord use the companion extension for high-bitrate audio."
+        title="Play YouTube Music with the Raaga extension."
+        detail="Playback, YouTube Music sign-in, Spotify and Discord need the extension. Addons and lyrics work without it."
         action={
           <PrefetchLink className={bannerButtonClass} to="/extension">
             Get the Extension
@@ -88,8 +82,8 @@ export function AppShell() {
           id="scrollable-page"
           className="absolute inset-0 overflow-x-hidden overflow-y-auto pl-(--web-navigation-width) [scrollbar-gutter:stable] data-tint:bg-(--page-tint) data-tint:transition-[background-color] data-tint:duration-300 data-tint:ease-in max-sm:pt-(--mobile-top-bar-height) max-sm:pl-0"
         >
-          {/* Clears the floating pill: its height, its offset, and some air on desktop; mini player on mobile. */}
-          <div className="min-h-full pb-[calc(var(--player-pill-height)+var(--player-bottom-offset)+40px)] max-sm:pb-[calc(var(--mini-player-height)+env(safe-area-inset-bottom,0px)+36px)]">
+          {/* Clears the floating pill: its height, its offset, and some air. */}
+          <div className="min-h-full pb-[calc(var(--player-pill-height)+var(--player-bottom-offset)+40px)]">
             <Outlet />
           </div>
         </main>

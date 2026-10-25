@@ -1,5 +1,5 @@
 {
-  "name": "@bitchord/shared",
+  "name": "@raaga/shared",
   "private": true,
   "type": "module",
   "exports": {

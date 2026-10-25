@@ -1,4 +1,4 @@
-# BitChord Web
+# Raaga Web
 
 The web player and its companion browser extension. The plan, and the decisions behind it, are in [`docs/web-app-build-prompt.md`](../docs/web-app-build-prompt.md).
 
@@ -46,7 +46,7 @@ corepack pnpm --dir web/extension package
 
 This builds both targets and writes three files to `app/public/downloads/` (git-ignored):
 
-- `bitchord-extension-chrome.zip` and `bitchord-extension-firefox.zip`. Each holds a single folder (`bitchord-extension-<browser>/`), so extracting it in place leaves one folder to load unpacked.
+- `raaga-extension-chrome.zip` and `raaga-extension-firefox.zip`. Each holds a single folder (`raaga-extension-<browser>/`), so extracting it in place leaves one folder to load unpacked.
 - `extension.json`, with the version. The site compares it with the installed extension's version and shows **Update** in the sidebar and an update row on the Extension page when the zip is newer. Bump `version` in `extension/package.json` to publish an update.
 
 `VITE_EXTENSION_CHROME_URL`, `VITE_EXTENSION_FIREFOX_URL` and `VITE_EXTENSION_MANIFEST_URL` override those links, for example to point at store listings.
@@ -59,10 +59,11 @@ Then open `http://localhost:5173/extension`. It shows "Installed", with the vers
 
 | Variable | Where | Default |
 |---|---|---|
-| `RAAGA_SITE_ORIGINS` (or `BITCHORD_SITE_ORIGINS`) | extension build | `https://raagaweb.pages.dev,http://localhost:5173` (store builds leave out localhost). Comma-separated origins the extension serves; replaces the default |
-| `RAAGA_STORE_BUILD=1` (or `BITCHORD_STORE_BUILD=1`) | extension build | Leaves out the dev `key` for a Chrome Web Store upload |
+| `RAAGA_SITE_ORIGINS` | extension build | `https://raaga.app,https://raagaweb.pages.dev,http://localhost:5173` (store builds leave out localhost). Comma-separated origins the extension serves; replaces the default |
+| `RAAGA_STORE_BUILD=1` | extension build | Leaves out the dev `key` for a Chrome Web Store upload |
 | `VITE_EXTENSION_ID_CHROMIUM` | app (`app/.env.local`) | The pinned dev id. Set it for a store-built extension |
 | `VITE_ANDROID_APP_URL` | app | The GitHub releases page |
+| `VITE_PARTY_SERVER_URL` | app (`app/.env.local`, Pages env) | None. The Listen Together server; `vite build` fails without it |
 
 ## Deploy (Cloudflare Pages)
 
@@ -71,7 +72,7 @@ Then open `http://localhost:5173/extension`. It shows "Installed", with the vers
 | Root directory | `web` |
 | Build command | `pnpm build:site` |
 | Output directory | `app/dist` |
-| Environment | `NODE_VERSION=22` |
+| Environment | `NODE_VERSION=22`, `VITE_PARTY_SERVER_URL` |
 
 `build:site` packages the extension first, so each deploy publishes the zips and `downloads/extension.json` with the version from `web/extension/package.json`. The Extension page polls that file and offers the update when it's newer than the installed one. Bump that version to make an update show.
 

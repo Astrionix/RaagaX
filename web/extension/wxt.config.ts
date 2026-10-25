@@ -3,8 +3,8 @@ import { defineConfig } from 'wxt';
 import { LYRIC_ORIGINS, patternOf } from './lib/lyricHosts';
 import { matchPatternsFor, SITE_ORIGINS } from './site.config';
 
-/** RAAGA_STORE_BUILD=1 (or legacy BITCHORD_STORE_BUILD=1) for a Chrome Web Store upload. */
-const STORE_BUILD = (process.env.RAAGA_STORE_BUILD ?? process.env.BITCHORD_STORE_BUILD) === '1';
+/** RAAGA_STORE_BUILD=1 for a Chrome Web Store upload. */
+const STORE_BUILD = process.env.RAAGA_STORE_BUILD === '1';
 
 /**
  * Discord presence is user-token automation (prompt §7.3), so it is a build

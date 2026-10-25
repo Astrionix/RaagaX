@@ -5,7 +5,7 @@
  * the report by name. Light first, then dark under prefers-color-scheme.
  *
  * Apple serves higher-contrast text alphas and a deeper key colour to browsers
- * without the system SF font. BitChord renders DM Sans everywhere, so those
+ * without the system SF font. Raaga renders DM Sans everywhere, so those
  * variants are the ones used here (report §9).
  */
 
@@ -145,7 +145,7 @@
   }
 }
 
-@media (min-width: 640px) and (max-width: 767.31px) {
+@media (min-width: 484px) and (max-width: 767.31px) {
   :root {
     --web-navigation-width: 33.8842975207vw;
   }

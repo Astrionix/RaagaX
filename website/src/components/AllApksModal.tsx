@@ -33,7 +33,7 @@ export const AllApksModal: React.FC<AllApksModalProps> = ({ isOpen, onClose }) =
       tag: "Modern 64-bit Phones (Recommended · v8a)",
       arch: "arm64-v8a (NDK 27 NEON SIMD)",
       size: "60.8 MB",
-      url: "/apks/raaga-arm64-v8a.apk",
+      url: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/app-prod-arm64-v8a-release.apk",
       requirements: "Android 8.0+ (64-bit v8a)",
       desc: "Optimized package tailored exclusively for 64-bit devices. Maximum audio DSP efficiency and smaller footprint.",
       icon: <Zap className="w-5 h-5 text-amber-400" />
@@ -44,7 +44,7 @@ export const AllApksModal: React.FC<AllApksModalProps> = ({ isOpen, onClose }) =
       tag: "All Architectures Bundle",
       arch: "universal (arm64, armeabi-v7a, x86_64)",
       size: "155 MB",
-      url: "/apks/raaga-universal.apk",
+      url: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/app-prod-universal-release.apk",
       requirements: RAAGAX_CONFIG.minAndroid,
       desc: "Single package that runs natively on all Android smartphones, tablets, TV boxes, and car head units.",
       icon: <Smartphone className="w-5 h-5 text-red-400" />
@@ -55,7 +55,7 @@ export const AllApksModal: React.FC<AllApksModalProps> = ({ isOpen, onClose }) =
       tag: "Legacy 32-bit Devices",
       arch: "armeabi-v7a (32-bit)",
       size: "51.6 MB",
-      url: "/apks/raaga-armeabi-v7a.apk",
+      url: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/app-prod-armeabi-v7a-release.apk",
       requirements: "Android 8.0+ (32-bit legacy)",
       desc: "Compatible build for older budget smartphones and legacy in-dash car infotainment heads.",
       icon: <Cpu className="w-5 h-5 text-cyan-400" />
@@ -66,7 +66,7 @@ export const AllApksModal: React.FC<AllApksModalProps> = ({ isOpen, onClose }) =
       tag: "Chromebooks, WSA & Emulators",
       arch: "x86_64 (64-bit Intel/AMD)",
       size: "66.9 MB",
-      url: "/apks/raaga-x86_64.apk",
+      url: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/app-prod-x86_64-release.apk",
       requirements: "Android 8.0+ (Intel/AMD)",
       desc: "Optimized build for ChromeOS Chromebooks, Windows Subsystem for Android, and Android emulators.",
       icon: <Monitor className="w-5 h-5 text-purple-400" />

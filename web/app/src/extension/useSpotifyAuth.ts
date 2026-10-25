@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
-import type { DetectedExtension, SpotifyAuthState } from '@bitchord/shared/bridge';
+import type { DetectedExtension, SpotifyAuthState } from '@raaga/shared/bridge';
 import { queryClient } from '@/lib/queryClient';
 import { extensionQueryKey, useExtension } from './useExtension';
 

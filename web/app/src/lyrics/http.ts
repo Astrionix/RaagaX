@@ -1,4 +1,4 @@
-import { BridgeCallError } from '@bitchord/shared/bridge';
+import { BridgeCallError } from '@raaga/shared/bridge';
 import { getBridge } from '@/extension/bridge';
 
 /**
@@ -47,7 +47,7 @@ export function onGranted(listener: () => void): () => void {
 
 /**
  * Asks the extension which refused hosts it may reach now. The grant happens
- * on the extension's own page in another tab, so this runs when BitChord's
+ * on the extension's own page in another tab, so this runs when Raaga's
  * tab comes back.
  */
 export async function recheckGrants(): Promise<void> {

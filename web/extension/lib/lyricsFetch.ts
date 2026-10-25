@@ -1,4 +1,4 @@
-import type { HttpRequest, HttpResponse } from '@bitchord/shared/bridge';
+import type { HttpRequest, HttpResponse } from '@raaga/shared/bridge';
 
 import { LYRIC_ORIGINS, patternOf } from './lyricHosts';
 

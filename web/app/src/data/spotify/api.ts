@@ -1,4 +1,4 @@
-import type { SpotifyPlaylist, SpotifyTrack } from '@bitchord/shared/bridge';
+import type { SpotifyPlaylist, SpotifyTrack } from '@raaga/shared/bridge';
 import { best, type MatchCandidate } from '@/data/match/trackMatcher';
 import { searchSongs } from '@/data/music/api';
 import type { Track } from '@/data/music/types';
