@@ -44,8 +44,35 @@ export const pages: PageRoute[] = [
 
 export const notFound: PageRoute = { path: '*', load: () => import('@/pages/NotFoundPage'), skeleton: <PlainSkeleton /> };
 
+function lazyWithRetry(load: () => Promise<PageModule>): ComponentType {
+  return lazy(async () => {
+    try {
+      return await load();
+    } catch (err: unknown) {
+      const msg = String((err as any)?.message || '');
+      const isDynamicImportError =
+        msg.includes('Failed to fetch dynamically imported module') ||
+        msg.includes('Importing a module script failed') ||
+        msg.includes('error loading dynamically imported module') ||
+        (err instanceof TypeError && msg.includes('fetch'));
+
+      if (isDynamicImportError && typeof window !== 'undefined') {
+        const reloadKey = 'raaga:chunk_reload:' + window.location.pathname;
+        const lastReload = sessionStorage.getItem(reloadKey);
+        const now = Date.now();
+        if (!lastReload || now - Number(lastReload) > 15000) {
+          sessionStorage.setItem(reloadKey, String(now));
+          window.location.reload();
+          return new Promise<PageModule>(() => {});
+        }
+      }
+      throw err;
+    }
+  });
+}
+
 export function pageElement({ load, skeleton }: PageRoute) {
-  const Page = lazy(load);
+  const Page = lazyWithRetry(load);
   return (
     <Suspense fallback={skeleton}>
       <Page />
