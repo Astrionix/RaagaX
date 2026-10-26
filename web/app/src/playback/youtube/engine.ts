@@ -473,6 +473,27 @@ export class YouTubeEngine {
     this.adapter?.dispose();
     this.adapter = null;
   }
+
+  /**
+   * Detaches Shaka Player and SABR adapter cleanly when upgrading playback to an external
+   * direct audio stream (e.g. Lossless Studio FLAC from an Add-on).
+   */
+  async detachForExternalStream(): Promise<void> {
+    this.generation++;
+    this.current = null;
+    this.direct = null;
+    if (this.player) {
+      try {
+        await this.player.unload();
+      } catch (e) {
+        trackLog.w(`player.unload failed: ${String(e)}`);
+      }
+    }
+    if (this.adapter) {
+      this.adapter.dispose();
+      this.adapter = null;
+    }
+  }
 }
 
 /** The codec under its usual name rather than its RFC 6381 string (the phone's codecLabel). */

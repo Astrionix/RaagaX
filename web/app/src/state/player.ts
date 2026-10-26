@@ -154,6 +154,45 @@ export function getAudio(): HTMLAudioElement | null {
 }
 
 /**
+ * Smoothly hot-swaps the front deck's audio element to an upgraded direct audio stream (e.g. Lossless FLAC).
+ * Cleanly detaches Shaka Player so Shaka does not treat the source swap as an error.
+ */
+export async function upgradeActiveDeckToStream(
+  streamUrl: string,
+  trackVideoId: string,
+): Promise<boolean> {
+  const currentNp = usePlayer.getState().nowPlaying;
+  if (!currentNp || currentNp.videoId !== trackVideoId) return false;
+
+  const all = decks;
+  if (!all) return false;
+  const deck = all[active];
+  if (!deck) return false;
+
+  try {
+    const playheadSec = deck.audio.currentTime || 0;
+    const wasPlaying = !deck.audio.paused;
+
+    // Cleanly stop Shaka from managing deck.audio
+    await deck.engine.detachForExternalStream();
+
+    // Set new stream source
+    deck.audio.src = streamUrl;
+    deck.audio.currentTime = playheadSec;
+    if (wasPlaying) {
+      await deck.audio.play().catch((e: unknown) => {
+        trackLog.w(`Audio play failed on upgraded stream: ${String(e)}`, trackVideoId);
+      });
+    }
+
+    return true;
+  } catch (err: unknown) {
+    trackLog.e(`Failed to upgrade active deck: ${String(err)}`, trackVideoId);
+    return false;
+  }
+}
+
+/**
  * Where the song in front is, in seconds, and whether it's moving. Its
  * element, except while a loop mix plays it from a deck: then the mix's own
  * beat clock, which loops and follows the tempo ramp (the element is paused

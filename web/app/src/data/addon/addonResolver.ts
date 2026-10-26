@@ -1,5 +1,5 @@
 import type { Track } from '@/data/music/types';
-import { best, queries, type MatchCandidate, type MatchTarget } from '@/data/match/trackMatcher';
+import { queries, ranked, type MatchCandidate, type MatchTarget } from '@/data/match/trackMatcher';
 import { getAudio, usePlayer } from '@/state/player';
 import { trackLog } from '@/playback/trackLog';
 import { AddonClient, toPlayableStreamUrl } from './addonClient';
@@ -29,8 +29,8 @@ export async function findAddonUpgrade(target: MatchTarget): Promise<AddonUpgrad
     try {
       const client = new AddonClient(addon.baseUrl);
 
-      // Try best query first, then fallbacks
-      for (const query of searchQueries.slice(0, 2)) {
+      // Try queries in order of precision
+      for (const query of searchQueries.slice(0, 3)) {
         const results = await client.search(query, addon.tier);
         if (!results.length) continue;
 
@@ -45,8 +45,9 @@ export async function findAddonUpgrade(target: MatchTarget): Promise<AddonUpgrad
           streamUrl: r.streamUrl,
         }));
 
-        const matched = best(candidates, target);
-        if (matched) {
+        const rankedMatches = ranked(candidates, target);
+        // Try top candidates in case a single stream provider is unavailable
+        for (const matched of rankedMatches.slice(0, 5)) {
           // If candidate row already provides direct streamUrl, use it immediately
           if (matched.streamUrl) {
             const absoluteUrl = new URL(matched.streamUrl, addon.baseUrl).toString();
@@ -95,29 +96,24 @@ export async function attemptAddonUpgrade(track: Track): Promise<void> {
   if (!enabled.length) return;
 
   const artistName = track.artists?.map((a) => a.name).join(', ') || '';
+  const audio = getAudio();
+  const measuredDuration = audio && Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : null;
+
   const target: MatchTarget = {
     title: track.title,
     artist: artistName,
-    durationSec: track.durationSec ?? null,
+    durationSec: track.durationSec || measuredDuration,
     album: track.album?.name ?? null,
   };
 
   const upgrade = await findAddonUpgrade(target);
   if (token !== activeUpgradeToken || !upgrade) return;
 
-  const audio = getAudio();
-  if (!audio) return;
-
-  // Perform smooth hot-swap to the upgraded Add-on stream
+  // Perform smooth hot-swap to the upgraded Add-on stream without disrupting Shaka
   try {
-    const playheadSec = audio.currentTime;
-    const wasPlaying = !audio.paused;
-
-    audio.src = upgrade.streamUrl;
-    audio.currentTime = playheadSec;
-    if (wasPlaying) {
-      void audio.play().catch(() => {});
-    }
+    const { upgradeActiveDeckToStream } = await import('@/state/player');
+    const upgraded = await upgradeActiveDeckToStream(upgrade.streamUrl, track.videoId);
+    if (!upgraded || token !== activeUpgradeToken) return;
 
     // Update store state and stats for nerds
     useAddonStore.getState().setUpgradeState({
@@ -129,8 +125,16 @@ export async function attemptAddonUpgrade(track: Track): Promise<void> {
       format: upgrade.format,
     });
 
-    const isFlac = upgrade.streamUrl.endsWith('.flac') || upgrade.quality === 'LOSSLESS' || upgrade.format?.codec === 'flac';
-    const streamInfo = `${isFlac ? 'FLAC' : 'AUDIO'} · ${upgrade.format?.bitrateKbps || (isFlac ? 1411 : 320)} kbps · ${upgrade.quality}`;
+    const isFlac =
+      upgrade.streamUrl.toLowerCase().includes('.flac') ||
+      upgrade.quality === 'LOSSLESS' ||
+      upgrade.quality === 'HI_RES' ||
+      upgrade.format?.codec?.toLowerCase() === 'flac';
+
+    const bitrate = upgrade.format?.bitrateKbps || (isFlac ? 1411 : 320);
+    const sampleRate = upgrade.format?.sampleRateHz || 44100;
+    const bitDepth = upgrade.format?.bitDepth || (isFlac ? 16 : undefined);
+    const streamInfo = `${isFlac ? 'FLAC' : 'AUDIO'} · ${bitrate} kbps · ${upgrade.quality}`;
 
     const currentNp = usePlayer.getState().nowPlaying;
     if (currentNp && currentNp.videoId === track.videoId) {
@@ -141,12 +145,12 @@ export async function attemptAddonUpgrade(track: Track): Promise<void> {
           stream: {
             codec: isFlac ? 'FLAC' : (upgrade.format?.codec?.toUpperCase() || 'AAC/MP3'),
             itag: null,
-            bitrateKbps: upgrade.format?.bitrateKbps || (isFlac ? 1411 : 320),
-            sampleRateHz: upgrade.format?.sampleRateHz || 44100,
+            bitrateKbps: bitrate,
+            sampleRateHz: sampleRate,
             channels: 2,
             client: `Addon: ${upgrade.addonName}`,
             mode: 'direct',
-            bitDepth: upgrade.format?.bitDepth,
+            bitDepth,
           },
         },
       });

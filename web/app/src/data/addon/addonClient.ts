@@ -46,9 +46,16 @@ export function toPlayableStreamUrl(streamUrl: string): string {
   if (!streamUrl) return streamUrl;
   const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
   // If the web app is served over HTTPS and the stream URL is insecure HTTP,
-  // browsers block it as Mixed Active Content. We proxy it through our audio stream proxy.
+  // browsers block it as Mixed Active Content. We proxy it through our audio stream proxy in dev,
+  // or upgrade to https for remote CDNs/servers in production.
   if (isHttps && streamUrl.startsWith('http://')) {
-    return `/api/addon-stream-proxy?url=${encodeURIComponent(streamUrl)}`;
+    const isLocalhost =
+      typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    if (isLocalhost) {
+      return `/api/addon-stream-proxy?url=${encodeURIComponent(streamUrl)}`;
+    }
+    return streamUrl.replace(/^http:\/\//i, 'https://');
   }
   return streamUrl;
 }
@@ -85,7 +92,14 @@ async function fetchJson<T>(url: string, timeoutMs = 8000): Promise<T> {
     }
 
     // 2. Fallback via Companion Extension bridge if installed
-    const ext = queryClient.getQueryData<DetectedExtension | null>(extensionQueryKey);
+    let ext = queryClient.getQueryData<DetectedExtension | null>(extensionQueryKey);
+    if (!ext?.bridge) {
+      try {
+        const { detectExtension } = await import('@raaga/shared/bridge');
+        const { config } = await import('@/config');
+        ext = await detectExtension({ chromiumExtensionId: config.chromiumExtensionId, timeoutMs: 1500 });
+      } catch {}
+    }
     if (ext?.bridge) {
       try {
         const response = await ext.bridge.call('addon.fetch', {

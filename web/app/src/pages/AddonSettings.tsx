@@ -1,8 +1,7 @@
-import { AlertCircle, CheckCircle2, Globe, Layers, Plus, RefreshCw, ShieldCheck, Sparkles, Trash2, Radio } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Globe, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { AddonClient, maskUrl } from '@/data/addon/addonClient';
 import { useAddonStore } from '@/data/addon/addonStore';
-import { useExtension } from '@/extension/useExtension';
 import type { AddonSourceConfig, AddonTier } from '@/data/addon/types';
 import { Select } from '@/components/Select';
 import { settingsUi } from './settingsStyles';
@@ -13,7 +12,6 @@ export function AddonSettings() {
   const removeAddon = useAddonStore((s) => s.removeAddon);
   const toggleAddon = useAddonStore((s) => s.toggleAddon);
   const setTier = useAddonStore((s) => s.setTier);
-  const extensionStatus = useExtension();
 
   const [inputUrl, setInputUrl] = useState('');
   const [inputName, setInputName] = useState('');
@@ -75,50 +73,6 @@ export function AddonSettings() {
 
   return (
     <div className="space-y-4">
-      {/* Informational Architecture & Security Card */}
-      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5 backdrop-blur-md">
-        <div className="flex items-center gap-2.5 text-amber-400">
-          <Sparkles className="size-4 shrink-0" />
-          <h3 className="type-body-emphasized font-semibold text-white">Lossless Studio FLAC Add-ons</h3>
-        </div>
-        <p className="mt-2 text-xs leading-relaxed text-secondary">
-          Point Raaga at your custom Add-on servers to unlock Bit-Perfect Lossless FLAC, Hi-Res (24-bit/96kHz), and Dolby Atmos audio streaming.
-        </p>
-
-        <div className="mt-3.5 grid grid-cols-1 gap-2.5 sm:grid-cols-2 text-[11px] font-mono">
-          <div className="flex items-start gap-2 rounded-xl border border-white/[0.06] bg-black/40 p-2.5">
-            <ShieldCheck className="mt-0.5 size-3.5 shrink-0 text-emerald-400" />
-            <div>
-              <span className="font-semibold text-white">100% Sandbox Security</span>
-              <p className="mt-0.5 text-zinc-400">Zero executable code runs on your device. Only read-only HTTP GET REST queries are sent.</p>
-            </div>
-          </div>
-          <div className="flex items-start gap-2 rounded-xl border border-white/[0.06] bg-black/40 p-2.5">
-            <Layers className="mt-0.5 size-3.5 shrink-0 text-cyan-400" />
-            <div>
-              <span className="font-semibold text-white">Second-Look Hot-Swap</span>
-              <p className="mt-0.5 text-zinc-400">YouTube Music starts instantly; in the background, Raaga matches and upgrades to studio FLAC.</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Web Network Bridge & Proxy Status */}
-        <div className="mt-3 flex items-center justify-between gap-2 rounded-xl border border-white/[0.08] bg-black/30 px-3 py-2 text-[11px] font-mono">
-          <div className="flex items-center gap-2">
-            <Radio className={`size-3.5 ${extensionStatus.state === 'present' ? 'text-emerald-400' : 'text-amber-400'}`} />
-            <span className="text-zinc-300">
-              Web Connectivity: {extensionStatus.state === 'present' ? (
-                <span className="text-emerald-400 font-semibold">Companion Extension Bridge Active</span>
-              ) : (
-                <span className="text-amber-400 font-semibold">Smart Web Proxy Active (CORS Bypass)</span>
-              )}
-            </span>
-          </div>
-          <span className="text-[10px] text-zinc-500 hidden sm:inline">
-            Direct & Fallback Modes Ready
-          </span>
-        </div>
-      </div>
 
       {/* Add New Add-on Form */}
       <form onSubmit={handleAdd} className={`${settingsUi.group} p-4 space-y-3`}>
