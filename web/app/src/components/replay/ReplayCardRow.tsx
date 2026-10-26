@@ -23,7 +23,7 @@ export const ReplayCardRow: React.FC<ReplayCardRowProps> = ({ className = '', sh
   };
 
   return (
-    <section className={`my-6 px-4 md:px-8 ${className}`}>
+    <section className={`my-6 mx-(--body-gutter) ${className}`}>
       {showTitle && (
         <div className="mb-4 flex items-center justify-between">
           <div>
@@ -69,13 +69,13 @@ export const ReplayCardRow: React.FC<ReplayCardRowProps> = ({ className = '', sh
       {/* Horizontal Carousel */}
       <div
         ref={scrollRef}
-        className="flex gap-4 overflow-x-auto pb-4 pt-1 scrollbar-none snap-x snap-mandatory"
+        className="flex gap-3 overflow-x-auto pb-4 pt-1 scrollbar-none snap-x snap-mandatory"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
         {cards.map((card) => (
           <div
             key={card.id}
-            className="w-[280px] sm:w-[320px] flex-none snap-start"
+            className="w-[300px] flex-none snap-start"
           >
             <ReplayCard
               card={card}
