@@ -3243,9 +3243,18 @@ fun RaagaDesktopApp() {
                             windowActions?.minimize?.invoke()
                             true
                         }
+                        event.key == Key.F11 -> {
+                            windowActions?.toggleMaximize?.invoke()
+                            true
+                        }
                         // One layer at a time, innermost first: the player's own side panel, then
                         // the player.
                         event.key == Key.Escape -> when {
+                            // Exit full screen mode first if active
+                            DesktopWindowMode.fullScreen.value -> {
+                                DesktopWindowMode.exit()
+                                true
+                            }
                             // The player's own layers first — the lyrics, the queue, a
                             // drawer — in the order Android's back reaches them.
                             overlays.nowPlaying && PlayerBack.dispatch() -> true

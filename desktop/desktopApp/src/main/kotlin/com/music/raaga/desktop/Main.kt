@@ -161,6 +161,9 @@ private fun desktopMain() = application {
                     }
                 },
                 toggleMaximize = {
+                    if (DesktopPlatform.isWindows && DesktopWindowsFrame.toggleMaximize()) {
+                        return@DesktopWindowActions
+                    }
                     if (DesktopPlatform.drawsOwnWindowFrame) {
                         val screen = composeWindow.graphicsConfiguration.bounds
                         val insets = Toolkit.getDefaultToolkit().getScreenInsets(

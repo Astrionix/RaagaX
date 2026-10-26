@@ -43,7 +43,21 @@ internal object DesktopWindowsFrame {
         fun ReleaseCapture(): Boolean
         fun SendMessageW(hwnd: Pointer, msg: Int, wParam: Long, lParam: Long): Long
         fun PostMessageW(hwnd: Pointer, msg: Int, wParam: Long, lParam: Long): Boolean
+        fun GetWindowLongW(hwnd: Pointer, nIndex: Int): Int
+        fun SetWindowLongW(hwnd: Pointer, nIndex: Int, dwNewLong: Int): Int
+        fun SetWindowPos(hwnd: Pointer, hWndInsertAfter: Pointer?, x: Int, y: Int, cx: Int, cy: Int, uFlags: Int): Boolean
     }
+
+    private const val GWL_STYLE = -16
+    private const val WS_THICKFRAME = 0x00040000
+    private const val WS_MINIMIZEBOX = 0x00020000
+    private const val WS_MAXIMIZEBOX = 0x00010000
+    private const val WS_SYSMENU = 0x00080000
+
+    private const val SWP_NOMOVE = 0x0002
+    private const val SWP_NOSIZE = 0x0001
+    private const val SWP_NOZORDER = 0x0004
+    private const val SWP_FRAMECHANGED = 0x0020
 
     private val dwmapi: LibDwmapi? by lazy {
         if (!DesktopPlatform.isWindows) null
@@ -94,6 +108,8 @@ internal object DesktopWindowsFrame {
 
     private fun applyInitialWindowAttributes(hwnd: Pointer) {
         val d = dwmapi ?: return
+        val u = user32
+
         // Enable Dark Mode (DWMWA_USE_IMMERSIVE_DARK_MODE = 20)
         val darkMem = Memory(4).apply { setInt(0, 1) }
         d.DwmSetWindowAttribute(hwnd, 20, darkMem, 4)
@@ -101,6 +117,25 @@ internal object DesktopWindowsFrame {
         // Rounded corners (DWMWA_WINDOW_CORNER_PREFERENCE = 33, 2 = DWMWCP_ROUND)
         val cornerMem = Memory(4).apply { setInt(0, 2) }
         d.DwmSetWindowAttribute(hwnd, 33, cornerMem, 4)
+
+        // Make window taskbar-aware: WS_THICKFRAME and WS_MAXIMIZEBOX ensure Windows OS
+        // constrains maximized bounds to the Taskbar Work Area (rcWork), so the Taskbar
+        // is never covered or hidden when maximized.
+        if (u != null) {
+            runCatching {
+                val currentStyle = u.GetWindowLongW(hwnd, GWL_STYLE)
+                val newStyle = currentStyle or WS_THICKFRAME or WS_MINIMIZEBOX or WS_MAXIMIZEBOX or WS_SYSMENU
+                if (newStyle != currentStyle) {
+                    u.SetWindowLongW(hwnd, GWL_STYLE, newStyle)
+                    u.SetWindowPos(
+                        hwnd,
+                        null,
+                        0, 0, 0, 0,
+                        SWP_NOMOVE or SWP_NOSIZE or SWP_NOZORDER or SWP_FRAMECHANGED
+                    )
+                }
+            }
+        }
     }
 
     fun minimize(): Boolean {
