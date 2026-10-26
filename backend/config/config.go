@@ -1,6 +1,7 @@
 package config
 
 import (
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -48,13 +49,29 @@ func getBool(key string, fallback bool) bool {
 	return parsed
 }
 
-// IsAllowedOrigin deliberately does not support a wildcard. Browser clients
-// must be explicitly named; native clients send no Origin header.
+// IsAllowedOrigin checks whether a given origin is allowed to connect via CORS or WebSocket.
+// Native clients (Android, Desktop) send no Origin header (origin == "").
+// Browser clients (Web) send their origin, e.g. "https://web.raaga.me" or "http://localhost:5173".
 func IsAllowedOrigin(origin string) bool {
+	if origin == "" {
+		return true
+	}
 	for _, allowed := range AllowedOrigins {
-		if origin == allowed {
+		if allowed == "*" || origin == allowed {
 			return true
 		}
+	}
+	// Permissive defaults for Raaga web deployments, local development, and browser extensions
+	u, err := url.Parse(origin)
+	if err == nil {
+		host := strings.ToLower(u.Hostname())
+		if host == "localhost" || host == "127.0.0.1" || host == "web.raaga.me" || host == "raaga.app" ||
+			strings.HasSuffix(host, ".raaga.me") || strings.HasSuffix(host, ".onrender.com") {
+			return true
+		}
+	}
+	if strings.HasPrefix(origin, "chrome-extension://") || strings.HasPrefix(origin, "moz-extension://") {
+		return true
 	}
 	return false
 }
@@ -78,7 +95,7 @@ var (
 	WebSocketMaxBytes    = int64(getInt("JAM_WEBSOCKET_MAX_BYTES", 16*1024))
 	ConnectionIdleMs     = int64(getInt("JAM_CONNECTION_IDLE_MS", 15*60*1000))
 	FrameRatePerSecond   = float64(getInt("JAM_FRAME_RATE_PER_SECOND", 30))
-	AllowedOrigins       = getCSV("JAM_ALLOWED_ORIGINS", "")
+	AllowedOrigins       = getCSV("JAM_ALLOWED_ORIGINS", "https://web.raaga.me,https://raaga.app,http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,*")
 	TrustProxy           = getBool("JAM_TRUST_PROXY", false)
 	Port                 = getInt("PORT", 8000)
 )

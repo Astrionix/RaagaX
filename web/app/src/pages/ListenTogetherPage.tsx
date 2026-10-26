@@ -200,7 +200,9 @@ function InParty() {
   const [copied, setCopied] = useState(false);
   const isHost = state.you?.isHost === true;
   const locked = controlsLocked(state);
-  const custom = partyServer() && partyServer() !== DEFAULT_SERVER ? partyServer() : null;
+  const server = partyServer();
+  const isLocal = !server || server === DEFAULT_SERVER || server.includes('localhost') || server.includes('127.0.0.1');
+  const custom = isLocal ? null : server;
   const link = inviteUrl(state.code!, custom);
   useEffect(() => {
     if (!copied) return;

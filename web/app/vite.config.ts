@@ -206,6 +206,24 @@ export default defineConfig(({ command, mode }) => {
       // exactly, so the port must not drift to 5174 when 5173 is busy.
       port: 5173,
       strictPort: true,
+      proxy: {
+        '/api/parties': {
+          target: 'https://raagax.onrender.com',
+          changeOrigin: true,
+          secure: true,
+        },
+        '/api/time': {
+          target: 'https://raagax.onrender.com',
+          changeOrigin: true,
+          secure: true,
+        },
+        '/ws/parties': {
+          target: 'https://raagax.onrender.com',
+          changeOrigin: true,
+          secure: true,
+          ws: true,
+        },
+      },
     },
   };
 });

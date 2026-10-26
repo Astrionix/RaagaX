@@ -126,7 +126,12 @@ export function savePartySettings(change: Partial<Settings>): void {
 
 /** The server parties are made on: the custom one if set, else Raaga's. */
 export function idleServer(): string {
-  return sanitizeServerUrl(partySettings().customServer) ?? DEFAULT_SERVER;
+  const custom = partySettings().customServer;
+  if (custom) return sanitizeServerUrl(custom) ?? DEFAULT_SERVER;
+  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+    return window.location.origin;
+  }
+  return DEFAULT_SERVER;
 }
 
 // ---- Membership --------------------------------------------------------------------
@@ -181,6 +186,30 @@ async function request<T>(url: string, init: RequestInit = {}): Promise<T> {
   try {
     response = await fetch(url, { ...init, headers: { 'Content-Type': 'application/json', ...init.headers } });
   } catch {
+    // 1. Fallback via Companion Extension bridge if installed and direct browser fetch was blocked by CORS
+    try {
+      const { detectExtension } = await import('@raaga/shared/bridge');
+      const { config } = await import('@/config');
+      const ext = await detectExtension({ chromiumExtensionId: config.chromiumExtensionId, timeoutMs: 1200 });
+      if (ext?.bridge) {
+        const bridgeRes = await ext.bridge.call('addon.fetch', {
+          url,
+          method: (init.method as 'GET' | 'POST') || 'GET',
+          headers: { 'Content-Type': 'application/json', ...(init.headers as Record<string, string>) },
+          body: typeof init.body === 'string' ? init.body : undefined,
+        });
+        if (bridgeRes.status >= 200 && bridgeRes.status < 300) {
+          return JSON.parse(bridgeRes.body) as T;
+        }
+        throw new PartyError(
+          `http_${bridgeRes.status}`,
+          bridgeRes.status === 422 ? 'This account can’t be used to jam.' : `The party server said ${bridgeRes.status}.`,
+          bridgeRes.status,
+        );
+      }
+    } catch (bridgeErr) {
+      if (bridgeErr instanceof PartyError) throw bridgeErr;
+    }
     throw new PartyError('unreachable', UNREACHABLE);
   }
   if (!response.ok) throw await errorOf(response);

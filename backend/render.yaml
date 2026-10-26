@@ -35,6 +35,8 @@ services:
         value: "2"
       - key: JAM_CONNECTION_IDLE_MS
         value: "900000"
+      - key: JAM_ALLOWED_ORIGINS
+        value: "https://web.raaga.me,https://raaga.app,http://localhost:5173,http://127.0.0.1:5173,*"
       # Render terminates TLS and supplies the real client IP in X-Forwarded-For.
       - key: JAM_TRUST_PROXY
         value: "true"
