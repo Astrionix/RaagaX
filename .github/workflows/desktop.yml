@@ -53,9 +53,9 @@ jobs:
           chmod +x gradlew
           chmod +x desktopApp/packaging/appimage.sh || true
 
-      - name: Build deb, rpm, and distributable
+      - name: Build deb and distributable
         run: |
-          ./gradlew :desktopApp:packageDeb :desktopApp:packageRpm :desktopApp:createDistributable \
+          ./gradlew :desktopApp:packageDeb :desktopApp:createDistributable \
             -Praaga.version=${{ steps.version.outputs.value }} -x test
 
       - name: Package AppImage
@@ -70,7 +70,6 @@ jobs:
           v="${{ steps.version.outputs.value }}"
           mkdir -p dist
           cp desktopApp/build/compose/binaries/main/deb/*.deb "dist/Raaga-$v-linux-amd64.deb" 2>/dev/null || true
-          cp desktopApp/build/compose/binaries/main/rpm/*.rpm "dist/Raaga-$v-linux-x86_64.rpm" 2>/dev/null || true
           ls -lh dist
 
       - name: Upload Linux artifacts to GitHub Release
@@ -81,7 +80,7 @@ jobs:
           gh release upload "v$v" dist/* --clobber --repo "${{ github.repository }}"
 
   macos:
-    name: macOS · dmg, pkg, zip (${{ matrix.arch }})
+    name: macOS · DMG (${{ matrix.arch }})
     strategy:
       fail-fast: false
       matrix:
@@ -116,9 +115,9 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x gradlew
 
-      - name: Build DMG, PKG, and App bundle
+      - name: Build DMG
         run: |
-          ./gradlew :desktopApp:packageDmg :desktopApp:packagePkg :desktopApp:createDistributable \
+          ./gradlew :desktopApp:packageDmg \
             -Praaga.version=${{ steps.version.outputs.value }} \
             -Praaga.arch=${{ matrix.arch }} -x test
 
@@ -130,12 +129,6 @@ jobs:
           for f in desktopApp/build/compose/binaries/main/dmg/*.dmg; do
             [ -f "$f" ] && cp "$f" "dist/Raaga-$v-macos-$arch.dmg"
           done
-          for f in desktopApp/build/compose/binaries/main/pkg/*.pkg; do
-            [ -f "$f" ] && cp "$f" "dist/Raaga-$v-macos-$arch.pkg"
-          done
-          if [ -d "desktopApp/build/compose/binaries/main/app/Raaga.app" ]; then
-            ditto -c -k --keepParent desktopApp/build/compose/binaries/main/app/Raaga.app "dist/Raaga-$v-macos-$arch.zip"
-          fi
           ls -lh dist
 
       - name: Upload macOS artifacts to GitHub Release
@@ -146,7 +139,7 @@ jobs:
           gh release upload "v$v" dist/* --clobber --repo "${{ github.repository }}"
 
   windows:
-    name: Windows · Installer (.exe, .msi)
+    name: Windows · Installer (.exe)
     runs-on: windows-latest
     defaults:
       run:
@@ -173,7 +166,7 @@ jobs:
       - name: Build Windows Installer
         shell: bash
         run: |
-          ./gradlew :desktopApp:packageExe :desktopApp:packageMsi -Praaga.version=${{ steps.version.outputs.value }} --stacktrace
+          ./gradlew :desktopApp:packageExe -Praaga.version=${{ steps.version.outputs.value }} --stacktrace
 
       - name: Upload Windows Installer to Release
         env:
@@ -183,11 +176,4 @@ jobs:
           $v = "${{ steps.version.outputs.value }}"
           New-Item -ItemType Directory -Force -Path dist
           Get-ChildItem -Path "desktopApp/build/compose/binaries/main/exe/*.exe" | ForEach-Object { Copy-Item $_.FullName -Destination "dist/Raaga-$v-windows-setup.exe" -Force }
-          Get-ChildItem -Path "desktopApp/build/compose/binaries/main/msi/*.msi" | ForEach-Object { Copy-Item $_.FullName -Destination "dist/Raaga-$v-windows-setup.msi" -Force }
-          
-          # Patch MSI: disable Restart Manager and enable auto-launch after install
-          $msi = "dist/Raaga-$v-windows-setup.msi"
-          if (Test-Path $msi) {
-            & pwsh -ExecutionPolicy Bypass -File "desktopApp/packaging/patch-msi.ps1" -MsiPath $msi
-          }
           gh release upload "v$v" dist/* --clobber --repo "${{ github.repository }}"

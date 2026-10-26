@@ -85,10 +85,6 @@ jobs:
       run: |
         ./gradlew assembleProdRelease --stacktrace --no-daemon
 
-    - name: Build Android Dev Debug APK
-      run: |
-        ./gradlew assembleDevDebug --stacktrace --no-daemon
-
     - name: Ensure all APKs are named Raaga
       run: |
         find app/build/outputs/apk -name "app-*" -type f 2>/dev/null | while read -r file; do
@@ -115,10 +111,9 @@ jobs:
       uses: softprops/action-gh-release@v2
       with:
         files: |
-          app/build/outputs/apk/prod/release/*.apk
-          app/build/outputs/apk/dev/debug/*.apk
-          tv/build/outputs/apk/prod/release/*.apk
-          tv/build/outputs/apk/dev/debug/*.apk
+          app/build/outputs/apk/prod/release/*arm64-v8a*.apk
+          app/build/outputs/apk/prod/release/*universal*.apk
+          tv/build/outputs/apk/prod/release/*universal*.apk
         name: "Raaga ${{ github.ref_name }}"
         body: |
           ### Raaga ${{ github.ref_name }}
