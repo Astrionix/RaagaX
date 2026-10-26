@@ -1,3 +1,4 @@
+import { Headphones } from 'lucide-react';
 import { useAddonStore } from '@/data/addon/addonStore';
 import { usePlayer } from '@/state/player';
 
@@ -7,10 +8,10 @@ interface LosslessBadgeProps {
 }
 
 /**
- * Clean plain-text Lossless / Hi-Res Quality indicator matching Desktop & Mobile app.
- * Plain centered text with no box and no star symbol.
+ * Clean Lossless / Hi-Res Quality indicator matching Desktop & Mobile app.
+ * Prepend a headphone glyph ahead of "Lossless" or "Hi-Res Lossless".
  */
-export function LosslessBadge({ className = '' }: LosslessBadgeProps) {
+export function LosslessBadge({ className = '', size = 'sm' }: LosslessBadgeProps) {
   const upgradeState = useAddonStore((s) => s.upgradeState);
   const nowPlaying = usePlayer((s) => s.nowPlaying);
 
@@ -31,13 +32,15 @@ export function LosslessBadge({ className = '' }: LosslessBadgeProps) {
 
   const isDolby = upgradeState?.quality === 'DOLBY';
   const label = isDolby ? 'Dolby Atmos' : isHiRes ? 'Hi-Res Lossless' : 'Lossless';
+  const iconSize = size === 'md' ? 14 : 11;
 
   return (
     <span
-      className={`text-center font-medium text-[12px] tracking-wide text-white/80 select-none ${className}`}
+      className={`inline-flex items-center justify-center gap-1.5 font-medium text-[12px] tracking-wide text-white/80 select-none ${className}`}
       title={isHiRes ? 'Hi-Res Lossless Studio Audio' : 'Lossless Audio'}
     >
-      {label}
+      <Headphones size={iconSize} className="shrink-0 opacity-80" aria-hidden="true" />
+      <span>{label}</span>
     </span>
   );
 }
