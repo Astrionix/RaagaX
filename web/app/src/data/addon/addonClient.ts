@@ -282,19 +282,49 @@ export class AddonClient {
     for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
 
     try {
-      const res = await fetchJson<AddonStream | { url?: string; streamUrl?: string; format?: AddonStream['format'] }>(url.toString());
-      const streamUrl = res.url || (res as { streamUrl?: string }).streamUrl;
+      const raw = await fetchJson<Record<string, any>>(url.toString());
+      const streamUrl = raw.url || raw.streamUrl || raw.streamURL;
       if (!streamUrl) return null;
 
       // Make relative URLs absolute against baseUrl and ensure it is playable (Mixed Content protection)
       const absoluteUrl = new URL(streamUrl, this.baseUrl).toString();
       const playableUrl = toPlayableStreamUrl(absoluteUrl);
+
+      const qualityText = `${raw.quality || ''} ${raw.streamQuality || ''} ${raw.audioQuality || ''} ${typeof raw.format === 'string' ? raw.format : ''}`;
+
+      const khzMatch = qualityText.match(/([\d.]+)\s*kHz/i)?.[1];
+      const rawSampleRate = raw.sampleRate ?? raw.sampleRateHz;
+      const sampleRateHz = rawSampleRate
+        ? (rawSampleRate < 1000 ? Math.round(rawSampleRate * 1000) : Math.round(rawSampleRate))
+        : khzMatch
+        ? Math.round(parseFloat(khzMatch) * 1000)
+        : 44100;
+
+      const bitMatch = qualityText.match(/(\d{1,2})\s*-?\s*bit/i)?.[1];
+      const bitDepth = raw.bitDepth
+        ? Math.round(raw.bitDepth)
+        : bitMatch
+        ? parseInt(bitMatch, 10)
+        : undefined;
+
+      const kbpsMatch = qualityText.match(/(\d{2,4})\s*kbps/i)?.[1];
+      const rawBitrate = raw.bitrate ?? raw.bitrateKbps;
+      const bitrateKbps = rawBitrate
+        ? (rawBitrate > 3000 ? Math.round(rawBitrate / 1000) : Math.round(rawBitrate))
+        : kbpsMatch
+        ? parseInt(kbpsMatch, 10)
+        : (tier === 'LOSSLESS' ? 1411 : 320);
+
+      const codec = raw.codec || raw.fileCodec || (typeof raw.format === 'string' && raw.format ? raw.format : (absoluteUrl.endsWith('.flac') ? 'flac' : 'mp3'));
+
       return {
         url: playableUrl,
-        format: res.format || {
-          quality: tier,
-          codec: absoluteUrl.endsWith('.flac') ? 'flac' : 'mp3',
-          bitrateKbps: tier === 'LOSSLESS' ? 1411 : 320,
+        format: {
+          codec: String(codec).toLowerCase(),
+          bitDepth,
+          sampleRateHz,
+          bitrateKbps,
+          quality: raw.quality || (bitDepth && bitDepth > 16 ? 'HI_RES' : tier),
         },
       };
     } catch {

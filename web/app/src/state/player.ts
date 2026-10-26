@@ -705,15 +705,16 @@ async function startAt(at: number, { startSec = 0, auto = false, autoplay = true
         status: autoplay ? 'playing' : 'paused',
         nowPlaying: {
           ...hintOf(entry.track),
-          streamInfo: `FLAC · Lossless (Addon: ${addonUpgrade.addonName})`,
+          streamInfo: `FLAC · Lossless`,
           stream: {
             codec: 'FLAC',
             itag: null,
-            bitrateKbps: 1411,
-            sampleRateHz: 44100,
+            bitrateKbps: addonUpgrade.format?.bitrateKbps || 1411,
+            sampleRateHz: addonUpgrade.format?.sampleRateHz || 44100,
             channels: 2,
             client: `Addon: ${addonUpgrade.addonName}`,
             mode: 'direct',
+            bitDepth: addonUpgrade.format?.bitDepth,
           },
         },
       });

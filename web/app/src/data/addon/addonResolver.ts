@@ -129,8 +129,8 @@ export async function attemptAddonUpgrade(track: Track): Promise<void> {
       format: upgrade.format,
     });
 
-    const isFlac = upgrade.streamUrl.endsWith('.flac') || upgrade.quality === 'LOSSLESS';
-    const streamInfo = `${isFlac ? 'FLAC' : 'AUDIO'} · ${upgrade.format?.bitrateKbps || (isFlac ? 1411 : 320)} kbps · ${upgrade.quality} (Addon: ${upgrade.addonName})`;
+    const isFlac = upgrade.streamUrl.endsWith('.flac') || upgrade.quality === 'LOSSLESS' || upgrade.format?.codec === 'flac';
+    const streamInfo = `${isFlac ? 'FLAC' : 'AUDIO'} · ${upgrade.format?.bitrateKbps || (isFlac ? 1411 : 320)} kbps · ${upgrade.quality}`;
 
     const currentNp = usePlayer.getState().nowPlaying;
     if (currentNp && currentNp.videoId === track.videoId) {
@@ -139,13 +139,14 @@ export async function attemptAddonUpgrade(track: Track): Promise<void> {
           ...currentNp,
           streamInfo,
           stream: {
-            codec: isFlac ? 'FLAC' : 'AAC/MP3',
+            codec: isFlac ? 'FLAC' : (upgrade.format?.codec?.toUpperCase() || 'AAC/MP3'),
             itag: null,
             bitrateKbps: upgrade.format?.bitrateKbps || (isFlac ? 1411 : 320),
             sampleRateHz: upgrade.format?.sampleRateHz || 44100,
             channels: 2,
             client: `Addon: ${upgrade.addonName}`,
             mode: 'direct',
+            bitDepth: upgrade.format?.bitDepth,
           },
         },
       });

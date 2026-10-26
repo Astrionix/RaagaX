@@ -44,6 +44,7 @@ export interface StreamStats {
   channels: number | null;
   /** "direct" (googlevideo URLs, by range) or "SABR". */
   mode: 'direct' | 'SABR';
+  bitDepth?: number | null;
 }
 
 /** A music video's picture: a video-only DASH manifest over the same response's direct URLs. */

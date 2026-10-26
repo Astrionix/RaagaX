@@ -24,17 +24,17 @@ export function NerdStats() {
   );
 }
 
-/** "Opus · 48 kHz · 141 kbps · Stereo · itag 251 · VISIONOS direct", as much as is known. */
+/** "FLAC · 24-bit · 48.0 kHz · 1730 kbps · Stereo", matching Desktop and Android format. */
 function describeStream(np: NowPlaying): string | null {
   const s = np.stream;
   if (!s) return null;
   const parts = [
     s.codec,
+    s.bitDepth ? `${s.bitDepth}-bit` : null,
     s.sampleRateHz ? `${+(s.sampleRateHz / 1000).toFixed(1)} kHz` : null,
     s.bitrateKbps ? `${s.bitrateKbps} kbps` : null,
     s.channels ? ({ 1: 'Mono', 2: 'Stereo' } as Record<number, string>)[s.channels] ?? `${s.channels} channels` : null,
     s.itag ? `itag ${s.itag}` : null,
-    `${s.client} ${s.mode}`,
   ];
   return parts.filter(Boolean).join(' · ');
 }
