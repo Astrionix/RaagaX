@@ -1,5 +1,5 @@
-import { Sparkles } from 'lucide-react';
 import { useAddonStore } from '@/data/addon/addonStore';
+import { usePlayer } from '@/state/player';
 
 interface LosslessBadgeProps {
   className?: string;
@@ -7,35 +7,55 @@ interface LosslessBadgeProps {
 }
 
 /**
- * Audiophile Lossless / Hi-Res Quality Badge.
- * Displayed next to track titles when an Addon has upgraded playback to studio FLAC.
+ * Audiophile Lossless / Hi-Res Quality Badge matching Desktop & Mobile app.
+ * A crisp white rounded border capsule with the lossless sparkle icon and label.
  */
-export function LosslessBadge({ className = '', size = 'sm' }: LosslessBadgeProps) {
+export function LosslessBadge({ className = '', size = 'md' }: LosslessBadgeProps) {
   const upgradeState = useAddonStore((s) => s.upgradeState);
+  const nowPlaying = usePlayer((s) => s.nowPlaying);
 
-  if (!upgradeState?.active) return null;
+  const isFlac =
+    nowPlaying?.stream?.codec?.toUpperCase() === 'FLAC' ||
+    upgradeState?.active ||
+    nowPlaying?.streamInfo?.toLowerCase().includes('lossless') ||
+    nowPlaying?.streamInfo?.toLowerCase().includes('flac');
 
-  const isHiRes = upgradeState.quality === 'HI_RES' || (upgradeState.format?.sampleRateHz ?? 0) > 48000;
-  const isDolby = upgradeState.quality === 'DOLBY';
-  const label = isDolby ? 'DOLBY' : isHiRes ? 'HI-RES' : 'LOSSLESS';
+  if (!isFlac && !upgradeState?.active) return null;
+
+  const isHiRes =
+    upgradeState?.quality === 'HI_RES' ||
+    (upgradeState?.format?.bitDepth ?? 0) > 16 ||
+    (upgradeState?.format?.sampleRateHz ?? 0) > 48000 ||
+    (nowPlaying?.stream?.bitDepth ?? 0) > 16 ||
+    (nowPlaying?.stream?.sampleRateHz ?? 0) > 48000;
+
+  const isDolby = upgradeState?.quality === 'DOLBY';
+  const label = isDolby ? 'DOLBY ATMOS' : isHiRes ? 'HI-RES LOSSLESS' : 'LOSSLESS';
 
   return (
     <span
-      className={`inline-flex items-center gap-1 font-mono font-bold tracking-wider uppercase select-none rounded-[3px] border transition-all ${
+      className={`inline-flex items-center gap-1.5 select-none rounded-[4px] border border-white/80 bg-white/5 backdrop-blur-xs transition-all ${
         size === 'sm'
-          ? 'px-1 py-[1px] text-[9px] leading-[10px]'
-          : 'px-1.5 py-0.5 text-[10px] leading-[12px]'
-      } ${
-        isDolby
-          ? 'bg-purple-500/15 text-purple-300 border-purple-500/30 shadow-[0_0_8px_rgba(168,85,247,0.25)]'
-          : isHiRes
-          ? 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30 shadow-[0_0_8px_rgba(6,182,212,0.25)]'
-          : 'bg-amber-500/15 text-amber-300 border-amber-500/30 shadow-[0_0_8px_rgba(245,158,11,0.25)]'
+          ? 'px-1.5 py-[1px] text-[9px]'
+          : 'px-2 py-0.5 text-[10.5px]'
       } ${className}`}
-      title={`Bit-Perfect Lossless audio via Addon: ${upgradeState.addonName}`}
+      title={isHiRes ? 'Hi-Res Lossless Audio' : 'Lossless Audio'}
     >
-      <Sparkles size={size === 'sm' ? 8 : 10} className="shrink-0 animate-pulse" />
-      <span>{label}</span>
+      <svg
+        className={`${size === 'sm' ? 'size-2.5' : 'size-3'} shrink-0 text-white`}
+        viewBox="0 0 16 16"
+        fill="currentColor"
+        aria-hidden="true"
+      >
+        <path d="M8 2.5c0 2.8-2.2 4.5-5 5 2.8.5 5 2.2 5 5 0-2.8 2.2-4.5 5-5-2.8-.5-5-2.2-5-5z" />
+        <circle cx="4" cy="4" r="0.9" />
+        <circle cx="12" cy="4" r="0.9" />
+        <circle cx="4" cy="12" r="0.9" />
+        <circle cx="12" cy="12" r="0.9" />
+      </svg>
+      <span className="font-sans font-bold tracking-wider uppercase text-white">
+        {label}
+      </span>
     </span>
   );
 }

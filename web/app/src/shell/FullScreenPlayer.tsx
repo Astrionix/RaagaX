@@ -29,7 +29,7 @@ import { LyricsPanel } from './LyricsPanel';
 import { MeshBackdrop } from './MeshBackdrop';
 import { albumPageFor } from './nowPlayingLinks';
 import { UpNext } from './UpNext';
-import { MixWindowHighlight, NerdStats } from './NerdStats';
+import { MixWindowHighlight } from './NerdStats';
 import { useScrubber } from './useScrubber';
 import { fadeForVolume, VolumeControl } from './VolumeControl';
 
@@ -341,7 +341,6 @@ export function FullScreenPlayer() {
                   {title}
                 </PageLink>
                 {track?.explicit && <ExplicitBadge size={14} />}
-                <LosslessBadge size="md" />
               </div>
               <span className="truncate type-title-3 text-secondary">
                 {artist && <Credits videoId={videoId} line={artist} artists={track?.artists ?? []} className={pageLink} />}
@@ -356,7 +355,9 @@ export function FullScreenPlayer() {
                   </PageLink>
                 )}
               </span>
-              <NerdStats />
+              <div className="mt-1 flex items-center">
+                <LosslessBadge size="md" />
+              </div>
             </div>
             <FavoriteButton
               videoId={nowPlaying.videoId}
