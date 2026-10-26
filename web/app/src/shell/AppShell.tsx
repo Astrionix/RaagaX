@@ -3,6 +3,7 @@ import { resumeSession } from '@/party/listenTogether';
 import { startPartySync } from '@/party/partySync';
 import { useDiscordPresence } from '@/playback/discordPresence';
 import { startHistoryReporting } from '@/playback/historyReporting';
+import { startListeningTracker } from '@/data/stats/listeningTracker';
 import { startLivePresence } from '@/playback/livePresence';
 import { Outlet } from 'react-router';
 import { PrefetchLink } from '@/components/PrefetchLink';
@@ -36,6 +37,8 @@ export function AppShell() {
   }, []);
   // Plays into the account's YouTube Music history (Settings › Share Listening Activity).
   useEffect(() => startHistoryReporting(), []);
+  // Tracks playback watch time and play counts for "Your listening experience" Replay.
+  useEffect(() => startListeningTracker(), []);
   // Counts this tab in the "listening now" figure beside the phone and PC apps.
   useEffect(() => startLivePresence(), []);
   const extension = useExtension();

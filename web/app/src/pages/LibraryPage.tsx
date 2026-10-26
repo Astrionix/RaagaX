@@ -4,6 +4,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { CircleLockup, SquareLockup, VideoLockup } from '@/components/music/Lockups';
 import { EmptyState, LoadError, LoadMoreError, NeedsExtension } from '@/components/music/States';
 import { TrackList } from '@/components/music/TrackList';
+import { ReplayCardRow } from '@/components/replay/ReplayCardRow';
 import { isLibrarySection, LIBRARY_SECTIONS } from '@/data/music/library';
 import { useLibrary, useSignedIn, useYouTubeReady } from '@/data/music/queries';
 import { useYtAuth } from '@/extension/useYtAuth';
@@ -60,6 +61,7 @@ export default function LibraryPage() {
   return (
     <>
       <PageHeader title={title} />
+      {section === 'recent' && <ReplayCardRow />}
       {!grid.length && !tracks.length && <EmptyState title="Nothing here yet" />}
       {grid.length > 0 && (
         <ul className={seeAllGrid} data-wide={grid.every((i) => i.wide) || undefined}>

@@ -1,4 +1,4 @@
-import { ArrowUpRight, ListMusic, Settings } from 'lucide-react';
+import { ArrowUpRight, ListMusic, Settings, Sparkles } from 'lucide-react';
 import { MdOutlineExtension } from 'react-icons/md';
 import { PrefetchLink, PrefetchNavLink } from '@/components/PrefetchLink';
 import { LogoMark } from '@/components/icons/LogoMark';
@@ -44,11 +44,18 @@ const LIBRARY_ICONS: Record<Exclude<LibrarySection, 'playlists'>, NavItem['Icon'
   'made-for-you': MadeForYouIcon,
 };
 
-const LIBRARY: NavItem[] = (Object.keys(LIBRARY_ICONS) as (keyof typeof LIBRARY_ICONS)[]).map((section) => ({
-  to: `/library/${section}`,
-  label: LIBRARY_SECTIONS[section].title,
-  Icon: LIBRARY_ICONS[section],
-}));
+const LIBRARY: NavItem[] = [
+  {
+    to: '/replay',
+    label: 'Replay',
+    Icon: ({ size = 24, className }) => <Sparkles size={size} className={className} />,
+  },
+  ...(Object.keys(LIBRARY_ICONS) as (keyof typeof LIBRARY_ICONS)[]).map((section) => ({
+    to: `/library/${section}`,
+    label: LIBRARY_SECTIONS[section].title,
+    Icon: LIBRARY_ICONS[section],
+  })),
+];
 
 // A sidebar row; NavLink sets aria-current on the page's own row.
 const item =

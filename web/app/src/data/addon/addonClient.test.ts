@@ -72,6 +72,6 @@ describe('addonClient', () => {
       const stream = await client.stream('ia:AdeleKeshelak-slovakFolkSongsFrom1928', 'LOSSLESS');
       expect(stream).not.toBeNull();
       expect(stream?.url).toContain('archive.org');
-    });
+    }, 15000);
   });
 });

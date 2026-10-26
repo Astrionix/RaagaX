@@ -89,11 +89,26 @@ jobs:
       run: |
         ./gradlew assembleDevDebug --stacktrace --no-daemon
 
+    - name: Ensure all APKs are named Raaga
+      run: |
+        find app/build/outputs/apk -name "app-*" -type f 2>/dev/null | while read -r file; do
+          dir=$(dirname "$file")
+          base=$(basename "$file")
+          mv "$file" "$dir/${base/app-/Raaga-}"
+        done
+        find tv/build/outputs/apk -name "tv-*" -type f 2>/dev/null | while read -r file; do
+          dir=$(dirname "$file")
+          base=$(basename "$file")
+          mv "$file" "$dir/${base/tv-/RaagaTV-}"
+        done
+
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
         name: raaga-apk
-        path: app/build/outputs/apk/**/*.apk
+        path: |
+          app/build/outputs/apk/**/*.apk
+          tv/build/outputs/apk/**/*.apk
 
     - name: Create GitHub Release
       if: startsWith(github.ref, 'refs/tags/v')
@@ -102,6 +117,8 @@ jobs:
         files: |
           app/build/outputs/apk/prod/release/*.apk
           app/build/outputs/apk/dev/debug/*.apk
+          tv/build/outputs/apk/prod/release/*.apk
+          tv/build/outputs/apk/dev/debug/*.apk
         name: "Raaga ${{ github.ref_name }}"
         body: |
           ### Raaga ${{ github.ref_name }}

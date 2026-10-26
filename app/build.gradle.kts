@@ -262,7 +262,21 @@ android {
             isReturnDefaultValues = true
         }
     }
+
+    applicationVariants.all {
+        outputs.all {
+            val outputImpl = this as? com.android.build.gradle.internal.api.BaseVariantOutputImpl
+            if (outputImpl != null) {
+                val original = outputImpl.outputFileName
+                if (original.startsWith("app-")) {
+                    outputImpl.outputFileName = original.replaceFirst("app-", "Raaga-")
+                }
+            }
+        }
+    }
 }
+
+base.archivesName.set("Raaga")
 
 kotlin {
     compilerOptions {

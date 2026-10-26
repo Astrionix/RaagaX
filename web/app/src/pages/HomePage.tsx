@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { DesktopDownloadButton } from '@/components/DesktopDownloadButton';
 import { PageHeader } from '@/components/PageHeader';
 import { Shelves, TrackShelf } from '@/components/music/ShelfView';
+import { ReplayCardRow } from '@/components/replay/ReplayCardRow';
 import { LoadError, LoadMoreError, NeedsExtension } from '@/components/music/States';
 import { useHome, useLibrary, useYouTubeReady } from '@/data/music/queries';
 import type { Track } from '@/data/music/types';
@@ -72,6 +73,7 @@ export default function HomePage() {
   return (
     <>
       <PageHeader title="Home" action={<DesktopDownloadButton />} />
+      <ReplayCardRow />
       {recent.length > 0 && <TrackShelf title={RECENT_TITLE} to="/library/recent" tracks={recent} source={RECENT_SOURCE} />}
       <Shelves shelves={shelves} />
       <div ref={sentinel} />

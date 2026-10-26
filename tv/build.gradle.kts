@@ -247,7 +247,21 @@ android {
             isReturnDefaultValues = true
         }
     }
+
+    applicationVariants.all {
+        outputs.all {
+            val outputImpl = this as? com.android.build.gradle.internal.api.BaseVariantOutputImpl
+            if (outputImpl != null) {
+                val original = outputImpl.outputFileName
+                if (original.startsWith("tv-")) {
+                    outputImpl.outputFileName = original.replaceFirst("tv-", "RaagaTV-")
+                }
+            }
+        }
+    }
 }
+
+base.archivesName.set("RaagaTV")
 
 kotlin {
     compilerOptions {

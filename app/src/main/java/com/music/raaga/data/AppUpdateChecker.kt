@@ -136,10 +136,15 @@ object AppUpdateChecker {
         if (assets.isEmpty()) return null
 
         val isDevFlavor = BuildConfig.APPLICATION_ID.contains("dev")
+        val isTv = BuildConfig.APPLICATION_ID.contains("tv")
         val supportedAbis = Build.SUPPORTED_ABIS.map { it.lowercase() }
 
         fun score(name: String): Int {
             val lower = name.lowercase()
+            // TV builds must only match TV APKs; Phone builds must only match Phone APKs
+            if (isTv && !lower.contains("tv")) return -1000
+            if (!isTv && (lower.contains("tv") || lower.contains("wear"))) return -1000
+
             var s = 0
             if (isDevFlavor && lower.contains("dev")) s += 100
             if (!isDevFlavor && !lower.contains("dev")) s += 100
