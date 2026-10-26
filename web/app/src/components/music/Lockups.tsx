@@ -17,38 +17,41 @@ const overlayLink = 'absolute inset-0 z-1 rounded-[inherit]';
 
 /** Artist names as links where YouTube links them, else the given subtitle. */
 function Byline({ item }: { item: MusicItem }) {
-  const linked = item.artists.some((a) => a.id);
-  if (!linked || item.kind === 'album' || item.kind === 'playlist') return <>{item.subtitle}</>;
-  return (
-    <>
-      {item.artists.map((artist, i) => {
-        const href = artistHref(artist.id);
-        return (
-          <span key={`${artist.name}-${i}`}>
-            {i > 0 && ', '}
-            {href ? (
-              <PrefetchLink to={href} className="hover:underline">
-                {artist.name}
-              </PrefetchLink>
-            ) : (
-              artist.name
-            )}
-          </span>
-        );
-      })}
-    </>
-  );
+  if (item.kind === 'album' || item.kind === 'playlist') return <>{item.subtitle}</>;
+  if (item.artists && item.artists.length > 0) {
+    return (
+      <>
+        {item.artists.map((artist, i) => {
+          const href = artistHref(artist.id);
+          return (
+            <span key={`${artist.name}-${i}`}>
+              {i > 0 && ', '}
+              {href ? (
+                <PrefetchLink to={href} className="hover:underline">
+                  {artist.name}
+                </PrefetchLink>
+              ) : (
+                artist.name
+              )}
+            </span>
+          );
+        })}
+      </>
+    );
+  }
+  return <>{item.subtitle}</>;
 }
 
-function PlayPlatter({ item }: { item: MusicItem }) {
+function PlayPlatter({ item, onPlay }: { item: MusicItem; onPlay?: () => void }) {
+  const play = onPlay ?? (() => playTrack(item));
   return (
     <button
-      className="pointer-events-auto absolute bottom-2.5 left-2.5 grid size-[30px] place-items-center rounded-full bg-thin-material text-white [backdrop-filter:saturate(180%)_blur(60px)] hover:bg-key-bg"
+      className="pointer-events-auto absolute bottom-2.5 left-2.5 grid size-[30px] place-items-center rounded-full bg-thin-material text-white [backdrop-filter:saturate(180%)_blur(60px)] hover:bg-key-bg cursor-pointer"
       aria-label={`Play ${item.title}`}
       onClick={(e) => {
         e.preventDefault();
         e.stopPropagation();
-        playTrack(item);
+        play();
       }}
     >
       <PlayIcon size={16} />
@@ -57,34 +60,59 @@ function PlayPlatter({ item }: { item: MusicItem }) {
 }
 
 /** The artwork with its hover scrim, linking to the item or playing it. */
-function LockupArtwork({ item, width, aspect }: { item: MusicItem; width: number; aspect: number }) {
+function LockupArtwork({
+  item,
+  width,
+  aspect,
+  onPlay,
+}: {
+  item: MusicItem;
+  width: number;
+  aspect: number;
+  onPlay?: () => void;
+}) {
   const href = hrefFor(item);
+  const play = onPlay ?? (() => playTrack(item));
   return (
     <div className="group/art relative rounded-artwork-md">
       <Artwork src={item.thumbnail} displayWidth={width} aspect={aspect} radius="var(--radius-artwork-medium)" />
       {href ? (
         <PrefetchLink to={href} className={overlayLink} aria-label={item.title} />
       ) : (
-        <button className={overlayLink} aria-label={`Play ${item.title}`} onClick={() => playTrack(item)} />
+        <button className={`${overlayLink} cursor-pointer`} aria-label={`Play ${item.title}`} onClick={play} />
       )}
       {/* Hover scrim and platter (report §2: --lockupHoverBGColor, opacity .1s ease-in). */}
-      <div className="pointer-events-none absolute inset-0 z-2 rounded-[inherit] bg-lockup-hover opacity-0 transition-opacity duration-100 ease-in group-focus-within/art:opacity-100 group-hover/art:opacity-100">{isPlayable(item) && <PlayPlatter item={item} />}</div>
+      <div className="pointer-events-none absolute inset-0 z-2 rounded-[inherit] bg-lockup-hover opacity-0 transition-opacity duration-100 ease-in group-focus-within/art:opacity-100 group-hover/art:opacity-100">
+        {isPlayable(item) && <PlayPlatter item={item} onPlay={play} />}
+      </div>
     </div>
   );
 }
 
 /** Square lockup (report §2): artwork, hover scrim with play platter, title and subtitle. */
-export function SquareLockup({ item, width = 220 }: { item: MusicItem; width?: number }) {
+export function SquareLockup({
+  item,
+  width = 220,
+  onPlay,
+}: {
+  item: MusicItem;
+  width?: number;
+  onPlay?: () => void;
+}) {
   const href = hrefFor(item);
   return (
     <div className={lockup}>
-      <LockupArtwork item={item} width={width} aspect={1} />
+      <LockupArtwork item={item} width={width} aspect={1} onPlay={onPlay} />
       <div className={caption}>
         <div className={title}>
           {href ? (
             <PrefetchLink to={href} className="hover:underline">
               {item.title}
             </PrefetchLink>
+          ) : onPlay ? (
+            <button className="min-w-0 truncate text-left hover:underline cursor-pointer" onClick={onPlay}>
+              {item.title}
+            </button>
           ) : (
             <span>{item.title}</span>
           )}

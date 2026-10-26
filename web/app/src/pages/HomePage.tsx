@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { DesktopDownloadButton } from '@/components/DesktopDownloadButton';
 import { PageHeader } from '@/components/PageHeader';
 import { Shelves, TrackShelf } from '@/components/music/ShelfView';
@@ -11,6 +11,7 @@ import { ShelfSkeleton } from '@/skeletons/ShelfSkeleton';
 const RECENT_TITLE = 'Recently Played';
 const RECENT_LIMIT = 20;
 const RECENT_SOURCE = { title: RECENT_TITLE, type: 'home' as const };
+const RECENTS_VIEW_KEY = 'raaga:home:recents_view';
 
 /**
  * The account's listening history, newest first, one row per song
@@ -30,6 +31,24 @@ export default function HomePage() {
   const home = useHome();
   const recent = useRecentlyPlayed();
   const sentinel = useRef<HTMLDivElement>(null);
+  const [recentsView, setRecentsView] = useState<'list' | 'grid'>(() => {
+    try {
+      const stored = localStorage.getItem(RECENTS_VIEW_KEY);
+      return stored === 'grid' ? 'grid' : 'list';
+    } catch {
+      return 'list';
+    }
+  });
+
+  const handleToggleRecentsView = () => {
+    setRecentsView((prev) => {
+      const next = prev === 'list' ? 'grid' : 'list';
+      try {
+        localStorage.setItem(RECENTS_VIEW_KEY, next);
+      } catch {}
+      return next;
+    });
+  };
 
   // Loads the next shelves before the bottom comes into view; after a failed
   // page it waits for Try Again rather than retrying on every scroll.
@@ -72,7 +91,16 @@ export default function HomePage() {
   return (
     <>
       <PageHeader title="Home" action={<DesktopDownloadButton />} />
-      {recent.length > 0 && <TrackShelf title={RECENT_TITLE} to="/library/recent" tracks={recent} source={RECENT_SOURCE} />}
+      {recent.length > 0 && (
+        <TrackShelf
+          title={RECENT_TITLE}
+          to="/library/recent"
+          tracks={recent}
+          source={RECENT_SOURCE}
+          viewType={recentsView}
+          onToggleView={handleToggleRecentsView}
+        />
+      )}
       <Shelves shelves={shelves} />
       <div ref={sentinel} />
       {home.isFetchingNextPage && <ShelfSkeleton kind="square" />}

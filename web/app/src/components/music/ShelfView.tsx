@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, LayoutGrid, List } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { PrefetchLink } from '@/components/PrefetchLink';
 import { shelfHeader, shelfKinds, shelfList, shelfSection, type ShelfKind } from '@/components/shelf';
@@ -81,10 +81,10 @@ export function ShelfScroller({ kind, children }: { kind: ShelfKind; children: R
   );
 }
 
-/** A shelf's title, a link with a chevron when there's a page behind it. */
-function ShelfTitle({ title, to }: { title: string; to?: string | null }) {
+/** A shelf's title, a link with a chevron when there's a page behind it, and optional trailing action. */
+function ShelfTitle({ title, to, action }: { title: string; to?: string | null; action?: ReactNode }) {
   return (
-    <div className={shelfHeader}>
+    <div className={`${shelfHeader} justify-between`}>
       <h2 className="type-title-2-emphasized">
         {to ? (
           <PrefetchLink to={to} className="group/title inline-flex items-center gap-0.5">
@@ -95,6 +95,7 @@ function ShelfTitle({ title, to }: { title: string; to?: string | null }) {
           title
         )}
       </h2>
+      {action && <div className="flex items-center">{action}</div>}
     </div>
   );
 }
@@ -103,7 +104,7 @@ export const trackItem = (track: Track): MusicItem => ({
   kind: 'song',
   id: track.videoId,
   title: track.title,
-  subtitle: track.album?.name ?? '',
+  subtitle: track.album?.name || track.artists.map((a) => a.name).join(', '),
   artists: track.artists,
   album: track.album,
   thumbnail: track.thumbnail,
@@ -113,17 +114,52 @@ export const trackItem = (track: Track): MusicItem => ({
 });
 
 /**
- * Songs in four rows, as the phone's Top Songs and Recently Played: any one
+ * Songs in four rows (or square cards in grid view): any one
  * plays the whole shelf from there.
  */
-export function TrackShelf({ title, to, tracks, source }: { title: string; to?: string | null; tracks: Track[]; source: QueueSource }) {
+export function TrackShelf({
+  title,
+  to,
+  tracks,
+  source,
+  viewType = 'list',
+  onToggleView,
+}: {
+  title: string;
+  to?: string | null;
+  tracks: Track[];
+  source: QueueSource;
+  viewType?: 'list' | 'grid';
+  onToggleView?: () => void;
+}) {
+  const isGrid = viewType === 'grid';
   return (
     <section className={shelfSection} aria-label={title}>
-      <ShelfTitle title={title} to={to} />
-      <ShelfScroller key={tracks.length} kind="tracks">
+      <ShelfTitle
+        title={title}
+        to={to}
+        action={
+          onToggleView && (
+            <button
+              type="button"
+              onClick={onToggleView}
+              className="flex size-8 items-center justify-center rounded-full text-secondary transition-colors duration-150 hover:bg-white/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent cursor-pointer"
+              aria-label={isGrid ? 'Switch to list view' : 'Switch to grid view'}
+              title={isGrid ? 'Switch to list view' : 'Switch to grid view'}
+            >
+              {isGrid ? <List size={18} strokeWidth={2} /> : <LayoutGrid size={18} strokeWidth={2} />}
+            </button>
+          )
+        }
+      />
+      <ShelfScroller key={isGrid ? 'grid' : `tracks-${tracks.length}`} kind={isGrid ? 'square' : 'tracks'}>
         {tracks.map((track, i) => (
           <li key={track.videoId}>
-            <TrackLockup item={trackItem(track)} onPlay={() => playList(tracks, i, { source })} />
+            {isGrid ? (
+              <SquareLockup item={trackItem(track)} onPlay={() => playList(tracks, i, { source })} />
+            ) : (
+              <TrackLockup item={trackItem(track)} onPlay={() => playList(tracks, i, { source })} />
+            )}
           </li>
         ))}
       </ShelfScroller>
