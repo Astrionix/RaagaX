@@ -33,7 +33,7 @@ export const AllApksModal: React.FC<AllApksModalProps> = ({ isOpen, onClose }) =
       tag: "Modern 64-bit Phones (Recommended · v8a)",
       arch: "arm64-v8a (NDK 27 NEON SIMD)",
       size: "60.8 MB",
-      url: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/app-prod-arm64-v8a-release.apk",
+      url: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/Raaga-prod-arm64-v8a-release.apk",
       requirements: "Android 8.0+ (64-bit v8a)",
       desc: "Optimized package tailored exclusively for 64-bit devices. Maximum audio DSP efficiency and smaller footprint.",
       icon: <Zap className="w-5 h-5 text-amber-400" />
@@ -41,35 +41,13 @@ export const AllApksModal: React.FC<AllApksModalProps> = ({ isOpen, onClose }) =
     {
       name: "Android Universal APK",
       recommended: false,
-      tag: "All Architectures Bundle",
-      arch: "universal (arm64, armeabi-v7a, x86_64)",
+      tag: "All Android Devices Bundle",
+      arch: "universal (arm64, armeabi-v7a)",
       size: "155 MB",
-      url: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/app-prod-universal-release.apk",
+      url: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/Raaga-prod-universal-release.apk",
       requirements: RAAGAX_CONFIG.minAndroid,
       desc: "Single package that runs natively on all Android smartphones, tablets, TV boxes, and car head units.",
       icon: <Smartphone className="w-5 h-5 text-red-400" />
-    },
-    {
-      name: "Android armeabi-v7a APK",
-      recommended: false,
-      tag: "Legacy 32-bit Devices",
-      arch: "armeabi-v7a (32-bit)",
-      size: "51.6 MB",
-      url: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/app-prod-armeabi-v7a-release.apk",
-      requirements: "Android 8.0+ (32-bit legacy)",
-      desc: "Compatible build for older budget smartphones and legacy in-dash car infotainment heads.",
-      icon: <Cpu className="w-5 h-5 text-cyan-400" />
-    },
-    {
-      name: "Android x86_64 APK",
-      recommended: false,
-      tag: "Chromebooks, WSA & Emulators",
-      arch: "x86_64 (64-bit Intel/AMD)",
-      size: "66.9 MB",
-      url: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/app-prod-x86_64-release.apk",
-      requirements: "Android 8.0+ (Intel/AMD)",
-      desc: "Optimized build for ChromeOS Chromebooks, Windows Subsystem for Android, and Android emulators.",
-      icon: <Monitor className="w-5 h-5 text-purple-400" />
     }
   ];
 
@@ -78,45 +56,12 @@ export const AllApksModal: React.FC<AllApksModalProps> = ({ isOpen, onClose }) =
       name: "Android TV Universal APK",
       recommended: true,
       tag: "All Android TV & Google TV (Recommended)",
-      arch: "universal (arm64, armeabi-v7a, x86_64)",
-      size: "176.5 MB",
+      arch: "universal (arm64, armeabi-v7a)",
+      size: "87.4 MB",
       url: RAAGAX_CONFIG.tv.universalApkUrl,
       requirements: RAAGAX_CONFIG.tv.minAndroid,
       desc: "Native Leanback UI optimized for 10-foot living room experience, full D-pad remote navigation, and immersive TV lyrics.",
       icon: <Tv className="w-5 h-5 text-red-400" />
-    },
-    {
-      name: "Android TV ARM64-v8a APK",
-      recommended: false,
-      tag: "Modern Smart TVs & Nvidia Shield",
-      arch: "arm64-v8a (64-bit TV)",
-      size: "87.4 MB",
-      url: RAAGAX_CONFIG.tv.arm64ApkUrl,
-      requirements: "Android TV 8.0+ (64-bit)",
-      desc: "Tuned for 64-bit TV chipsets like Nvidia Shield TV, Sony Bravia Google TV, and high-end streaming boxes.",
-      icon: <Zap className="w-5 h-5 text-amber-400" />
-    },
-    {
-      name: "Android TV armeabi-v7a APK",
-      recommended: false,
-      tag: "Amazon Fire TV Stick & 32-bit TV Boxes",
-      arch: "armeabi-v7a (32-bit TV)",
-      size: "78.9 MB",
-      url: RAAGAX_CONFIG.tv.armeabiV7aApkUrl,
-      requirements: "Fire OS 6+ / Android TV (32-bit)",
-      desc: "High compatibility build for Fire TV Stick 4K, Fire TV Cube, Mi Box, and realme TV sticks.",
-      icon: <Cpu className="w-5 h-5 text-cyan-400" />
-    },
-    {
-      name: "Android TV x86_64 APK",
-      recommended: false,
-      tag: "Intel/AMD TV Emulators & HTPC",
-      arch: "x86_64 (64-bit Intel/AMD)",
-      size: "93.1 MB",
-      url: RAAGAX_CONFIG.tv.x86_64ApkUrl,
-      requirements: "Android TV x86_64",
-      desc: "Optimized for Android TV x86_64 emulators, ChromeOS boxes, and living room mini PCs.",
-      icon: <Monitor className="w-5 h-5 text-purple-400" />
     }
   ];
 
@@ -132,16 +77,6 @@ export const AllApksModal: React.FC<AllApksModalProps> = ({ isOpen, onClose }) =
       icon: <Monitor className="w-5 h-5 text-blue-400" />
     },
     {
-      name: "Windows Portable (.zip)",
-      tag: "Windows Standalone (No Admin)",
-      arch: "x64 Portable",
-      size: "~290 MB",
-      url: RAAGAX_CONFIG.desktop.windows.portableZip,
-      requirements: "Windows 10 / 11 64-bit",
-      desc: "Extract and run anywhere from a USB drive or local folder without installation.",
-      icon: <HardDrive className="w-5 h-5 text-cyan-400" />
-    },
-    {
       name: "macOS Apple Silicon (.dmg)",
       tag: "macOS M1 / M2 / M3 / M4",
       arch: "arm64 native",
@@ -155,7 +90,7 @@ export const AllApksModal: React.FC<AllApksModalProps> = ({ isOpen, onClose }) =
       name: "macOS Intel (.dmg)",
       tag: "macOS Intel 64-bit",
       arch: "x86_64",
-      size: "~185 MB",
+      size: RAAGAX_CONFIG.desktop.macOS.size,
       url: RAAGAX_CONFIG.desktop.macOS.x64Dmg,
       requirements: "macOS 12 Monterey or newer",
       desc: "Optimized for older Intel-based MacBook Pro, iMac, and Mac mini computers.",
@@ -172,13 +107,13 @@ export const AllApksModal: React.FC<AllApksModalProps> = ({ isOpen, onClose }) =
       icon: <Layers className="w-5 h-5 text-emerald-400" />
     },
     {
-      name: "Linux DEB & RPM Packages",
-      tag: "Debian, Ubuntu, Fedora",
-      arch: ".deb & .rpm",
-      size: "~150 MB",
+      name: "Linux DEB Package (.deb)",
+      tag: "Debian, Ubuntu, Mint",
+      arch: ".deb",
+      size: "~291 MB",
       url: RAAGAX_CONFIG.desktop.linux.deb,
-      requirements: "Debian/Ubuntu/Fedora",
-      desc: "Native system packages for apt / dnf package manager installation.",
+      requirements: "Debian / Ubuntu / Mint",
+      desc: "Native Debian package for apt package manager installation.",
       icon: <Layers className="w-5 h-5 text-teal-400" />
     }
   ];

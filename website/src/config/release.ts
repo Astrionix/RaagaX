@@ -82,8 +82,8 @@ export const RAAGAX_CONFIG: ReleaseConfig = {
   releaseDate: "October 2026",
   buildType: "Release Signed (R8 Minified, NDK 27)",
   // Mobile APK configurations
-  directApkUrl: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/app-prod-arm64-v8a-release.apk",
-  apkDownloadUrl: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/app-prod-arm64-v8a-release.apk",
+  directApkUrl: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/Raaga-prod-arm64-v8a-release.apk",
+  apkDownloadUrl: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/Raaga-prod-arm64-v8a-release.apk",
   releaseNotesUrl: "https://github.com/Astrionix/RaagaX/releases/tag/v1.9.8",
   githubRepoUrl: "https://github.com/Astrionix/RaagaX",
   liveDomainUrl: "https://raaga.me",
@@ -95,11 +95,11 @@ export const RAAGAX_CONFIG: ReleaseConfig = {
   // Android TV Builds (Google TV, Fire TV, Android TV)
   tv: {
     version: "v1.9.8",
-    directApkUrl: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/tv-prod-universal-debug.apk",
-    universalApkUrl: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/tv-prod-universal-debug.apk",
-    arm64ApkUrl: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/tv-prod-arm64-v8a-debug.apk",
-    armeabiV7aApkUrl: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/tv-prod-armeabi-v7a-debug.apk",
-    x86_64ApkUrl: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/tv-prod-x86_64-debug.apk",
+    directApkUrl: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/RaagaTV-prod-universal-release.apk",
+    universalApkUrl: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/RaagaTV-prod-universal-release.apk",
+    arm64ApkUrl: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/RaagaTV-prod-universal-release.apk",
+    armeabiV7aApkUrl: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/RaagaTV-prod-universal-release.apk",
+    x86_64ApkUrl: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/RaagaTV-prod-universal-release.apk",
     size: "~87 MB",
     minAndroid: "Android TV 8.0+ / Google TV / Fire TV",
   },
@@ -109,19 +109,19 @@ export const RAAGAX_CONFIG: ReleaseConfig = {
     releaseNotesUrl: "https://github.com/Astrionix/RaagaX/releases/tag/v1.9.8",
     windows: {
       setupExe: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/Raaga-1.9.8-windows-setup.exe",
-      portableZip: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/Raaga-1.9.8-windows-setup.msi",
-      size: "~315 MB",
+      portableZip: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/Raaga-1.9.8-windows-setup.exe",
+      size: "~302 MB",
     },
     macOS: {
       arm64Dmg: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/Raaga-1.9.8-macos-arm64.dmg",
       x64Dmg: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/Raaga-1.9.8-macos-x64.dmg",
-      size: "~180 MB",
+      size: "~314 MB",
     },
     linux: {
       appImage: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/Raaga-1.9.8-linux-x86_64.AppImage",
       deb: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/Raaga-1.9.8-linux-amd64.deb",
-      rpm: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/Raaga-1.9.8-linux-x86_64.rpm",
-      size: "~160 MB",
+      rpm: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/Raaga-1.9.8-linux-amd64.deb",
+      size: "~291 MB",
     },
   },
   stats: {

@@ -240,15 +240,6 @@ export const DownloadPanel: React.FC = () => {
                 </a>
 
                 <a
-                  href={RAAGAX_CONFIG.desktop.windows.portableZip}
-                  download
-                  className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-xs font-semibold text-zinc-300 hover:text-white bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] transition-all"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Download Portable (.zip)</span>
-                </a>
-
-                <a
                   href={RAAGAX_CONFIG.desktop.releaseNotesUrl}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -401,24 +392,14 @@ export const DownloadPanel: React.FC = () => {
                   <span>Download AppImage</span>
                 </a>
 
-                <div className="flex gap-2">
-                  <a
-                    href={RAAGAX_CONFIG.desktop.linux.deb}
-                    download
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-3 rounded-xl text-xs font-semibold text-zinc-300 hover:text-white bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] transition-all"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Debian/Ubuntu (.deb)</span>
-                  </a>
-                  <a
-                    href={RAAGAX_CONFIG.desktop.linux.rpm}
-                    download
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-3 rounded-xl text-xs font-semibold text-zinc-300 hover:text-white bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] transition-all"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Fedora (.rpm)</span>
-                  </a>
-                </div>
+                <a
+                  href={RAAGAX_CONFIG.desktop.linux.deb}
+                  download
+                  className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-xs font-semibold text-zinc-300 hover:text-white bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.08] transition-all"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Debian / Ubuntu Package (.deb)</span>
+                </a>
 
                 <a
                   href={RAAGAX_CONFIG.desktop.releaseNotesUrl}
