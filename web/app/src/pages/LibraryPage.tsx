@@ -41,11 +41,20 @@ export default function LibraryPage() {
 
   if (!isLibrarySection(section)) return <Navigate to="/home" replace />;
   const title = LIBRARY_SECTIONS[section].title;
-  if (missing) return <NeedsExtension what="your library" />;
+  if (missing) {
+    return (
+      <>
+        <PageHeader title={title} />
+        {section === 'recent' && <ReplayCardRow />}
+        <NeedsExtension what="your library" />
+      </>
+    );
+  }
   if (auth.state === 'ready' && !signedIn) {
     return (
       <>
         <PageHeader title={title} />
+        {section === 'recent' && <ReplayCardRow />}
         <EmptyState
           title="Sign in to see your library"
           detail="Raaga uses the YouTube Music account this browser is signed in to. Sign in on music.youtube.com, then come back."

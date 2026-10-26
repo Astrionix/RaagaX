@@ -39,7 +39,7 @@ export const ReplayCard: React.FC<ReplayCardProps> = ({ card, holder, memberSinc
       onMouseMove={handleMouseMove}
       style={{ aspectRatio: '1.586 / 1' }}
       className={`group relative flex flex-col justify-between overflow-hidden rounded-[20px] p-5 select-none
-        border border-white/15 shadow-[0_12px_32px_rgba(0,0,0,0.55)] cursor-pointer
+        border border-white/10 cursor-pointer
         hover:scale-[1.025] hover:border-white/25 active:scale-[0.985]
         transition-all duration-300 ease-out bg-black ${className}`}
     >
@@ -82,11 +82,7 @@ export const ReplayCard: React.FC<ReplayCardProps> = ({ card, holder, memberSinc
 
       {/* Center Section: Main headline and category label */}
       <div className="relative z-10 my-auto py-2">
-        <h3
-          className="text-[25px] sm:text-[27px] font-extrabold leading-[1.12] line-clamp-2
-            bg-gradient-to-b from-white via-[#f3f4f8] to-[#c9ccd6] bg-clip-text text-transparent
-            drop-shadow-[0_2px_4px_rgba(0,0,0,0.7)]"
-        >
+        <h3 className="text-[25px] sm:text-[27px] font-extrabold leading-[1.12] line-clamp-2 text-white">
           {card.value}
         </h3>
         <p className="mt-1 text-[10.5px] font-bold uppercase tracking-[0.18em] text-white/70">

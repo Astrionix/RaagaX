@@ -98,8 +98,8 @@ export default function ReplayPage() {
         <h1 className="type-header-emphasized text-primary">Replay</h1>
         <p className="type-callout-emphasized text-secondary mt-0.5">{periodLabel}</p>
 
-        {/* Period Picker Capsule (Desktop PeriodPicker) */}
-        <div className="flex items-center rounded-[12px] bg-quinary p-[3px] w-fit mt-3.5 border border-primary/5">
+        {/* Period Picker - Plain text links */}
+        <div className="flex items-center gap-6 mt-3">
           {(
             [
               ['this_month', 'This Month'],
@@ -112,10 +112,8 @@ export default function ReplayPage() {
               <button
                 key={key}
                 onClick={() => setPeriod(key)}
-                className={`rounded-[10px] px-3.5 py-1.5 text-xs font-bold transition-all ${
-                  active
-                    ? 'bg-black text-white dark:bg-white dark:text-black shadow-sm'
-                    : 'text-secondary hover:text-primary'
+                className={`text-sm font-bold transition-colors ${
+                  active ? 'text-primary' : 'text-secondary hover:text-primary'
                 }`}
               >
                 {label}
@@ -152,141 +150,144 @@ export default function ReplayPage() {
             </div>
           </div>
 
-          {/* Action Row */}
-          <div className="flex items-center gap-3 mb-10">
+          {/* Action Row - Plain text buttons */}
+          <div className="flex items-center gap-6 mb-8">
             <button
               onClick={handlePlayReplay}
-              className="flex items-center gap-2 rounded-full bg-key hover:brightness-110 px-5 py-2.5 text-sm font-bold text-white shadow-md active:scale-95 transition-all"
+              className="inline-flex items-center gap-2 text-sm md:text-base font-bold text-key hover:opacity-85 active:scale-95 transition-all"
             >
               <Play size={16} fill="currentColor" />
-              Play your Replay
+              <span>Play your Replay</span>
             </button>
 
             <button
               onClick={handleShare}
-              className="flex items-center gap-2 rounded-full bg-quinary hover:bg-quinary/80 px-4 py-2.5 text-sm font-semibold text-primary active:scale-95 transition-all border border-primary/5"
+              className="inline-flex items-center gap-2 text-sm md:text-base font-bold text-primary hover:text-key active:scale-95 transition-all"
             >
               {copied ? (
                 <>
                   <Check size={16} className="text-emerald-500" />
-                  Copied!
+                  <span>Copied!</span>
                 </>
               ) : (
                 <>
                   <Share2 size={16} />
-                  Share
+                  <span>Share</span>
                 </>
               )}
             </button>
           </div>
 
-          {/* Top Songs Chart (Desktop chart("songs", "Top Songs")) */}
-          <section className="mb-10 max-w-3xl">
-            <h2 className="type-title-1-emphasized text-primary mb-3">Top Songs</h2>
-            <div className="flex flex-col">
-              {topSongs.slice(0, 5).map((song, i) => (
-                <div
-                  key={song.videoId}
-                  onClick={() => handlePlaySingle(song)}
-                  className="group flex items-center py-2 px-2 -mx-2 rounded-lg hover:bg-quinary/60 transition-colors cursor-pointer"
-                >
-                  {/* Rank Badge: #1 in key accent (#fa2d48), others quiet */}
-                  <span
-                    className={`w-7 text-left font-extrabold text-base flex-none ${
-                      i === 0 ? 'text-key' : 'text-tertiary'
-                    }`}
+          {/* Charts Row: Top Songs & Top Artists side by side */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12 mb-10 max-w-5xl">
+            {/* Top Songs Chart */}
+            <section>
+              <h2 className="type-title-1-emphasized text-primary mb-3">Top Songs</h2>
+              <div className="flex flex-col">
+                {topSongs.slice(0, 5).map((song, i) => (
+                  <div
+                    key={song.videoId}
+                    onClick={() => handlePlaySingle(song)}
+                    className="group flex items-center py-2 px-2 -mx-2 rounded-lg hover:bg-quinary/60 transition-colors cursor-pointer"
                   >
-                    {i + 1}
-                  </span>
+                    {/* Rank Badge: #1 in key accent (#fa2d48), others quiet */}
+                    <span
+                      className={`w-7 text-left font-extrabold text-base flex-none ${
+                        i === 0 ? 'text-key' : 'text-tertiary'
+                      }`}
+                    >
+                      {i + 1}
+                    </span>
 
-                  {/* 48px square artwork (rounded 6px) */}
-                  <div className="relative size-12 flex-none rounded-[6px] overflow-hidden bg-quinary mr-3">
-                    {song.artworkUrl ? (
-                      <img src={song.artworkUrl} alt="" className="size-full object-cover" />
-                    ) : (
-                      <div
-                        className="size-full grid place-items-center text-white font-extrabold text-base"
-                        style={{ background: stringColor(song.title) }}
-                      >
-                        {song.title[0]?.toUpperCase()}
+                    {/* 48px square artwork (rounded 6px) */}
+                    <div className="relative size-12 flex-none rounded-[6px] overflow-hidden bg-quinary mr-3">
+                      {song.artworkUrl ? (
+                        <img src={song.artworkUrl} alt="" className="size-full object-cover" />
+                      ) : (
+                        <div
+                          className="size-full grid place-items-center text-white font-extrabold text-base"
+                          style={{ background: stringColor(song.title) }}
+                        >
+                          {song.title[0]?.toUpperCase()}
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity grid place-items-center">
+                        <Play size={16} fill="white" className="text-white" />
                       </div>
-                    )}
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity grid place-items-center">
-                      <Play size={16} fill="white" className="text-white" />
                     </div>
-                  </div>
 
-                  {/* Title & Subtitle */}
-                  <div className="min-w-0 flex-1 pr-4">
-                    <p className="type-body-emphasized text-primary truncate group-hover:text-key transition-colors">
-                      {song.title}
-                    </p>
-                    <p className="type-caption-1 text-secondary truncate mt-0.5">
-                      {song.artist} · {formatListening(song.totalSeconds * 1000)}
-                    </p>
-                  </div>
+                    {/* Title & Subtitle */}
+                    <div className="min-w-0 flex-1 pr-4">
+                      <p className="type-body-emphasized text-primary truncate group-hover:text-key transition-colors">
+                        {song.title}
+                      </p>
+                      <p className="type-caption-1 text-secondary truncate mt-0.5">
+                        {song.artist} · {formatListening(song.totalSeconds * 1000)}
+                      </p>
+                    </div>
 
-                  {/* Play count */}
-                  {song.plays > 0 && (
-                    <span className="type-caption-1 text-tertiary flex-none font-medium">
-                      {song.plays}
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </section>
-
-          {/* Top Artists Chart (Desktop chart("artists", "Top Artists", circular = true)) */}
-          <section className="mb-10 max-w-3xl">
-            <h2 className="type-title-1-emphasized text-primary mb-3">Top Artists</h2>
-            <div className="flex flex-col">
-              {topArtists.slice(0, 5).map((artist, i) => (
-                <div
-                  key={artist.name}
-                  className="flex items-center py-2 px-2 -mx-2 rounded-lg hover:bg-quinary/40 transition-colors"
-                >
-                  {/* Rank Badge */}
-                  <span
-                    className={`w-7 text-left font-extrabold text-base flex-none ${
-                      i === 0 ? 'text-key' : 'text-tertiary'
-                    }`}
-                  >
-                    {i + 1}
-                  </span>
-
-                  {/* 48px circular avatar */}
-                  <div className="size-12 flex-none rounded-full overflow-hidden bg-quinary mr-3">
-                    {artist.artworkUrl ? (
-                      <img src={artist.artworkUrl} alt="" className="size-full object-cover" />
-                    ) : (
-                      <div
-                        className="size-full grid place-items-center text-white font-extrabold text-base"
-                        style={{ background: stringColor(artist.name) }}
-                      >
-                        {artist.name[0]?.toUpperCase()}
-                      </div>
+                    {/* Play count */}
+                    {song.plays > 0 && (
+                      <span className="type-caption-1 text-tertiary flex-none font-medium">
+                        {song.plays}
+                      </span>
                     )}
                   </div>
+                ))}
+              </div>
+            </section>
 
-                  {/* Title & Subtitle */}
-                  <div className="min-w-0 flex-1 pr-4">
-                    <p className="type-body-emphasized text-primary truncate">{artist.name}</p>
-                    <p className="type-caption-1 text-secondary truncate mt-0.5">
-                      {formatListening(artist.totalSeconds * 1000)}
-                    </p>
-                  </div>
-
-                  {/* Play count */}
-                  {artist.plays > 0 && (
-                    <span className="type-caption-1 text-tertiary flex-none font-medium">
-                      {artist.plays}
+            {/* Top Artists Chart */}
+            <section>
+              <h2 className="type-title-1-emphasized text-primary mb-3">Top Artists</h2>
+              <div className="flex flex-col">
+                {topArtists.slice(0, 5).map((artist, i) => (
+                  <div
+                    key={artist.name}
+                    className="flex items-center py-2 px-2 -mx-2 rounded-lg hover:bg-quinary/40 transition-colors"
+                  >
+                    {/* Rank Badge */}
+                    <span
+                      className={`w-7 text-left font-extrabold text-base flex-none ${
+                        i === 0 ? 'text-key' : 'text-tertiary'
+                      }`}
+                    >
+                      {i + 1}
                     </span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </section>
+
+                    {/* 48px circular avatar */}
+                    <div className="size-12 flex-none rounded-full overflow-hidden bg-quinary mr-3">
+                      {artist.artworkUrl ? (
+                        <img src={artist.artworkUrl} alt="" className="size-full object-cover" />
+                      ) : (
+                        <div
+                          className="size-full grid place-items-center text-white font-extrabold text-base"
+                          style={{ background: stringColor(artist.name) }}
+                        >
+                          {artist.name[0]?.toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Title & Subtitle */}
+                    <div className="min-w-0 flex-1 pr-4">
+                      <p className="type-body-emphasized text-primary truncate">{artist.name}</p>
+                      <p className="type-caption-1 text-secondary truncate mt-0.5">
+                        {formatListening(artist.totalSeconds * 1000)}
+                      </p>
+                    </div>
+
+                    {/* Play count */}
+                    {artist.plays > 0 && (
+                      <span className="type-caption-1 text-tertiary flex-none font-medium">
+                        {artist.plays}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          </div>
 
           {/* Listening shape (Desktop Habits: SONGS, ARTISTS, ALBUMS tiles) */}
           <section className="mb-8 max-w-3xl">
