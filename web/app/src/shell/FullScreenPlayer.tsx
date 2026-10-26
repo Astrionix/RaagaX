@@ -355,7 +355,7 @@ export function FullScreenPlayer() {
                   </PageLink>
                 )}
               </span>
-              <div className="mt-1 flex items-center">
+              <div className="mt-1 flex items-center justify-center text-center">
                 <LosslessBadge size="md" />
               </div>
             </div>
