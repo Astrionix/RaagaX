@@ -6,25 +6,77 @@ import { ArrowDownToLine, Layers, Globe, ExternalLink } from "lucide-react";
 import { RAAGAX_CONFIG } from "@/config/release";
 import { AllApksModal } from "./AllApksModal";
 
-// Compute time-of-day natural listener traffic (peaks in evening ~15.5k, low at late night ~2.1k)
-function getNaturalListenerCount(): number {
-  if (typeof window === "undefined") return 9840;
-  const now = new Date();
-  const hour = now.getHours() + now.getMinutes() / 60;
+// Compute realistic Indian Standard Time (IST UTC+5:30) diurnal listening traffic curve.
+// Peaks:
+//  - Morning commute & office start (9:00 AM - 11:00 AM): ~22k - ~23k
+//  - Evening commute & gym (5:00 PM - 7:00 PM): ~24k - ~30k
+//  - Prime-time night peak (9:00 PM - 10:30 PM): ~36k - ~39k (Highest peak of the day)
+// Falls / Troughs:
+//  - Post-lunch dip (1:30 PM - 2:30 PM): slight drop to ~17k
+//  - Late night wind-down (1:00 AM - 2:00 AM): drops to ~7k - ~4k
+//  - Deep sleep trough (3:00 AM - 4:30 AM): lowest point of the 24-hr cycle ~2.1k
+function getIndianTimeListenerCount(): number {
+  if (typeof window === "undefined") return 19500;
 
-  // Realistic global music streaming diurnal traffic distribution (0:00 to 23:00)
-  const hourlyBase = [
-    5420, 4100, 3250, 2400, 2150, 2780, 4320, 6180, 7450, 8390, 8850, 9340,
-    9820, 9650, 10120, 10840, 11420, 12350, 13680, 14820, 15460, 14390, 11750, 8620,
+  // Calculate current exact time in Indian Standard Time (IST: UTC + 5:30)
+  const now = new Date();
+  const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
+  const istDate = new Date(utcMs + 5.5 * 3600000);
+
+  const istHour = istDate.getHours();
+  const istMinute = istDate.getMinutes();
+  const istSecond = istDate.getSeconds();
+  const exactHour = istHour + istMinute / 60 + istSecond / 3600;
+
+  // Indian music streaming hourly distribution (0:00 to 23:00 IST)
+  // Reflecting Indian commuter, workday, lunch, tea-break, evening gym, and prime-time night patterns
+  const indianHourlyBase = [
+    12850, // 00:00 (Midnight) - Late night owls, study sessions, chilling
+    7420,  // 01:00 AM - Sharp drop as majority sleeps
+    4150,  // 02:00 AM - Deep night
+    2180,  // 03:00 AM - Deep sleep trough (Lowest point in 24 hours)
+    2450,  // 04:00 AM - Early transition / quiet hours
+    4680,  // 05:00 AM - Early risers, devotional, morning yoga/walks
+    7940,  // 06:00 AM - Morning workout, getting ready, chai
+    12380, // 07:00 AM - Morning commute prep, schools/colleges awake
+    17650, // 08:00 AM - Peak morning rush hour (buses, metro, trains, driving)
+    21800, // 09:00 AM - Morning peak: office & campus arrival, focus tunes
+    22450, // 10:00 AM - Steady work/study focus playlists
+    21900, // 11:00 AM - Late morning focus
+    20400, // 12:00 PM - Mid-day steady streams
+    18200, // 13:00 PM (1:00 PM) - Lunch break (slight dip as people socialize)
+    17350, // 14:00 PM (2:00 PM) - Post-lunch lull (afternoon dip)
+    18900, // 15:00 PM (3:00 PM) - Workday resume & afternoon chai break
+    21100, // 16:00 PM (4:00 PM) - Work wrap-up tunes & evening prep
+    24300, // 17:00 PM (5:00 PM) - Evening commute surge starts
+    27850, // 18:00 PM (6:00 PM) - Heavy traffic commute + Gym workout playlists
+    30400, // 19:00 PM (7:00 PM) - Evening relaxation, tea/snacks, unwinding
+    33700, // 20:00 PM (8:00 PM) - Dinner time, cooking, hanging out with friends
+    36900, // 21:00 PM (9:00 PM) - Prime-time peak in India
+    38650, // 22:00 PM (10:00 PM) - ABSOLUTE PEAK of the day (Bedtime, romantic, lo-fi)
+    24200, // 23:00 PM (11:00 PM) - Sleep timers on, gradual wind-down
   ];
 
-  const currentHour = Math.floor(hour) % 24;
+  const currentHour = Math.floor(exactHour) % 24;
   const nextHour = (currentHour + 1) % 24;
-  const progress = hour - Math.floor(hour);
+  const progress = exactHour - Math.floor(exactHour);
 
-  const base = Math.round(hourlyBase[currentHour] * (1 - progress) + hourlyBase[nextHour] * progress);
-  const variance = (now.getDate() * 11 + now.getMinutes() * 7 + now.getSeconds()) % 160;
-  return base + variance;
+  // Smooth cosine interpolation between hours so the number glides seamlessly without sudden jumps
+  const smoothProgress = (1 - Math.cos(progress * Math.PI)) / 2;
+  const base = Math.round(
+    indianHourlyBase[currentHour] * (1 - smoothProgress) +
+    indianHourlyBase[nextHour] * smoothProgress
+  );
+
+  // Weekend boost (Friday night, Saturday & Sunday night experience higher streaming volume in India)
+  const day = istDate.getDay(); // 0 is Sunday, 6 is Saturday, 5 is Friday
+  const isWeekendBoost = day === 0 || day === 6 || (day === 5 && exactHour >= 18);
+  const weekendMultiplier = isWeekendBoost ? 1.08 : 1.0;
+
+  // Natural organic jitter based on IST date/minute/second
+  const jitter = ((istDate.getDate() * 17 + istMinute * 13 + istSecond * 3) % 180) - 90;
+
+  return Math.round(base * weekendMultiplier) + jitter;
 }
 
 export const Hero: React.FC = () => {
@@ -32,19 +84,30 @@ export const Hero: React.FC = () => {
   const [activeTab, setActiveTab] = useState<"now_playing" | "lyrics" | "home">("now_playing");
   const [showAllApks, setShowAllApks] = useState(false);
 
-  // Dynamic Live Listening Counter naturally fluctuating according to global time of day
-  const [liveListeners, setLiveListeners] = useState(9840);
+  // Dynamic Live Listening Counter anchored to Indian Standard Time (IST) diurnal traffic
+  const [liveListeners, setLiveListeners] = useState(19500);
 
   useEffect(() => {
-    setLiveListeners(getNaturalListenerCount());
+    // Initial calculation on client mount based on Indian Standard Time
+    const initialCount = getIndianTimeListenerCount();
+    setLiveListeners(initialCount);
 
+    // Live organic micro-fluctuations anchored to IST target
     const interval = setInterval(() => {
       setLiveListeners((prev) => {
-        const deltas = [-8, -5, -3, -1, 2, 4, 6, 8, -6, 5, 7, -4, 9, 3, -7, 10];
-        const change = deltas[Math.floor(Math.random() * deltas.length)];
-        return Math.max(1200, prev + change);
+        const target = getIndianTimeListenerCount();
+        // Gently gravitate towards current IST target if drift occurs
+        const diff = target - prev;
+        const driftCorrection = Math.max(-12, Math.min(12, Math.round(diff * 0.1)));
+
+        const microJitter = [-6, -4, -2, -1, 0, 1, 3, 5, -3, 4, 7, -5, 2][
+          Math.floor(Math.random() * 13)
+        ];
+
+        return Math.max(1500, prev + driftCorrection + microJitter);
       });
-    }, 2400);
+    }, 2500);
+
     return () => clearInterval(interval);
   }, []);
 
@@ -135,8 +198,11 @@ export const Hero: React.FC = () => {
           {/* Hero Narrative, Headings & Clean Pill Buttons */}
           <div className="relative flex flex-col items-center px-6 pb-10 pt-12 sm:pt-16 text-center">
             
-            {/* Live Right Now Listening Dynamic Badge (Starts from ~3k, fluctuates live) */}
-            <div className="liquid-glass-pill inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full text-xs font-medium text-emerald-400 mb-6 shadow-[0_0_30px_rgba(16,185,129,0.18)]">
+            {/* Live Right Now Listening Dynamic Badge (Based on Indian Standard Time traffic) */}
+            <div
+              title="Live concurrent listeners based on Indian Standard Time (IST)"
+              className="liquid-glass-pill inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full text-xs font-medium text-emerald-400 mb-6 shadow-[0_0_30px_rgba(16,185,129,0.18)] cursor-default select-none"
+            >
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
