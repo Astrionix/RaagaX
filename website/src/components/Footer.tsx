@@ -59,6 +59,17 @@ export const Footer: React.FC = () => {
               <li>
                 <a href="#download" className="hover:text-white transition-colors">Downloads</a>
               </li>
+              <li>
+                <a
+                  href={RAAGAX_CONFIG.webAppUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1"
+                >
+                  <span>Web Player</span>
+                  <span className="text-[10px] text-emerald-400/70">↗</span>
+                </a>
+              </li>
             </ul>
           </div>
 

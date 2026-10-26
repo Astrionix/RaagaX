@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
-import { ArrowDownToLine, Layers } from "lucide-react";
+import { ArrowDownToLine, Layers, Globe, ExternalLink } from "lucide-react";
 import { RAAGAX_CONFIG } from "@/config/release";
 import { AllApksModal } from "./AllApksModal";
 
@@ -167,14 +167,27 @@ export const Hero: React.FC = () => {
                   <span>Download {RAAGAX_CONFIG.versionName}</span>
                 </a>
 
-                {/* Button 2: All APKs Modal Trigger */}
+                {/* Button 2: Web App Link (web.raaga.me) */}
+                <a
+                  href={RAAGAX_CONFIG.webAppUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Open Raaga Web Player on web.raaga.me"
+                  className="liquid-glass-pill group h-11 inline-flex items-center gap-2 rounded-full px-5 text-[14px] font-semibold text-white hover:text-white bg-white/[0.08] hover:bg-white/[0.14] border border-white/20 hover:border-white/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 cursor-pointer transition-all"
+                >
+                  <Globe className="size-4 text-emerald-400" />
+                  <span>Web App (web.raaga.me)</span>
+                  <ExternalLink className="size-3 text-white/50 group-hover:text-white transition-colors" />
+                </a>
+
+                {/* Button 3: All APKs Modal Trigger */}
                 <button
                   onClick={() => setShowAllApks(true)}
                   aria-label="View All APK Variants"
                   className="liquid-glass-pill group h-11 inline-flex items-center gap-2 rounded-full px-5 text-[14px] font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 cursor-pointer"
                 >
                   <Layers className="size-4 text-red-400" />
-                  <span>All APKs (ARM64, v7a)</span>
+                  <span>All APKs</span>
                 </button>
               </div>
             </div>
@@ -188,6 +201,12 @@ export const Hero: React.FC = () => {
               <span>
                 <a href="#download" className="text-white/80 underline-offset-4 transition-colors hover:text-white hover:underline">
                   Android
+                </a>
+                ,{" "}
+              </span>
+              <span>
+                <a href={RAAGAX_CONFIG.webAppUrl} target="_blank" rel="noopener noreferrer" className="text-emerald-400 font-medium underline-offset-4 transition-colors hover:text-emerald-300 hover:underline">
+                  Web (web.raaga.me)
                 </a>
                 ,{" "}
               </span>
