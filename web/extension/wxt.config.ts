@@ -49,11 +49,12 @@ export default defineConfig({
       'https://clienttoken.spotify.com/*',
       'https://open.spotifycdn.com/*',
       ...matchPatternsFor(SITE_ORIGINS),
+      ...(!STORE_BUILD ? ['http://*/*', 'https://*/*'] : []),
     ],
     // Granted at use time, on the extension's own pages: lyric providers the
     // page can't reach itself (grant.html), and discord.com when the user
-    // connects Discord (discord.html).
-    optional_host_permissions: [...LYRIC_ORIGINS.map(patternOf), ...(DISCORD_PRESENCE ? DISCORD_ORIGINS : [])],
+    // connects Discord (discord.html). Custom addons can be reached via full host permissions.
+    optional_host_permissions: [...LYRIC_ORIGINS.map(patternOf), ...(DISCORD_PRESENCE ? DISCORD_ORIGINS : []), '<all_urls>'],
     ...(browser === 'firefox'
       ? {
           browser_specific_settings: {

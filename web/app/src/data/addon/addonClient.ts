@@ -32,23 +32,40 @@ export function maskUrl(url: string): string {
         return `${parsed.origin}/${parts[0]}/••••`;
       }
     }
-    return `${parsed.origin}${parsed.pathname}`;
+    return `${parsed.origin}${parsed.pathname === '/' ? '' : parsed.pathname}`;
   } catch {
     return url;
   }
 }
 
 /**
- * Makes an HTTP GET request to an Add-on endpoint.
- * Tries direct browser fetch first (works when CORS is enabled on the addon).
- * If direct fetch encounters CORS or network errors, delegates to the Raaga Extension bridge.
+ * Resolves a stream URL to a playable URL in the browser,
+ * avoiding Mixed Content errors (HTTP audio on HTTPS page) and media CORS blocks.
+ */
+export function toPlayableStreamUrl(streamUrl: string): string {
+  if (!streamUrl) return streamUrl;
+  const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+  // If the web app is served over HTTPS and the stream URL is insecure HTTP,
+  // browsers block it as Mixed Active Content. We proxy it through our audio stream proxy.
+  if (isHttps && streamUrl.startsWith('http://')) {
+    return `/api/addon-stream-proxy?url=${encodeURIComponent(streamUrl)}`;
+  }
+  return streamUrl;
+}
+
+/**
+ * Makes an HTTP GET request to an Add-on endpoint with multi-tier fallback:
+ * 1. Direct browser fetch (fastest, works when CORS is enabled on the addon).
+ * 2. Raaga Companion Extension bridge (if installed, bypasses browser CORS & Mixed Content).
+ * 3. Local / App Server Proxy (/api/addon-proxy?url=...).
+ * 4. Public CORS Proxy fallback (for static web deployments without extension).
  */
 async function fetchJson<T>(url: string, timeoutMs = 8000): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
+  // 1. Direct fetch attempt
   try {
-    // 1. Direct fetch attempt
     const res = await fetch(url, {
       method: 'GET',
       headers: { Accept: 'application/json' },
@@ -61,6 +78,11 @@ async function fetchJson<T>(url: string, timeoutMs = 8000): Promise<T> {
     return (await res.json()) as T;
   } catch (directErr) {
     clearTimeout(timer);
+
+    // If it's an explicit HTTP status error from the server (not a network/CORS error), don't proxy
+    if (directErr instanceof Error && directErr.message.startsWith('Addon responded with HTTP')) {
+      throw directErr;
+    }
 
     // 2. Fallback via Companion Extension bridge if installed
     const ext = queryClient.getQueryData<DetectedExtension | null>(extensionQueryKey);
@@ -75,15 +97,44 @@ async function fetchJson<T>(url: string, timeoutMs = 8000): Promise<T> {
         if (response.status >= 200 && response.status < 300) {
           return JSON.parse(response.body) as T;
         }
-        throw new Error(`Addon bridge responded with HTTP ${response.status}`);
-      } catch (bridgeErr) {
-        throw new Error(
-          `Failed to connect to addon: ${directErr instanceof Error ? directErr.message : String(directErr)} (Bridge: ${bridgeErr instanceof Error ? bridgeErr.message : String(bridgeErr)})`
-        );
+      } catch {
+        // Fall through to next fallback
       }
     }
 
-    throw directErr;
+    // 3. Fallback via Local / Vite App Server Proxy (/api/addon-proxy)
+    try {
+      const proxyUrl = `/api/addon-proxy?url=${encodeURIComponent(url)}`;
+      const proxyRes = await fetch(proxyUrl, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (proxyRes.ok) {
+        return (await proxyRes.json()) as T;
+      }
+    } catch {
+      // Local proxy not available or failed
+    }
+
+    // 4. Fallback via Public CORS Proxy (e.g. for static web hosting)
+    try {
+      const publicProxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+      const publicRes = await fetch(publicProxyUrl, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (publicRes.ok) {
+        return (await publicRes.json()) as T;
+      }
+    } catch {
+      // Public fallback failed
+    }
+
+    throw new Error(
+      `Could not connect to Add-on at ${maskUrl(url)}. (CORS / Network Error). Ensure dev server is running or install Raaga Extension.`
+    );
   }
 }
 
@@ -171,10 +222,11 @@ export class AddonClient {
       const streamUrl = res.url || (res as { streamUrl?: string }).streamUrl;
       if (!streamUrl) return null;
 
-      // Make relative URLs absolute against baseUrl
+      // Make relative URLs absolute against baseUrl and ensure it is playable (Mixed Content protection)
       const absoluteUrl = new URL(streamUrl, this.baseUrl).toString();
+      const playableUrl = toPlayableStreamUrl(absoluteUrl);
       return {
-        url: absoluteUrl,
+        url: playableUrl,
         format: res.format || {
           quality: tier,
           codec: absoluteUrl.endsWith('.flac') ? 'flac' : 'mp3',

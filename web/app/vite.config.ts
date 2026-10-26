@@ -30,6 +30,137 @@ export default defineConfig(({ command, mode }) => {
       react(),
       tailwindcss(),
       {
+        name: 'addon-proxy-middleware',
+        configureServer(server) {
+          const proxyHandler = async (req: any, res: any, next: any) => {
+            if (!req.url) return next();
+
+            // 1. JSON API Proxy for Add-on Manifest and Search
+            if (req.url.startsWith('/api/addon-proxy')) {
+              res.setHeader('Access-Control-Allow-Origin', '*');
+              res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, HEAD');
+              res.setHeader('Access-Control-Allow-Headers', '*');
+
+              if (req.method === 'OPTIONS') {
+                res.statusCode = 204;
+                res.end();
+                return;
+              }
+
+              const parsedUrl = new URL(req.url, 'http://localhost:5173');
+              const target = parsedUrl.searchParams.get('url');
+              if (!target) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ error: 'Missing url query parameter' }));
+                return;
+              }
+
+              try {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 12000);
+                const fetchRes = await fetch(target, {
+                  method: req.method || 'GET',
+                  headers: {
+                    Accept: 'application/json, text/plain, */*',
+                    'User-Agent': 'Raaga-Web-AddonProxy/1.0',
+                  },
+                  signal: controller.signal,
+                });
+                clearTimeout(timeout);
+
+                res.statusCode = fetchRes.status;
+                fetchRes.headers.forEach((val, key) => {
+                  const lKey = key.toLowerCase();
+                  if (!['access-control-allow-origin', 'content-encoding', 'content-length'].includes(lKey)) {
+                    res.setHeader(key, val);
+                  }
+                });
+                res.setHeader('Access-Control-Allow-Origin', '*');
+
+                const arrayBuffer = await fetchRes.arrayBuffer();
+                res.end(Buffer.from(arrayBuffer));
+              } catch (err: any) {
+                res.statusCode = 502;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ error: `Addon proxy request failed: ${err?.message || String(err)}` }));
+              }
+              return;
+            }
+
+            // 2. Audio Stream Proxy with Range support for FLAC/MP3 streaming
+            if (req.url.startsWith('/api/addon-stream-proxy')) {
+              res.setHeader('Access-Control-Allow-Origin', '*');
+              res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS, HEAD');
+              res.setHeader('Access-Control-Allow-Headers', '*');
+
+              if (req.method === 'OPTIONS') {
+                res.statusCode = 204;
+                res.end();
+                return;
+              }
+
+              const parsedUrl = new URL(req.url, 'http://localhost:5173');
+              const target = parsedUrl.searchParams.get('url');
+              if (!target) {
+                res.statusCode = 400;
+                res.end('Missing url query parameter');
+                return;
+              }
+
+              try {
+                const headers: Record<string, string> = {
+                  'User-Agent': 'Raaga-Web-AudioProxy/1.0',
+                };
+                if (req.headers.range) {
+                  headers['Range'] = req.headers.range as string;
+                }
+
+                const fetchRes = await fetch(target, {
+                  method: req.method || 'GET',
+                  headers,
+                });
+
+                res.statusCode = fetchRes.status;
+                fetchRes.headers.forEach((val, key) => {
+                  const lKey = key.toLowerCase();
+                  if (!['access-control-allow-origin'].includes(lKey)) {
+                    res.setHeader(key, val);
+                  }
+                });
+                res.setHeader('Access-Control-Allow-Origin', '*');
+                res.setHeader('Accept-Ranges', 'bytes');
+
+                if (fetchRes.body) {
+                  const reader = fetchRes.body.getReader();
+                  const pump = async () => {
+                    while (true) {
+                      const { done, value } = await reader.read();
+                      if (done) {
+                        res.end();
+                        break;
+                      }
+                      res.write(value);
+                    }
+                  };
+                  await pump();
+                } else {
+                  res.end();
+                }
+              } catch (err: any) {
+                res.statusCode = 502;
+                res.end(`Audio stream proxy failed: ${err?.message || String(err)}`);
+              }
+              return;
+            }
+
+            next();
+          };
+
+          server.middlewares.use(proxyHandler);
+        },
+      },
+      {
         name: 'serve-downloads-with-headers',
         configureServer(server) {
           server.middlewares.use((req, res, next) => {

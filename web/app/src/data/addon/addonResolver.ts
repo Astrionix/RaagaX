@@ -2,7 +2,7 @@ import type { Track } from '@/data/music/types';
 import { best, queries, type MatchCandidate, type MatchTarget } from '@/data/match/trackMatcher';
 import { getAudio, usePlayer } from '@/state/player';
 import { trackLog } from '@/playback/trackLog';
-import { AddonClient } from './addonClient';
+import { AddonClient, toPlayableStreamUrl } from './addonClient';
 import { useAddonStore } from './addonStore';
 import type { AddonStream } from './types';
 
@@ -51,7 +51,7 @@ export async function findAddonUpgrade(target: MatchTarget): Promise<AddonUpgrad
           if (matched.streamUrl) {
             const absoluteUrl = new URL(matched.streamUrl, addon.baseUrl).toString();
             return {
-              streamUrl: absoluteUrl,
+              streamUrl: toPlayableStreamUrl(absoluteUrl),
               addonId: addon.id,
               addonName: addon.name,
               quality: matched.quality || addon.tier,
