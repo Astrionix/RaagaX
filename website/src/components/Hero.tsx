@@ -7,16 +7,14 @@ import { RAAGAX_CONFIG } from "@/config/release";
 import { AllApksModal } from "./AllApksModal";
 
 // Compute realistic Indian Standard Time (IST UTC+5:30) diurnal listening traffic curve.
-// Peaks:
-//  - Morning commute & office start (9:00 AM - 11:00 AM): ~22k - ~23k
-//  - Evening commute & gym (5:00 PM - 7:00 PM): ~24k - ~30k
-//  - Prime-time night peak (9:00 PM - 10:30 PM): ~36k - ~39k (Highest peak of the day)
-// Falls / Troughs:
-//  - Post-lunch dip (1:30 PM - 2:30 PM): slight drop to ~17k
-//  - Late night wind-down (1:00 AM - 2:00 AM): drops to ~7k - ~4k
-//  - Deep sleep trough (3:00 AM - 4:30 AM): lowest point of the 24-hr cycle ~2.1k
+// Calibrated strictly below 10k - 12k:
+//  - Deep sleep trough (3:00 AM - 4:00 AM): ~850 (lowest point)
+//  - Morning commute & office start (9:00 AM - 11:00 AM): ~7.2k - ~7.5k
+//  - Afternoon lunch dip (1:30 PM - 2:30 PM): ~5.2k - ~5.7k
+//  - Evening commute & gym (5:00 PM - 7:00 PM): ~7.8k - ~9.6k
+//  - Prime-time night peak (9:00 PM - 10:30 PM): ~10.5k - ~11.4k (Highest peak, stays below 12k)
 function getIndianTimeListenerCount(): number {
-  if (typeof window === "undefined") return 19500;
+  if (typeof window === "undefined") return 6150;
 
   // Calculate current exact time in Indian Standard Time (IST: UTC + 5:30)
   const now = new Date();
@@ -28,33 +26,32 @@ function getIndianTimeListenerCount(): number {
   const istSecond = istDate.getSeconds();
   const exactHour = istHour + istMinute / 60 + istSecond / 3600;
 
-  // Indian music streaming hourly distribution (0:00 to 23:00 IST)
-  // Reflecting Indian commuter, workday, lunch, tea-break, evening gym, and prime-time night patterns
+  // Indian music streaming hourly distribution (0:00 to 23:00 IST) scaled below 10-12k
   const indianHourlyBase = [
-    12850, // 00:00 (Midnight) - Late night owls, study sessions, chilling
-    7420,  // 01:00 AM - Sharp drop as majority sleeps
-    4150,  // 02:00 AM - Deep night
-    2180,  // 03:00 AM - Deep sleep trough (Lowest point in 24 hours)
-    2450,  // 04:00 AM - Early transition / quiet hours
-    4680,  // 05:00 AM - Early risers, devotional, morning yoga/walks
-    7940,  // 06:00 AM - Morning workout, getting ready, chai
-    12380, // 07:00 AM - Morning commute prep, schools/colleges awake
-    17650, // 08:00 AM - Peak morning rush hour (buses, metro, trains, driving)
-    21800, // 09:00 AM - Morning peak: office & campus arrival, focus tunes
-    22450, // 10:00 AM - Steady work/study focus playlists
-    21900, // 11:00 AM - Late morning focus
-    20400, // 12:00 PM - Mid-day steady streams
-    18200, // 13:00 PM (1:00 PM) - Lunch break (slight dip as people socialize)
-    17350, // 14:00 PM (2:00 PM) - Post-lunch lull (afternoon dip)
-    18900, // 15:00 PM (3:00 PM) - Workday resume & afternoon chai break
-    21100, // 16:00 PM (4:00 PM) - Work wrap-up tunes & evening prep
-    24300, // 17:00 PM (5:00 PM) - Evening commute surge starts
-    27850, // 18:00 PM (6:00 PM) - Heavy traffic commute + Gym workout playlists
-    30400, // 19:00 PM (7:00 PM) - Evening relaxation, tea/snacks, unwinding
-    33700, // 20:00 PM (8:00 PM) - Dinner time, cooking, hanging out with friends
-    36900, // 21:00 PM (9:00 PM) - Prime-time peak in India
-    38650, // 22:00 PM (10:00 PM) - ABSOLUTE PEAK of the day (Bedtime, romantic, lo-fi)
-    24200, // 23:00 PM (11:00 PM) - Sleep timers on, gradual wind-down
+    3920,  // 00:00 (Midnight) - Late night owls & study sessions
+    2280,  // 01:00 AM - Sharp drop as majority sleeps
+    1340,  // 02:00 AM - Deep night
+    860,   // 03:00 AM - Deep sleep trough (Lowest point in 24 hours)
+    980,   // 04:00 AM - Early transition / quiet hours
+    1680,  // 05:00 AM - Early risers, devotional, morning yoga/walks
+    2850,  // 06:00 AM - Morning workout, getting ready, chai
+    4420,  // 07:00 AM - Morning commute prep, schools/colleges awake
+    6180,  // 08:00 AM - Peak morning rush hour (metro, trains, traffic)
+    7240,  // 09:00 AM - Morning peak: office & campus arrival
+    7480,  // 10:00 AM - Steady work/study focus playlists
+    7120,  // 11:00 AM - Late morning focus
+    6540,  // 12:00 PM - Mid-day steady streams
+    5720,  // 13:00 PM (1:00 PM) - Lunch break (slight dip as people socialize)
+    5260,  // 14:00 PM (2:00 PM) - Post-lunch lull (afternoon dip)
+    5890,  // 15:00 PM (3:00 PM) - Workday resume & afternoon chai break
+    6680,  // 16:00 PM (4:00 PM) - Work wrap-up tunes & evening prep
+    7840,  // 17:00 PM (5:00 PM) - Evening commute surge starts
+    8920,  // 18:00 PM (6:00 PM) - Heavy traffic commute + Gym workout playlists
+    9680,  // 19:00 PM (7:00 PM) - Evening relaxation & social unwinding
+    10450, // 20:00 PM (8:00 PM) - Dinner time, hanging out, background music
+    10980, // 21:00 PM (9:00 PM) - Prime-time listening across India
+    11420, // 22:00 PM (10:00 PM) - ABSOLUTE PEAK of the day (Bedtime, romantic, lo-fi ~11.4k)
+    7360,  // 23:00 PM (11:00 PM) - Sleep timers on, gradual wind-down
   ];
 
   const currentHour = Math.floor(exactHour) % 24;
@@ -68,15 +65,17 @@ function getIndianTimeListenerCount(): number {
     indianHourlyBase[nextHour] * smoothProgress
   );
 
-  // Weekend boost (Friday night, Saturday & Sunday night experience higher streaming volume in India)
-  const day = istDate.getDay(); // 0 is Sunday, 6 is Saturday, 5 is Friday
+  // Weekend slight boost (Friday night, Saturday & Sunday night)
+  const day = istDate.getDay();
   const isWeekendBoost = day === 0 || day === 6 || (day === 5 && exactHour >= 18);
-  const weekendMultiplier = isWeekendBoost ? 1.08 : 1.0;
+  const weekendMultiplier = isWeekendBoost ? 1.03 : 1.0;
 
   // Natural organic jitter based on IST date/minute/second
-  const jitter = ((istDate.getDate() * 17 + istMinute * 13 + istSecond * 3) % 180) - 90;
+  const jitter = ((istDate.getDate() * 11 + istMinute * 7 + istSecond * 3) % 70) - 35;
 
-  return Math.round(base * weekendMultiplier) + jitter;
+  const result = Math.round(base * weekendMultiplier) + jitter;
+  // Guaranteed strictly clamped below 12,000 and above 700
+  return Math.max(700, Math.min(11850, result));
 }
 
 export const Hero: React.FC = () => {
@@ -84,8 +83,8 @@ export const Hero: React.FC = () => {
   const [activeTab, setActiveTab] = useState<"now_playing" | "lyrics" | "home">("now_playing");
   const [showAllApks, setShowAllApks] = useState(false);
 
-  // Dynamic Live Listening Counter anchored to Indian Standard Time (IST) diurnal traffic
-  const [liveListeners, setLiveListeners] = useState(19500);
+  // Dynamic Live Listening Counter anchored to Indian Standard Time (IST) diurnal traffic (below 10k-12k)
+  const [liveListeners, setLiveListeners] = useState(6150);
 
   useEffect(() => {
     // Initial calculation on client mount based on Indian Standard Time
@@ -98,13 +97,13 @@ export const Hero: React.FC = () => {
         const target = getIndianTimeListenerCount();
         // Gently gravitate towards current IST target if drift occurs
         const diff = target - prev;
-        const driftCorrection = Math.max(-12, Math.min(12, Math.round(diff * 0.1)));
+        const driftCorrection = Math.max(-8, Math.min(8, Math.round(diff * 0.1)));
 
-        const microJitter = [-6, -4, -2, -1, 0, 1, 3, 5, -3, 4, 7, -5, 2][
+        const microJitter = [-4, -3, -2, -1, 0, 1, 2, 3, -2, 2, 4, -3, 1][
           Math.floor(Math.random() * 13)
         ];
 
-        return Math.max(1500, prev + driftCorrection + microJitter);
+        return Math.max(700, Math.min(11900, prev + driftCorrection + microJitter));
       });
     }, 2500);
 
