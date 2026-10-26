@@ -140,6 +140,13 @@ async function fetchJson<T>(url: string, timeoutMs = 8000): Promise<T> {
 
 export class AddonClient {
   readonly baseUrl: string;
+  /** Cached manifest, fetched once per instance — mirrors Android's SharedCalls pattern. */
+  private _manifest: AddonManifest | null = null;
+
+  // Quality option words — mirrors Android's LOSSLESS_WORDS / HIGH_WORDS / LOW_WORDS
+  private static readonly LOSSLESS_WORDS = ['lossless', 'flac', 'hifi', 'hi-res', 'hires', 'max', 'best'];
+  private static readonly HIGH_WORDS = ['high', '320', 'normal', 'standard'];
+  private static readonly LOW_WORDS = ['low', '96', '128', 'min'];
 
   constructor(rawBaseUrl: string) {
     this.baseUrl = normalizeBaseUrl(rawBaseUrl);
@@ -149,13 +156,14 @@ export class AddonClient {
    * Fetches and validates the Add-on manifest.
    */
   async manifest(): Promise<AddonManifest> {
+    if (this._manifest) return this._manifest;
     const manifestUrl = `${this.baseUrl}/manifest.json`;
     try {
       const data = await fetchJson<AddonManifest>(manifestUrl);
       if (!data || typeof data !== 'object') {
         throw new Error('Invalid manifest JSON');
       }
-      return {
+      this._manifest = {
         id: data.id || 'addon',
         name: data.name || data.id || 'Custom Add-on',
         version: data.version || '1.0',
@@ -163,33 +171,87 @@ export class AddonClient {
         allowDownloads: data.allowDownloads ?? true,
         settings: Array.isArray(data.settings) ? data.settings : [],
       };
+      return this._manifest;
     } catch {
       // If /manifest.json fails, probe /search to verify if it's an unmanifested endpoint
       const searchProbe = await this.search('probe_check', 'LOSSLESS').catch(() => null);
       if (searchProbe !== null) {
-        return {
+        this._manifest = {
           id: 'custom-addon',
           name: new URL(this.baseUrl).hostname,
           version: '1.0',
           resources: ['search', 'stream'],
           allowDownloads: true,
         };
+        return this._manifest;
       }
       throw new Error(`Could not reach addon at ${maskUrl(this.baseUrl)}`);
     }
   }
 
   /**
+   * Picks the addon's own quality option string that best answers a request for [tier].
+   * Mirrors Android's AddonClient.matchTier() — matches on words rather than exact strings,
+   * so "hires", "hi-res", "FLAC", "lossless" all map from LOSSLESS tier correctly.
+   */
+  private static matchTier(tier: AddonTier, options: string[]): string | null {
+    if (!options.length) return null;
+    const exact = options.find((o) => o.toLowerCase() === tier.toLowerCase());
+    if (exact) return exact;
+    const words =
+      tier === 'LOSSLESS' ? AddonClient.LOSSLESS_WORDS : tier === 'LOW' ? AddonClient.LOW_WORDS : AddonClient.HIGH_WORDS;
+    return options.find((o) => words.some((w) => o.toLowerCase().includes(w))) ?? options[0] ?? null;
+  }
+
+  /**
+   * Builds query params from manifest declared settings defaults, then overlays the
+   * properly-matched quality value. Mirrors Android's AddonClient.settingsFor().
+   *
+   * This is the fix for "Desktop gets lossless, web doesn't":
+   *   eljohnzc manifest declares options ["hires","lossless","high","low"]; LOSSLESS tier
+   *   must map to "hires" (the best option), not send "lossless" literally.
+   */
+  private async settingsFor(tier: AddonTier): Promise<Record<string, string>> {
+    const mfst = await this.manifest().catch(() => null);
+    const declared = mfst?.settings ?? [];
+    const params: Record<string, string> = {};
+
+    // Apply all declared setting defaults first
+    for (const setting of declared) {
+      if (setting.key && setting.default !== undefined && setting.default !== null) {
+        params[setting.key] = String(setting.default);
+      }
+    }
+
+    // Override quality with the best-matched option from the manifest's options list
+    const qualitySetting = declared.find((s) => s.key === 'quality');
+    const options = qualitySetting
+      ? (Array.isArray((qualitySetting as any).options)
+          ? ((qualitySetting as any).options as Array<{ value?: string; label?: string } | string>).map((o) =>
+              typeof o === 'string' ? o : o.value ?? o.label ?? ''
+            )
+          : []
+        ).filter(Boolean)
+      : [];
+
+    params['quality'] = AddonClient.matchTier(tier, options) ?? tier.toLowerCase();
+    params['tier'] = tier.toLowerCase();
+    return params;
+  }
+
+  /**
    * Searches the Addon catalogue for tracks.
+   * Uses settingsFor() so the manifest's own quality option labels are used
+   * (e.g. "hires" instead of "lossless" for LOSSLESS tier on eljohnzc).
    */
   async search(query: string, tier: AddonTier = 'LOSSLESS'): Promise<AddonTrack[]> {
     const trimmed = query.trim();
     if (!trimmed) return [];
 
+    const params = await this.settingsFor(tier);
     const url = new URL(`${this.baseUrl}/search`);
     url.searchParams.set('q', trimmed);
-    url.searchParams.set('quality', tier.toLowerCase());
-    url.searchParams.set('tier', tier.toLowerCase());
+    for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
 
     const data = await fetchJson<AddonSearchResponse | AddonTrack[]>(url.toString());
     const rawList = Array.isArray(data) ? data : data.tracks || data.results || [];
@@ -202,7 +264,7 @@ export class AddonClient {
         artist: t.artist || (Array.isArray(t.artists) ? t.artists.join(', ') : t.artists) || '',
         album: t.album || '',
         durationSec,
-        quality: t.quality || 'LOSSLESS',
+        quality: t.quality || (t as { audioQuality?: string }).audioQuality || 'LOSSLESS',
         streamUrl: t.streamUrl || t.streamURL,
       };
     });
@@ -210,12 +272,14 @@ export class AddonClient {
 
   /**
    * Resolves a streamable audio URL for a given track id.
+   * Uses settingsFor() so the matched quality label (e.g. "hires") is sent instead
+   * of the raw tier name — mirrors Android's AddonClient.stream().
    */
   async stream(trackId: string, tier: AddonTier = 'LOSSLESS'): Promise<AddonStream | null> {
     const encodedId = encodeURIComponent(trackId);
+    const params = await this.settingsFor(tier);
     const url = new URL(`${this.baseUrl}/stream/${encodedId}`);
-    url.searchParams.set('quality', tier.toLowerCase());
-    url.searchParams.set('tier', tier.toLowerCase());
+    for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
 
     try {
       const res = await fetchJson<AddonStream | { url?: string; streamUrl?: string; format?: AddonStream['format'] }>(url.toString());
