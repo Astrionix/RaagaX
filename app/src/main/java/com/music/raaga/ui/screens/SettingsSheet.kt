@@ -550,6 +550,40 @@ fun SettingsScreen(
                         steps = 0,
                     )
                 }
+                val originalTitle = stringResource(R.string.lock_screen_art_original)
+                var hasOriginal by androidx.compose.runtime.remember {
+                    androidx.compose.runtime.mutableStateOf(
+                        com.music.raaga.playback.LockScreenArt.hasOriginal(appContext),
+                    )
+                }
+                val pickOriginal = androidx.activity.compose.rememberLauncherForActivityResult(
+                    androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia(),
+                ) { uri ->
+                    if (uri != null) {
+                        com.music.raaga.playback.LockScreenArt.saveOriginalAsync(appContext, uri) {
+                            hasOriginal = it
+                        }
+                    }
+                }
+                row(originalTitle, "restore", "wallpaper", "original") {
+                    SettingsRow(
+                        icon = Icons.Rounded.Image,
+                        title = originalTitle,
+                        subtitle = stringResource(R.string.lock_screen_art_original_subtitle),
+                        value = stringResource(
+                            if (hasOriginal) R.string.lock_screen_art_original_saved
+                            else R.string.lock_screen_art_original_not_set,
+                        ),
+                        onClick = {
+                            pickOriginal.launch(
+                                androidx.activity.result.PickVisualMediaRequest(
+                                    androidx.activity.result.contract.ActivityResultContracts
+                                        .PickVisualMedia.ImageOnly,
+                                ),
+                            )
+                        },
+                    )
+                }
             }
         }
 

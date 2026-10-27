@@ -786,6 +786,7 @@ class PlaybackService : MediaLibraryService() {
         }
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
+            LockScreenArt.onPlaying(this@PlaybackService, isPlaying)
             // The player this fired on, which is by definition the one the
             // session is currently pointed at.
             val exoPlayer = player ?: return
@@ -6228,6 +6229,9 @@ class PlaybackService : MediaLibraryService() {
      */
     override fun onTaskRemoved(rootIntent: Intent?) {
         super.onTaskRemoved(rootIntent)
+        // Cleared from recents: the user's own lock wallpaper comes back now,
+        // whether or not the music keeps playing.
+        LockScreenArt.restore(this, hold = true)
         if (AppSettings.stopOnTaskRemoved.value) {
             // Both, or a swipe-away mid-crossfade leaves the outgoing track
             // playing on its own out of a service that is on its way out.
