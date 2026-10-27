@@ -515,6 +515,27 @@ object AppSettings {
     val spotifyCanvasEnabled = MutableStateFlow(true)
 
     /**
+     * Expands animated album artwork / canvas across the phone's lock screen
+     * with glassmorphic playback controls when the screen turns on during playback.
+     */
+    val lockScreenCanvas = MutableStateFlow(true)
+
+    /**
+     * Paint the lock wallpaper from the playing cover. Off by default: it
+     * replaces the user's own lock wallpaper while music plays.
+     */
+    val lockScreenArt = MutableStateFlow(false)
+
+    /** Where the cover tile starts on the lock wallpaper, as a percent of screen height. */
+    val lockScreenArtTop = MutableStateFlow(50)
+
+    /** Whether animated canvas on the lock screen is allowed to stream on cellular data. */
+    val lockScreenCanvasWifiOnly = MutableStateFlow(false)
+
+    /** Falls back to static album artwork on the lock screen when battery saver or low battery is active. */
+    val lockScreenCanvasBatterySaver = MutableStateFlow(true)
+
+    /**
      * Blows the player's cover art out to a full-bleed banner running off the
      * top of the screen, rather than sitting it in a square card.
      *
@@ -963,6 +984,11 @@ object AppSettings {
         spotifyCanvasAutoHide.value = prefs.getBoolean(KEY_SPOTIFY_CANVAS_AUTO_HIDE, true)
         prioritizeSpotifyCanvas.value = prefs.getBoolean(KEY_PRIORITIZE_SPOTIFY_CANVAS, false)
         spotifyCanvasEnabled.value = prefs.getBoolean(KEY_SPOTIFY_CANVAS_ENABLED, true)
+        lockScreenCanvas.value = prefs.getBoolean(KEY_LOCK_SCREEN_CANVAS, true)
+        lockScreenArt.value = prefs.getBoolean(KEY_LOCK_SCREEN_ART, false)
+        lockScreenArtTop.value = prefs.getInt(KEY_LOCK_SCREEN_ART_TOP, 50)
+        lockScreenCanvasWifiOnly.value = prefs.getBoolean(KEY_LOCK_SCREEN_CANVAS_WIFI_ONLY, false)
+        lockScreenCanvasBatterySaver.value = prefs.getBoolean(KEY_LOCK_SCREEN_CANVAS_BATTERY_SAVER, true)
         fullBleedArtwork.value = prefs.getBoolean(KEY_FULL_BLEED_ARTWORK, true)
         legacyMeshGradient.value = prefs.getBoolean(KEY_LEGACY_MESH_GRADIENT, false)
         lastPlayerScreen.value = runCatching {
@@ -1545,6 +1571,32 @@ object AppSettings {
         prefs.edit().putBoolean(KEY_SPOTIFY_CANVAS_ENABLED, value).apply()
     }
 
+    fun setLockScreenCanvas(value: Boolean) {
+        lockScreenCanvas.value = value
+        prefs.edit().putBoolean(KEY_LOCK_SCREEN_CANVAS, value).apply()
+    }
+
+    fun setLockScreenArtTop(percent: Int) {
+        val clamped = percent.coerceIn(5, 75)
+        lockScreenArtTop.value = clamped
+        prefs.edit().putInt(KEY_LOCK_SCREEN_ART_TOP, clamped).apply()
+    }
+
+    fun setLockScreenArt(value: Boolean) {
+        lockScreenArt.value = value
+        prefs.edit().putBoolean(KEY_LOCK_SCREEN_ART, value).apply()
+    }
+
+    fun setLockScreenCanvasWifiOnly(value: Boolean) {
+        lockScreenCanvasWifiOnly.value = value
+        prefs.edit().putBoolean(KEY_LOCK_SCREEN_CANVAS_WIFI_ONLY, value).apply()
+    }
+
+    fun setLockScreenCanvasBatterySaver(value: Boolean) {
+        lockScreenCanvasBatterySaver.value = value
+        prefs.edit().putBoolean(KEY_LOCK_SCREEN_CANVAS_BATTERY_SAVER, value).apply()
+    }
+
     fun setFullBleedArtwork(value: Boolean) {
         fullBleedArtwork.value = value
         prefs.edit().putBoolean(KEY_FULL_BLEED_ARTWORK, value).apply()
@@ -2114,6 +2166,11 @@ object AppSettings {
     private const val KEY_SPOTIFY_CANVAS_AUTO_HIDE = "spotify_canvas_auto_hide"
     private const val KEY_PRIORITIZE_SPOTIFY_CANVAS = "prioritize_spotify_canvas"
     private const val KEY_SPOTIFY_CANVAS_ENABLED = "spotify_canvas_enabled"
+    private const val KEY_LOCK_SCREEN_CANVAS = "lock_screen_canvas"
+    private const val KEY_LOCK_SCREEN_ART = "lock_screen_art"
+    private const val KEY_LOCK_SCREEN_ART_TOP = "lock_screen_art_top"
+    private const val KEY_LOCK_SCREEN_CANVAS_WIFI_ONLY = "lock_screen_canvas_wifi_only"
+    private const val KEY_LOCK_SCREEN_CANVAS_BATTERY_SAVER = "lock_screen_canvas_battery_saver"
     private const val KEY_FULL_BLEED_ARTWORK = "full_bleed_artwork"
     private const val KEY_LEGACY_MESH_GRADIENT = "legacy_mesh_gradient"
     private const val KEY_LAST_PLAYER_SCREEN = "last_player_screen"

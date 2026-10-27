@@ -811,6 +811,11 @@ class PlaybackService : MediaLibraryService() {
                 audibleMediaId = exoPlayer.currentMediaItem?.mediaId
                 consecutiveErrorSkips = 0
             }
+            if (isPlaying) {
+                exoPlayer.currentMediaItem?.mediaMetadata?.artworkUri?.toString()?.let { artUri ->
+                    LockScreenArt.apply(this@PlaybackService, artUri)
+                }
+            }
             if (isPlaying) registerCurrentPlay()
             // Nothing to read ahead for while paused, and a pause is often
             // the last thing that happens before the process goes idle.
@@ -1229,6 +1234,19 @@ class PlaybackService : MediaLibraryService() {
                     refreshCustomLayouts()
                     publishWidgetState()
                 }
+        }
+
+        scope.launch {
+            AppSettings.lockScreenArt.collectLatest { on ->
+                if (on) {
+                    LockScreenArt.onTrack(
+                        this@PlaybackService,
+                        player?.currentMediaItem?.mediaMetadata?.artworkUri?.toString(),
+                    )
+                } else {
+                    LockScreenArt.restore(this@PlaybackService)
+                }
+            }
         }
 
         bluetoothTracker.start()
@@ -2850,6 +2868,9 @@ class PlaybackService : MediaLibraryService() {
         // And the same instant on the wall clock, which is the one
         // logcat stamps its lines with — see [TrackLog].
         mediaItem?.mediaId?.let(TrackLog::onTrackStarted)
+        if (AppSettings.lockScreenArt.value) {
+            LockScreenArt.onTrack(this, mediaItem?.mediaMetadata?.artworkUri?.toString())
+        }
         // A play beginning is what ends the last one's upgrade verdict. Here
         // rather than in [QualityUpgrade.forget] because that runs on the
         // failure and rollback paths, where a previous "no" is exactly what
@@ -6217,6 +6238,7 @@ class PlaybackService : MediaLibraryService() {
 
 
     override fun onDestroy() {
+        LockScreenArt.restore(this)
         closeAudioEffectSession()
         bluetoothTracker.stop()
         if (castPlayback.active) CastController.disconnect(resumeHere = false)

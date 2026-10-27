@@ -255,6 +255,10 @@
     <string name="revert_to_original">Revert to original</string>
     <string name="upgrade_quality">Upgrade quality</string>
     <string name="dolby_atmos">Dolby Atmos</string>
+    <string name="lock_screen_art">Album art on lock screen</string>
+    <string name="lock_screen_art_position">Cover position</string>
+    <string name="lock_screen_art_position_subtitle">Slide until the cover sits clear of your clock and the player card. It repaints a moment after you let go.</string>
+    <string name="lock_screen_art_subtitle">While music plays, the lock screen shows the cover on a colour backdrop from it. Replaces your lock wallpaper until playback ends.</string>
     <string name="dolby_atmos_subtitle">Play the more immersive, surround version of a song when there is one.</string>
     <string name="dolby_atmos_unavailable">This device can\'t play Atmos, so these songs play in their usual version</string>
     <string name="spatial_audio">Spatial audio</string>
@@ -411,6 +415,14 @@
     <string name="dark">Dark</string>
     <string name="full_screen_cover_art_subtitle">Runs the cover to the edges of the player instead of a square sleeve</string>
     <string name="animated_cover_art_subtitle">Plays the looping video some releases ship instead of a still sleeve</string>
+    <string name="lock_screen_canvas_title">Lock Screen animated artwork</string>
+    <string name="lock_screen_canvas_subtitle">Expands motion artwork and media controls across the lock screen</string>
+    <string name="lock_screen_canvas_wifi_only">Lock Screen canvas Wi-Fi only</string>
+    <string name="lock_screen_canvas_wifi_only_subtitle">Use static artwork on mobile data</string>
+    <string name="lock_screen_canvas_battery_saver">Battery saver fallback</string>
+    <string name="lock_screen_canvas_battery_saver_subtitle">Pause motion and use static artwork when battery is low</string>
+    <string name="lock_screen_preview">Preview Lock Screen</string>
+    <string name="lock_screen_swipe_up_to_unlock">Swipe up to dismiss</string>
     <string name="dont_repeat_songs_subtitle">AutoPlay won’t suggest a song already played or suggested this session</string>
     <string name="download_quality_subtitle">%1$s per track, whatever the connection</string>
     <string name="filter_non_music_audio">Filter non-music audio</string>
