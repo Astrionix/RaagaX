@@ -3,6 +3,7 @@
 import React from "react";
 import { ExternalLink, GitFork, Star, Code, Terminal, Layers } from "lucide-react";
 import { GithubIcon } from "./icons/GithubIcon";
+import { DiscordIcon } from "./icons/DiscordIcon";
 import { RAAGAX_CONFIG } from "@/config/release";
 
 export const SourceCode: React.FC = () => {
@@ -88,6 +89,17 @@ export const SourceCode: React.FC = () => {
               <GithubIcon className="w-4 h-4" />
               <span>View Repository</span>
               <ExternalLink className="w-3 h-3 text-zinc-400" />
+            </a>
+
+            <a
+              href={RAAGAX_CONFIG.discordCommunityUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-[#5865f2]/20 hover:bg-[#5865f2]/30 border border-[#5865f2]/40 transition-all text-[#99aab5] hover:text-white"
+            >
+              <DiscordIcon className="w-4 h-4 text-[#5865f2]" />
+              <span>Join Discord</span>
+              <ExternalLink className="w-3 h-3 text-[#5865f2]" />
             </a>
 
             <a
