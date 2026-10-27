@@ -293,7 +293,6 @@ class MainActivity : AppCompatActivity() {
         // Likewise for a link tapped or shared from another app — see [MusicLink].
         MusicLink.consume(intent)
         com.music.raaga.data.spotify.SpotifyAuthManager.consumeIntent(intent)
-        checkLockScreenRedirect()
         if (AppSettings.shouldShowConnectAnnouncement()) {
             Toast.makeText(
                 applicationContext,
@@ -393,7 +392,6 @@ class MainActivity : AppCompatActivity() {
      */
     override fun onResume() {
         super.onResume()
-        checkLockScreenRedirect()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -405,20 +403,6 @@ class MainActivity : AppCompatActivity() {
         JamInviteLink.consume(intent)
         MusicLink.consume(intent)
         com.music.raaga.data.spotify.SpotifyAuthManager.consumeIntent(intent)
-        checkLockScreenRedirect()
-    }
-
-    private fun checkLockScreenRedirect() {
-        if (!AppSettings.lockScreenCanvas.value) return
-        val km = getSystemService(Context.KEYGUARD_SERVICE) as? android.app.KeyguardManager
-        val isLocked = km?.isKeyguardLocked == true ||
-            (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1 && km?.isDeviceLocked == true)
-        if (isLocked) {
-            val lockIntent = Intent(this, com.music.raaga.ui.player.LockScreenPlayerActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            }
-            startActivity(lockIntent)
-        }
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {

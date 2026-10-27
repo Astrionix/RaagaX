@@ -1,5 +1,6 @@
 import { ArrowUpRight, ListMusic, Settings, Sparkles } from 'lucide-react';
 import { MdOutlineExtension } from 'react-icons/md';
+import { SiDiscord } from 'react-icons/si';
 import { PrefetchLink, PrefetchNavLink } from '@/components/PrefetchLink';
 import { LogoMark } from '@/components/icons/LogoMark';
 import {
@@ -186,9 +187,21 @@ export function Sidebar() {
               <span>Get the Android app</span>
               <ArrowUpRight size={14} strokeWidth={2} />
             </a>
-            <PrefetchNavLink to="/settings" className="grid size-7 place-items-center rounded-nav text-secondary hover:bg-quinary hover:text-primary aria-[current=page]:bg-quinary aria-[current=page]:text-primary" aria-label="Settings" title="Settings" onClick={close}>
-              <Settings size={17} strokeWidth={1.9} />
-            </PrefetchNavLink>
+            <div className="flex items-center gap-1">
+              <a
+                className="grid size-7 place-items-center rounded-nav text-secondary hover:bg-quinary hover:text-[#5865f2] transition-colors"
+                href={config.discordCommunityUrl}
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Discord Community"
+                title="Discord Community"
+              >
+                <SiDiscord size={16} />
+              </a>
+              <PrefetchNavLink to="/settings" className="grid size-7 place-items-center rounded-nav text-secondary hover:bg-quinary hover:text-primary aria-[current=page]:bg-quinary aria-[current=page]:text-primary" aria-label="Settings" title="Settings" onClick={close}>
+                <Settings size={17} strokeWidth={1.9} />
+              </PrefetchNavLink>
+            </div>
           </div>
         </div>
       </nav>

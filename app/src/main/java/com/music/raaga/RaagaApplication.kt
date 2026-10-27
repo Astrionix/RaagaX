@@ -17,6 +17,7 @@ import com.music.raaga.data.webdav.WebDavCoilAuth
 import com.music.raaga.data.canvas.SpotifyToken
 import com.music.raaga.playback.AudioCache
 import com.music.raaga.playback.LastPlayed
+import com.music.raaga.playback.LockScreenArt
 import com.music.raaga.playback.OriginalVersion
 import com.music.raaga.data.innertube.Innertube
 import com.music.raaga.data.innertube.InnerTubeXResolver
@@ -88,6 +89,7 @@ class RaagaApplication : Application(), SingletonImageLoader.Factory {
         ListenTogether.init(this)
         SearchHistory.init(this)
         LastPlayed.init(this)
+        LockScreenArt.install(this)
         com.music.raaga.playback.PartyPersonalQueueStash.init(this)
         // Which tracks the listener has reverted to YouTube's own upload. Read
         // by [Song.toMediaItem], so it has to be open before the restart

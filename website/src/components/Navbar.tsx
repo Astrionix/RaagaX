@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ArrowDownToLine, Menu, X, Star, Layers, Monitor, Globe } from "lucide-react";
 import { RAAGAX_CONFIG } from "@/config/release";
 import { AllApksModal } from "./AllApksModal";
+import { DiscordIcon } from "./icons/DiscordIcon";
 
 export const Navbar: React.FC = () => {
   const [scrolled, setScrolled] = useState(false);
@@ -56,6 +57,7 @@ export const Navbar: React.FC = () => {
     { name: "Desktop", href: "#desktop" },
     { name: "Download", href: "#download" },
     { name: "Web App", href: RAAGAX_CONFIG.webAppUrl, external: true },
+    { name: "Discord", href: RAAGAX_CONFIG.discordCommunityUrl, external: true },
   ];
 
   return (
@@ -109,6 +111,17 @@ export const Navbar: React.FC = () => {
 
           {/* Right: Quick Download & Architecture Selector Actions */}
           <div className="hidden sm:flex items-center gap-2">
+            <a
+              href={RAAGAX_CONFIG.discordCommunityUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Join Raaga Discord Community"
+              aria-label="Join Raaga Discord Community"
+              className="liquid-glass-pill size-8 sm:size-9 grid place-items-center rounded-full text-white/90 hover:text-[#5865f2] border border-white/20 hover:border-[#5865f2]/50 hover:bg-[#5865f2]/10 cursor-pointer btn-press transition-all"
+            >
+              <DiscordIcon className="w-4 h-4" />
+            </a>
+
             <a
               href={RAAGAX_CONFIG.webAppUrl}
               target="_blank"

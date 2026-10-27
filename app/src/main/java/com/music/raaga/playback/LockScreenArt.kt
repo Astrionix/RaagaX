@@ -1,16 +1,22 @@
 package com.music.raaga.playback
 
+import android.app.Activity
+import android.app.Application
 import android.app.WallpaperManager
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
+import android.net.Uri
+import android.os.Bundle
 import android.graphics.RectF
 import android.graphics.Shader
 import androidx.core.graphics.ColorUtils
+import java.io.File
 import androidx.palette.graphics.Palette
 import coil3.SingletonImageLoader
 import coil3.request.ImageRequest
@@ -59,12 +65,21 @@ object LockScreenArt {
     private const val DEBOUNCE_MS = 600L
     private const val PREFS = "lock_screen_art"
     private const val KEY_APPLIED = "applied"
+    private const val IDLE_RESTORE_MS = 60_000L
+    private const val ORIGINAL_MAX_PX = 2600
 
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private val lock = Mutex()
     private var pending: Job? = null
     private var lastArt: String? = null
     private var currentArt: String? = null
+
+    /** Set when the app was cleared from recents; cleared when the UI opens again. */
+    @Volatile private var held = false
+    private var idleJob: Job? = null
+
+    /** Bumped by every restore, so a paint already in flight knows it lost the race. */
+    @Volatile private var generation = 0
 
     /**
      * Called for each new track. Skipping through a queue fires this in a
@@ -73,13 +88,17 @@ object LockScreenArt {
     fun onTrack(context: Context, artUrl: String?, force: Boolean = false) {
         val app = context.applicationContext
         if (!artUrl.isNullOrBlank()) currentArt = artUrl
+        if (held) return
         if (artUrl.isNullOrBlank() || (artUrl == lastArt && !force)) return
         pending?.cancel()
+        val startedAt = generation
         pending = scope.launch {
             delay(DEBOUNCE_MS)
             lock.withLock {
                 val bitmap = compose(app, artUrl) ?: return@withLock
                 val ok = withContext(Dispatchers.IO) {
+                    // A restore that ran while this was composing wins.
+                    if (generation != startedAt) return@withContext false
                     runCatching {
                         WallpaperManager.getInstance(app)
                             .setBitmap(bitmap, null, true, WallpaperManager.FLAG_LOCK)
@@ -96,7 +115,7 @@ object LockScreenArt {
 
     /** Compatibility alias */
     fun apply(context: Context, artUrl: String?) {
-        if (!AppSettings.lockScreenArt.value && !AppSettings.lockScreenCanvas.value) return
+        if (!AppSettings.lockScreenArt.value) return
         onTrack(context, artUrl)
     }
 
@@ -106,21 +125,120 @@ object LockScreenArt {
     }
 
     /**
-     * Gives the user their lock screen back. Clearing the lock slot makes it
-     * fall back to the system wallpaper again, which is how a lock screen that
-     * was never customised behaves. A lock wallpaper the user had picked
-     * separately cannot be read back without storage access on Android 13+,
-     * so it is not restored — which is why the setting says so up front.
+     * Gives the user their lock screen back: their own wallpaper if they saved
+     * one with [saveOriginalAsync], otherwise the lock slot is cleared so it
+     * follows the home wallpaper again. Android 13+ will not let an app read
+     * the current wallpaper back, which is why the user picks it once.
+     *
+     * [hold] keeps later track changes from painting again until the UI is
+     * opened (see [install]) — what "clear the app" should mean.
      */
-    fun restore(context: Context) {
+    fun restore(context: Context, hold: Boolean = false) {
         val app = context.applicationContext
         pending?.cancel()
+        idleJob?.cancel()
+        generation++
+        if (hold) held = true
         lastArt = null
         if (!prefs(app).getBoolean(KEY_APPLIED, false)) return
+        val original = loadOriginal(app)
         runCatching {
-            WallpaperManager.getInstance(app).clear(WallpaperManager.FLAG_LOCK)
+            val wm = WallpaperManager.getInstance(app)
+            if (original != null) {
+                wm.setBitmap(original, null, true, WallpaperManager.FLAG_LOCK)
+            } else {
+                wm.clear(WallpaperManager.FLAG_LOCK)
+            }
         }
+        original?.recycle()
         prefs(app).edit().putBoolean(KEY_APPLIED, false).apply()
+    }
+
+    /**
+     * Playback state from the service. Paused or stopped for a minute puts the
+     * user's wallpaper back; playing again paints the cover again.
+     */
+    fun onPlaying(context: Context, playing: Boolean) {
+        if (!AppSettings.lockScreenArt.value) return
+        val app = context.applicationContext
+        idleJob?.cancel()
+        if (playing) {
+            if (!held && lastArt == null && currentArt != null) onTrack(app, currentArt, force = true)
+        } else {
+            idleJob = scope.launch {
+                delay(IDLE_RESTORE_MS)
+                restore(app)
+            }
+        }
+    }
+
+    /** Lets the app being opened again lift the hold set by a clear-from-recents. */
+    fun install(app: Application) {
+        app.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
+            override fun onActivityStarted(activity: Activity) { held = false }
+            override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
+            override fun onActivityResumed(activity: Activity) {}
+            override fun onActivityPaused(activity: Activity) {}
+            override fun onActivityStopped(activity: Activity) {}
+            override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
+            override fun onActivityDestroyed(activity: Activity) {}
+        })
+    }
+
+    private fun originalFile(context: Context) = File(context.filesDir, "lock_screen_original.jpg")
+
+    fun hasOriginal(context: Context): Boolean = originalFile(context).exists()
+
+    /** Copies the wallpaper the user picked into app storage, scaled to a sane size. */
+    fun saveOriginalAsync(context: Context, uri: Uri, onDone: (Boolean) -> Unit) {
+        val app = context.applicationContext
+        scope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                runCatching {
+                    val resolver = app.contentResolver
+                    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+                    var sample = 1
+                    while (maxOf(bounds.outWidth, bounds.outHeight) / sample > ORIGINAL_MAX_PX) sample *= 2
+                    val bitmap = resolver.openInputStream(uri)?.use {
+                        BitmapFactory.decodeStream(
+                            it, null, BitmapFactory.Options().apply { inSampleSize = sample },
+                        )
+                    } ?: return@runCatching false
+                    originalFile(app).outputStream().use {
+                        bitmap.compress(Bitmap.CompressFormat.JPEG, 95, it)
+                    }
+                    bitmap.recycle()
+                    true
+                }.getOrDefault(false)
+            }
+            withContext(Dispatchers.Main) { onDone(ok) }
+        }
+    }
+
+    /** The saved wallpaper, centre-cropped to the screen, or null if none was saved. */
+    private fun loadOriginal(context: Context): Bitmap? {
+        val file = originalFile(context)
+        if (!file.exists()) return null
+        val src = BitmapFactory.decodeFile(file.absolutePath) ?: return null
+        val metrics = context.resources.displayMetrics
+        val w = metrics.widthPixels
+        val h = metrics.heightPixels
+        val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val scale = maxOf(w / src.width.toFloat(), h / src.height.toFloat())
+        val sw = w / scale
+        val sh = h / scale
+        Canvas(out).drawBitmap(
+            src,
+            android.graphics.Rect(
+                ((src.width - sw) / 2).toInt(), ((src.height - sh) / 2).toInt(),
+                ((src.width + sw) / 2).toInt(), ((src.height + sh) / 2).toInt(),
+            ),
+            RectF(0f, 0f, w.toFloat(), h.toFloat()),
+            Paint(Paint.FILTER_BITMAP_FLAG),
+        )
+        src.recycle()
+        return out
     }
 
     private fun prefs(context: Context) =

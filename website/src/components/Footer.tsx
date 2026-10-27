@@ -4,6 +4,7 @@ import React from "react";
 import Image from "next/image";
 import { Globe, Heart, Shield, Terminal } from "lucide-react";
 import { RAAGAX_CONFIG } from "@/config/release";
+import { DiscordIcon } from "./icons/DiscordIcon";
 
 export const Footer: React.FC = () => {
   return (
@@ -68,6 +69,18 @@ export const Footer: React.FC = () => {
                 >
                   <span>Web Player</span>
                   <span className="text-[10px] text-emerald-400/70">↗</span>
+                </a>
+              </li>
+              <li>
+                <a
+                  href={RAAGAX_CONFIG.discordCommunityUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#7289da] hover:text-[#99aab5] transition-colors flex items-center gap-1.5"
+                >
+                  <DiscordIcon className="w-3.5 h-3.5 text-[#5865f2]" />
+                  <span>Discord Community</span>
+                  <span className="text-[10px] text-[#5865f2]/70">↗</span>
                 </a>
               </li>
             </ul>

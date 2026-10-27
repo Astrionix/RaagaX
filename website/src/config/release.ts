@@ -51,6 +51,7 @@ export interface ReleaseConfig {
   apkDownloadUrl: string;
   releaseNotesUrl: string;
   githubRepoUrl: string;
+  discordCommunityUrl: string;
   liveDomainUrl: string;
   webAppUrl: string;
   authorName: string;
@@ -86,6 +87,7 @@ export const RAAGAX_CONFIG: ReleaseConfig = {
   apkDownloadUrl: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/Raaga-prod-arm64-v8a-release.apk",
   releaseNotesUrl: "https://github.com/Astrionix/RaagaX/releases/tag/v1.9.8",
   githubRepoUrl: "https://github.com/Astrionix/RaagaX",
+  discordCommunityUrl: "https://discord.gg/yGV2HqhSk",
   liveDomainUrl: "https://raaga.me",
   webAppUrl: "https://web.raaga.me",
   authorName: "Chandra Reddy",

@@ -258,6 +258,10 @@
     <string name="lock_screen_art">Album art on lock screen</string>
     <string name="lock_screen_art_position">Cover position</string>
     <string name="lock_screen_art_position_subtitle">Slide until the cover sits clear of your clock and the player card. It repaints a moment after you let go.</string>
+    <string name="lock_screen_art_original">My normal lock wallpaper</string>
+    <string name="lock_screen_art_original_subtitle">Pick the wallpaper you normally use. It comes back when you clear the app from recents or music stays paused for a minute.</string>
+    <string name="lock_screen_art_original_saved">Saved</string>
+    <string name="lock_screen_art_original_not_set">Not set</string>
     <string name="lock_screen_art_subtitle">While music plays, the lock screen shows the cover on a colour backdrop from it. Replaces your lock wallpaper until playback ends.</string>
     <string name="dolby_atmos_subtitle">Play the more immersive, surround version of a song when there is one.</string>
     <string name="dolby_atmos_unavailable">This device can\'t play Atmos, so these songs play in their usual version</string>
