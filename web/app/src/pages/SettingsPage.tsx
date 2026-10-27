@@ -1,9 +1,10 @@
-import { ChevronRight, Users } from 'lucide-react';
+import { ArrowUpRight, ChevronRight, Users } from 'lucide-react';
 import { lazy, Suspense, useState, type ComponentType, type ReactNode } from 'react';
 import { MdOutlineExtension } from 'react-icons/md';
-import { SiApplemusic, SiDiscord, SiSpotify, SiYoutubemusic } from 'react-icons/si';
+import { SiAndroid, SiApplemusic, SiDiscord, SiSpotify, SiYoutubemusic } from 'react-icons/si';
 import { PageHeader } from '@/components/PageHeader';
 import { PrefetchLink } from '@/components/PrefetchLink';
+import { config } from '@/config';
 import { useDiscord } from '@/extension/useDiscord';
 import { useExtension } from '@/extension/useExtension';
 import { useYtAuth } from '@/extension/useYtAuth';
@@ -202,6 +203,39 @@ export default function SettingsPage() {
             {present ? <LyricSourcesAccess /> : <span className={settingsUi.value}>Needs the extension</span>}
           </div>
         </section>
+
+        <h2 className={settingsUi.sectionHeader}>Community &amp; Links</h2>
+        <section className={settingsUi.group}>
+          <a
+            href={config.discordCommunityUrl}
+            target="_blank"
+            rel="noreferrer"
+            className={`${settingsUi.integration} ${settingsUi.linkRow}`}
+          >
+            <Glyph Icon={SiDiscord} color="#5865f2" />
+            <span className={settingsUi.integrationName}>Discord Community</span>
+            <span className={settingsUi.value}>
+              Join Server
+              <ArrowUpRight size={16} />
+            </span>
+          </a>
+          <a
+            href={config.androidAppUrl}
+            target="_blank"
+            rel="noreferrer"
+            className={`${settingsUi.integration} ${settingsUi.linkRow}`}
+          >
+            <Glyph Icon={SiAndroid} color="#3ddc84" />
+            <span className={settingsUi.integrationName}>Android App</span>
+            <span className={settingsUi.value}>
+              Download
+              <ArrowUpRight size={16} />
+            </span>
+          </a>
+        </section>
+        <p className={settingsUi.footer}>
+          Join the Raaga Discord community for announcements, discussion, and support.
+        </p>
       </div>
       {lyrics && (
         <Suspense fallback={null}>

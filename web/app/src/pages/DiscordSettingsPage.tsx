@@ -1,4 +1,7 @@
+import { ArrowUpRight } from 'lucide-react';
+import { SiDiscord } from 'react-icons/si';
 import { PageHeader } from '@/components/PageHeader';
+import { config } from '@/config';
 import { useDiscord } from '@/extension/useDiscord';
 import { DiscordIntegration, DiscordSettings } from './IntegrationSettings';
 import { settingsUi } from './settingsStyles';
@@ -28,6 +31,25 @@ export default function DiscordSettingsPage() {
             <DiscordSettings />
           </>
         )}
+
+        <h2 className={settingsUi.sectionHeader}>Community</h2>
+        <section className={settingsUi.group}>
+          <a
+            href={config.discordCommunityUrl}
+            target="_blank"
+            rel="noreferrer"
+            className={`${settingsUi.integration} ${settingsUi.linkRow}`}
+          >
+            <span className={settingsUi.integrationIcon} style={{ backgroundColor: '#5865f2' }}>
+              <SiDiscord size={15} />
+            </span>
+            <span className={settingsUi.integrationName}>Join Raaga Discord Server</span>
+            <span className={settingsUi.value}>
+              Join Community
+              <ArrowUpRight size={16} />
+            </span>
+          </a>
+        </section>
       </div>
     </div>
   );
