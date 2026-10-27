@@ -1627,7 +1627,7 @@ fun SettingsScreen(
                     append("GitHub")
                 }
                 append("  ")
-                withLink(LinkAnnotation.Url("https://discord.gg/pDdKfrdHY6", linkStyles)) {
+                withLink(LinkAnnotation.Url("https://discord.gg/yGV2HqhSk", linkStyles)) {
                     append("Discord")
                 }
                 append("  ")
