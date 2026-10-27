@@ -115,7 +115,7 @@ object LockScreenArt {
 
     /** Compatibility alias */
     fun apply(context: Context, artUrl: String?) {
-        if (!AppSettings.lockScreenArt.value && !AppSettings.lockScreenCanvas.value) return
+        if (!AppSettings.lockScreenArt.value) return
         onTrack(context, artUrl)
     }
 

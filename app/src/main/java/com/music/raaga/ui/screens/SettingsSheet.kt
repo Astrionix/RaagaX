@@ -221,9 +221,6 @@ fun SettingsScreen(
     val animatedCanvas by AppSettings.animatedCanvas.collectAsStateWithLifecycle()
     val canvasOverCellular by AppSettings.canvasOverCellular.collectAsStateWithLifecycle()
     val spotifyCanvasEnabled by AppSettings.spotifyCanvasEnabled.collectAsStateWithLifecycle()
-    val lockScreenCanvas by AppSettings.lockScreenCanvas.collectAsStateWithLifecycle()
-    val lockScreenCanvasWifiOnly by AppSettings.lockScreenCanvasWifiOnly.collectAsStateWithLifecycle()
-    val lockScreenCanvasBatterySaver by AppSettings.lockScreenCanvasBatterySaver.collectAsStateWithLifecycle()
     val fullBleedArtwork by AppSettings.fullBleedArtwork.collectAsStateWithLifecycle()
     val legacyMeshGradient by AppSettings.legacyMeshGradient.collectAsStateWithLifecycle()
     val syncedLyrics by AppSettings.syncedLyrics.collectAsStateWithLifecycle()
@@ -1010,60 +1007,6 @@ fun SettingsScreen(
                         ) {
                             Text(
                                 text = spotifySetupTitle,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.weight(1f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            Chevron()
-                        }
-                    }
-                }
-                val lockScreenCanvasTitle = stringResource(R.string.lock_screen_canvas_title)
-                row(lockScreenCanvasTitle, "lockscreen", "canvas", "lock", divided = false) {
-                    SettingsSubRow(
-                        title = lockScreenCanvasTitle,
-                        subtitle = stringResource(R.string.lock_screen_canvas_subtitle),
-                        checked = lockScreenCanvas,
-                        onCheckedChange = AppSettings::setLockScreenCanvas,
-                    )
-                }
-                if (lockScreenCanvas) {
-                    val lockScreenWifiOnlyTitle = stringResource(R.string.lock_screen_canvas_wifi_only)
-                    row(lockScreenWifiOnlyTitle, "lockscreen", "wifi", "cellular", divided = false) {
-                        SettingsSubRow(
-                            title = lockScreenWifiOnlyTitle,
-                            subtitle = stringResource(R.string.lock_screen_canvas_wifi_only_subtitle),
-                            checked = lockScreenCanvasWifiOnly,
-                            onCheckedChange = AppSettings::setLockScreenCanvasWifiOnly,
-                        )
-                    }
-                    val lockScreenBatteryTitle = stringResource(R.string.lock_screen_canvas_battery_saver)
-                    row(lockScreenBatteryTitle, "lockscreen", "battery", divided = false) {
-                        SettingsSubRow(
-                            title = lockScreenBatteryTitle,
-                            subtitle = stringResource(R.string.lock_screen_canvas_battery_saver_subtitle),
-                            checked = lockScreenCanvasBatterySaver,
-                            onCheckedChange = AppSettings::setLockScreenCanvasBatterySaver,
-                        )
-                    }
-                    val previewLockScreenTitle = stringResource(R.string.lock_screen_preview)
-                    row(previewLockScreenTitle, "lockscreen", "preview", divided = false) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    val intent = Intent(context, com.music.raaga.ui.player.LockScreenPlayerActivity::class.java).apply {
-                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    }
-                                    context.startActivity(intent)
-                                }
-                                .padding(start = ROW_INSET + 8.dp, end = ROW_INSET, top = 4.dp, bottom = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = previewLockScreenTitle,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.weight(1f),
