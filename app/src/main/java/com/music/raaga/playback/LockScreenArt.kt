@@ -141,9 +141,23 @@ object LockScreenArt {
             val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(out)
 
-            // Background: a lifted tone of the cover at the top sinking into a
-            // dark one at the bottom, which is also what keeps the system
-            // card readable whatever the cover looks like.
+            // Background: the cover itself, blurred hard and tinted dark. Shrinking
+            // it to a few pixels and scaling it back up in two filtered steps is
+            // a cheap blur that needs no extra library, and it keeps the cover's
+            // own colours in the right places (a red top stays red). The tint
+            // on top sinks to near-black at the bottom, which also keeps the
+            // system card and the unlock circle readable on any cover.
+            val tiny = Bitmap.createScaledBitmap(art, 24, 24, true)
+            val soft = Bitmap.createScaledBitmap(tiny, 96, 96, true)
+            canvas.drawBitmap(
+                soft,
+                null,
+                RectF(0f, 0f, w.toFloat(), h.toFloat()),
+                Paint(Paint.FILTER_BITMAP_FLAG),
+            )
+            tiny.recycle()
+            soft.recycle()
+
             val palette = Palette.from(art).maximumColorCount(16).generate()
             val top = palette.getVibrantColor(palette.getDominantColor(Color.DKGRAY))
             val bottom = palette.getDarkMutedColor(darken(top, 0.35f))
@@ -152,7 +166,11 @@ object LockScreenArt {
                 Paint().apply {
                     shader = LinearGradient(
                         0f, 0f, 0f, h.toFloat(),
-                        intArrayOf(darken(top, 0.70f), darken(top, 0.50f), darken(bottom, 0.45f)),
+                        intArrayOf(
+                            ColorUtils.setAlphaComponent(darken(top, 0.60f), 0x99),
+                            ColorUtils.setAlphaComponent(darken(top, 0.45f), 0xB3),
+                            ColorUtils.setAlphaComponent(darken(bottom, 0.30f), 0xEB),
+                        ),
                         floatArrayOf(0f, 0.55f, 1f),
                         Shader.TileMode.CLAMP,
                     )
