@@ -555,12 +555,17 @@ class LocalJamHostServer(
                 val pos = frame["positionMs"]?.jsonPrimitive?.longOrNull ?: 0L
                 val isPlaying = frame["isPlaying"]?.jsonPrimitive?.booleanOrNull ?: true
 
-                // Update queue index if track is in queue
-                var matchedIdx = playback.queueIndex
-                if (track != null) {
-                    val idx = queue.items.indexOfFirst { it.videoId == track.videoId }
-                    if (idx != -1) matchedIdx = idx
+                // The index follows the track, and is -1 when the track is not in the
+                // queue (the cloud server's behaviour). Keeping the previous value
+                // instead left it pointing at whatever the *old* song's slot was.
+                val matchedIdx = if (track != null) {
+                    queue.items.indexOfFirst { it.videoId == track.videoId }
+                } else {
+                    -1
                 }
+                // The queue carries its own copy of the index; keep the two in step
+                // so Play next / Clear / next / previous work from where playback is.
+                if (queue.index != matchedIdx) queue = queue.copy(index = matchedIdx)
 
                 playback = playback.copy(
                     track = track,
@@ -583,18 +588,37 @@ class LocalJamHostServer(
                 val items = itemsArr?.mapNotNull {
                     runCatching { json.decodeFromJsonElement(PartyTrack.serializer(), it) }.getOrNull()
                 } ?: emptyList()
-                val qIdx = frame["queueIndex"]?.jsonPrimitive?.intOrNull ?: -1
+                val requestedIdx = frame["queueIndex"]?.jsonPrimitive?.intOrNull ?: -1
+                // The playing track decides the index, not the sender's idea of it
+                // (the cloud server does the same). Two members changing the song at
+                // once each send an index measured against their *own* queue; taking
+                // it at face value left the index pointing at a different song than
+                // the one playing, and everything that works from the index — Play
+                // next, Clear, the vote reordering — then acted on the wrong place.
+                val qIdx = playback.track
+                    ?.let { current -> items.indexOfFirst { it.videoId == current.videoId } }
+                    ?.takeIf { it >= 0 }
+                    ?: requestedIdx.takeIf { it in items.indices }
+                    ?: -1
 
                 queue = PartyQueue(
                     seq = queue.seq + 1,
                     index = qIdx,
                     items = items,
                 )
+                // Deliberately no `seq` bump: a queue edit is not a playback control.
+                // Clients count their own controls against `seq` to know when the
+                // party has caught up with what they sent, and a song change is *two*
+                // controls — setQueue, then setTrack. Bumping `seq` here made the
+                // first echo look like the last one, so the "wait for my change"
+                // window ended while the party still held the new queue and the OLD
+                // track, and the device that had just picked a song was hauled back
+                // onto the one it had left. See PartySync and the cloud server's
+                // TestQueueOperationsDoNotIncrementPlaybackSeq.
                 playback = playback.copy(
                     queueSeq = queue.seq,
                     queueIndex = qIdx,
                     queueLength = items.size,
-                    seq = playback.seq + 1,
                     updatedBy = caller.memberId,
                     updatedAtMs = now,
                 )
@@ -620,10 +644,10 @@ class LocalJamHostServer(
                     seq = queue.seq + 1,
                     items = newItems,
                 )
+                // No `seq` bump — see "setQueue".
                 playback = playback.copy(
                     queueSeq = queue.seq,
                     queueLength = newItems.size,
-                    seq = playback.seq + 1,
                     updatedBy = caller.memberId,
                     updatedAtMs = now,
                 )
@@ -645,11 +669,11 @@ class LocalJamHostServer(
                     index = newIdx,
                     items = newItems,
                 )
+                // No `seq` bump — see "setQueue".
                 playback = playback.copy(
                     queueSeq = queue.seq,
                     queueIndex = newIdx,
                     queueLength = newItems.size,
-                    seq = playback.seq + 1,
                     updatedBy = caller.memberId,
                     updatedAtMs = now,
                 )
@@ -667,10 +691,10 @@ class LocalJamHostServer(
                     seq = queue.seq + 1,
                     items = newItems,
                 )
+                // No `seq` bump — see "setQueue".
                 playback = playback.copy(
                     queueSeq = queue.seq,
                     queueLength = newItems.size,
-                    seq = playback.seq + 1,
                     updatedBy = caller.memberId,
                     updatedAtMs = now,
                 )
