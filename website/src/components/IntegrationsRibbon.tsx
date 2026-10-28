@@ -82,21 +82,27 @@ export const IntegrationsRibbon: React.FC = () => {
         </p>
       </div>
 
-      {/* Symmetrical Properly Aligned Pill Grid: 4 columns on desktop, 2 on mobile */}
-      <div className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-4xl mx-auto">
-        {integrations.map((item) => (
-          <div 
-            key={item.name}
-            className="liquid-glass-pill group flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-full text-white/80 hover:text-white cursor-pointer select-none"
-          >
-            <span className="opacity-85 group-hover:opacity-100 group-hover:scale-110 transition-all duration-200 shrink-0">
-              {item.icon}
-            </span>
-            <span className="text-[13px] font-medium tracking-tight whitespace-nowrap">
-              {item.name}
-            </span>
-          </div>
-        ))}
+      {/* All in a single horizontal line */}
+      <div className="mt-8 relative w-full overflow-hidden">
+        {/* Subtle edge fades for smooth scroll on narrower screens */}
+        <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-10 bg-gradient-to-r from-[#040507] to-transparent z-10 lg:hidden" />
+        <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-[#040507] to-transparent z-10 lg:hidden" />
+
+        <div className="flex items-center justify-start lg:justify-center gap-2.5 sm:gap-3 flex-nowrap overflow-x-auto no-scrollbar py-2 px-4 max-w-full">
+          {integrations.map((item) => (
+            <div 
+              key={item.name}
+              className="liquid-glass-pill group flex items-center justify-center gap-2 px-3.5 py-2 rounded-full text-white/80 hover:text-white cursor-pointer select-none shrink-0"
+            >
+              <span className="opacity-85 group-hover:opacity-100 group-hover:scale-110 transition-all duration-200 shrink-0">
+                {item.icon}
+              </span>
+              <span className="text-[13px] font-medium tracking-tight whitespace-nowrap">
+                {item.name}
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
     </section>
   );
