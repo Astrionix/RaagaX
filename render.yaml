@@ -1,0 +1,52 @@
+# Render Blueprint for Raaga (Listen Together Backend & Web)
+#
+# Connect this repo to Render (https://render.com) using Blueprint.
+# Automatically provisions:
+# 1. raaga-listen-together: Go WebSocket/HTTP backend for Jam (Listen Together)
+# 2. raaga-web: React + Vite web player static site connected to the Render backend
+
+services:
+  - type: web
+    name: raaga-listen-together
+    runtime: go
+    plan: free
+    region: singapore
+    rootDir: backend
+    buildCommand: go build -o server .
+    startCommand: ./server
+    healthCheckPath: /healthz
+    numInstances: 1
+    envVars:
+      - key: JAM_MAX_MEMBERS
+        value: "5"
+      - key: JAM_STATE_HEARTBEAT_MS
+        value: "5000"
+      - key: JAM_MAX_UPCOMING_QUEUE
+        value: "25"
+      - key: JAM_MAX_PARTIES
+        value: "50"
+      - key: JAM_CREATE_RATE_PER_MINUTE
+        value: "2"
+      - key: JAM_CONNECTION_IDLE_MS
+        value: "900000"
+      - key: JAM_ALLOWED_ORIGINS
+        value: "https://web.raaga.me,https://raaga.app,http://localhost:5173,http://127.0.0.1:5173,*"
+      # Render terminates TLS and supplies the real client IP in X-Forwarded-For.
+      - key: JAM_TRUST_PROXY
+        value: "true"
+
+  - type: web
+    name: raaga-web
+    runtime: static
+    rootDir: web
+    buildCommand: corepack pnpm --dir app build
+    staticPublishPath: app/dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_PARTY_SERVER_URL
+        value: https://raagax.onrender.com
+      - key: VITE_PARTY_BACKUP_SERVER_URLS
+        value: https://raagax-qdfh.onrender.com,https://raagax-y8jx.onrender.com

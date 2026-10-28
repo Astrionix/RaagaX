@@ -232,8 +232,15 @@ internal class DesktopPartySync(
         if (target.isPlaying && !party.clockSynced) return
 
         if (playback.song?.videoId != track.videoId) {
+            val localCurrentId = playback.song?.videoId
+            val isTargetNewer = target.seq > alignedSeq
+            if (!party.controlsLocked && !isTargetNewer && localCurrentId != null) {
+                onLocalIntent()
+                return
+            }
             if (loadingVideoId != track.videoId) {
                 loadingVideoId = track.videoId
+                alignedSeq = target.seq
                 // The queue is only usable if the track is actually in it. It may not be: the
                 // queue and the track are two controls, and between them the party holds a new
                 // running order with the old song still current. Falling back to the track alone

@@ -274,6 +274,17 @@ function reconcile(): void {
 
   const entry = current();
   if (entry?.track.videoId !== track.videoId) {
+    const isTargetNewer = target.seq > alignedSeq;
+    // When controls are not locked, if the party/server has NOT published a newer
+    // playback control (isTargetNewer is false) and this device is playing another track,
+    // this device legitimately advanced or selected a new track.
+    // Do NOT yank it backward to the old party track with load(state); trigger onIntent()
+    // to publish the new track to the party.
+    if (!controlsLocked(state) && !isTargetNewer && entry?.track.videoId) {
+      releaseNudge();
+      onIntent();
+      return;
+    }
     // A new track starts at its own rate, not mid-nudge.
     releaseNudge();
     return load(state);
@@ -413,6 +424,11 @@ function load(state: PartyState): void {
   const track = state.playback.track;
   if (!track || loadingVideoId === track.videoId) return;
   loadingVideoId = track.videoId;
+  alignedSeq = state.playback.seq;
+  lastAnchorMs = state.playback.anchorMs;
+  lastPositionMs = state.playback.positionMs;
+  lastTrackId = track.videoId;
+  lastIsPlaying = state.playback.isPlaying;
   // A not-found index plays the track alone, never queue[0].
   const at = partyQueueIndexOf(state.queue, state.playback, track.videoId);
   const items = at >= 0 ? state.queue.items : [track];
@@ -456,6 +472,7 @@ function onEnteredParty(): void {
 
 function onLeftParty(): void {
   loadingVideoId = null;
+  alignedSeq = -1;
   const saved = stash;
   stash = null;
   if (!saved || saved.index < 0) return;

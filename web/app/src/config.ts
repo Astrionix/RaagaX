@@ -10,8 +10,13 @@ export const config = {
   androidAppUrl: import.meta.env.VITE_ANDROID_APP_URL || 'https://github.com/Astrionix/RaagaX/releases/latest',
   /** Raaga's Discord community server invite. */
   discordCommunityUrl: import.meta.env.VITE_DISCORD_COMMUNITY_URL || 'https://discord.gg/yGV2HqhSk',
-  /** Raaga's Listen Together server (falls back to default Render server if unset). */
+  /** Raaga's Listen Together primary server. */
   partyServerUrl: import.meta.env.VITE_PARTY_SERVER_URL || 'https://raagax.onrender.com',
+  /** Raaga's Listen Together backup servers for automatic fallback. */
+  partyBackupServerUrls: (import.meta.env.VITE_PARTY_BACKUP_SERVER_URLS || 'https://raagax-qdfh.onrender.com,https://raagax-y8jx.onrender.com')
+    .split(',')
+    .map((s: string) => s.trim())
+    .filter(Boolean),
   /** Desktop Compose Multiplatform release downloads (Windows, macOS, Linux). */
   desktopDownloads: {
     version: 'v1.9.8',

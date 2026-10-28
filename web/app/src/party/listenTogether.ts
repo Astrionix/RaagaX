@@ -36,8 +36,14 @@ import {
  * the server's 45 s grace, so a refresh is invisible to everyone else.
  */
 
-/** Empty only in a dev build run without VITE_PARTY_SERVER_URL; parties then need a custom server. */
-export const DEFAULT_SERVER = sanitizeServerUrl(config.partyServerUrl) ?? '';
+/** All default Render party servers with fallback support. */
+export const DEFAULT_SERVERS: string[] = [
+  sanitizeServerUrl(config.partyServerUrl),
+  ...config.partyBackupServerUrls.map(sanitizeServerUrl),
+].filter((url): url is string => !!url && url.length > 0);
+
+/** Primary default server (first in pool). */
+export const DEFAULT_SERVER = DEFAULT_SERVERS[0] ?? 'https://raagax.onrender.com';
 export const MAX_UPCOMING = 25;
 const PING_INTERVAL_MS = 15_000;
 const REPORT_INTERVAL_MS = 10_000;
@@ -124,12 +130,55 @@ export function savePartySettings(change: Partial<Settings>): void {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...partySettings(), ...change }));
 }
 
-/** The server parties are made on: the custom one if set, else Raaga's. */
+let effectiveIdleServer: string = DEFAULT_SERVER;
+
+/**
+ * Resolves candidate servers in priority order:
+ * 1. Custom user server (if set)
+ * 2. Preferred server (e.g. from invite link)
+ * 3. Currently active/healthy idle server
+ * 4. All configured default Render servers (primary and backups)
+ */
+export function serverCandidates(preferredBase?: string | null): string[] {
+  const candidates: string[] = [];
+  const add = (url: string | null | undefined) => {
+    const clean = sanitizeServerUrl(url);
+    if (clean && !candidates.includes(clean)) candidates.push(clean);
+  };
+
+  add(partySettings().customServer);
+  add(preferredBase);
+  add(effectiveIdleServer);
+  for (const s of DEFAULT_SERVERS) {
+    add(s);
+  }
+  return candidates;
+}
+
+/** The server parties are made on: the custom one if set, else the active healthy Render server. */
 export function idleServer(): string {
   const custom = partySettings().customServer;
   if (custom) return sanitizeServerUrl(custom) ?? DEFAULT_SERVER;
   if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
     return window.location.origin;
+  }
+  return effectiveIdleServer;
+}
+
+/** Probes the Render server pool and updates effectiveIdleServer to the first healthy one. */
+export async function probeHealthyServer(): Promise<string> {
+  const custom = sanitizeServerUrl(partySettings().customServer);
+  if (custom) return custom;
+  for (const s of DEFAULT_SERVERS) {
+    try {
+      const res = await fetch(`${s}/healthz`, { method: 'GET', signal: AbortSignal.timeout(3000) });
+      if (res.ok) {
+        effectiveIdleServer = s;
+        return s;
+      }
+    } catch {
+      // try next fallback candidate
+    }
   }
   return DEFAULT_SERVER;
 }
@@ -240,60 +289,86 @@ function adoptMembership(base: string, membership: PartyMembership): string {
 
 export async function createParty(options: { maxMembers?: number; autoplayEnabled: boolean }): Promise<string> {
   if (useParty.getState().code) await leaveParty();
-  const base = idleServer();
-  try {
-    const membership = await request<PartyMembership>(`${base}/api/parties`, {
-      method: 'POST',
-      body: JSON.stringify({ ...(await identity()), maxMembers: options.maxMembers ?? 5, autoplayEnabled: options.autoplayEnabled }),
-    });
-    return adoptMembership(base, membership);
-  } catch (error) {
-    useParty.setState({ error: messageOf(error) });
-    throw error;
+  const candidates = serverCandidates(idleServer());
+  let lastError: unknown = null;
+  const payload = JSON.stringify({ ...(await identity()), maxMembers: options.maxMembers ?? 5, autoplayEnabled: options.autoplayEnabled });
+
+  for (const base of candidates) {
+    try {
+      const membership = await request<PartyMembership>(`${base}/api/parties`, {
+        method: 'POST',
+        body: payload,
+      });
+      effectiveIdleServer = base;
+      return adoptMembership(base, membership);
+    } catch (error) {
+      lastError = error;
+      console.warn(`[ListenTogether] createParty failed on ${base}, attempting fallback...`, error);
+    }
   }
+  const err = (lastError as Error) ?? new PartyError('no_server', UNREACHABLE);
+  useParty.setState({ error: messageOf(err) });
+  throw err;
 }
 
 /**
  * Joins [code], on [serverUrl] when an invite named one. Target first, as
  * switchPartyWithRecovery does: the party this device is already in is only
  * given up once the new one has said yes.
+ * Automatically attempts fallback across all 3 Render servers if unguided.
  */
 export async function joinParty(rawCode: string, serverUrl?: string | null): Promise<string> {
   const code = cleanCode(rawCode);
   if (!code) throw new PartyError('bad_code', `A party code is ${CODE_LENGTH} letters or digits.`);
   refuseIfRecentlyKicked(code);
-  const base = sanitizeServerUrl(serverUrl) ?? idleServer();
+  const candidates = serverCandidates(serverUrl);
   const current = useParty.getState();
-  if (current.code === code && server === base) return code;
-  try {
-    const membership = await request<PartyMembership>(`${base}/api/parties/${code}/join`, {
-      method: 'POST',
-      body: JSON.stringify(await identity()),
-    });
-    const previous = current.code && token && server ? { code: current.code, token, server } : null;
-    disconnect();
-    if (previous) void releaseSlot(previous.server, previous.code, previous.token);
-    return adoptMembership(base, membership);
-  } catch (error) {
-    useParty.setState({ error: messageOf(error) });
-    throw error;
+  let lastError: unknown = null;
+  const payload = JSON.stringify(await identity());
+
+  for (const base of candidates) {
+    if (current.code === code && server === base) return code;
+    try {
+      const membership = await request<PartyMembership>(`${base}/api/parties/${code}/join`, {
+        method: 'POST',
+        body: payload,
+      });
+      const previous = current.code && token && server ? { code: current.code, token, server } : null;
+      disconnect();
+      if (previous) void releaseSlot(previous.server, previous.code, previous.token);
+      effectiveIdleServer = base;
+      return adoptMembership(base, membership);
+    } catch (error) {
+      lastError = error;
+      console.warn(`[ListenTogether] joinParty failed on ${base}, attempting fallback...`, error);
+    }
   }
+  const err = (lastError as Error) ?? new PartyError('not_found', 'Party not found.');
+  useParty.setState({ error: messageOf(err) });
+  throw err;
 }
 
 export async function previewParty(rawCode: string, serverUrl?: string | null): Promise<PartyPreview> {
   const code = cleanCode(rawCode);
   if (!code) throw new PartyError('bad_code', `A party code is ${CODE_LENGTH} letters or digits.`);
   refuseIfRecentlyKicked(code);
-  const base = sanitizeServerUrl(serverUrl) ?? idleServer();
-  try {
-    return await request<PartyPreview>(`${base}/api/parties/${code}/preview`);
-  } catch (error) {
-    // A server that predates /preview answers its router's plain-text 404: still joinable.
-    if (error instanceof PartyError && error.code === 'http_404') {
-      return { code, hostName: '', memberCount: 0, maxMembers: 5, isFull: false, members: [] };
+  const candidates = serverCandidates(serverUrl);
+  let lastError: unknown = null;
+
+  for (const base of candidates) {
+    try {
+      return await request<PartyPreview>(`${base}/api/parties/${code}/preview`);
+    } catch (error) {
+      lastError = error;
+      if (error instanceof PartyError && error.code === 'http_404') {
+        continue;
+      }
     }
-    throw error;
   }
+  if (lastError instanceof PartyError && lastError.code === 'http_404') {
+    return { code, hostName: '', memberCount: 0, maxMembers: 5, isFull: false, members: [] };
+  }
+  throw (lastError as Error) ?? new PartyError('not_found', 'Party not found.');
 }
 
 function releaseSlot(base: string, code: string, held: string): Promise<void> {
