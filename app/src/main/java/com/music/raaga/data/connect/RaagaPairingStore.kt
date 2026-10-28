@@ -33,7 +33,11 @@ object RaagaPairingStore {
 
     fun init(context: Context) {
         if (prefs == null) {
-            val sp = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val sp = com.music.raaga.auth.EncryptedPrefs.open(
+                context,
+                "raaga_connect_encrypted",
+                PREFS_NAME,
+            )
             prefs = sp
             // Ensure stable device id
             var id = sp.getString(KEY_DEVICE_ID, null)

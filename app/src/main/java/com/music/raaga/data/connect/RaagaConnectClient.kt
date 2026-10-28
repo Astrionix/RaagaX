@@ -15,6 +15,7 @@ import java.nio.charset.StandardCharsets
  * HTTP client for communicating with remote Raaga Connect receivers from Android.
  * Supports legacy single-shot transfers, transactional Two-Phase Commit handoffs,
  * authenticated control, and high-precision monotonic clock calibration.
+ * All mutating requests are authenticated with HMAC-SHA256 signatures, device IDs, and timestamps.
  */
 object RaagaConnectClient {
     private val json = Json {
@@ -23,10 +24,23 @@ object RaagaConnectClient {
         isLenient = true
     }
 
-    private fun applyAuthHeaders(conn: HttpURLConnection) {
+    private fun applyAuthHeaders(
+        conn: HttpURLConnection,
+        method: String = "GET",
+        path: String = "",
+        body: String = "",
+    ) {
         conn.setRequestProperty("X-Raaga-Device-Id", RaagaPairingStore.deviceId)
-        RaagaPairingStore.getSyncKey()?.takeIf { it.isNotBlank() }?.let {
-            conn.setRequestProperty("X-Raaga-Sync-Key", it)
+        val syncKey = RaagaPairingStore.getSyncKey()
+        if (!syncKey.isNullOrBlank()) {
+            val timestamp = System.currentTimeMillis().toString()
+            val payload = RaagaConnectSecurity.buildSignaturePayload(method, path, timestamp, body)
+            val signature = RaagaConnectSecurity.computeHmacSha256(syncKey, payload)
+            conn.setRequestProperty("X-Raaga-Timestamp", timestamp)
+            if (signature.isNotBlank()) {
+                conn.setRequestProperty("X-Raaga-Signature", signature)
+            }
+            conn.setRequestProperty("X-Raaga-Sync-Key", syncKey)
         }
     }
 
@@ -36,6 +50,9 @@ object RaagaConnectClient {
         clientDeviceId: String = "",
     ): Result<ConnectClockSyncResponse> = withContext(Dispatchers.IO) {
         runCatching {
+            val req = ConnectClockSyncRequest(clientSendMs = clientSendMs, clientDeviceId = clientDeviceId.ifBlank { RaagaPairingStore.deviceId })
+            val body = json.encodeToString(req)
+
             val url = URL("http://${device.host}:${device.port}/raaga-connect/time-sync")
             val conn = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
@@ -44,11 +61,9 @@ object RaagaConnectClient {
                 doOutput = true
                 setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 setRequestProperty("Accept", "application/json")
-                applyAuthHeaders(this)
+                applyAuthHeaders(this, "POST", "/raaga-connect/time-sync", body)
             }
 
-            val req = ConnectClockSyncRequest(clientSendMs = clientSendMs, clientDeviceId = clientDeviceId.ifBlank { RaagaPairingStore.deviceId })
-            val body = json.encodeToString(req)
             OutputStreamWriter(conn.outputStream, StandardCharsets.UTF_8).use { it.write(body) }
 
             val responseCode = conn.responseCode
@@ -68,6 +83,11 @@ object RaagaConnectClient {
         packet: ConnectHandoffPacket,
     ): Result<ConnectHandoffPacket> = withContext(Dispatchers.IO) {
         runCatching {
+            val signedPacket = if (packet.syncKey.isNullOrBlank()) {
+                packet.copy(syncKey = RaagaPairingStore.getSyncKey())
+            } else packet
+            val body = json.encodeToString(signedPacket)
+
             val url = URL("http://${device.host}:${device.port}/raaga-connect/handoff/prepare")
             val conn = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
@@ -76,14 +96,9 @@ object RaagaConnectClient {
                 doOutput = true
                 setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 setRequestProperty("Accept", "application/json")
-                applyAuthHeaders(this)
+                applyAuthHeaders(this, "POST", "/raaga-connect/handoff/prepare", body)
             }
 
-            val signedPacket = if (packet.syncKey.isNullOrBlank()) {
-                packet.copy(syncKey = RaagaPairingStore.getSyncKey())
-            } else packet
-
-            val body = json.encodeToString(signedPacket)
             OutputStreamWriter(conn.outputStream, StandardCharsets.UTF_8).use { it.write(body) }
 
             val responseCode = conn.responseCode
@@ -106,6 +121,11 @@ object RaagaConnectClient {
         packet: ConnectHandoffPacket,
     ): Result<ConnectHandoffPacket> = withContext(Dispatchers.IO) {
         runCatching {
+            val signedPacket = if (packet.syncKey.isNullOrBlank()) {
+                packet.copy(syncKey = RaagaPairingStore.getSyncKey())
+            } else packet
+            val body = json.encodeToString(signedPacket)
+
             val url = URL("http://${device.host}:${device.port}/raaga-connect/handoff/commit")
             val conn = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
@@ -114,14 +134,9 @@ object RaagaConnectClient {
                 doOutput = true
                 setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 setRequestProperty("Accept", "application/json")
-                applyAuthHeaders(this)
+                applyAuthHeaders(this, "POST", "/raaga-connect/handoff/commit", body)
             }
 
-            val signedPacket = if (packet.syncKey.isNullOrBlank()) {
-                packet.copy(syncKey = RaagaPairingStore.getSyncKey())
-            } else packet
-
-            val body = json.encodeToString(signedPacket)
             OutputStreamWriter(conn.outputStream, StandardCharsets.UTF_8).use { it.write(body) }
 
             val responseCode = conn.responseCode
@@ -144,6 +159,11 @@ object RaagaConnectClient {
         packet: ConnectHandoffPacket,
     ): Result<Boolean> = withContext(Dispatchers.IO) {
         runCatching {
+            val signedPacket = if (packet.syncKey.isNullOrBlank()) {
+                packet.copy(syncKey = RaagaPairingStore.getSyncKey())
+            } else packet
+            val body = json.encodeToString(signedPacket)
+
             val url = URL("http://${device.host}:${device.port}/raaga-connect/handoff/abort")
             val conn = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
@@ -152,14 +172,9 @@ object RaagaConnectClient {
                 doOutput = true
                 setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 setRequestProperty("Accept", "application/json")
-                applyAuthHeaders(this)
+                applyAuthHeaders(this, "POST", "/raaga-connect/handoff/abort", body)
             }
 
-            val signedPacket = if (packet.syncKey.isNullOrBlank()) {
-                packet.copy(syncKey = RaagaPairingStore.getSyncKey())
-            } else packet
-
-            val body = json.encodeToString(signedPacket)
             OutputStreamWriter(conn.outputStream, StandardCharsets.UTF_8).use { it.write(body) }
 
             val responseCode = conn.responseCode
@@ -173,6 +188,11 @@ object RaagaConnectClient {
         transfer: ConnectPlaybackTransfer,
     ): Result<Boolean> = withContext(Dispatchers.IO) {
         runCatching {
+            val signed = if (transfer.syncKey.isNullOrBlank()) {
+                transfer.copy(syncKey = RaagaPairingStore.getSyncKey())
+            } else transfer
+            val body = json.encodeToString(signed)
+
             val url = URL("http://${device.host}:${device.port}/raaga-connect/transfer")
             val conn = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
@@ -181,14 +201,9 @@ object RaagaConnectClient {
                 doOutput = true
                 setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 setRequestProperty("Accept", "application/json")
-                applyAuthHeaders(this)
+                applyAuthHeaders(this, "POST", "/raaga-connect/transfer", body)
             }
 
-            val signed = if (transfer.syncKey.isNullOrBlank()) {
-                transfer.copy(syncKey = RaagaPairingStore.getSyncKey())
-            } else transfer
-
-            val body = json.encodeToString(signed)
             OutputStreamWriter(conn.outputStream, StandardCharsets.UTF_8).use { it.write(body) }
 
             val responseCode = conn.responseCode
@@ -202,6 +217,11 @@ object RaagaConnectClient {
         command: ConnectControlCommand,
     ): Result<Boolean> = withContext(Dispatchers.IO) {
         runCatching {
+            val signed = if (command.syncKey.isNullOrBlank()) {
+                command.copy(syncKey = RaagaPairingStore.getSyncKey())
+            } else command
+            val body = json.encodeToString(signed)
+
             val url = URL("http://${device.host}:${device.port}/raaga-connect/control")
             val conn = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
@@ -210,14 +230,9 @@ object RaagaConnectClient {
                 doOutput = true
                 setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 setRequestProperty("Accept", "application/json")
-                applyAuthHeaders(this)
+                applyAuthHeaders(this, "POST", "/raaga-connect/control", body)
             }
 
-            val signed = if (command.syncKey.isNullOrBlank()) {
-                command.copy(syncKey = RaagaPairingStore.getSyncKey())
-            } else command
-
-            val body = json.encodeToString(signed)
             OutputStreamWriter(conn.outputStream, StandardCharsets.UTF_8).use { it.write(body) }
 
             val responseCode = conn.responseCode
@@ -234,7 +249,7 @@ object RaagaConnectClient {
                 connectTimeout = 3000
                 readTimeout = 3000
                 setRequestProperty("Accept", "application/json")
-                applyAuthHeaders(this)
+                applyAuthHeaders(this, "GET", "/raaga-connect/info", "")
             }
 
             val responseCode = conn.responseCode
@@ -254,6 +269,7 @@ object RaagaConnectClient {
         request: ConnectPairRequest,
     ): Result<ConnectPairResponse> = withContext(Dispatchers.IO) {
         runCatching {
+            val body = json.encodeToString(request)
             val url = URL("http://${device.host}:${device.port}/raaga-connect/pair")
             val conn = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
@@ -262,10 +278,9 @@ object RaagaConnectClient {
                 doOutput = true
                 setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 setRequestProperty("Accept", "application/json")
-                applyAuthHeaders(this)
+                applyAuthHeaders(this, "POST", "/raaga-connect/pair", body)
             }
 
-            val body = json.encodeToString(request)
             OutputStreamWriter(conn.outputStream, StandardCharsets.UTF_8).use { it.write(body) }
 
             val responseCode = conn.responseCode

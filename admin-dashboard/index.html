@@ -839,6 +839,81 @@
       color: var(--text-subtle);
     }
 
+    /* Toast Notifications */
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 10000;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      pointer-events: none;
+    }
+
+    .toast {
+      pointer-events: auto;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 18px;
+      border-radius: var(--radius-sm);
+      background: var(--surface-elevated);
+      border: 1px solid var(--border);
+      color: #fff;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      font-size: 13px;
+      font-weight: 600;
+      animation: toastIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      transition: var(--transition);
+      max-width: 400px;
+    }
+
+    .toast.success {
+      border-color: rgba(16, 185, 129, 0.4);
+      background: #0d281e;
+      color: #6ee7b7;
+    }
+
+    .toast.error {
+      border-color: rgba(239, 68, 68, 0.4);
+      background: #2b1115;
+      color: #fca5a5;
+    }
+
+    .toast.info {
+      border-color: rgba(139, 92, 246, 0.4);
+      background: #1c1433;
+      color: #c084fc;
+    }
+
+    @keyframes toastIn {
+      from { transform: translateY(16px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    .btn.loading {
+      pointer-events: none;
+      opacity: 0.65;
+    }
+
+    .user-tag.has-aliases {
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      background: rgba(16, 185, 129, 0.12);
+      color: #34d399;
+    }
+
+    .alias-badge {
+      font-size: 10px;
+      font-weight: 700;
+      color: #34d399;
+      background: rgba(16, 185, 129, 0.18);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      padding: 1px 5px;
+      border-radius: 4px;
+      cursor: help;
+    }
+
     @media (max-width: 768px) {
       .app-container { padding: 16px; }
       .users-grid { grid-template-columns: 1fr; }
@@ -847,6 +922,9 @@
   </style>
 </head>
 <body>
+
+  <!-- Floating Toast Container -->
+  <div id="toastContainer" class="toast-container"></div>
 
   <!-- Real Supabase Auth Modal -->
   <div id="authModal" class="auth-modal-overlay">
@@ -974,6 +1052,10 @@
         <button id="btnCleanStale" class="btn btn-secondary" onclick="cleanStaleSessions()" title="Clear inactive sessions stuck in Playing state (> 15m)">
           <i data-feather="clock" style="width: 14px; height: 14px;"></i>
           Clean Stale
+        </button>
+        <button id="btnCleanDuplicates" class="btn btn-secondary" onclick="cleanDuplicateUsers()" title="Merge duplicate users and purge outdated duplicate rows from Supabase">
+          <i data-feather="user-check" style="width: 14px; height: 14px;"></i>
+          Clean Duplicates
         </button>
         <button class="btn btn-secondary" onclick="exportDataJson()">
           <i data-feather="download" style="width: 14px; height: 14px;"></i>
@@ -1287,6 +1369,86 @@
       showAuthModal();
     }
 
+    // Toast notification display helper
+    function showToast(message, type = 'info') {
+      let container = document.getElementById('toastContainer');
+      if (!container) {
+        container = document.createElement('div');
+        container.id = 'toastContainer';
+        container.className = 'toast-container';
+        document.body.appendChild(container);
+      }
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      const iconName = type === 'success' ? 'check-circle' : (type === 'error' ? 'alert-triangle' : 'info');
+      toast.innerHTML = `<i data-feather="${iconName}" style="width: 16px; height: 16px; flex-shrink: 0;"></i><span>${escapeHtml(message)}</span>`;
+      container.appendChild(toast);
+      feather.replace();
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(10px)';
+        setTimeout(() => toast.remove(), 350);
+      }, 4500);
+    }
+
+    // Determine unique identity key: Registered users are identified by their normalized account name;
+    // Guest users are identified by their user_tag (e.g., AETH-XXXX).
+    function getUserIdentityKey(item) {
+      if (!item) return '';
+      const rawName = (item.user_name || '').trim();
+      const isRegistered = rawName && !rawName.toLowerCase().startsWith('listener ') && rawName.toLowerCase() !== 'guest';
+      if (isRegistered) {
+        return 'user:' + rawName.toLowerCase().replace(/\s+/g, ' ');
+      }
+      const tag = (item.user_tag || '').trim().toUpperCase();
+      return tag ? 'tag:' + tag : '';
+    }
+
+    // Deduplicate an array of activity records across updates/tags
+    function deduplicateActivityRecords(records) {
+      const groups = new Map();
+
+      // Ensure records are ordered by updated_at descending so the newest playback activity takes priority
+      const sorted = [...records].sort((a, b) => {
+        const timeA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+        const timeB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+        return timeB - timeA;
+      });
+
+      sorted.forEach(record => {
+        const key = getUserIdentityKey(record);
+        if (!key) return;
+
+        if (!groups.has(key)) {
+          groups.set(key, { ...record, previous_tags: [] });
+        } else {
+          const primary = groups.get(key);
+
+          // Track previous session tag(s)
+          if (record.user_tag && record.user_tag !== primary.user_tag) {
+            if (!primary.previous_tags) primary.previous_tags = [];
+            if (!primary.previous_tags.includes(record.user_tag)) {
+              primary.previous_tags.push(record.user_tag);
+            }
+          }
+
+          // Always preserve the earliest joined_at date across all updates
+          const msPrimary = primary.joined_at ? new Date(primary.joined_at).getTime() : Infinity;
+          const msOlder = record.joined_at ? new Date(record.joined_at).getTime() : Infinity;
+          if (msOlder < msPrimary && !isNaN(msOlder)) {
+            primary.joined_at = record.joined_at;
+          }
+
+          // Preserve fallback fields if primary is missing them
+          if (!primary.cover_url && record.cover_url) primary.cover_url = record.cover_url;
+          if (!primary.duration_text && record.duration_text) primary.duration_text = record.duration_text;
+          if (!primary.album_name && record.album_name) primary.album_name = record.album_name;
+        }
+      });
+
+      return Array.from(groups.values());
+    }
+
     // Initialize Dashboard after verified authentication
     async function initDashboard() {
       feather.replace();
@@ -1297,6 +1459,9 @@
       // Automatically prune ghost sessions (>15 min) in background
       cleanStaleSessions(true);
 
+      // Automatically clean and merge any duplicate user records in background
+      cleanDuplicateUsers(true);
+
       // Periodically clean stale sessions in the background every 60 seconds
       if (!window._staleCleanerInterval) {
         window._staleCleanerInterval = setInterval(() => {
@@ -1305,7 +1470,7 @@
       }
     }
 
-    // Fetch initial dataset (paginated to load ALL users, no 100 limit cap!)
+    // Fetch initial dataset (paginated to load ALL users, fully deduplicated!)
     async function fetchLiveActivity() {
       const refreshBtn = document.getElementById("btnRefresh");
       if (refreshBtn) refreshBtn.classList.add("loading");
@@ -1330,15 +1495,8 @@
           if (from >= 10000) break; // safety upper bound
         }
 
-        // Guarantee 100% unique users: keep latest activity per user_tag
-        const uniqueMap = new Map();
-        allRecords.forEach(item => {
-          const tag = (item.user_tag || '').trim();
-          if (tag && !uniqueMap.has(tag)) {
-            uniqueMap.set(tag, item);
-          }
-        });
-        activityData = Array.from(uniqueMap.values());
+        // Guarantee 100% unique users: merge updates and tags per user identity
+        activityData = deduplicateActivityRecords(allRecords);
         updateDashboardUI();
         setConnectionState(true, "Realtime Connected");
       } catch (err) {
@@ -1388,12 +1546,107 @@
 
         if (error) {
           console.error("Failed to clean stale sessions:", error);
-          if (!silent) alert("Error: " + error.message);
+          if (!silent) showToast("Error cleaning stale sessions: " + error.message, "error");
         } else {
           await fetchLiveActivity();
         }
       } catch (err) {
         console.error("Clean stale failed:", err);
+      } finally {
+        if (btn && !silent) btn.classList.remove("loading");
+      }
+    }
+
+    // Clean & merge duplicate user records in Supabase database
+    async function cleanDuplicateUsers(silent = false) {
+      const btn = document.getElementById("btnCleanDuplicates");
+      if (btn && !silent) btn.classList.add("loading");
+
+      try {
+        let allRaw = [];
+        let from = 0;
+        const PAGE_SIZE = 1000;
+
+        while (true) {
+          const { data, error } = await supabaseClient
+            .from("user_activity")
+            .select("user_tag, user_name, updated_at, joined_at")
+            .order("updated_at", { ascending: false })
+            .range(from, from + PAGE_SIZE - 1);
+
+          if (error) throw error;
+          if (!data || data.length === 0) break;
+          allRaw = allRaw.concat(data);
+          if (data.length < PAGE_SIZE) break;
+          from += PAGE_SIZE;
+          if (from >= 10000) break;
+        }
+
+        const groups = new Map();
+        allRaw.forEach(r => {
+          const key = getUserIdentityKey(r);
+          if (!key) return;
+          if (!groups.has(key)) groups.set(key, []);
+          groups.get(key).push(r);
+        });
+
+        const staleTagsToDelete = [];
+        const updatesToApply = [];
+
+        groups.forEach((records) => {
+          if (records.length > 1) {
+            // First record has the latest updated_at (primary)
+            const primary = records[0];
+            const others = records.slice(1);
+
+            let earliestJoined = primary.joined_at;
+            let earliestMs = primary.joined_at ? new Date(primary.joined_at).getTime() : Infinity;
+
+            others.forEach(oth => {
+              if (oth.user_tag) staleTagsToDelete.push(oth.user_tag);
+              const ms = oth.joined_at ? new Date(oth.joined_at).getTime() : Infinity;
+              if (ms < earliestMs && !isNaN(ms)) {
+                earliestMs = ms;
+                earliestJoined = oth.joined_at;
+              }
+            });
+
+            if (earliestJoined && earliestJoined !== primary.joined_at) {
+              updatesToApply.push({ user_tag: primary.user_tag, joined_at: earliestJoined });
+            }
+          }
+        });
+
+        if (staleTagsToDelete.length === 0) {
+          if (!silent) showToast("All users are 100% unique! No duplicate records found in database.", "success");
+          return;
+        }
+
+        // Apply earliest joined_at updates to preserve authentic join date
+        for (const update of updatesToApply) {
+          await supabaseClient
+            .from("user_activity")
+            .update({ joined_at: update.joined_at })
+            .eq("user_tag", update.user_tag);
+        }
+
+        // Delete stale duplicate rows in batches
+        const BATCH_SIZE = 50;
+        for (let i = 0; i < staleTagsToDelete.length; i += BATCH_SIZE) {
+          const batch = staleTagsToDelete.slice(i, i + BATCH_SIZE);
+          await supabaseClient
+            .from("user_activity")
+            .delete()
+            .in("user_tag", batch);
+        }
+
+        if (!silent) {
+          showToast(`Successfully merged and cleaned ${staleTagsToDelete.length} duplicate user record(s)!`, "success");
+        }
+        await fetchLiveActivity();
+      } catch (err) {
+        console.error("Clean duplicates error:", err);
+        if (!silent) showToast("Failed to clean duplicates: " + (err.message || err), "error");
       } finally {
         if (btn && !silent) btn.classList.remove("loading");
       }
@@ -1428,17 +1681,45 @@
     function handleRealtimeEvent(payload) {
       const { eventType, new: newRecord, old: oldRecord } = payload;
       
-      if ((eventType === "INSERT" || eventType === "UPDATE") && newRecord && newRecord.user_tag) {
-        const idx = activityData.findIndex(item => item.user_tag === newRecord.user_tag);
+      if ((eventType === "INSERT" || eventType === "UPDATE") && newRecord && (newRecord.user_tag || newRecord.user_name)) {
+        const key = getUserIdentityKey(newRecord);
+        const idx = activityData.findIndex(item => getUserIdentityKey(item) === key);
+
         if (idx !== -1) {
-          activityData[idx] = { ...activityData[idx], ...newRecord };
+          // Merge onto existing active user card (preventing duplicate user creation!)
+          const existing = activityData[idx];
+          const previousTags = existing.previous_tags ? [...existing.previous_tags] : [];
+          if (existing.user_tag && existing.user_tag !== newRecord.user_tag && !previousTags.includes(existing.user_tag)) {
+            previousTags.push(existing.user_tag);
+          }
+
+          // Always preserve the earliest joined_at date across app updates
+          let joinedAt = newRecord.joined_at || existing.joined_at;
+          const msExisting = existing.joined_at ? new Date(existing.joined_at).getTime() : Infinity;
+          const msNew = newRecord.joined_at ? new Date(newRecord.joined_at).getTime() : Infinity;
+          if (msExisting < msNew && !isNaN(msExisting)) {
+            joinedAt = existing.joined_at;
+          }
+
+          activityData[idx] = {
+            ...existing,
+            ...newRecord,
+            joined_at: joinedAt,
+            previous_tags: previousTags
+          };
         } else {
-          activityData.unshift(newRecord);
+          activityData.unshift({ ...newRecord, previous_tags: [] });
         }
       } else if (eventType === "DELETE") {
         const targetTag = (oldRecord && oldRecord.user_tag) || (newRecord && newRecord.user_tag);
         if (targetTag) {
-          activityData = activityData.filter(item => item.user_tag !== targetTag);
+          activityData = activityData.filter(item => {
+            if (item.user_tag === targetTag) return false;
+            if (item.previous_tags && item.previous_tags.includes(targetTag)) {
+              item.previous_tags = item.previous_tags.filter(t => t !== targetTag);
+            }
+            return true;
+          });
         }
       }
 
@@ -1587,7 +1868,10 @@
                     <h4>${escapeHtml(rawName || "Listener " + (item.user_tag ? item.user_tag.replace('AETH-', '') : 'Guest'))}</h4>
                     <span class="user-role-badge ${isRegistered ? 'member' : 'guest'}">${isRegistered ? 'Verified' : 'Guest'}</span>
                   </div>
-                  <span class="user-tag">${escapeHtml(item.user_tag || "AETH-????")}</span>
+                  <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                    <span class="user-tag ${item.previous_tags?.length ? 'has-aliases' : ''}" title="${item.previous_tags?.length ? 'Current active tag. Merged from ' + item.previous_tags.join(', ') : ''}">${escapeHtml(item.user_tag || "AETH-????")}</span>
+                    ${item.previous_tags?.length ? `<span class="alias-badge" title="App updated session: previously ${item.previous_tags.join(', ')}">⟳ Updated</span>` : ''}
+                  </div>
                 </div>
               </div>
               <div class="activity-badge ${badgeClass}">
@@ -1659,7 +1943,10 @@
                 <span style="font-weight: 700; color: #fff;">${escapeHtml(rawName || "Listener " + (item.user_tag ? item.user_tag.replace('AETH-', '') : 'Guest'))}</span>
                 <span class="user-role-badge ${isRegistered ? 'member' : 'guest'}">${isRegistered ? 'Verified' : 'Guest'}</span>
               </div>
-              <span class="user-tag">${escapeHtml(item.user_tag || "AETH-????")}</span>
+              <div style="display: flex; align-items: center; gap: 4px; margin-top: 2px;">
+                <span class="user-tag ${item.previous_tags?.length ? 'has-aliases' : ''}">${escapeHtml(item.user_tag || "AETH-????")}</span>
+                ${item.previous_tags?.length ? `<span class="alias-badge" title="App updated session: previously ${item.previous_tags.join(', ')}">⟳ Updated</span>` : ''}
+              </div>
             </td>
             <td>
               <div style="display: flex; flex-direction: column;">
@@ -1700,11 +1987,20 @@
       }
     }
 
-    function recordUserFirstSeen(userTag, timestamp) {
-      if (!userTag || !timestamp) return;
+    function recordUserFirstSeen(item, timestamp) {
+      if (!item || !timestamp) return;
+      const identityKey = getUserIdentityKey(item);
       const reg = getFirstSeenRegistry();
-      if (!reg[userTag]) {
-        reg[userTag] = timestamp;
+      let changed = false;
+      if (identityKey && !reg[identityKey]) {
+        reg[identityKey] = timestamp;
+        changed = true;
+      }
+      if (item.user_tag && !reg[item.user_tag]) {
+        reg[item.user_tag] = timestamp;
+        changed = true;
+      }
+      if (changed) {
         try {
           localStorage.setItem(FIRST_SEEN_STORAGE_KEY, JSON.stringify(reg));
         } catch (e) {}
@@ -1714,19 +2010,23 @@
     function resolveJoinedDate(item) {
       if (!item) return "";
       if (item.joined_at) {
-        recordUserFirstSeen(item.user_tag, item.joined_at);
+        recordUserFirstSeen(item, item.joined_at);
         return item.joined_at;
       }
       if (item.created_at) {
-        recordUserFirstSeen(item.user_tag, item.created_at);
+        recordUserFirstSeen(item, item.created_at);
         return item.created_at;
       }
       const reg = getFirstSeenRegistry();
-      if (reg[item.user_tag]) {
+      const identityKey = getUserIdentityKey(item);
+      if (identityKey && reg[identityKey]) {
+        return reg[identityKey];
+      }
+      if (item.user_tag && reg[item.user_tag]) {
         return reg[item.user_tag];
       }
       const fallback = item.updated_at || new Date().toISOString();
-      recordUserFirstSeen(item.user_tag, fallback);
+      recordUserFirstSeen(item, fallback);
       return fallback;
     }
 

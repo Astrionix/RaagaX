@@ -11,8 +11,7 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- 2. Create the `user_activity` table if it doesn't already exist
 CREATE TABLE IF NOT EXISTS public.user_activity (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_tag TEXT NOT NULL UNIQUE,
+    user_tag TEXT PRIMARY KEY,
     user_name TEXT DEFAULT '',
     song_title TEXT DEFAULT '',
     artist TEXT DEFAULT '',
@@ -107,7 +106,94 @@ BEGIN
 END $$;
 
 -- ==============================================================================
--- 7. How to Create an Admin User in Supabase
+-- 7. Deduplication Trigger: Automatically Prevent Duplicate User Entries on App Updates
+-- ==============================================================================
+-- When a user updates their app or logs in with a new session, this trigger automatically
+-- preserves their earliest joined_at date and deletes previous duplicate rows for that user.
+CREATE OR REPLACE FUNCTION public.clean_duplicate_user_activity()
+RETURNS TRIGGER AS $$
+DECLARE
+    min_joined TIMESTAMPTZ;
+BEGIN
+    IF NEW.user_name IS NOT NULL 
+       AND TRIM(NEW.user_name) <> '' 
+       AND NOT (NEW.user_name ILIKE 'Listener %') 
+       AND LOWER(TRIM(NEW.user_name)) <> 'guest' THEN
+       
+        -- Carry over earliest authentic joined_at if older session existed
+        SELECT MIN(joined_at) INTO min_joined
+        FROM public.user_activity
+        WHERE LOWER(TRIM(user_name)) = LOWER(TRIM(NEW.user_name))
+          AND user_tag <> NEW.user_tag;
+          
+        IF min_joined IS NOT NULL AND (NEW.joined_at IS NULL OR min_joined < NEW.joined_at) THEN
+            NEW.joined_at := min_joined;
+        END IF;
+
+        -- Purge stale duplicate entries for this registered user
+        DELETE FROM public.user_activity
+        WHERE LOWER(TRIM(user_name)) = LOWER(TRIM(NEW.user_name))
+          AND user_tag <> NEW.user_tag;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_clean_duplicate_user_activity ON public.user_activity;
+CREATE TRIGGER trg_clean_duplicate_user_activity
+    BEFORE INSERT OR UPDATE ON public.user_activity
+    FOR EACH ROW
+    EXECUTE FUNCTION public.clean_duplicate_user_activity();
+
+-- ==============================================================================
+-- 8. One-Time Maintenance Script: Clean Existing Duplicates in SQL Editor
+-- ==============================================================================
+-- If you have historical duplicate user records in your database, execute this:
+/*
+WITH RankedUsers AS (
+    SELECT 
+        user_tag,
+        user_name,
+        joined_at,
+        updated_at,
+        ROW_NUMBER() OVER (
+            PARTITION BY LOWER(TRIM(user_name)) 
+            ORDER BY updated_at DESC
+        ) as rn,
+        MIN(joined_at) OVER (
+            PARTITION BY LOWER(TRIM(user_name))
+        ) as earliest_joined
+    FROM public.user_activity
+    WHERE user_name IS NOT NULL 
+      AND TRIM(user_name) <> '' 
+      AND NOT (user_name ILIKE 'Listener %')
+      AND LOWER(TRIM(user_name)) <> 'guest'
+)
+-- 1. Preserve earliest joined date on the latest active row
+UPDATE public.user_activity u
+SET joined_at = r.earliest_joined
+FROM RankedUsers r
+WHERE u.user_tag = r.user_tag AND r.rn = 1 AND u.joined_at <> r.earliest_joined;
+
+-- 2. Delete older duplicate rows (keeping rn = 1)
+DELETE FROM public.user_activity
+WHERE user_tag IN (
+    SELECT user_tag FROM (
+        SELECT user_tag, ROW_NUMBER() OVER (
+            PARTITION BY LOWER(TRIM(user_name)) 
+            ORDER BY updated_at DESC
+        ) as rn
+        FROM public.user_activity
+        WHERE user_name IS NOT NULL 
+          AND TRIM(user_name) <> '' 
+          AND NOT (user_name ILIKE 'Listener %')
+          AND LOWER(TRIM(user_name)) <> 'guest'
+    ) sub WHERE sub.rn > 1
+);
+*/
+
+-- ==============================================================================
+-- 9. How to Create an Admin User in Supabase
 -- ==============================================================================
 -- 1. Go to your Supabase Dashboard: https://supabase.com/dashboard
 -- 2. Navigate to: Authentication -> Users

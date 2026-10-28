@@ -2,6 +2,7 @@ package com.music.raaga.data.blend
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.provider.Settings
 import com.music.raaga.data.YtMusicRepository
 import com.music.raaga.data.model.SearchFilter
 import com.music.raaga.data.model.SearchResult
@@ -28,29 +29,21 @@ object BlendEngine {
     @Volatile
     private var cachedIdentity: RaagaUserIdentity? = null
 
+    /**
+     * Generates a stable 4-character uppercase alphanumeric code from a seed string.
+     * Guarantees deterministic tag generation so the user doesn't get a new tag on every update.
+     */
+    fun generateDeterministicTag(seed: String): String {
+        val chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        val hash = abs(seed.hashCode())
+        val code = (0..3).map { chars[(hash / (it * 31 + 1)) % chars.length] }.joinToString("")
+        return "AETH-$code"
+    }
+
     fun getMyIdentity(context: Context): RaagaUserIdentity {
         val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        var userId = prefs.getString(KEY_USER_ID, null)
-        if (userId.isNullOrBlank()) {
-            userId = "usr_" + UUID.randomUUID().toString().replace("-", "").take(8)
-            prefs.edit().putString(KEY_USER_ID, userId).apply()
-        }
 
-        var userTag = prefs.getString(KEY_USER_TAG, null)
-        if (userTag.isNullOrBlank() || !userTag.startsWith("AETH-") || userTag.length < 8) {
-            val chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-            val code = (1..4).map { chars[Random.nextInt(chars.length)] }.joinToString("")
-            userTag = "AETH-$code"
-            prefs.edit().putString(KEY_USER_TAG, userTag).apply()
-        }
-
-        var joinedAt = prefs.getString(KEY_JOINED_AT, null)
-        if (joinedAt.isNullOrBlank()) {
-            joinedAt = java.time.format.DateTimeFormatter.ISO_INSTANT.format(java.time.Instant.now())
-            prefs.edit().putString(KEY_JOINED_AT, joinedAt).apply()
-        }
-
-        // If user is logged into an account, use their account/profile name as identity
+        // 1. Resolve logged-in account name & unique account identifier first
         val authStore = com.music.raaga.auth.AuthStore(context)
         val activeSession = authStore.activeSession
         val activeProfile = activeSession?.profiles?.firstOrNull { it.profileId == authStore.activeProfileId }
@@ -60,6 +53,52 @@ object BlendEngine {
             ?: activeSession?.name?.takeIf { it.isNotBlank() }
             ?: activeSession?.email?.substringBefore("@")?.takeIf { it.isNotBlank() }
 
+        val accountKey = activeSession?.accountId
+            ?: activeSession?.email
+            ?: loggedInName
+
+        // 2. Resolve or generate consistent userId
+        var userId = if (!accountKey.isNullOrBlank()) {
+            "usr_" + abs(accountKey.hashCode()).toString(16).padStart(8, '0').take(8)
+        } else {
+            prefs.getString(KEY_USER_ID, null)
+        }
+        if (userId.isNullOrBlank()) {
+            userId = "usr_" + UUID.randomUUID().toString().replace("-", "").take(8)
+            prefs.edit().putString(KEY_USER_ID, userId).apply()
+        }
+
+        // 3. Resolve userTag: prioritize account-bound tag, then general saved tag, then deterministic device/account seed
+        val tagKey = if (!accountKey.isNullOrBlank()) "${KEY_USER_TAG}_$accountKey" else KEY_USER_TAG
+        var userTag = prefs.getString(tagKey, null) ?: prefs.getString(KEY_USER_TAG, null)
+
+        if (userTag.isNullOrBlank() || !userTag.startsWith("AETH-") || userTag.length < 8) {
+            userTag = if (!accountKey.isNullOrBlank()) {
+                generateDeterministicTag("acc_$accountKey")
+            } else {
+                val androidId = runCatching {
+                    Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
+                }.getOrNull()?.takeIf { it.isNotBlank() }
+                if (androidId != null) {
+                    generateDeterministicTag("dev_$androidId")
+                } else {
+                    val chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                    val code = (1..4).map { chars[Random.nextInt(chars.length)] }.joinToString("")
+                    "AETH-$code"
+                }
+            }
+            prefs.edit().putString(tagKey, userTag).putString(KEY_USER_TAG, userTag).apply()
+        }
+
+        // 4. Resolve joinedAt date: persistent across app updates and reinstalls
+        val joinedKey = if (!accountKey.isNullOrBlank()) "${KEY_JOINED_AT}_$accountKey" else KEY_JOINED_AT
+        var joinedAt = prefs.getString(joinedKey, null) ?: prefs.getString(KEY_JOINED_AT, null)
+        if (joinedAt.isNullOrBlank()) {
+            joinedAt = java.time.format.DateTimeFormatter.ISO_INSTANT.format(java.time.Instant.now())
+            prefs.edit().putString(joinedKey, joinedAt).putString(KEY_JOINED_AT, joinedAt).apply()
+        }
+
+        // 5. Resolve userName
         val userName = if (!loggedInName.isNullOrBlank()) {
             loggedInName
         } else {
