@@ -1636,7 +1636,11 @@ class PlaybackService : MediaLibraryService() {
         exoPlayer.addListener(playbackListener)
         // After the player exists and before the session is built: the
         // session's wrapper reports the user's actions to it.
-        partySync = PartySync(scope) { player }.also { it.start() }
+        partySync = PartySync(
+            scope,
+            player = { player },
+            isTransitioning = { crossfade?.isTransitioning() == true },
+        ).also { it.start() }
 
         // AutoPlay has one shared supplier in a party. The host supplies it
         // while connected; if they disappear, the lowest stable connected member
@@ -1961,7 +1965,10 @@ class PlaybackService : MediaLibraryService() {
             standbyPlayer.skipSilenceEnabled = activePlayer.skipSilenceEnabled
             standbyPlayer.repeatMode = activePlayer.repeatMode
             standbyPlayer.shuffleModeEnabled = activePlayer.shuffleModeEnabled
-            standbyPlayer.setPlaybackSpeed(activePlayer.playbackParameters.speed)
+            // The user's setting, not the active player's live speed: a party
+            // nudges that by a few percent to stay in step, and the standby
+            // must not inherit it as if it were the listener's choice.
+            standbyPlayer.setPlaybackSpeed(AppSettings.playbackSpeed.value)
             standbyPlayer.volume = 0f
             standbyPlayer.setMediaItems(newItems, currentIndex, alignedStartPos)
             standbyPlayer.playWhenReady = false

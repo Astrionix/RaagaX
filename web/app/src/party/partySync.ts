@@ -16,8 +16,12 @@ import { autoplaySupplierId, detectSingleMove, partyQueueIndexOf, partyUpcomingA
  *   so nothing done here can come back as an intent.
  *
  * Following in time: a resume waits for the server's scheduled start, a new
- * control is landed on exactly, and drift between controls is corrected only
- * when it's real (twice in a row past 1.2 s, then left alone for 6 s).
+ * control is landed on exactly, and drift between controls is closed by
+ * running a few percent fast or slow (the element keeps pitch), not by
+ * seeking: a seek flushes the decoder and is a gap you can hear, and on a slow
+ * device the re-buffer it costs puts the player behind again. Only a gap of
+ * 3 s or more is a real desync worth a seek (twice in a row, then left alone
+ * for 6 s).
  *
  * Not ported: losing audio focus to another app, which a browser tab doesn't
  * have. And the audio element's output latency can't be read (there's no
@@ -26,7 +30,19 @@ import { autoplaySupplierId, detectSingleMove, partyQueueIndexOf, partyUpcomingA
  */
 
 const TICK_MS = 700;
-const DRIFT_LIMIT_MS = 1_200;
+/** A real desync (a throttled background tab, a sleep): too big to walk off by speed alone. */
+const HARD_SEEK_MS = 3_000;
+/** Drift at which nudging starts; below it two devices are normally, inaudibly apart. */
+const NUDGE_ENGAGE_MS = 150;
+/** Drift at which nudging stops: lower than the engage level, so it can't flutter on the edge. */
+const NUDGE_RELEASE_MS = 40;
+/** Drift from which the firmer nudge is used. */
+const NUDGE_FIRM_FROM_MS = 800;
+/** Speed offsets: 3% closes 100 ms in about 3 s; 5% closes a second in 20 s. */
+const NUDGE_SOFT = 0.03;
+const NUDGE_FIRM = 0.05;
+/** Float tolerance when asking whether the element is still at a rate this module set. */
+const RATE_EPSILON = 0.001;
 const DRIFT_STRIKES = 2;
 const DRIFT_COOLDOWN_MS = 6_000;
 const PAUSED_TOLERANCE_MS = 400;
@@ -99,6 +115,16 @@ let loadingVideoId: string | null = null;
 let locallyPaused = false;
 let driftStrikes = 0;
 let driftCooldownUntil = 0;
+/**
+ * The rate this module last set to close drift, or 1 when it isn't nudging.
+ * Compared with the element's before every change: if they differ, something
+ * else (an AutoMix deck) has taken the rate and this backs off.
+ */
+let nudgeRate = 1;
+/** The rate the element was at before the first nudge, put back on release. */
+let nudgeBase = 1;
+/** The element nudged; a crossfade swaps which deck is in front. */
+let nudgeAudio: HTMLAudioElement | null = null;
 let publishTimer: ReturnType<typeof setTimeout> | undefined;
 let startTimer: ReturnType<typeof setTimeout> | undefined;
 let lastPartyCode: string | null = null;
@@ -230,6 +256,7 @@ function onLockedTransport(playing: boolean): boolean {
 function reconcile(): void {
   const state = useParty.getState();
   if (!state.code) {
+    releaseNudge();
     loadingVideoId = null;
     locallyPaused = false;
     lastAnchorMs = 0;
@@ -246,18 +273,24 @@ function reconcile(): void {
   if (!track) return seedEmptyParty(state);
 
   const entry = current();
-  if (entry?.track.videoId !== track.videoId) return load(state);
+  if (entry?.track.videoId !== track.videoId) {
+    // A new track starts at its own rate, not mid-nudge.
+    releaseNudge();
+    return load(state);
+  }
   if (loadingVideoId === track.videoId && usePlayer.getState().status === 'loading') return;
   loadingVideoId = null;
   reconcileQueue(state);
 
   if (locallyPaused) {
     setAwaiting(false);
+    releaseNudge();
     return;
   }
 
   if (!target.isPlaying) {
     setAwaiting(false);
+    releaseNudge();
     if (playWhenReady()) partyPlayer.pause();
     if (Math.abs(positionMs() - target.positionMs) > PAUSED_TOLERANCE_MS) partyPlayer.seekTo(target.positionMs / 1000);
     return;
@@ -300,21 +333,79 @@ function reconcile(): void {
     lastTrackId = track.videoId;
     lastIsPlaying = target.isPlaying;
     if (anchorChanged && Math.abs(drift) > ALIGN_TOLERANCE_MS) {
+      releaseNudge();
       partyPlayer.seekTo(want / 1000);
       return;
     }
   }
-  if (Math.abs(drift) <= DRIFT_LIMIT_MS) {
+  // Up to a real desync, a gap is closed by running slightly fast or slow, which costs nothing audible.
+  if (Math.abs(drift) < HARD_SEEK_MS) {
     driftStrikes = 0;
+    nudgeToward(drift);
     return;
   }
-  // A seek costs a re-buffer; asked for twice in a row, then left alone to settle.
+  // A seek costs a re-buffer (the loop that used to stutter the music); asked for twice in a row, then left alone to settle.
   const now = performance.now();
   if (now < driftCooldownUntil) return;
   if (++driftStrikes < DRIFT_STRIKES) return;
   driftStrikes = 0;
   driftCooldownUntil = now + DRIFT_COOLDOWN_MS;
+  releaseNudge();
   partyPlayer.seekTo(want / 1000);
+}
+
+/**
+ * Closes a small gap to the party by changing the element's rate instead of
+ * seeking. [drift] is this player minus the party: positive is ahead, so it
+ * slows down; negative is behind, so it speeds up. Pitch is kept, and a few
+ * percent is below what an ear can place.
+ *
+ * Two levels, not a ramp, so the rate changes a handful of times per catch-up
+ * rather than every tick; and hysteresis, engaging above NUDGE_ENGAGE_MS and
+ * letting go below NUDGE_RELEASE_MS, so a device on the edge of the band doesn't
+ * flutter. The video deck follows the audio's rate on `ratechange`, so a synced
+ * picture is nudged with it.
+ *
+ * Only a rate it owns is touched: if the element isn't at exactly the rate set
+ * last, something else (an AutoMix deck's servo, a deck swap) is in charge and
+ * this backs off rather than fight it.
+ */
+function nudgeToward(drift: number): void {
+  const audio = getAudio();
+  if (!audio) return;
+  if (audio !== nudgeAudio) {
+    // A crossfade swapped the front deck: the old one isn't ours to put right.
+    nudgeAudio = audio;
+    nudgeRate = 1;
+  }
+  if (Math.abs(audio.playbackRate - nudgeRate) > RATE_EPSILON) {
+    nudgeRate = 1;
+    return;
+  }
+  const engaged = nudgeRate !== 1;
+  const size = Math.abs(drift);
+  // +1 to speed up (behind), -1 to slow down (ahead).
+  const sign = drift > 0 ? -1 : 1;
+  const engagedSign = nudgeRate > 1 ? 1 : -1;
+  let target: number;
+  if (size < NUDGE_RELEASE_MS) target = 1;
+  // Overshot to the far side by a little: coast rather than chase back.
+  else if (engaged && sign !== engagedSign && size < NUDGE_ENGAGE_MS) target = 1;
+  else if (!engaged && size < NUDGE_ENGAGE_MS) target = 1;
+  else target = 1 + sign * (size >= NUDGE_FIRM_FROM_MS ? NUDGE_FIRM : NUDGE_SOFT);
+  if (Math.abs(target - nudgeRate) < RATE_EPSILON) return;
+  // Unengaged here means the element is at exactly 1x: anything else was turned away above.
+  if (!engaged) nudgeBase = audio.playbackRate;
+  nudgeRate = target;
+  audio.playbackRate = target === 1 ? nudgeBase : target;
+}
+
+/** Puts the rate back, if this module changed it and nothing has taken it since. */
+function releaseNudge(): void {
+  if (nudgeRate !== 1 && nudgeAudio && Math.abs(nudgeAudio.playbackRate - nudgeRate) <= RATE_EPSILON) {
+    nudgeAudio.playbackRate = nudgeBase;
+  }
+  nudgeRate = 1;
 }
 
 /** The party's running order onto the player, at its position; started only if the party is going now. */
@@ -466,6 +557,7 @@ export function startPartySync(): () => void {
   return () => {
     off();
     clearInterval(tick);
+    releaseNudge();
     clearTimeout(publishTimer);
     clearTimeout(startTimer);
     setPartyHooks(null);

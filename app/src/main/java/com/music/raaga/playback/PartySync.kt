@@ -76,10 +76,13 @@ import kotlin.math.abs
  *    early by exactly that lead — and being *consistently* early is worse than
  *    being occasionally late, because it is below the drift limit and would
  *    never be corrected. So a resume waits out [ListenTogether.msUntilStart].
- *  - **Drift is corrected by seeking, and only when it is real.** A seek is
- *    audible, so [DRIFT_LIMIT_MS] is set well above the jitter of two decoders
- *    running independently and at the level of an actual desync — a buffering
- *    stall, a doze, a device that came back from a tunnel.
+ *  - **Drift is closed by changing speed, not by seeking.** A seek flushes the
+ *    decoder and the audio buffer, which is a gap you can hear, and on a slow
+ *    device the re-buffer it costs puts the player behind again — the
+ *    stutter loop. So a device that is a little out of step runs a few percent
+ *    fast or slow (pitch is preserved) until it has caught up, and nobody hears
+ *    anything. See [nudgeToward]. Only a gap of [HARD_SEEK_MS] or more — a
+ *    doze, a tunnel, a call — is a real desync worth a seek.
  *  - **Position is only trusted once the clock is.** Before the first
  *    ping/pong there is no measured offset, so track and play/pause are applied
  *    and the playhead is left alone rather than seeked to a guess.
@@ -88,6 +91,11 @@ class PartySync(
     private val scope: CoroutineScope,
     /** Read fresh every time: the service swaps players at a crossfade. */
     private val player: () -> Player?,
+    /**
+     * A crossfade owns the players' speeds while it runs (it stacks a beatmatch
+     * stretch on top of the user's setting), so drift is not nudged meanwhile.
+     */
+    private val isTransitioning: () -> Boolean = { false },
 ) {
 
     private val jobs = mutableListOf<Job>()
@@ -131,7 +139,7 @@ class PartySync(
      * A control is a discontinuity — everybody is meant to land on the same
      * instant, precisely — whereas the time between controls is a slow drift
      * worth tolerating. So a seq not yet aligned to is matched exactly, and
-     * after that [DRIFT_LIMIT_MS] applies. Without this the device that *issued*
+     * after that drift is closed by [nudgeToward]. Without this the device that *issued*
      * a control keeps whatever head start issuing it gave it: below the drift
      * limit, so never corrected, and permanent.
      */
@@ -188,6 +196,21 @@ class PartySync(
     /** When the player may next be seeked for drift, having just been. */
     private var driftCooldownUntilMs = 0L
 
+    /**
+     * The speed this class last set to close drift, or 1f when it is not
+     * nudging. Compared with what the player reports before every change: if
+     * they differ, somebody else — the user's speed setting, a crossfade's
+     * stretch — has taken the speed, and this class backs off rather than
+     * fight them for it.
+     */
+    private var nudgeRate = 1f
+
+    /** The speed the player was at before the first nudge, put back on release. */
+    private var nudgeBase = 1f
+
+    /** The player [nudgeRate] was applied to; a crossfade swaps players. */
+    private var nudgeTarget: Player? = null
+
     private var lastPartyCode: String? = null
 
     fun start() {
@@ -235,6 +258,7 @@ class PartySync(
     }
 
     fun stop() {
+        releaseNudge()
         (player() as? ExoPlayer)?.let { if (it.pauseAtEndOfMediaItems) it.pauseAtEndOfMediaItems = false }
         jobs.forEach(Job::cancel)
         jobs.clear()
@@ -473,6 +497,7 @@ class PartySync(
     private fun reconcile() {
         val party = ListenTogether.state.value
         if (!party.inParty) {
+            releaseNudge()
             (player() as? ExoPlayer)?.let { if (it.pauseAtEndOfMediaItems) it.pauseAtEndOfMediaItems = false }
             loadingVideoId = null
             focusLost = false
@@ -524,9 +549,14 @@ class PartySync(
         // content:// URI and this device should not be yanked off the file
         // somebody deliberately chose, so the two are simply left uncoupled
         // until playback returns to something with a catalogue id.
-        if (exo.currentMediaItem?.toSong()?.isDeviceFile() == true) return
+        if (exo.currentMediaItem?.toSong()?.isDeviceFile() == true) {
+            releaseNudge()
+            return
+        }
 
         if (exo.currentMediaItem?.mediaId != track.videoId) {
+            // A new track starts at the speed the user chose, not mid-nudge.
+            releaseNudge()
             load(party)
             return
         }
@@ -543,11 +573,13 @@ class PartySync(
             // answered — and the transport would draw that wait for as long as
             // the listener stayed muted.
             deferredPlayPending = false
+            releaseNudge()
             return
         }
 
         if (!target.isPlaying) {
             deferredPlayPending = false
+            releaseNudge()
             if (exo.playWhenReady) exo.pause()
             // Held where the party paused it, so that everybody resumes from the
             // same place rather than from wherever their own playhead stopped.
@@ -633,12 +665,16 @@ class PartySync(
 
             if (isPlaybackAnchorChanged && abs(drift) > ALIGN_TOLERANCE_MS) {
                 Log.i(TAG, "aligning ${drift}ms onto party control ${target.seq}")
+                releaseNudge()
                 exo.seekTo(want)
                 return
             }
         }
-        if (abs(drift) <= DRIFT_LIMIT_MS) {
+        // Up to here a gap is closed by running slightly fast or slow, which
+        // costs nothing audible. See [nudgeToward].
+        if (abs(drift) < HARD_SEEK_MS) {
             driftStrikes = 0
+            nudgeToward(exo, drift)
             return
         }
         // Seeking is not free, and on a slow device it is not cheap either: the
@@ -646,7 +682,8 @@ class PartySync(
         // correction arrives already as far behind as the error it was fixing,
         // and does it again, forever. That loop is real — it was measured here
         // at a flat -1402ms every 1.4s, to the millisecond, for as long as it
-        // was left running.
+        // was left running. It is also why seeks are now reserved for a gap
+        // too big to walk off, rather than used for ordinary drift.
         //
         // Two things keep it out. A correction has to be asked for twice in a
         // row before it happens, so one reading taken while the pipeline was
@@ -658,7 +695,82 @@ class PartySync(
         Log.i(TAG, "correcting ${drift}ms of drift against the party")
         driftStrikes = 0
         driftCooldownUntilMs = now + DRIFT_COOLDOWN_MS
+        releaseNudge()
         exo.seekTo(want)
+    }
+
+    /**
+     * Closes a small gap to the party by changing speed instead of seeking.
+     *
+     * [drift] is this player minus the party: positive means ahead, so it slows
+     * down; negative means behind, so it speeds up. Media3's speed control keeps
+     * pitch, and a few percent is below what an ear can place, so the listener
+     * hears a song that never stops and a gap that quietly closes.
+     *
+     * Two levels, not a continuous ramp, so the speed changes a handful of times
+     * per catch-up rather than every tick — every change is a (tiny) event in
+     * the audio pipeline. And hysteresis: it engages above [NUDGE_ENGAGE_MS] and
+     * lets go below [NUDGE_RELEASE_MS], so a device sitting on the edge of the
+     * band does not flutter between speeds. Two decoders are never exactly in
+     * step, and the band below [NUDGE_ENGAGE_MS] is deliberately left alone.
+     *
+     * Only a speed it owns is touched. If the player is not at exactly the speed
+     * this class last set — the user picked 1.25x, a crossfade is stretching a
+     * track to the beat — then something else is in charge and this backs off.
+     */
+    private fun nudgeToward(exo: Player, drift: Long) {
+        if (isTransitioning()) {
+            nudgeRate = 1f
+            return
+        }
+        if (exo !== nudgeTarget) {
+            // The service swapped players at a crossfade. The old one is no
+            // longer ours to put right, and the new one has not been nudged.
+            nudgeTarget = exo
+            nudgeRate = 1f
+        }
+        val current = exo.playbackParameters.speed
+        if (abs(current - nudgeRate) > RATE_EPSILON) {
+            nudgeRate = 1f
+            return
+        }
+        val engaged = nudgeRate != 1f
+        val size = abs(drift)
+        // +1 to speed up (behind), -1 to slow down (ahead).
+        val sign = if (drift > 0) -1f else 1f
+        val engagedSign = if (nudgeRate > 1f) 1f else -1f
+        val target = when {
+            size < NUDGE_RELEASE_MS -> 1f
+            // Overshot to the far side by a little: coast rather than chase back.
+            engaged && sign != engagedSign && size < NUDGE_ENGAGE_MS -> 1f
+            !engaged && size < NUDGE_ENGAGE_MS -> 1f
+            else -> 1f + sign * if (size >= NUDGE_FIRM_FROM_MS) NUDGE_FIRM else NUDGE_SOFT
+        }
+        if (abs(target - nudgeRate) < RATE_EPSILON) return
+        // Reaching here unengaged means the player is at exactly 1.0x: a user
+        // at 1.25x was turned away above, being out of step with a 1.0x party
+        // regardless and left to the hard seek.
+        if (!engaged) nudgeBase = current
+        Log.i(TAG, "nudging speed to ${target}x for ${drift}ms of drift")
+        nudgeRate = target
+        exo.setPlaybackSpeed(if (target == 1f) nudgeBase else target)
+    }
+
+    /**
+     * Puts the speed back where the user had it, if this class changed it.
+     *
+     * Called wherever following stops meaning anything — paused, a new track,
+     * leaving, a seek that supersedes the nudge. Leaves the player alone if its
+     * speed is no longer the one this class set, because then it is not ours.
+     */
+    private fun releaseNudge() {
+        if (nudgeRate != 1f) {
+            val exo = nudgeTarget
+            if (exo != null && abs(exo.playbackParameters.speed - nudgeRate) <= RATE_EPSILON) {
+                exo.setPlaybackSpeed(nudgeBase)
+            }
+        }
+        nudgeRate = 1f
     }
 
     /**
@@ -1028,12 +1140,28 @@ class PartySync(
         /**
          * How far out of step is worth an audible seek.
          *
-         * Above the jitter of two decoders on different hardware, and at the
-         * level of a real desync. Tightening this does not make a party more
-         * synchronised — it makes it seek more often, which is what people
-         * actually hear.
+         * A real desync — a doze, a tunnel, a phone call — not the drift of two
+         * decoders, which [nudgeToward] walks off silently. Seeking costs a
+         * buffer flush, so it is kept for gaps that would take a minute to
+         * close by speed alone.
          */
-        const val DRIFT_LIMIT_MS = 1_200L
+        const val HARD_SEEK_MS = 3_000L
+
+        /** Drift at which nudging starts. Below it two devices are normally, inaudibly apart. */
+        const val NUDGE_ENGAGE_MS = 150L
+
+        /** Drift at which nudging stops, lower than [NUDGE_ENGAGE_MS] so it cannot flutter on the edge. */
+        const val NUDGE_RELEASE_MS = 40L
+
+        /** Drift from which the firmer nudge is used. */
+        const val NUDGE_FIRM_FROM_MS = 800L
+
+        /** Speed offsets: 3% is closing 100ms in about 3s; 5% closes a second in 20s. Pitch is preserved. */
+        const val NUDGE_SOFT = 0.03f
+        const val NUDGE_FIRM = 0.05f
+
+        /** Float tolerance when asking whether the player is still at a speed this class set. */
+        const val RATE_EPSILON = 0.001f
 
         /** Readings in a row above the limit before a correction is made. */
         const val DRIFT_STRIKES = 2
