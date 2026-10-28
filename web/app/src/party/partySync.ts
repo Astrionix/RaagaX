@@ -441,6 +441,7 @@ export function startPartySync(): () => void {
     shouldDeferPlay,
     onLockedTransport,
     inParty: () => !!useParty.getState().code,
+    isLocked: () => controlsLocked(useParty.getState()),
   });
   let key = '';
   const off = useParty.subscribe((state) => {

@@ -2,6 +2,7 @@ package com.music.raaga.playback
 
 import android.os.SystemClock
 import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
 import com.music.raaga.data.DebugLog as Log
 import com.music.raaga.data.listentogether.ListenTogether
 import com.music.raaga.data.listentogether.PartyTrack
@@ -234,6 +235,7 @@ class PartySync(
     }
 
     fun stop() {
+        (player() as? ExoPlayer)?.let { if (it.pauseAtEndOfMediaItems) it.pauseAtEndOfMediaItems = false }
         jobs.forEach(Job::cancel)
         jobs.clear()
         publishJob?.cancel()
@@ -471,6 +473,7 @@ class PartySync(
     private fun reconcile() {
         val party = ListenTogether.state.value
         if (!party.inParty) {
+            (player() as? ExoPlayer)?.let { if (it.pauseAtEndOfMediaItems) it.pauseAtEndOfMediaItems = false }
             loadingVideoId = null
             focusLost = false
             rejoining = false
@@ -500,6 +503,15 @@ class PartySync(
             return
         }
         val exo = player() ?: return
+        val exoPlayer = exo as? ExoPlayer
+        // In a party where the host holds exclusive control, listener devices must
+        // NOT auto-advance to the next item when the current song finishes; ExoPlayer
+        // pauses at the end of the track and waits for the host/server to advance.
+        if (party.controlsLocked) {
+            if (exoPlayer?.pauseAtEndOfMediaItems == false) exoPlayer.pauseAtEndOfMediaItems = true
+        } else {
+            if (exoPlayer?.pauseAtEndOfMediaItems == true) exoPlayer.pauseAtEndOfMediaItems = false
+        }
 
         // Suppressed, not stopped: a notification chime or a short clip holds
         // the audio for a moment and hands it straight back, with `playWhenReady`

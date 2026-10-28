@@ -17,6 +17,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.net.InetAddress
 import java.net.NetworkInterface
+import java.security.SecureRandom
+import java.util.Collections
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
@@ -124,21 +126,25 @@ class RaagaConnectManager(
         accountIdProvider = accountIdProvider,
         syncKeyProvider = { RaagaPairingStore.getSyncKey() },
         onTransferReceived = { transfer ->
-            _activeRemoteDevice.value = null
-            onPlaybackTransferredToMe(transfer)
-            scope.launch {
-                delay(300)
-                broadcastLocalStatusToCloud()
+            if (isCloudMessageAuthorized(transfer.sourceDeviceId, transfer.syncKey)) {
+                _activeRemoteDevice.value = null
+                onPlaybackTransferredToMe(transfer)
+                scope.launch {
+                    delay(300)
+                    broadcastLocalStatusToCloud()
+                }
             }
         },
         onControlReceived = { cmd ->
-            if (cmd.action == "QUERY_STATUS") {
-                broadcastLocalStatusToCloud()
-            } else {
-                onRemoteControlCommand(cmd)
-                scope.launch {
-                    delay(200)
+            if (isCloudMessageAuthorized(cmd.senderDeviceId, cmd.syncKey)) {
+                if (cmd.action == "QUERY_STATUS") {
                     broadcastLocalStatusToCloud()
+                } else {
+                    onRemoteControlCommand(cmd)
+                    scope.launch {
+                        delay(200)
+                        broadcastLocalStatusToCloud()
+                    }
                 }
             }
         },
@@ -158,7 +164,9 @@ class RaagaConnectManager(
             handlePairResponse(resp)
         },
         onHandoffReceived = { packet ->
-            handleCloudHandoffPacket(packet)
+            if (isCloudMessageAuthorized(packet.sourceDeviceId, packet.syncKey)) {
+                handleCloudHandoffPacket(packet)
+            }
         },
         onClockSyncResponseReceived = { resp ->
             pendingClockSyncDeferred[resp.clientSendMs]?.complete(resp)
@@ -266,8 +274,27 @@ class RaagaConnectManager(
         }
     }
 
+    private val failedPairAttempts = ConcurrentHashMap<String, MutableList<Long>>()
+    private val MAX_FAILED_PAIR_ATTEMPTS = 5
+    private val PAIR_LOCKOUT_DURATION_MS = 5 * 60 * 1000L
+
+    private fun isCloudMessageAuthorized(sourceDeviceId: String, messageSyncKey: String?): Boolean {
+        val localSyncKey = RaagaPairingStore.getSyncKey()
+        val isPaired = sourceDeviceId.isNotBlank() && RaagaPairingStore.isPaired(sourceDeviceId)
+        if (isPaired) return true
+        if (!localSyncKey.isNullOrBlank() && !messageSyncKey.isNullOrBlank() && localSyncKey == messageSyncKey) {
+            return true
+        }
+        val accountId = accountIdProvider()
+        if (!accountId.isNullOrBlank() && sourceDeviceId.isNotBlank()) {
+            return true
+        }
+        return false
+    }
+
     fun generatePairCode(): String {
-        val code = (100000..999999).random().toString()
+        val secureRandom = SecureRandom()
+        val code = (100000 + secureRandom.nextInt(900000)).toString()
         activePairCode.value = code
         activePairCodeExpiresAt.value = System.currentTimeMillis() + 5 * 60 * 1000L
         pairingFeedback.value = null
@@ -354,15 +381,35 @@ class RaagaConnectManager(
     }
 
     fun handlePairRequestDirect(request: ConnectPairRequest): ConnectPairResponse {
+        val callerKey = request.fromDevice.id.ifBlank { "unknown" }
+        val now = System.currentTimeMillis()
+
+        // Rate limiting check per caller device
+        val attempts = failedPairAttempts.computeIfAbsent(callerKey) { Collections.synchronizedList(mutableListOf()) }
+        synchronized(attempts) {
+            attempts.removeAll { now - it > PAIR_LOCKOUT_DURATION_MS }
+            if (attempts.size >= MAX_FAILED_PAIR_ATTEMPTS) {
+                val remainingMin = ((PAIR_LOCKOUT_DURATION_MS - (now - attempts.first())) / 60000L).coerceAtLeast(1)
+                return ConnectPairResponse(
+                    code = request.code,
+                    success = false,
+                    message = "Too many failed attempts. Locked out for $remainingMin min.",
+                    fromDevice = localDevice,
+                    targetDeviceId = request.fromDevice.id,
+                )
+            }
+        }
+
         val code = activePairCode.value
         val expiresAt = activePairCodeExpiresAt.value
-        if (code != null && code == request.code && System.currentTimeMillis() <= expiresAt) {
+        if (code != null && code == request.code && now <= expiresAt) {
+            failedPairAttempts.remove(callerKey)
             val cleanName = request.fromDevice.name.removeSuffix(" (Cloud)")
             val paired = PairedDevice(
                 id = request.fromDevice.id,
                 name = cleanName,
                 type = request.fromDevice.type,
-                pairedAt = System.currentTimeMillis(),
+                pairedAt = now,
             )
             RaagaPairingStore.addPairedDevice(paired)
             var syncKey = RaagaPairingStore.getSyncKey()
@@ -384,6 +431,10 @@ class RaagaConnectManager(
             supabaseRelay.setTemporaryPairCode(null)
             supabaseRelay.checkChannel()
             return response
+        }
+
+        synchronized(attempts) {
+            attempts.add(now)
         }
         return ConnectPairResponse(
             code = request.code,

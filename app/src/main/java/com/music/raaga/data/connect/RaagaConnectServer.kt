@@ -17,6 +17,7 @@ import java.io.OutputStreamWriter
 import java.net.ServerSocket
 import java.net.Socket
 import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
 import java.util.Collections
 import java.util.LinkedHashMap
 
@@ -24,6 +25,12 @@ import java.util.LinkedHashMap
  * Embedded HTTP server for Raaga Connect receiver on Android local network.
  * Handles incoming playback transfer requests, Two-Phase Commit handoffs,
  * monotonic clock calibration, authentication verification, and deduplicated control.
+ *
+ * Security:
+ * - LAN bypass is disabled: devices on the same Wi-Fi must be explicitly paired or authenticated.
+ * - State-mutating requests (transfer, handoff, control) must be signed with HMAC-SHA256
+ *   using the shared sync key, or verified against paired device credentials.
+ * - Silent auto-pairing on transfer is removed; devices can only be paired via explicit PIN handshake.
  */
 class RaagaConnectServer(
     private val getStatus: () -> ConnectDeviceStatus,
@@ -97,31 +104,58 @@ class RaagaConnectServer(
         serverSocket = null
     }
 
-    private fun isAuthorized(senderDeviceId: String, syncKey: String?, isLocalLan: Boolean = false): Boolean {
-        if (isLocalLan) {
-            return true
-        }
+    private fun isAuthorized(
+        senderDeviceId: String,
+        syncKey: String?,
+        timestampStr: String,
+        signature: String,
+        method: String,
+        path: String,
+        body: String,
+    ): Boolean {
         val pairedList = RaagaPairingStore.pairedDevices.value
         val localSyncKey = RaagaPairingStore.getSyncKey()
-        // If this device has no pairing key or paired devices set up yet, allow initial pairing/handshake
+
+        // Discovered != Authorized: without pairing or sync key, reject mutating requests
         if (pairedList.isEmpty() && localSyncKey.isNullOrBlank()) {
+            return false
+        }
+
+        val isPairedDevice = senderDeviceId.isNotBlank() && RaagaPairingStore.isPaired(senderDeviceId)
+
+        // 1. Primary Security Check: HMAC-SHA256 signature verification with timestamp freshness
+        if (!localSyncKey.isNullOrBlank() && signature.isNotBlank() && timestampStr.isNotBlank()) {
+            if (!RaagaConnectSecurity.isTimestampFresh(timestampStr)) {
+                return false // Replay attack or excessive clock drift (>60s)
+            }
+            val canonicalPayload = RaagaConnectSecurity.buildSignaturePayload(method, path, timestampStr, body)
+            if (RaagaConnectSecurity.verifySignature(localSyncKey, canonicalPayload, signature)) {
+                return true
+            }
+        }
+
+        // 2. Fallback Security Check: Constant-time sync key comparison for paired devices
+        if (!localSyncKey.isNullOrBlank() && !syncKey.isNullOrBlank()) {
+            val keysMatch = MessageDigest.isEqual(
+                localSyncKey.toByteArray(StandardCharsets.UTF_8),
+                syncKey.toByteArray(StandardCharsets.UTF_8),
+            )
+            if (keysMatch && (isPairedDevice || pairedList.isEmpty())) {
+                return true
+            }
+        }
+
+        // 3. Fallback: If device is explicitly paired and no sync key was established yet
+        if (isPairedDevice && localSyncKey.isNullOrBlank()) {
             return true
         }
-        // 1. Direct device pairing check
-        if (senderDeviceId.isNotBlank() && RaagaPairingStore.isPaired(senderDeviceId)) {
-            return true
-        }
-        // 2. Shared sync key check
-        if (!localSyncKey.isNullOrBlank() && !syncKey.isNullOrBlank() && localSyncKey == syncKey) {
-            return true
-        }
+
         return false
     }
 
     private fun handleClient(socket: Socket) {
         socket.use { s ->
             s.soTimeout = 6000
-            val isLocalLan = s.inetAddress?.let { it.isSiteLocalAddress || it.isLoopbackAddress } ?: false
             val reader = BufferedReader(InputStreamReader(s.getInputStream(), StandardCharsets.UTF_8))
             val writer = OutputStreamWriter(s.getOutputStream(), StandardCharsets.UTF_8)
 
@@ -132,20 +166,26 @@ class RaagaConnectServer(
             val method = parts[0].uppercase()
             val path = parts[1]
 
-            // Read headers to determine Content-Length, Sender Device ID, and Sync Key
+            // Read headers to determine Content-Length, Sender Device ID, Sync Key, Timestamp, and HMAC Signature
             var contentLength = 0
             var senderDeviceId = ""
             var headerSyncKey = ""
+            var headerTimestamp = ""
+            var headerSignature = ""
             var line: String?
             while (reader.readLine().also { line = it } != null) {
                 if (line.isNullOrBlank()) break
-                val header = line!!
+                val header = line
                 if (header.startsWith("Content-Length:", ignoreCase = true)) {
                     contentLength = header.substringAfter(":").trim().toIntOrNull() ?: 0
                 } else if (header.startsWith("X-Raaga-Device-Id:", ignoreCase = true)) {
                     senderDeviceId = header.substringAfter(":").trim()
                 } else if (header.startsWith("X-Raaga-Sync-Key:", ignoreCase = true)) {
                     headerSyncKey = header.substringAfter(":").trim()
+                } else if (header.startsWith("X-Raaga-Timestamp:", ignoreCase = true)) {
+                    headerTimestamp = header.substringAfter(":").trim()
+                } else if (header.startsWith("X-Raaga-Signature:", ignoreCase = true)) {
+                    headerSignature = header.substringAfter(":").trim()
                 }
             }
 
@@ -203,19 +243,9 @@ class RaagaConnectServer(
                         val packet = json.decodeFromString<ConnectHandoffPacket>(body)
                         val effectiveSenderId = senderDeviceId.ifBlank { packet.sourceDeviceId }
                         val effectiveSyncKey = headerSyncKey.ifBlank { packet.syncKey ?: "" }
-                        if (!isAuthorized(effectiveSenderId, effectiveSyncKey, isLocalLan)) {
+                        if (!isAuthorized(effectiveSenderId, effectiveSyncKey, headerTimestamp, headerSignature, method, path, body)) {
                             writeResponse(writer, 401, "Unauthorized", """{"error":"Unauthorized device"}""")
                             return
-                        }
-                        if (packet.sourceDeviceId.isNotBlank()) {
-                            RaagaPairingStore.addPairedDevice(
-                                PairedDevice(
-                                    id = packet.sourceDeviceId,
-                                    name = packet.sourceDeviceName.ifBlank { "Remote Device" },
-                                    type = if (packet.sourceDeviceName.contains("PC", ignoreCase = true) || packet.sourceDeviceName.contains("Desktop", ignoreCase = true)) ConnectDeviceType.DESKTOP else ConnectDeviceType.PHONE,
-                                    pairedAt = System.currentTimeMillis(),
-                                )
-                            )
                         }
 
                         val result = if (onHandoffPrepare != null) {
@@ -235,19 +265,9 @@ class RaagaConnectServer(
                         val packet = json.decodeFromString<ConnectHandoffPacket>(body)
                         val effectiveSenderId = senderDeviceId.ifBlank { packet.sourceDeviceId }
                         val effectiveSyncKey = headerSyncKey.ifBlank { packet.syncKey ?: "" }
-                        if (!isAuthorized(effectiveSenderId, effectiveSyncKey, isLocalLan)) {
+                        if (!isAuthorized(effectiveSenderId, effectiveSyncKey, headerTimestamp, headerSignature, method, path, body)) {
                             writeResponse(writer, 401, "Unauthorized", """{"error":"Unauthorized device"}""")
                             return
-                        }
-                        if (packet.sourceDeviceId.isNotBlank()) {
-                            RaagaPairingStore.addPairedDevice(
-                                PairedDevice(
-                                    id = packet.sourceDeviceId,
-                                    name = packet.sourceDeviceName.ifBlank { "Remote Device" },
-                                    type = if (packet.sourceDeviceName.contains("PC", ignoreCase = true) || packet.sourceDeviceName.contains("Desktop", ignoreCase = true)) ConnectDeviceType.DESKTOP else ConnectDeviceType.PHONE,
-                                    pairedAt = System.currentTimeMillis(),
-                                )
-                            )
                         }
 
                         val result = if (onHandoffCommit != null) {
@@ -265,6 +285,13 @@ class RaagaConnectServer(
                 method == "POST" && path.startsWith("/raaga-connect/handoff/abort") -> {
                     try {
                         val packet = json.decodeFromString<ConnectHandoffPacket>(body)
+                        val effectiveSenderId = senderDeviceId.ifBlank { packet.sourceDeviceId }
+                        val effectiveSyncKey = headerSyncKey.ifBlank { packet.syncKey ?: "" }
+                        if (!isAuthorized(effectiveSenderId, effectiveSyncKey, headerTimestamp, headerSignature, method, path, body)) {
+                            writeResponse(writer, 401, "Unauthorized", """{"error":"Unauthorized device"}""")
+                            return
+                        }
+
                         onHandoffAbort?.invoke(packet)
                         writeResponse(writer, 200, "OK", """{"success":true}""")
                     } catch (e: Exception) {
@@ -277,19 +304,9 @@ class RaagaConnectServer(
                         val payload = json.decodeFromString<ConnectPlaybackTransfer>(body)
                         val effectiveSenderId = senderDeviceId.ifBlank { payload.sourceDeviceId }
                         val effectiveSyncKey = headerSyncKey.ifBlank { payload.syncKey ?: "" }
-                        if (!isAuthorized(effectiveSenderId, effectiveSyncKey, isLocalLan)) {
+                        if (!isAuthorized(effectiveSenderId, effectiveSyncKey, headerTimestamp, headerSignature, method, path, body)) {
                             writeResponse(writer, 401, "Unauthorized", """{"error":"Unauthorized device"}""")
                             return
-                        }
-                        if (payload.sourceDeviceId.isNotBlank()) {
-                            RaagaPairingStore.addPairedDevice(
-                                PairedDevice(
-                                    id = payload.sourceDeviceId,
-                                    name = payload.sourceDeviceName.ifBlank { "Remote Device" },
-                                    type = if (payload.sourceDeviceName.contains("PC", ignoreCase = true) || payload.sourceDeviceName.contains("Desktop", ignoreCase = true)) ConnectDeviceType.DESKTOP else ConnectDeviceType.PHONE,
-                                    pairedAt = System.currentTimeMillis(),
-                                )
-                            )
                         }
 
                         onTransfer(payload)
@@ -304,7 +321,7 @@ class RaagaConnectServer(
                         val payload = json.decodeFromString<ConnectControlCommand>(body)
                         val effectiveSenderId = senderDeviceId.ifBlank { payload.senderDeviceId }
                         val effectiveSyncKey = headerSyncKey.ifBlank { payload.syncKey ?: "" }
-                        if (!isAuthorized(effectiveSenderId, effectiveSyncKey, isLocalLan)) {
+                        if (!isAuthorized(effectiveSenderId, effectiveSyncKey, headerTimestamp, headerSignature, method, path, body)) {
                             writeResponse(writer, 401, "Unauthorized", """{"error":"Unauthorized device"}""")
                             return
                         }

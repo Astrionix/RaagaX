@@ -64,13 +64,26 @@ android {
 
     signingConfigs {
         // The phone's keystore, found the same way app/build.gradle.kts finds it.
-        val store = signing.getProperty("storeFile")?.let { rootProject.file(it) }
-        if (store != null && store.exists()) {
+        val storePath = signing.getProperty("storeFile")
+            ?: System.getenv("KEYSTORE_FILE")
+            ?: System.getenv("RELEASE_STORE_FILE")
+        val store = storePath?.let { rootProject.file(it) }
+        val storePass = signing.getProperty("storePassword")
+            ?: System.getenv("KEYSTORE_PASSWORD")
+            ?: System.getenv("RELEASE_STORE_PASSWORD")
+        val kAlias = signing.getProperty("keyAlias")
+            ?: System.getenv("KEY_ALIAS")
+            ?: System.getenv("RELEASE_KEY_ALIAS")
+        val kPass = signing.getProperty("keyPassword")
+            ?: System.getenv("KEY_PASSWORD")
+            ?: System.getenv("RELEASE_KEY_PASSWORD")
+
+        if (store != null && store.exists() && !storePass.isNullOrBlank() && !kAlias.isNullOrBlank()) {
             create("release") {
                 storeFile = store
-                storePassword = signing.getProperty("storePassword")
-                keyAlias = signing.getProperty("keyAlias")
-                keyPassword = signing.getProperty("keyPassword")
+                storePassword = storePass
+                keyAlias = kAlias
+                keyPassword = kPass ?: storePass
             }
         }
     }

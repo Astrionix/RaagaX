@@ -13,6 +13,7 @@ import { isMobileBrowser } from '@/lib/platform';
 import { useUi } from '@/state/ui';
 import { useKeyboardShortcuts } from './useKeyboardShortcuts';
 import { Banner, bannerButtonClass } from './Banner';
+import { JamTopButton } from './JamTopButton';
 import { MobileTopBar } from './MobileTopBar';
 import { PlayerBar } from './PlayerBar';
 import { SidePanel } from './SidePanel';
@@ -80,6 +81,7 @@ export function AppShell() {
       {/* The side panel slides in from beyond the right edge; never let it scroll the page. */}
       <div className="relative min-h-0 overflow-hidden">
         <Sidebar />
+        <JamTopButton />
         <MobileTopBar />
         {/* The page scrolls under the fixed sidebar and the floating player. */}
         {/* On tablet portrait and mobile (< 1000px), full width is available with top bar offset. */}

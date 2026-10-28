@@ -45,7 +45,7 @@ internal object DesktopUpdateChecker {
         val fileName: String? = null,
     )
 
-    val currentVersion: String = System.getProperty("raaga.version") ?: "1.9.7"
+    val currentVersion: String = System.getProperty("raaga.version") ?: "1.9.8"
 
     private const val RELEASES_URL =
         "https://api.github.com/repos/Astrionix/RaagaX/releases"

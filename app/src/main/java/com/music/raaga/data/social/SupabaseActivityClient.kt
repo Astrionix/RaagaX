@@ -74,7 +74,7 @@ object SupabaseActivityClient {
                 }
             }.toString()
 
-            val url = "$supabaseUrl/rest/v1/user_activity"
+            val url = "$supabaseUrl/rest/v1/user_activity?on_conflict=user_tag"
             fun buildReq(jsonPayload: String) = Request.Builder()
                 .url(url)
                 .post(jsonPayload.toRequestBody(JSON_MEDIA_TYPE))
@@ -101,6 +101,21 @@ object SupabaseActivityClient {
                     }
                 } else {
                     Log.w(TAG, "Failed to publish activity to Supabase: HTTP ${response.code}")
+                }
+            }
+
+            // If registered user, asynchronously clean up any previous stale tags for this user_name
+            if (ok && userName.isNotBlank() && !userName.startsWith("Listener ", ignoreCase = true) && !userName.equals("Guest", ignoreCase = true)) {
+                runCatching {
+                    val encodedName = java.net.URLEncoder.encode(userName, "UTF-8")
+                    val delUrl = "$supabaseUrl/rest/v1/user_activity?user_name=eq.$encodedName&user_tag=neq.$userTag"
+                    val delReq = Request.Builder()
+                        .url(delUrl)
+                        .delete()
+                        .header("apikey", anonKey)
+                        .header("Authorization", "Bearer $anonKey")
+                        .build()
+                    Http.client.newCall(delReq).execute().close()
                 }
             }
             ok

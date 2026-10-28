@@ -5,6 +5,7 @@ import Image from "next/image";
 import { ArrowDownToLine, Layers, Globe, ExternalLink } from "lucide-react";
 import { RAAGAX_CONFIG } from "@/config/release";
 import { AllApksModal } from "./AllApksModal";
+import { DiscordIcon } from "./icons/DiscordIcon";
 
 // Compute realistic Indian Standard Time (IST UTC+5:30) diurnal listening traffic curve.
 // Calibrated strictly below 10k - 12k:
@@ -194,13 +195,33 @@ export const Hero: React.FC = () => {
             />
           </div>
 
-          {/* Hero Narrative, Headings & Clean Pill Buttons */}
-          <div className="relative flex flex-col items-center px-6 pb-10 pt-12 sm:pt-16 text-center">
-            
-            {/* Live Right Now Listening Dynamic Badge (Based on Indian Standard Time traffic) */}
+          {/* Top Row: Icon Logo on Left, Live Listeners in Center, Discord on Right */}
+          <div className="relative z-10 w-full px-5 sm:px-8 pt-5 sm:pt-6 flex items-center justify-between">
+            {/* Left: Brand Icon Logo & Title */}
+            <a href="#top" className="flex items-center gap-2.5 group shrink-0 btn-press">
+              <div className="relative w-8 h-8 rounded-xl overflow-hidden bg-black/60 border border-white/20 p-1 shadow-[0_0_15px_rgba(239,68,68,0.3),inset_0_1px_1px_0_rgba(255,255,255,0.4)] group-hover:scale-105 transition-transform duration-200">
+                <Image
+                  src="/app_icon.png"
+                  alt="Raaga Logo"
+                  width={32}
+                  height={32}
+                  className="w-full h-full object-contain"
+                />
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="font-extrabold text-[16px] sm:text-[17px] tracking-tight text-white group-hover:text-red-400 transition-colors">
+                  {RAAGAX_CONFIG.appName}
+                </span>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/[0.08] border border-white/[0.14] text-white/80 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.2)] hidden sm:inline">
+                  {RAAGAX_CONFIG.versionName}
+                </span>
+              </div>
+            </a>
+
+            {/* Center: Live Concurrent Listeners */}
             <div
               title="Live concurrent listeners based on Indian Standard Time (IST)"
-              className="liquid-glass-pill inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full text-xs font-medium text-emerald-400 mb-6 shadow-[0_0_30px_rgba(16,185,129,0.18)] cursor-default select-none"
+              className="liquid-glass-pill inline-flex items-center gap-2.5 px-3.5 sm:px-4 py-1.5 rounded-full text-xs font-medium text-emerald-400 shadow-[0_0_30px_rgba(16,185,129,0.18)] cursor-default select-none"
             >
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -209,8 +230,25 @@ export const Hero: React.FC = () => {
               <span suppressHydrationWarning className="font-mono font-bold tracking-tight text-white tabular-nums">
                 {liveListeners.toLocaleString()}
               </span>
-              <span className="text-white/70">listening right now</span>
+              <span className="text-white/70 hidden sm:inline">listening right now</span>
             </div>
+
+            {/* Right: Discord Button */}
+            <a
+              href={RAAGAX_CONFIG.discordCommunityUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Join Raaga Discord Community"
+              aria-label="Join Raaga Discord Community"
+              className="liquid-glass-pill h-9 sm:h-10 px-3.5 sm:px-4 inline-flex items-center gap-2 rounded-full text-white/90 hover:text-white border border-white/20 hover:border-[#5865f2]/60 hover:bg-[#5865f2]/15 shadow-[0_4px_20px_rgba(88,101,242,0.25),inset_0_1px_1px_0_rgba(255,255,255,0.4)] cursor-pointer btn-press transition-all group shrink-0"
+            >
+              <DiscordIcon className="w-4 h-4 text-[#5865f2] group-hover:scale-110 transition-transform" />
+              <span className="text-[13px] font-semibold tracking-tight hidden sm:inline">Discord</span>
+            </a>
+          </div>
+
+          {/* Hero Narrative, Headings & Clean Pill Buttons */}
+          <div className="relative flex flex-col items-center px-6 pb-10 pt-8 sm:pt-10 text-center">
 
             {/* Main Headline */}
             <h1 className="text-balance text-[36px] sm:text-[52px] md:text-[58px] font-extrabold leading-[1.05] tracking-[-0.035em]">

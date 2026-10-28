@@ -1,7 +1,6 @@
 "use client";
 
 import React from "react";
-import { Navbar } from "@/components/Navbar";
 import { Hero } from "@/components/Hero";
 import { IntegrationsRibbon } from "@/components/IntegrationsRibbon";
 import { MusicDiscovery } from "@/components/MusicDiscovery";
@@ -12,10 +11,7 @@ import { Footer } from "@/components/Footer";
 export default function Home() {
   return (
     <main className="min-h-screen w-full max-w-[100vw] overflow-x-hidden bg-[#040507] text-zinc-100 flex flex-col selection:bg-red-500/30 selection:text-white">
-      {/* 01: Ultra-sleek Floating Glass Navigation */}
-      <Navbar />
-
-      {/* 02: Centerpiece Hero with Mesh Drift Blobs & Live Synced Lyrics Player */}
+      {/* 01: Centerpiece Hero with Mesh Drift Blobs & Live Synced Lyrics Player */}
       <Hero />
 
       {/* 03: Ecosystem & Compatibility Ribbon */}

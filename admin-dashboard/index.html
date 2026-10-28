@@ -609,29 +609,31 @@
       background: #1e293b;
     }
 
-    /* PIN Modal */
-    .pin-modal-overlay {
+    /* Auth Modal Overlay & Card */
+    .auth-modal-overlay {
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.85);
-      backdrop-filter: blur(16px);
+      background: rgba(4, 7, 13, 0.88);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
       display: flex;
       align-items: center;
       justify-content: center;
       z-index: 9999;
       transition: var(--transition);
+      padding: 16px;
     }
 
-    .pin-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
+    .auth-card {
+      background: linear-gradient(180deg, rgba(22, 29, 43, 0.95), rgba(16, 21, 31, 0.98));
+      border: 1px solid rgba(255, 255, 255, 0.12);
       border-radius: var(--radius-lg);
       padding: 36px 32px;
       width: 100%;
-      max-width: 380px;
-      text-align: center;
-      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+      max-width: 420px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7), 0 0 40px rgba(139, 92, 246, 0.15);
       animation: popIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
     }
 
     @keyframes popIn {
@@ -639,25 +641,188 @@
       to { transform: scale(1); opacity: 1; }
     }
 
-    .pin-input {
-      width: 100%;
-      letter-spacing: 12px;
-      font-size: 28px;
+    .auth-header {
       text-align: center;
-      font-family: var(--font-mono);
+      margin-bottom: 24px;
+    }
+
+    .auth-tabs {
+      display: flex;
       background: var(--surface-elevated);
       border: 1px solid var(--border);
       border-radius: var(--radius-sm);
-      padding: 14px;
+      padding: 4px;
+      gap: 4px;
+      margin-bottom: 22px;
+    }
+
+    .auth-tab {
+      flex: 1;
+      padding: 8px 12px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: var(--transition);
+      font-family: inherit;
+    }
+
+    .auth-tab.active {
+      background: var(--primary);
       color: #fff;
-      margin: 20px 0;
+      box-shadow: 0 2px 8px var(--primary-glow);
+    }
+
+    .auth-field {
+      margin-bottom: 16px;
+      text-align: left;
+    }
+
+    .auth-label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      letter-spacing: 0.3px;
+    }
+
+    .auth-input-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .auth-input-icon {
+      position: absolute;
+      left: 14px;
+      color: var(--text-subtle);
+      width: 16px;
+      height: 16px;
+      pointer-events: none;
+    }
+
+    .auth-input {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 11px 40px 11px 40px;
+      color: #fff;
+      font-family: inherit;
+      font-size: 14px;
       outline: none;
       transition: var(--transition);
     }
 
-    .pin-input:focus {
+    .auth-input:focus {
       border-color: var(--primary);
       box-shadow: 0 0 0 3px var(--primary-glow);
+      background: var(--surface-elevated);
+    }
+
+    .auth-toggle-pwd {
+      position: absolute;
+      right: 12px;
+      background: none;
+      border: none;
+      color: var(--text-subtle);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      padding: 4px;
+      transition: var(--transition);
+    }
+
+    .auth-toggle-pwd:hover {
+      color: var(--text);
+    }
+
+    .auth-alert {
+      padding: 10px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      line-height: 1.4;
+      margin-bottom: 16px;
+      display: none;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .auth-alert.error {
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #fca5a5;
+    }
+
+    .auth-alert.success {
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #6ee7b7;
+    }
+
+    /* Admin User Badge in Header */
+    .admin-user-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-full);
+      padding: 4px 6px 4px 12px;
+      font-size: 12px;
+    }
+
+    .admin-user-avatar {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #8b5cf6, #06b6d4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .admin-user-email {
+      color: var(--text);
+      font-weight: 600;
+      max-width: 170px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .btn-icon-only {
+      padding: 6px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .btn-icon-only:hover {
+      background: rgba(239, 68, 68, 0.2);
+      color: var(--danger);
+      border-color: rgba(239, 68, 68, 0.4);
+    }
+
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
     }
 
     /* Empty State */
@@ -674,6 +839,81 @@
       color: var(--text-subtle);
     }
 
+    /* Toast Notifications */
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 10000;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      pointer-events: none;
+    }
+
+    .toast {
+      pointer-events: auto;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 18px;
+      border-radius: var(--radius-sm);
+      background: var(--surface-elevated);
+      border: 1px solid var(--border);
+      color: #fff;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      font-size: 13px;
+      font-weight: 600;
+      animation: toastIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      transition: var(--transition);
+      max-width: 400px;
+    }
+
+    .toast.success {
+      border-color: rgba(16, 185, 129, 0.4);
+      background: #0d281e;
+      color: #6ee7b7;
+    }
+
+    .toast.error {
+      border-color: rgba(239, 68, 68, 0.4);
+      background: #2b1115;
+      color: #fca5a5;
+    }
+
+    .toast.info {
+      border-color: rgba(139, 92, 246, 0.4);
+      background: #1c1433;
+      color: #c084fc;
+    }
+
+    @keyframes toastIn {
+      from { transform: translateY(16px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    .btn.loading {
+      pointer-events: none;
+      opacity: 0.65;
+    }
+
+    .user-tag.has-aliases {
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      background: rgba(16, 185, 129, 0.12);
+      color: #34d399;
+    }
+
+    .alias-badge {
+      font-size: 10px;
+      font-weight: 700;
+      color: #34d399;
+      background: rgba(16, 185, 129, 0.18);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      padding: 1px 5px;
+      border-radius: 4px;
+      cursor: help;
+    }
+
     @media (max-width: 768px) {
       .app-container { padding: 16px; }
       .users-grid { grid-template-columns: 1fr; }
@@ -683,34 +923,103 @@
 </head>
 <body>
 
-  <!-- Admin PIN Modal -->
-  <div id="pinModal" class="pin-modal-overlay">
-    <div class="pin-card">
-      <div class="brand-logo" style="margin: 0 auto 16px auto;">
-        <i data-feather="lock" style="color: white; width: 22px; height: 22px;"></i>
-      </div>
-      <h2 style="font-size: 22px; font-weight: 800; margin-bottom: 6px;">Raaga Admin</h2>
-      <p style="font-size: 13px; color: var(--text-muted);">Enter PIN to access live user telemetry</p>
-      
-      <form id="pinForm" onsubmit="handlePinSubmit(event)">
-        <input 
-          type="password" 
-          id="pinInput" 
-          class="pin-input" 
-          placeholder="••••" 
-          maxlength="6" 
-          autocomplete="off" 
-          autofocus
-        />
-        <div id="pinError" style="color: var(--danger); font-size: 12px; margin-bottom: 12px; display: none;">
-          Incorrect PIN. Default is 1234
+  <!-- Floating Toast Container -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- Real Supabase Auth Modal -->
+  <div id="authModal" class="auth-modal-overlay">
+    <div class="auth-card">
+      <div class="auth-header">
+        <div class="brand-logo" style="margin: 0 auto 16px auto;">
+          <i data-feather="shield" style="color: white; width: 22px; height: 22px;"></i>
         </div>
-        <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 12px;">
-          Unlock Dashboard
+        <h2 style="font-size: 22px; font-weight: 800; margin-bottom: 6px;">Raaga Admin</h2>
+        <p style="font-size: 13px; color: var(--text-muted);">Sign in with Supabase to access user telemetry</p>
+      </div>
+
+      <div class="auth-tabs">
+        <button type="button" class="auth-tab active" id="tabPassword" onclick="switchAuthTab('password')">
+          Password
+        </button>
+        <button type="button" class="auth-tab" id="tabMagic" onclick="switchAuthTab('magic')">
+          Magic Link
+        </button>
+      </div>
+
+      <!-- Password Sign-In Form -->
+      <form id="passwordForm" onsubmit="handlePasswordLogin(event)">
+        <div id="authError" class="auth-alert error"></div>
+        <div id="authSuccess" class="auth-alert success"></div>
+
+        <div class="auth-field">
+          <label class="auth-label" for="authEmail">Admin Email</label>
+          <div class="auth-input-wrapper">
+            <i data-feather="mail" class="auth-input-icon"></i>
+            <input 
+              type="email" 
+              id="authEmail" 
+              class="auth-input" 
+              placeholder="admin@raaga.me" 
+              required 
+              autocomplete="email"
+            />
+          </div>
+        </div>
+
+        <div class="auth-field">
+          <label class="auth-label" for="authPassword">Password</label>
+          <div class="auth-input-wrapper">
+            <i data-feather="lock" class="auth-input-icon"></i>
+            <input 
+              type="password" 
+              id="authPassword" 
+              class="auth-input" 
+              placeholder="••••••••••••" 
+              required 
+              autocomplete="current-password"
+            />
+            <button type="button" class="auth-toggle-pwd" onclick="togglePasswordVisibility('authPassword', this)" title="Show/Hide Password">
+              <i data-feather="eye" style="width: 16px; height: 16px;"></i>
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" id="btnAuthSubmit" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 12px; margin-top: 8px;">
+          <span>Sign In to Dashboard</span>
         </button>
       </form>
-      <p style="font-size: 11px; color: var(--text-subtle); margin-top: 16px;">
-        Default Master PIN: <strong>1234</strong>
+
+      <!-- Magic Link Form (Hidden by default) -->
+      <form id="magicForm" style="display: none;" onsubmit="handleMagicLink(event)">
+        <div id="magicError" class="auth-alert error"></div>
+        <div id="magicSuccess" class="auth-alert success"></div>
+
+        <div class="auth-field">
+          <label class="auth-label" for="magicEmail">Admin Email</label>
+          <div class="auth-input-wrapper">
+            <i data-feather="mail" class="auth-input-icon"></i>
+            <input 
+              type="email" 
+              id="magicEmail" 
+              class="auth-input" 
+              placeholder="admin@raaga.me" 
+              required 
+              autocomplete="email"
+            />
+          </div>
+        </div>
+
+        <p style="font-size: 12px; color: var(--text-subtle); margin-bottom: 16px;">
+          A passwordless one-time login link will be sent to your admin email address.
+        </p>
+
+        <button type="submit" id="btnMagicSubmit" class="btn btn-primary" style="width: 100%; justify-content: center; padding: 12px;">
+          <span>Send Magic Link</span>
+        </button>
+      </form>
+
+      <p style="font-size: 11px; color: var(--text-subtle); text-align: center; margin-top: 20px;">
+        Secured with Supabase Authentication & Row-Level Security
       </p>
     </div>
   </div>
@@ -744,13 +1053,21 @@
           <i data-feather="clock" style="width: 14px; height: 14px;"></i>
           Clean Stale
         </button>
+        <button id="btnCleanDuplicates" class="btn btn-secondary" onclick="cleanDuplicateUsers()" title="Merge duplicate users and purge outdated duplicate rows from Supabase">
+          <i data-feather="user-check" style="width: 14px; height: 14px;"></i>
+          Clean Duplicates
+        </button>
         <button class="btn btn-secondary" onclick="exportDataJson()">
           <i data-feather="download" style="width: 14px; height: 14px;"></i>
           Export
         </button>
-        <button class="btn btn-secondary" onclick="lockDashboard()" title="Lock Dashboard">
-          <i data-feather="lock" style="width: 14px; height: 14px;"></i>
-        </button>
+        <div class="admin-user-badge" id="adminUserBadge" style="display: none;">
+          <div class="admin-user-avatar" id="adminUserAvatar">A</div>
+          <span class="admin-user-email" id="adminUserEmail">admin@raaga.me</span>
+          <button class="btn btn-icon-only btn-secondary" onclick="signOutAdmin()" title="Sign Out">
+            <i data-feather="log-out" style="width: 13px; height: 13px;"></i>
+          </button>
+        </div>
       </div>
     </header>
 
@@ -860,51 +1177,280 @@
     const SUPABASE_URL = "https://qbqnlmfdmfayeztagvkj.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFicW5sbWZkbWZheWV6dGFndmtqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYyMDAzNDksImV4cCI6MjEwMTc3NjM0OX0.Xjj4PQmu1LLYu7Yk0XiijVEDqzd4PqSsZzACaKkWLXk";
     
-    const MASTER_PIN = "1234"; // Default admin PIN (can be customized)
+    // Init Supabase Client with persistent session handling
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true
+      }
+    });
 
-    // Init Supabase Client
-    let supabaseClient = null;
+    let currentAdminUser = null;
     let activityData = [];
     let currentFilter = 'all';
 
-    // PIN Protection
-    function checkAuth() {
-      const isAuthed = sessionStorage.getItem("raaga_admin_auth") === "true";
-      const pinModal = document.getElementById("pinModal");
-      if (!isAuthed) {
-        pinModal.style.display = "flex";
-      } else {
-        pinModal.style.display = "none";
-        initDashboard();
-      }
+    // UI Tab Switcher
+    function switchAuthTab(tab) {
+      const isPwd = tab === 'password';
+      document.getElementById('tabPassword').classList.toggle('active', isPwd);
+      document.getElementById('tabMagic').classList.toggle('active', !isPwd);
+      document.getElementById('passwordForm').style.display = isPwd ? 'block' : 'none';
+      document.getElementById('magicForm').style.display = isPwd ? 'none' : 'block';
+      hideAuthAlerts();
     }
 
-    function handlePinSubmit(e) {
+    function togglePasswordVisibility(inputId, btn) {
+      const input = document.getElementById(inputId);
+      if (!input) return;
+      const isPassword = input.type === 'password';
+      input.type = isPassword ? 'text' : 'password';
+      btn.innerHTML = `<i data-feather="${isPassword ? 'eye-off' : 'eye'}" style="width: 16px; height: 16px;"></i>`;
+      feather.replace();
+    }
+
+    function hideAuthAlerts() {
+      ['authError', 'authSuccess', 'magicError', 'magicSuccess'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.style.display = 'none';
+          el.textContent = '';
+        }
+      });
+    }
+
+    function showAuthAlert(id, message, isError = true) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = message;
+      el.style.display = 'flex';
+      el.className = `auth-alert ${isError ? 'error' : 'success'}`;
+    }
+
+    // Password Sign In Handler
+    async function handlePasswordLogin(e) {
       e.preventDefault();
-      const enteredPin = document.getElementById("pinInput").value;
-      const errorDiv = document.getElementById("pinError");
-      if (enteredPin === MASTER_PIN) {
-        sessionStorage.setItem("raaga_admin_auth", "true");
-        document.getElementById("pinModal").style.display = "none";
-        errorDiv.style.display = "none";
-        initDashboard();
-      } else {
-        errorDiv.style.display = "block";
-        document.getElementById("pinInput").value = "";
+      hideAuthAlerts();
+      const email = document.getElementById('authEmail').value.trim();
+      const password = document.getElementById('authPassword').value;
+      const submitBtn = document.getElementById('btnAuthSubmit');
+
+      if (!email || !password) {
+        showAuthAlert('authError', 'Please enter both email and password.');
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<div class="spinner"></div> Signing in...';
+
+      try {
+        const { data, error } = await supabaseClient.auth.signInWithPassword({
+          email,
+          password
+        });
+
+        if (error) throw error;
+        if (data && data.user) {
+          onAuthSuccess(data.user);
+        }
+      } catch (err) {
+        console.error('Login error:', err);
+        showAuthAlert('authError', err.message || 'Authentication failed. Please verify credentials.');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<span>Sign In to Dashboard</span>';
       }
     }
 
-    function lockDashboard() {
-      sessionStorage.removeItem("raaga_admin_auth");
-      document.getElementById("pinModal").style.display = "flex";
-      document.getElementById("pinInput").value = "";
+    // Magic Link Sign In Handler
+    async function handleMagicLink(e) {
+      e.preventDefault();
+      hideAuthAlerts();
+      const email = document.getElementById('magicEmail').value.trim();
+      const submitBtn = document.getElementById('btnMagicSubmit');
+
+      if (!email) {
+        showAuthAlert('magicError', 'Please enter your email address.');
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<div class="spinner"></div> Sending link...';
+
+      try {
+        const { error } = await supabaseClient.auth.signInWithOtp({
+          email,
+          options: {
+            emailRedirectTo: window.location.origin + window.location.pathname
+          }
+        });
+
+        if (error) throw error;
+        showAuthAlert('magicSuccess', 'Magic link sent! Please check your email inbox to proceed.', false);
+      } catch (err) {
+        console.error('Magic link error:', err);
+        showAuthAlert('magicError', err.message || 'Failed to send magic link.');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<span>Send Magic Link</span>';
+      }
     }
 
-    // Initialize Dashboard
+    // Auth State Manager
+    async function checkAuth() {
+      try {
+        const { data: { session }, error } = await supabaseClient.auth.getSession();
+        if (error) console.warn('getSession error:', error);
+
+        if (session && session.user) {
+          onAuthSuccess(session.user);
+        } else {
+          showAuthModal();
+        }
+      } catch (e) {
+        console.error('Auth verification failed:', e);
+        showAuthModal();
+      }
+
+      // Listen for auth state transitions (login, logout, token refresh, magic link redirect)
+      supabaseClient.auth.onAuthStateChange((event, session) => {
+        if (event === 'SIGNED_IN' && session?.user) {
+          onAuthSuccess(session.user);
+        } else if (event === 'SIGNED_OUT') {
+          showAuthModal();
+        }
+      });
+    }
+
+    function onAuthSuccess(user) {
+      currentAdminUser = user;
+      document.getElementById('authModal').style.display = 'none';
+
+      // Update Header with Admin user info
+      const badge = document.getElementById('adminUserBadge');
+      const emailEl = document.getElementById('adminUserEmail');
+      const avatarEl = document.getElementById('adminUserAvatar');
+
+      if (badge && emailEl) {
+        badge.style.display = 'inline-flex';
+        emailEl.textContent = user.email || 'Admin';
+        if (avatarEl) {
+          avatarEl.textContent = (user.email || 'A').charAt(0).toUpperCase();
+        }
+      }
+
+      initDashboard();
+    }
+
+    function showAuthModal() {
+      currentAdminUser = null;
+      document.getElementById('authModal').style.display = 'flex';
+      const badge = document.getElementById('adminUserBadge');
+      if (badge) badge.style.display = 'none';
+
+      // Teardown realtime if previously connected
+      if (realtimeChannel) {
+        try { supabaseClient.removeChannel(realtimeChannel); } catch (e) {}
+        realtimeChannel = null;
+      }
+      if (window._staleCleanerInterval) {
+        clearInterval(window._staleCleanerInterval);
+        window._staleCleanerInterval = null;
+      }
+      feather.replace();
+    }
+
+    async function signOutAdmin() {
+      try {
+        await supabaseClient.auth.signOut();
+      } catch (err) {
+        console.error('Sign out failed:', err);
+      }
+      showAuthModal();
+    }
+
+    // Toast notification display helper
+    function showToast(message, type = 'info') {
+      let container = document.getElementById('toastContainer');
+      if (!container) {
+        container = document.createElement('div');
+        container.id = 'toastContainer';
+        container.className = 'toast-container';
+        document.body.appendChild(container);
+      }
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      const iconName = type === 'success' ? 'check-circle' : (type === 'error' ? 'alert-triangle' : 'info');
+      toast.innerHTML = `<i data-feather="${iconName}" style="width: 16px; height: 16px; flex-shrink: 0;"></i><span>${escapeHtml(message)}</span>`;
+      container.appendChild(toast);
+      feather.replace();
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(10px)';
+        setTimeout(() => toast.remove(), 350);
+      }, 4500);
+    }
+
+    // Determine unique identity key: Registered users are identified by their normalized account name;
+    // Guest users are identified by their user_tag (e.g., AETH-XXXX).
+    function getUserIdentityKey(item) {
+      if (!item) return '';
+      const rawName = (item.user_name || '').trim();
+      const isRegistered = rawName && !rawName.toLowerCase().startsWith('listener ') && rawName.toLowerCase() !== 'guest';
+      if (isRegistered) {
+        return 'user:' + rawName.toLowerCase().replace(/\s+/g, ' ');
+      }
+      const tag = (item.user_tag || '').trim().toUpperCase();
+      return tag ? 'tag:' + tag : '';
+    }
+
+    // Deduplicate an array of activity records across updates/tags
+    function deduplicateActivityRecords(records) {
+      const groups = new Map();
+
+      // Ensure records are ordered by updated_at descending so the newest playback activity takes priority
+      const sorted = [...records].sort((a, b) => {
+        const timeA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+        const timeB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+        return timeB - timeA;
+      });
+
+      sorted.forEach(record => {
+        const key = getUserIdentityKey(record);
+        if (!key) return;
+
+        if (!groups.has(key)) {
+          groups.set(key, { ...record, previous_tags: [] });
+        } else {
+          const primary = groups.get(key);
+
+          // Track previous session tag(s)
+          if (record.user_tag && record.user_tag !== primary.user_tag) {
+            if (!primary.previous_tags) primary.previous_tags = [];
+            if (!primary.previous_tags.includes(record.user_tag)) {
+              primary.previous_tags.push(record.user_tag);
+            }
+          }
+
+          // Always preserve the earliest joined_at date across all updates
+          const msPrimary = primary.joined_at ? new Date(primary.joined_at).getTime() : Infinity;
+          const msOlder = record.joined_at ? new Date(record.joined_at).getTime() : Infinity;
+          if (msOlder < msPrimary && !isNaN(msOlder)) {
+            primary.joined_at = record.joined_at;
+          }
+
+          // Preserve fallback fields if primary is missing them
+          if (!primary.cover_url && record.cover_url) primary.cover_url = record.cover_url;
+          if (!primary.duration_text && record.duration_text) primary.duration_text = record.duration_text;
+          if (!primary.album_name && record.album_name) primary.album_name = record.album_name;
+        }
+      });
+
+      return Array.from(groups.values());
+    }
+
+    // Initialize Dashboard after verified authentication
     async function initDashboard() {
-      if (!supabaseClient) {
-        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-      }
       feather.replace();
       // Fetch initial dataset first to populate UI
       await fetchLiveActivity();
@@ -912,6 +1458,9 @@
 
       // Automatically prune ghost sessions (>15 min) in background
       cleanStaleSessions(true);
+
+      // Automatically clean and merge any duplicate user records in background
+      cleanDuplicateUsers(true);
 
       // Periodically clean stale sessions in the background every 60 seconds
       if (!window._staleCleanerInterval) {
@@ -921,7 +1470,7 @@
       }
     }
 
-    // Fetch initial dataset (paginated to load ALL users, no 100 limit cap!)
+    // Fetch initial dataset (paginated to load ALL users, fully deduplicated!)
     async function fetchLiveActivity() {
       const refreshBtn = document.getElementById("btnRefresh");
       if (refreshBtn) refreshBtn.classList.add("loading");
@@ -946,15 +1495,8 @@
           if (from >= 10000) break; // safety upper bound
         }
 
-        // Guarantee 100% unique users: keep latest activity per user_tag
-        const uniqueMap = new Map();
-        allRecords.forEach(item => {
-          const tag = (item.user_tag || '').trim();
-          if (tag && !uniqueMap.has(tag)) {
-            uniqueMap.set(tag, item);
-          }
-        });
-        activityData = Array.from(uniqueMap.values());
+        // Guarantee 100% unique users: merge updates and tags per user identity
+        activityData = deduplicateActivityRecords(allRecords);
         updateDashboardUI();
         setConnectionState(true, "Realtime Connected");
       } catch (err) {
@@ -1004,12 +1546,107 @@
 
         if (error) {
           console.error("Failed to clean stale sessions:", error);
-          if (!silent) alert("Error: " + error.message);
+          if (!silent) showToast("Error cleaning stale sessions: " + error.message, "error");
         } else {
           await fetchLiveActivity();
         }
       } catch (err) {
         console.error("Clean stale failed:", err);
+      } finally {
+        if (btn && !silent) btn.classList.remove("loading");
+      }
+    }
+
+    // Clean & merge duplicate user records in Supabase database
+    async function cleanDuplicateUsers(silent = false) {
+      const btn = document.getElementById("btnCleanDuplicates");
+      if (btn && !silent) btn.classList.add("loading");
+
+      try {
+        let allRaw = [];
+        let from = 0;
+        const PAGE_SIZE = 1000;
+
+        while (true) {
+          const { data, error } = await supabaseClient
+            .from("user_activity")
+            .select("user_tag, user_name, updated_at, joined_at")
+            .order("updated_at", { ascending: false })
+            .range(from, from + PAGE_SIZE - 1);
+
+          if (error) throw error;
+          if (!data || data.length === 0) break;
+          allRaw = allRaw.concat(data);
+          if (data.length < PAGE_SIZE) break;
+          from += PAGE_SIZE;
+          if (from >= 10000) break;
+        }
+
+        const groups = new Map();
+        allRaw.forEach(r => {
+          const key = getUserIdentityKey(r);
+          if (!key) return;
+          if (!groups.has(key)) groups.set(key, []);
+          groups.get(key).push(r);
+        });
+
+        const staleTagsToDelete = [];
+        const updatesToApply = [];
+
+        groups.forEach((records) => {
+          if (records.length > 1) {
+            // First record has the latest updated_at (primary)
+            const primary = records[0];
+            const others = records.slice(1);
+
+            let earliestJoined = primary.joined_at;
+            let earliestMs = primary.joined_at ? new Date(primary.joined_at).getTime() : Infinity;
+
+            others.forEach(oth => {
+              if (oth.user_tag) staleTagsToDelete.push(oth.user_tag);
+              const ms = oth.joined_at ? new Date(oth.joined_at).getTime() : Infinity;
+              if (ms < earliestMs && !isNaN(ms)) {
+                earliestMs = ms;
+                earliestJoined = oth.joined_at;
+              }
+            });
+
+            if (earliestJoined && earliestJoined !== primary.joined_at) {
+              updatesToApply.push({ user_tag: primary.user_tag, joined_at: earliestJoined });
+            }
+          }
+        });
+
+        if (staleTagsToDelete.length === 0) {
+          if (!silent) showToast("All users are 100% unique! No duplicate records found in database.", "success");
+          return;
+        }
+
+        // Apply earliest joined_at updates to preserve authentic join date
+        for (const update of updatesToApply) {
+          await supabaseClient
+            .from("user_activity")
+            .update({ joined_at: update.joined_at })
+            .eq("user_tag", update.user_tag);
+        }
+
+        // Delete stale duplicate rows in batches
+        const BATCH_SIZE = 50;
+        for (let i = 0; i < staleTagsToDelete.length; i += BATCH_SIZE) {
+          const batch = staleTagsToDelete.slice(i, i + BATCH_SIZE);
+          await supabaseClient
+            .from("user_activity")
+            .delete()
+            .in("user_tag", batch);
+        }
+
+        if (!silent) {
+          showToast(`Successfully merged and cleaned ${staleTagsToDelete.length} duplicate user record(s)!`, "success");
+        }
+        await fetchLiveActivity();
+      } catch (err) {
+        console.error("Clean duplicates error:", err);
+        if (!silent) showToast("Failed to clean duplicates: " + (err.message || err), "error");
       } finally {
         if (btn && !silent) btn.classList.remove("loading");
       }
@@ -1044,17 +1681,45 @@
     function handleRealtimeEvent(payload) {
       const { eventType, new: newRecord, old: oldRecord } = payload;
       
-      if ((eventType === "INSERT" || eventType === "UPDATE") && newRecord && newRecord.user_tag) {
-        const idx = activityData.findIndex(item => item.user_tag === newRecord.user_tag);
+      if ((eventType === "INSERT" || eventType === "UPDATE") && newRecord && (newRecord.user_tag || newRecord.user_name)) {
+        const key = getUserIdentityKey(newRecord);
+        const idx = activityData.findIndex(item => getUserIdentityKey(item) === key);
+
         if (idx !== -1) {
-          activityData[idx] = { ...activityData[idx], ...newRecord };
+          // Merge onto existing active user card (preventing duplicate user creation!)
+          const existing = activityData[idx];
+          const previousTags = existing.previous_tags ? [...existing.previous_tags] : [];
+          if (existing.user_tag && existing.user_tag !== newRecord.user_tag && !previousTags.includes(existing.user_tag)) {
+            previousTags.push(existing.user_tag);
+          }
+
+          // Always preserve the earliest joined_at date across app updates
+          let joinedAt = newRecord.joined_at || existing.joined_at;
+          const msExisting = existing.joined_at ? new Date(existing.joined_at).getTime() : Infinity;
+          const msNew = newRecord.joined_at ? new Date(newRecord.joined_at).getTime() : Infinity;
+          if (msExisting < msNew && !isNaN(msExisting)) {
+            joinedAt = existing.joined_at;
+          }
+
+          activityData[idx] = {
+            ...existing,
+            ...newRecord,
+            joined_at: joinedAt,
+            previous_tags: previousTags
+          };
         } else {
-          activityData.unshift(newRecord);
+          activityData.unshift({ ...newRecord, previous_tags: [] });
         }
       } else if (eventType === "DELETE") {
         const targetTag = (oldRecord && oldRecord.user_tag) || (newRecord && newRecord.user_tag);
         if (targetTag) {
-          activityData = activityData.filter(item => item.user_tag !== targetTag);
+          activityData = activityData.filter(item => {
+            if (item.user_tag === targetTag) return false;
+            if (item.previous_tags && item.previous_tags.includes(targetTag)) {
+              item.previous_tags = item.previous_tags.filter(t => t !== targetTag);
+            }
+            return true;
+          });
         }
       }
 
@@ -1203,7 +1868,10 @@
                     <h4>${escapeHtml(rawName || "Listener " + (item.user_tag ? item.user_tag.replace('AETH-', '') : 'Guest'))}</h4>
                     <span class="user-role-badge ${isRegistered ? 'member' : 'guest'}">${isRegistered ? 'Verified' : 'Guest'}</span>
                   </div>
-                  <span class="user-tag">${escapeHtml(item.user_tag || "AETH-????")}</span>
+                  <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                    <span class="user-tag ${item.previous_tags?.length ? 'has-aliases' : ''}" title="${item.previous_tags?.length ? 'Current active tag. Merged from ' + item.previous_tags.join(', ') : ''}">${escapeHtml(item.user_tag || "AETH-????")}</span>
+                    ${item.previous_tags?.length ? `<span class="alias-badge" title="App updated session: previously ${item.previous_tags.join(', ')}">⟳ Updated</span>` : ''}
+                  </div>
                 </div>
               </div>
               <div class="activity-badge ${badgeClass}">
@@ -1275,7 +1943,10 @@
                 <span style="font-weight: 700; color: #fff;">${escapeHtml(rawName || "Listener " + (item.user_tag ? item.user_tag.replace('AETH-', '') : 'Guest'))}</span>
                 <span class="user-role-badge ${isRegistered ? 'member' : 'guest'}">${isRegistered ? 'Verified' : 'Guest'}</span>
               </div>
-              <span class="user-tag">${escapeHtml(item.user_tag || "AETH-????")}</span>
+              <div style="display: flex; align-items: center; gap: 4px; margin-top: 2px;">
+                <span class="user-tag ${item.previous_tags?.length ? 'has-aliases' : ''}">${escapeHtml(item.user_tag || "AETH-????")}</span>
+                ${item.previous_tags?.length ? `<span class="alias-badge" title="App updated session: previously ${item.previous_tags.join(', ')}">⟳ Updated</span>` : ''}
+              </div>
             </td>
             <td>
               <div style="display: flex; flex-direction: column;">
@@ -1316,11 +1987,20 @@
       }
     }
 
-    function recordUserFirstSeen(userTag, timestamp) {
-      if (!userTag || !timestamp) return;
+    function recordUserFirstSeen(item, timestamp) {
+      if (!item || !timestamp) return;
+      const identityKey = getUserIdentityKey(item);
       const reg = getFirstSeenRegistry();
-      if (!reg[userTag]) {
-        reg[userTag] = timestamp;
+      let changed = false;
+      if (identityKey && !reg[identityKey]) {
+        reg[identityKey] = timestamp;
+        changed = true;
+      }
+      if (item.user_tag && !reg[item.user_tag]) {
+        reg[item.user_tag] = timestamp;
+        changed = true;
+      }
+      if (changed) {
         try {
           localStorage.setItem(FIRST_SEEN_STORAGE_KEY, JSON.stringify(reg));
         } catch (e) {}
@@ -1330,19 +2010,23 @@
     function resolveJoinedDate(item) {
       if (!item) return "";
       if (item.joined_at) {
-        recordUserFirstSeen(item.user_tag, item.joined_at);
+        recordUserFirstSeen(item, item.joined_at);
         return item.joined_at;
       }
       if (item.created_at) {
-        recordUserFirstSeen(item.user_tag, item.created_at);
+        recordUserFirstSeen(item, item.created_at);
         return item.created_at;
       }
       const reg = getFirstSeenRegistry();
-      if (reg[item.user_tag]) {
+      const identityKey = getUserIdentityKey(item);
+      if (identityKey && reg[identityKey]) {
+        return reg[identityKey];
+      }
+      if (item.user_tag && reg[item.user_tag]) {
         return reg[item.user_tag];
       }
       const fallback = item.updated_at || new Date().toISOString();
-      recordUserFirstSeen(item.user_tag, fallback);
+      recordUserFirstSeen(item, fallback);
       return fallback;
     }
 

@@ -16,6 +16,7 @@ import {
 import { ExplicitBadge } from '@/components/music/ExplicitBadge';
 import { LosslessBadge } from '@/components/music/LosslessBadge';
 import { FavoriteButton } from '@/components/music/FavoriteButton';
+import { TrackMenu } from '@/components/music/TrackMenu';
 import { albumHref } from '@/components/music/links';
 import { MotionArtwork } from '@/components/music/MotionArtwork';
 import { VideoSurface } from '@/components/music/VideoSurface';
@@ -364,6 +365,13 @@ export function FullScreenPlayer() {
               className="grid size-8 flex-none place-items-center rounded-full bg-quinary text-primary hover:bg-quaternary"
               size={18}
             />
+            {track && (
+              <TrackMenu
+                track={track}
+                className="grid size-8 flex-none place-items-center rounded-full bg-quinary text-primary hover:bg-quaternary"
+                placement="above-end"
+              />
+            )}
           </div>
 
           <Scrubber />
