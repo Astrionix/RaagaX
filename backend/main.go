@@ -1159,8 +1159,25 @@ func startHeartbeatTicker() {
 		for _, p := range store.All() {
 			if len(hubInst.MembersOnline(p.Code)) > 0 {
 				p.Lock()
+				var qf map[string]interface{}
+				if p.Playback.IsPlaying && p.Playback.Track != nil && p.Playback.Track.DurationMs != nil && *p.Playback.Track.DurationMs > 0 {
+					elapsed := now - p.Playback.AnchorMs
+					if elapsed < 0 {
+						elapsed = 0
+					}
+					pos := p.Playback.PositionMs + elapsed
+					if pos >= *p.Playback.Track.DurationMs+2500 {
+						if p.Playback.Step(nil, 1, nil) {
+							p.Touch()
+							qf = queueFrame(p)
+						}
+					}
+				}
 				sf := stateFrame(p)
 				p.Unlock()
+				if qf != nil {
+					hubInst.Broadcast(p.Code, qf, "")
+				}
 				hubInst.Broadcast(p.Code, sf, "")
 			}
 		}

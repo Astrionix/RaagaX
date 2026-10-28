@@ -442,6 +442,8 @@ export interface PartyHooks {
   onLockedTransport(playing: boolean): boolean;
   /** In a party, AutoPlay is the party's: one elected member tops up the shared queue. */
   inParty(): boolean;
+  /** Whether controls are currently locked for this client (listener in a host-only party). */
+  isLocked?(): boolean;
 }
 
 let partyHooks: PartyHooks | null = null;
@@ -989,6 +991,8 @@ function maybeCrossfade() {
   const front = decks[active]!;
   const remaining = front.audio.duration - front.audio.currentTime;
   if (!Number.isFinite(remaining) || remaining > state.crossfadeSec || remaining < 1) return;
+  // A guest in a host-locked party must not crossfade on their own ahead of the party.
+  if (partyHooks?.inParty() && partyHooks?.isLocked?.()) return;
   const plan = planNext(true);
   if (!plan || plan.kind !== 'index') return;
 
@@ -1012,6 +1016,7 @@ function maybeCrossfade() {
       usePlayer.setState((s) => ({ queue: plan.queue, index: plan.index, deck: s.deck + 1, status: 'playing' }));
       applyTrack(track, entry.track);
       afterTrackStarted();
+      intent();
 
       const length = Math.max(0.5, Math.min(from.audio.duration - from.audio.currentTime, usePlayer.getState().crossfadeSec)) * 1000;
       const started = performance.now();
@@ -1069,6 +1074,13 @@ function followVideo() {
   void import('@/playback/youtube/videoDeck').then((m) => m.followVideo(deck.engine, deck.audio));
 }
 
+const endedListeners = new Set<() => void>();
+/** Called when the track in front plays to its end, before the queue moves on; a repeat-one loop included. */
+export function onTrackEnded(listener: () => void): () => void {
+  endedListeners.add(listener);
+  return () => endedListeners.delete(listener);
+}
+
 /** The elements' own events are the source of truth for play state; only the deck in front speaks. */
 function bindElement(deck: Deck, n: number) {
   const element = deck.audio;
@@ -1085,6 +1097,7 @@ function bindElement(deck: Deck, n: number) {
   element.addEventListener('waiting', () => set('buffering'));
   element.addEventListener('ended', () => {
     if (!inFront() || holding) return;
+    endedListeners.forEach((listener) => listener());
     // The track ran out before the crossfade's next one could start: give up
     // on the fade and play the next track here. Waiting on it was silence for
     // as long as that load took, which on a slow or failing load (each client
@@ -1092,6 +1105,14 @@ function bindElement(deck: Deck, n: number) {
     if (fade?.pending) cancelCrossfade();
     // AutoMix's outgoing track ran out before the blend's midpoint (a stall): the incoming one is already playing.
     if (graph?.dj.forceHandoff()) return;
+    // In a party where controls are locked to the host, a guest must NOT auto-advance
+    // the local player on track end. Doing so causes the guest to play the next track
+    // for 3-5 seconds until reconcile pulls them back to the host's position on the old track.
+    // Instead, pause and wait for the host / party server to advance the track.
+    if (partyHooks?.inParty() && partyHooks?.isLocked?.()) {
+      usePlayer.setState({ status: 'buffering' });
+      return;
+    }
     // The queue moving on by itself is the user's intent, as far as a party is concerned.
     void advance(true).then(intent);
   });

@@ -92,12 +92,12 @@ export const ProductScreens: React.FC = () => {
     },
     {
       num: "10",
-      title: "Liquid Glass Audio Output (v1.9.7)",
+      title: "Liquid Glass Audio Output (v1.9.8)",
       tag: "IMPLEMENTED" as const,
       desc: "Instant audio router sheet available from both Home and expanded player. Dynamic frosted refraction with real-time Bluetooth, USB DAC, and internal speaker routing.",
       preview: "/screenshots/now_playing.png",
       highlight: "Real-time audio device enumeration with dynamic specular refraction",
-      meta: "v1.9.7 Feature • Android & Desktop",
+      meta: "v1.9.8 Feature • Android & Desktop",
     },
   ];
 

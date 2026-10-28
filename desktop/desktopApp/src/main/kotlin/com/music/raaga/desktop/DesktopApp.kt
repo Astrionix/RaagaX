@@ -7251,7 +7251,7 @@ private fun DesktopSettingsFooter(
 ) {
     val version = remember {
         System.getProperty("raaga.version")
-            ?: "1.9.7"
+            ?: "1.9.8"
     }
     val linkStyles = TextLinkStyles(
         style = SpanStyle(color = DesktopAccent, textDecoration = TextDecoration.Underline),

@@ -26,7 +26,7 @@ export function DesktopDownloadButton({ className = '' }: { className?: string }
       <a
         href={detected.url}
         download={detected.fileName}
-        className={`group grid size-9 sm:size-10 place-items-center rounded-full border-[0.75px] border-quaternary bg-quinary text-primary hover:bg-quaternary hover:text-white shadow-sm transition-all duration-200 active:scale-95 touch-manipulation select-none cursor-pointer ${className}`}
+        className={`group grid size-10 place-items-center rounded-full border-[0.75px] border-quaternary bg-quinary text-primary hover:bg-quaternary hover:text-primary shadow-sm transition-all duration-200 active:scale-95 touch-manipulation select-none cursor-pointer ${className}`}
         title={`Download Raaga for ${detected.name} (Right-click for other platforms)`}
         aria-label={`Download Raaga Desktop for ${detected.name}`}
         onContextMenu={(e) => {
