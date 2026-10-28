@@ -556,18 +556,13 @@ class PartySync(
 
         if (exo.currentMediaItem?.mediaId != track.videoId) {
             val localCurrentId = exo.currentMediaItem?.mediaId
-            val nextPartyTrack = party.queue.items.getOrNull(party.playback.queueIndex + 1)
-            // Auto-advance guard: if the local player has moved to the next track in the
-            // party queue (or any subsequent upcoming track in the queue) while the party
-            // is playing, and controls are not locked, this device should NOT be yanked
-            // backward to the old track by load(party). Instead, allow the local advance
-            // to publish setTrack.
-            val isUpcomingQueueTrack = localCurrentId != null && !party.controlsLocked &&
-                (localCurrentId == nextPartyTrack?.videoId ||
-                    party.queue.items.drop((party.playback.queueIndex + 1).coerceAtLeast(0))
-                        .any { it.videoId == localCurrentId })
-
-            if (isUpcomingQueueTrack) {
+            val isTargetNewer = target.seq > alignedSeq
+            // When controls are not locked, if the party/server has NOT published a newer
+            // playback control (isTargetNewer is false) and this device is playing another track,
+            // this device legitimately advanced or selected a new track.
+            // Do NOT yank it backward to the old party track with load(party); trigger onLocalIntent()
+            // to publish the new track to the party.
+            if (!party.controlsLocked && !isTargetNewer && localCurrentId != null) {
                 releaseNudge()
                 onLocalIntent()
                 return
@@ -834,6 +829,11 @@ class PartySync(
             // much. Taken beforehand, every track change would start this device
             // a little behind and then be hauled forward by a correcting seek.
             val startAt = ListenTogether.partyPositionMs() ?: party.playback.positionMs
+            alignedSeq = party.playback.seq
+            lastAnchorMs = party.playback.anchorMs
+            lastPositionMs = party.playback.positionMs
+            lastTrackId = track.videoId
+            lastIsPlaying = party.playback.isPlaying
             exo.setMediaItems(items, startIndex, startAt)
             exo.prepare()
             // Not started here even when the party is playing: the resume may be
@@ -1054,6 +1054,7 @@ class PartySync(
     private fun onLeftParty() {
         Log.i(TAG, "left party, restoring personal queue if stashed")
         loadingVideoId = null
+        alignedSeq = -1L
         focusLost = false
         rejoining = false
         val stashed = PartyPersonalQueueStash.load()

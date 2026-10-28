@@ -602,17 +602,14 @@ class LocalJamHostServer(
                     runCatching { json.decodeFromJsonElement(PartyTrack.serializer(), it) }.getOrNull()
                 } ?: emptyList()
                 val requestedIdx = frame["queueIndex"]?.jsonPrimitive?.intOrNull ?: -1
-                // The playing track decides the index, not the sender's idea of it
-                // (the cloud server does the same). Two members changing the song at
-                // once each send an index measured against their *own* queue; taking
-                // it at face value left the index pointing at a different song than
-                // the one playing, and everything that works from the index — Play
-                // next, Clear, the vote reordering — then acted on the wrong place.
-                val qIdx = playback.track
-                    ?.let { current -> items.indexOfFirst { it.videoId == current.videoId } }
-                    ?.takeIf { it >= 0 }
-                    ?: requestedIdx.takeIf { it in items.indices }
-                    ?: -1
+                val qIdx = if (requestedIdx in items.indices) {
+                    requestedIdx
+                } else {
+                    playback.track
+                        ?.let { current -> items.indexOfFirst { it.videoId == current.videoId } }
+                        ?.takeIf { it >= 0 }
+                        ?: -1
+                }
 
                 queue = PartyQueue(
                     seq = queue.seq + 1,

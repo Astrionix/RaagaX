@@ -945,9 +945,12 @@ class PlaybackService : MediaLibraryService() {
             // keeping the timeline clean and ensuring REPEAT_MODE_ALL loops only CONTEXT items.
             QueueCoordinator.consumePlayedUserQueue(exoPlayer)
 
-            // Any local transition (auto-advance, skip, repeat) notifies partySync
+            // When ExoPlayer auto-advances naturally to the next track, notify partySync
             // so this device's intent is published and reconcile quiet window is armed.
-            partySync?.onLocalIntent()
+            // Programmatic playlist changes (e.g. PartySync.load) must not trigger local intent.
+            if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
+                partySync?.onLocalIntent()
+            }
             autoplayLoadJob?.cancel()
             autoplayLoadJob = null
             autoplaySeed = null
@@ -2273,7 +2276,6 @@ class PlaybackService : MediaLibraryService() {
             reason = Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED,
             alreadyAudible = true,
         )
-        partySync?.onLocalIntent()
     }
 
     /** Reopens the current song through YouTube and remembers that choice. */

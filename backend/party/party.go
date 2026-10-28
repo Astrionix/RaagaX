@@ -224,11 +224,13 @@ func (p *PlaybackState) SetTrack(
 }
 
 func (p *PlaybackState) SetQueue(memberId *string, queue []*Track, queueIndex int) {
-	if p.Track != nil {
-		for i, item := range queue {
-			if item.VideoId == p.Track.VideoId {
-				queueIndex = i
-				break
+	if queueIndex < 0 || queueIndex >= len(queue) {
+		if p.Track != nil {
+			for i, item := range queue {
+				if item.VideoId == p.Track.VideoId {
+					queueIndex = i
+					break
+				}
 			}
 		}
 	}
