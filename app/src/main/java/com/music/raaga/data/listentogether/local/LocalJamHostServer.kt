@@ -379,7 +379,18 @@ class LocalJamHostServer(
         }
 
         val authHeader = headers["authorization"].orEmpty()
-        val token = authHeader.removePrefix("Bearer ").trim()
+        val wsProtoHeader = headers["sec-websocket-protocol"].orEmpty()
+        var token = authHeader.removePrefix("Bearer ").trim()
+        if (token.isEmpty() && wsProtoHeader.isNotEmpty()) {
+            val parts = wsProtoHeader.split(",")
+            for (p in parts) {
+                val trimmed = p.trim()
+                if (trimmed.startsWith("raaga.token.")) {
+                    token = trimmed.removePrefix("raaga.token.").trim()
+                    break
+                }
+            }
+        }
         val memberId = tokens[token]
 
         if (memberId == null) {
@@ -390,9 +401,11 @@ class LocalJamHostServer(
 
         // Perform RFC 6455 Handshake
         val acceptKey = makeAcceptKey(clientKey)
+        val protoHeader = if (wsProtoHeader.contains("raaga.v1")) "Sec-WebSocket-Protocol: raaga.v1\r\n" else ""
         val handshakeResp = "HTTP/1.1 101 Switching Protocols\r\n" +
                 "Upgrade: websocket\r\n" +
                 "Connection: Upgrade\r\n" +
+                protoHeader +
                 "Sec-WebSocket-Accept: $acceptKey\r\n\r\n"
 
         outputStream.write(handshakeResp.toByteArray(StandardCharsets.UTF_8))
@@ -623,7 +636,9 @@ class LocalJamHostServer(
                     updatedAtMs = now,
                 )
                 broadcastQueue()
-                broadcastState()
+                // Do not broadcastState() here: a track change is two controls (setQueue then setTrack).
+                // Broadcasting state now sends a torn frame with the OLD track, which causes clients
+                // to yank playback backwards before setTrack arrives. setTrack will broadcastState().
             }
 
             "queueAdd" -> {

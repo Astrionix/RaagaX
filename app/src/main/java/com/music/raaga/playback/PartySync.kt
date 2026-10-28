@@ -555,6 +555,24 @@ class PartySync(
         }
 
         if (exo.currentMediaItem?.mediaId != track.videoId) {
+            val localCurrentId = exo.currentMediaItem?.mediaId
+            val nextPartyTrack = party.queue.items.getOrNull(party.playback.queueIndex + 1)
+            // Auto-advance guard: if the local player has moved to the next track in the
+            // party queue (or any subsequent upcoming track in the queue) while the party
+            // is playing, and controls are not locked, this device should NOT be yanked
+            // backward to the old track by load(party). Instead, allow the local advance
+            // to publish setTrack.
+            val isUpcomingQueueTrack = localCurrentId != null && !party.controlsLocked &&
+                (localCurrentId == nextPartyTrack?.videoId ||
+                    party.queue.items.drop((party.playback.queueIndex + 1).coerceAtLeast(0))
+                        .any { it.videoId == localCurrentId })
+
+            if (isUpcomingQueueTrack) {
+                releaseNudge()
+                onLocalIntent()
+                return
+            }
+
             // A new track starts at the speed the user chose, not mid-nudge.
             releaseNudge()
             load(party)
@@ -887,10 +905,12 @@ class PartySync(
         val localItems = if (rawTrackIndex >= 0) {
             val pastAndCurrent = rawLocalItems.subList(0, rawTrackIndex + 1)
             val upcoming = rawLocalItems.subList(rawTrackIndex + 1, rawLocalItems.size)
-                .filter { it.queueTier != QueueTier.CONTEXT }
-            pastAndCurrent + upcoming
+            val nonContext = upcoming.filter { it.queueTier != QueueTier.CONTEXT }
+            val upcomingToUse = if (nonContext.isNotEmpty()) nonContext else upcoming.take(MAX_PARTY_UPCOMING_QUEUE)
+            pastAndCurrent + upcomingToUse
         } else {
-            rawLocalItems.filter { it.queueTier != QueueTier.CONTEXT }
+            val nonContext = rawLocalItems.filter { it.queueTier != QueueTier.CONTEXT }
+            if (nonContext.isNotEmpty()) nonContext else rawLocalItems.take(1 + MAX_PARTY_UPCOMING_QUEUE)
         }
 
         val localIds = localItems.map { it.mediaId }

@@ -945,14 +945,9 @@ class PlaybackService : MediaLibraryService() {
             // keeping the timeline clean and ensuring REPEAT_MODE_ALL loops only CONTEXT items.
             QueueCoordinator.consumePlayedUserQueue(exoPlayer)
 
-            // The queue moving on by itself. Nobody pressed anything, but it
-            // is still this device deciding what the party plays next, and no
-            // other path reports it: an automatic advance never passes through
-            // the session wrapper. A skip does pass through it, and is reported
-            // there; publishing is debounced, so being told twice costs nothing.
-            if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
-                partySync?.onLocalIntent()
-            }
+            // Any local transition (auto-advance, skip, repeat) notifies partySync
+            // so this device's intent is published and reconcile quiet window is armed.
+            partySync?.onLocalIntent()
             autoplayLoadJob?.cancel()
             autoplayLoadJob = null
             autoplaySeed = null
@@ -2278,6 +2273,7 @@ class PlaybackService : MediaLibraryService() {
             reason = Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED,
             alreadyAudible = true,
         )
+        partySync?.onLocalIntent()
     }
 
     /** Reopens the current song through YouTube and remembers that choice. */
@@ -2671,6 +2667,7 @@ class PlaybackService : MediaLibraryService() {
             reason = Player.MEDIA_ITEM_TRANSITION_REASON_AUTO,
             alreadyAudible = true,
         )
+        partySync?.onLocalIntent()
 
         // A crossfade starts the incoming item on the player that was idle, so
         // it never delivers onMediaItemTransition to playbackListener. Keep

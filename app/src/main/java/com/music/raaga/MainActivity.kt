@@ -1231,10 +1231,16 @@ private fun RaagaApp(
                     } else {
                         emptyList()
                     }
+                    val followingContextSongs = if (songs.size > 1 && index in songs.indices) {
+                        songs.subList(index + 1, songs.size).take(QueueCoordinator.MAX_PARTY_UPCOMING_QUEUE)
+                    } else {
+                        emptyList()
+                    }
                     val timeline = QueueCoordinator.buildPartyPlaybackQueue(
                         tappedSong = selectedSong,
                         source = source,
                         upcomingPartyTracks = upcomingPartyTracks,
+                        followingContextSongs = followingContextSongs,
                     )
                     c.playSongs(timeline, 0)
                 } else {
@@ -1287,9 +1293,9 @@ private fun RaagaApp(
     // Start with the video MediaItem so the main player is populated at once,
     // then resolve its catalogue counterpart behind the loading indicators.
     // A failed/identical match simply resumes this untouched video.
-    LaunchedEffect(player.song?.videoId, preferMusicOnly) {
+    LaunchedEffect(player.song?.videoId, preferMusicOnly, partyState.inParty) {
         val song = player.song ?: return@LaunchedEffect
-        if (preferMusicOnly && song.isVideo && song.videoId != keepVideoId) {
+        if (!partyState.inParty && preferMusicOnly && song.isVideo && song.videoId != keepVideoId) {
             switchToMusicOnly(song, pauseWhileResolving = true)
         }
     }

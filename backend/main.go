@@ -35,6 +35,7 @@ var (
 			origin := r.Header.Get("Origin")
 			return origin == "" || config.IsAllowedOrigin(origin)
 		},
+		Subprotocols: []string{"raaga.v1"},
 	}
 )
 
@@ -193,6 +194,16 @@ func parseBearerToken(r *http.Request) string {
 	parts := strings.SplitN(auth, " ", 2)
 	if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") {
 		return strings.TrimSpace(parts[1])
+	}
+	// Check Sec-WebSocket-Protocol for browser clients: ['raaga.v1', 'raaga.token.<token>']
+	proto := r.Header.Get("Sec-WebSocket-Protocol")
+	if proto != "" {
+		for _, item := range strings.Split(proto, ",") {
+			trimmed := strings.TrimSpace(item)
+			if strings.HasPrefix(trimmed, "raaga.token.") {
+				return strings.TrimPrefix(trimmed, "raaga.token.")
+			}
+		}
 	}
 	return ""
 }
@@ -860,6 +871,7 @@ func handleSocketFrame(p *party.Party, member *party.Member, sc *hub.SafeConn, f
 			return
 		}
 
+		playbackSeqBefore := p.Playback.Seq
 		queueBefore := p.Playback.QueueSeq
 		action, _ := frame["action"].(string)
 		success, errCode, errMsg := applyControl(p, member, action, frame)
@@ -869,7 +881,10 @@ func handleSocketFrame(p *party.Party, member *party.Member, sc *hub.SafeConn, f
 			if p.Playback.QueueSeq != queueBefore {
 				hubInst.Broadcast(p.Code, queueFrame(p), "")
 			}
-			hubInst.Broadcast(p.Code, stateFrame(p), "")
+			// Only broadcast state if playback state actually changed, or if not a pure setQueue
+			if p.Playback.Seq != playbackSeqBefore || action != protocol.ActionSetQueue {
+				hubInst.Broadcast(p.Code, stateFrame(p), "")
+			}
 			if action == protocol.ActionKick ||
 				action == protocol.ActionSetMaxMembers ||
 				action == protocol.ActionSetHostOnlyControl {

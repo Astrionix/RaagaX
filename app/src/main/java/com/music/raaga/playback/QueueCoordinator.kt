@@ -123,17 +123,21 @@ object QueueCoordinator {
         return listOf(oneOffEntry) + upcomingUserQueue
     }
 
+    const val MAX_PARTY_UPCOMING_QUEUE = 15
+
     /**
-     * Constructs a single-song playback timeline for Listen Together mode:
+     * Constructs a playback timeline for Listen Together mode:
      *
-     * Invariant: [Tapped Track (CONTEXT)] + [Upcoming Canonical Manual Party Tracks (USER_QUEUE)].
-     * Preceding and following context tracks from the album/playlist are excluded from the shared queue.
+     * Invariant: [Tapped Track (CONTEXT)] + [Upcoming Canonical Manual Party Tracks (USER_QUEUE)] + [Upcoming Context Tracks (CONTEXT)].
+     * Manual party tracks take priority. When an album or playlist is played, subsequent tracks
+     * up to [MAX_PARTY_UPCOMING_QUEUE] populate the upcoming queue to allow uninterrupted group listening.
      * Stale AutoPlay recommendations from the previous track are omitted.
      */
     fun buildPartyPlaybackQueue(
         tappedSong: Song,
         source: QueueSource,
         upcomingPartyTracks: List<PartyTrack>,
+        followingContextSongs: List<Song> = emptyList(),
     ): List<Song> {
         val entry = tappedSong.copy(
             playbackSource = source.title,
@@ -145,7 +149,12 @@ object QueueCoordinator {
             .filterNot { it.fromAutoplay }
             .map { it.toSong().asQueueEntry(QueueTier.USER_QUEUE) }
 
-        return listOf(entry) + manualUpcoming
+        val remainingCapacity = (MAX_PARTY_UPCOMING_QUEUE - manualUpcoming.size).coerceAtLeast(0)
+        val contextUpcoming = followingContextSongs
+            .take(remainingCapacity)
+            .map { it.asQueueEntry(QueueTier.CONTEXT) }
+
+        return listOf(entry) + manualUpcoming + contextUpcoming
     }
 
     /**
