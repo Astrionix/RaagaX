@@ -804,7 +804,7 @@ object ListenTogether {
     suspend fun createParty(
         nickname: String = nickname(),
         maxMembers: Int = 5,
-        preferLocal: Boolean = isWifiConnected(),
+        preferLocal: Boolean = false,
     ): Result<String> = switchMutex.withLock {
         if (preferLocal) {
             var localServerInstance: LocalJamHostServer? = null

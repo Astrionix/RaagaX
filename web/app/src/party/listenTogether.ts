@@ -159,9 +159,6 @@ export function serverCandidates(preferredBase?: string | null): string[] {
 export function idleServer(): string {
   const custom = partySettings().customServer;
   if (custom) return sanitizeServerUrl(custom) ?? DEFAULT_SERVER;
-  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-    return window.location.origin;
-  }
   return effectiveIdleServer;
 }
 
@@ -211,13 +208,21 @@ async function sha256(value: string): Promise<string> {
 async function identity(): Promise<Omit<JoinRequest, 'maxMembers' | 'autoplayEnabled'>> {
   const auth = ytAuthSnapshot();
   const active = auth.signedIn ? auth.active : null;
-  if (!active) throw new PartyError('not_signed_in', 'Sign in to YouTube Music to listen together.');
-  const name = partySettings().nickname.trim() || active.name;
+  const devId = deviceId();
+  const name =
+    partySettings().nickname.trim() ||
+    active?.name ||
+    `Web Listener ${devId.slice(-4).toUpperCase()}`;
+
+  const userId = active
+    ? (await sha256(`${active.authUser}:${active.id}`)).slice(0, 32)
+    : `usr_${devId.slice(-6).toLowerCase()}`;
+
   return {
-    userId: (await sha256(`${active.authUser}:${active.id}`)).slice(0, 32),
-    deviceId: deviceId(),
+    userId,
+    deviceId: devId,
     displayName: name,
-    avatarUrl: active.avatarUrl?.startsWith('http') ? active.avatarUrl : null,
+    avatarUrl: active?.avatarUrl?.startsWith('http') ? active.avatarUrl : null,
   };
 }
 

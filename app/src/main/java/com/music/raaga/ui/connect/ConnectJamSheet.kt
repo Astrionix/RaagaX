@@ -425,7 +425,7 @@ private fun JamTabContent(
     var explicitServerInput by remember { mutableStateOf<String?>(null) }
     var isJoining by remember { mutableStateOf(false) }
     var isCreating by remember { mutableStateOf(false) }
-    var preferLocal by remember { mutableStateOf(ListenTogether.isWifiConnected()) }
+    var preferLocal by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier.fillMaxWidth(),
