@@ -3008,11 +3008,12 @@ fun NowPlayingScreen(
             }
 
             // The transport rides midway between the two blocks it separates:
-            // the scrubber above it, and the volume bar and toggle row below,
-            // which sit close enough together to read as one. Both of its own
-            // gaps take half the spread, so on a tall screen it holds the
-            // centre rather than drifting up under the seek bar.
-            Spacer(Modifier.height(8.dp + controlSpread / 2))
+            // the scrubber above it, and the volume bar and toggle row below.
+            // When the volume bar is hidden, shift the transport controls (play,
+            // prev, next) down towards the actions row by absorbing the volume row
+            // height above it so it stays comfortably within thumb reach.
+            val topTransportGap = if (hideVolumeBar) (8.dp + VOLUME_ROW_HEIGHT) else 8.dp
+            Spacer(Modifier.height(topTransportGap + controlSpread / 2))
 
             TransportRow(
                 isPlaying = isPlaying,
@@ -3025,25 +3026,19 @@ fun NowPlayingScreen(
                 onNext = onNext,
             )
 
-            // Keep the volume slot's full footprint when its contents are
-            // hidden. Removing the slot itself shortened the controls by 50dp
-            // and moved every control below it. A display preference should not
-            // change the half-player's geometry.
-            Spacer(Modifier.height(12.dp + controlSpread / 2))
-
             if (!hideVolumeBar) {
+                Spacer(Modifier.height(12.dp + controlSpread / 2))
                 VolumeRow(
                     value = { volume.level.value },
                     onValueChange = onVolumeChange,
                     onValueChangeFinished = onVolumeChangeFinished,
                 )
+                // The volume slider already has 13dp below its drawn track.
+                // Balance that invisible inset with the caption gap below the icons.
+                Spacer(Modifier.height(6.dp))
             } else {
-                Spacer(Modifier.height(VOLUME_ROW_HEIGHT))
+                Spacer(Modifier.height(18.dp + controlSpread / 2))
             }
-
-            // The volume slider already has 13dp below its drawn track.
-            // Balance that invisible inset with the caption gap below the icons.
-            Spacer(Modifier.height(6.dp))
 
             playerActions()
             Spacer(Modifier.height(18.dp))
