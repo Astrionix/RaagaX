@@ -87,14 +87,10 @@ internal suspend fun renderLyricsShareCard(
     // The mark alone, at the top right — the same one the Replay carries, so
     // two of these cards still read as one family. Nothing else goes above
     // the passage: the picture is the verse, not a caption for it.
-    val brand = type.heading(46f, 0xE6FFFFFF.toInt()).apply {
-        textAlign = Paint.Align.RIGHT
-    }
-    canvas.drawText(BRAND, CARD_W - CARD_MARGIN, HEADER_BASELINE, brand)
     drawLogo(
         canvas,
         context,
-        CARD_W - CARD_MARGIN - brand.measureText(BRAND) - LOGO_GAP,
+        CARD_W - CARD_MARGIN,
         HEADER_BASELINE,
     )
 
