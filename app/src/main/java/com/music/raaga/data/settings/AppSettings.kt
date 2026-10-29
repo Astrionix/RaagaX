@@ -663,7 +663,14 @@ object AppSettings {
     val webdavUsername = MutableStateFlow("")
     val webdavPassword = MutableStateFlow("")
 
-    const val DEFAULT_SIGNATURE_API_URL = "https://yellow-king-f562.chandu3319r.workers.dev"
+    const val PRIMARY_SIGNATURE_API_URL = "https://proud-cascade-1654.de.deplexo.com"
+    const val SECONDARY_SIGNATURE_API_URL = "https://yellow-king-f562.chandu3319r.workers.dev"
+    const val DEFAULT_SIGNATURE_API_URL = PRIMARY_SIGNATURE_API_URL
+
+    val BUILTIN_SIGNATURE_ENDPOINTS = listOf(
+        PRIMARY_SIGNATURE_API_URL,
+        SECONDARY_SIGNATURE_API_URL,
+    )
 
     /** Custom endpoint for artist signatures API */
     val signatureApiUrl = MutableStateFlow(DEFAULT_SIGNATURE_API_URL)
@@ -1040,7 +1047,11 @@ object AppSettings {
         webdavUsername.value = prefs.getString(KEY_WEBDAV_USERNAME, "").orEmpty()
         webdavPassword.value = authStore.webdavPassword.orEmpty()
         val storedSigUrl = prefs.getString(KEY_SIGNATURE_API_URL, null)
-        signatureApiUrl.value = if (storedSigUrl.isNullOrBlank() || storedSigUrl.contains("signature.raaga.me")) {
+        signatureApiUrl.value = if (
+            storedSigUrl.isNullOrBlank() ||
+            storedSigUrl.contains("signature.raaga.me") ||
+            storedSigUrl == SECONDARY_SIGNATURE_API_URL
+        ) {
             DEFAULT_SIGNATURE_API_URL
         } else {
             storedSigUrl

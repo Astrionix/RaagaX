@@ -291,21 +291,24 @@ fun DetailScreen(
     val isArtist = page.type == BrowseType.ARTIST
     val isPlaylist = page.type == BrowseType.PLAYLIST
 
+    val signatureApiEnabled by AppSettings.signatureApiEnabled.collectAsStateWithLifecycle()
     val signatureApiUrl by AppSettings.signatureApiUrl.collectAsStateWithLifecycle()
     val signatureUpdates by ArtistSignatureRepository.updates.collectAsStateWithLifecycle()
     var signature by remember(page.browseId) { mutableStateOf<ArtistSignature?>(null) }
     val nameSettled = !page.title.looksLikeCredit() || page.songs !is UiState.Loading
-    LaunchedEffect(page.browseId, page.title, nameSettled, signatureApiUrl, signatureUpdates) {
-        if (!isArtist || !nameSettled) return@LaunchedEffect
-        if (signatureApiUrl.isBlank()) {
+    LaunchedEffect(page.browseId, page.title, nameSettled, signatureApiEnabled, signatureApiUrl, signatureUpdates) {
+        if (!isArtist || !nameSettled || !signatureApiEnabled) {
             signature = null
             return@LaunchedEffect
         }
         val backoff = listOf(0L, 3_000L, 10_000L)
-        for (wait in backoff) {
+        for ((index, wait) in backoff.withIndex()) {
             if (wait > 0) delay(wait)
-            signature = ArtistSignatureRepository.get(page.title) ?: signature
-            if (signature != null) return@LaunchedEffect
+            val fetched = ArtistSignatureRepository.get(page.title, forceRefresh = index > 0)
+            if (fetched != null) {
+                signature = fetched
+                return@LaunchedEffect
+            }
         }
     }
 

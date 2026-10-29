@@ -27,35 +27,66 @@ data class ArtistSignature(
 )
 
 /**
- * Name-keyed lookup against a custom base URL.
+ * Name-keyed lookup against built-in and custom signature endpoints.
  */
 object ArtistSignatureRepository {
     private val signatures = mutableMapOf<String, ArtistSignature?>()
     private val _updates = MutableStateFlow(0)
     val updates: StateFlow<Int> = _updates
 
-    suspend fun get(artistName: String): ArtistSignature? = withContext(Dispatchers.IO) {
+    suspend fun get(artistName: String, forceRefresh: Boolean = false): ArtistSignature? = withContext(Dispatchers.IO) {
         if (!AppSettings.signatureApiEnabled.value) return@withContext null
-        val baseUrl = AppSettings.signatureApiUrl.value.trim().trimEnd('/')
-            .ifBlank { AppSettings.DEFAULT_SIGNATURE_API_URL }
-        if (baseUrl.isBlank()) return@withContext null
         val key = artistName.normalized()
         if (key.isBlank()) return@withContext null
 
-        synchronized(signatures) {
-            if (signatures.containsKey(key)) return@withContext signatures[key]
+        if (!forceRefresh) {
+            synchronized(signatures) {
+                if (signatures.containsKey(key)) return@withContext signatures[key]
+            }
         }
 
         val encoded = runCatching { URLEncoder.encode(artistName, "UTF-8") }.getOrNull() ?: return@withContext null
-        val url = "$baseUrl/v1/artist/$encoded/signatures"
-        val body = runCatching { fetch(url) }.getOrNull()
-        val result = body?.let { parse(it) }
+
+        val customUrl = AppSettings.signatureApiUrl.value.trim().trimEnd('/')
+        val endpoints = buildList {
+            if (customUrl.isNotBlank()) add(customUrl)
+            for (builtin in AppSettings.BUILTIN_SIGNATURE_ENDPOINTS) {
+                if (!contains(builtin)) add(builtin)
+            }
+        }
+
+        var result: ArtistSignature? = null
+        for (baseUrl in endpoints) {
+            result = fetchSignatureFromBaseUrl(baseUrl, encoded)
+            if (result != null) break
+        }
 
         synchronized(signatures) {
             signatures[key] = result
         }
         _updates.value++
         result
+    }
+
+    private fun fetchSignatureFromBaseUrl(baseUrl: String, encodedArtist: String): ArtistSignature? {
+        val cleanBase = baseUrl.trim().trimEnd('/')
+        if (cleanBase.isBlank()) return null
+
+        val candidateUrls = when {
+            cleanBase.contains("deplexo.com") -> listOf("$cleanBase/v1/signatures?artist=$encodedArtist")
+            cleanBase.contains("workers.dev") -> listOf("$cleanBase/v1/artist/$encodedArtist/signatures")
+            else -> listOf(
+                "$cleanBase/v1/signatures?artist=$encodedArtist",
+                "$cleanBase/v1/artist/$encodedArtist/signatures",
+            )
+        }
+
+        for (url in candidateUrls) {
+            val body = runCatching { fetch(url) }.getOrNull() ?: continue
+            val parsed = parse(body)
+            if (parsed != null) return parsed
+        }
+        return null
     }
 
     fun clear() {
@@ -169,7 +200,7 @@ object ArtistSignatureRepository {
         val request = Request.Builder().url(url).get().build()
         Http.client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) return null
-            return response.body?.string()
+            return response.body.string()
         }
     }
 
