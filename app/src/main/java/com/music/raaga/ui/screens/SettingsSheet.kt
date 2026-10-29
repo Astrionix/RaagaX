@@ -1029,16 +1029,19 @@ fun SettingsScreen(
                     }
                 }
             }
-            val signatureApiUrl by AppSettings.signatureApiUrl.collectAsStateWithLifecycle()
+            val signatureApiEnabled by AppSettings.signatureApiEnabled.collectAsStateWithLifecycle()
             val signaturesTitle = stringResource(R.string.artist_signatures)
             row(signaturesTitle, "signature", "artist", "handwritten") {
                 SettingsRow(
                     icon = Icons.Rounded.Edit,
                     title = signaturesTitle,
-                    subtitle = signatureApiUrl.ifBlank {
-                        stringResource(R.string.artist_signatures_unconfigured)
+                    subtitle = stringResource(R.string.artist_signatures_description),
+                    trailing = {
+                        Switch(
+                            checked = signatureApiEnabled,
+                            onCheckedChange = AppSettings::setSignatureApiEnabled,
+                        )
                     },
-                    onClick = onArtistSignatures,
                 )
             }
             val syncedLyricsTitle = stringResource(R.string.synced_lyrics)

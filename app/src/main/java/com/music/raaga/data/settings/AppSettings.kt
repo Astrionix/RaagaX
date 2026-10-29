@@ -938,7 +938,7 @@ object AppSettings {
         onboardingComplete.value = prefs.getBoolean(KEY_ONBOARDING_COMPLETE, false)
         hideStatusBarInPlayer.value = prefs.getBoolean(KEY_HIDE_STATUS_BAR_IN_PLAYER, false)
         showQueueHistory.value = prefs.getBoolean(KEY_SHOW_QUEUE_HISTORY, false)
-        signatureApiEnabled.value = prefs.getBoolean(KEY_SIGNATURE_API_ENABLED, false)
+        signatureApiEnabled.value = prefs.getBoolean(KEY_SIGNATURE_API_ENABLED, true)
         showCacheFolder.value = prefs.getBoolean(KEY_SHOW_CACHE_FOLDER, false)
         dolbyAtmos.value = prefs.getBoolean(KEY_DOLBY_ATMOS, true)
         spatialAudio.value = prefs.getBoolean(KEY_SPATIAL_AUDIO, false)
@@ -2250,6 +2250,12 @@ object AppSettings {
         val trimmed = normalizeSignatureApiUrl(url)
         signatureApiUrl.value = trimmed
         prefs.edit().putString(KEY_SIGNATURE_API_URL, trimmed).apply()
+    }
+
+    fun setSignatureApiEnabled(enabled: Boolean) {
+        signatureApiEnabled.value = enabled
+        prefs.edit().putBoolean(KEY_SIGNATURE_API_ENABLED, enabled).apply()
+        com.music.raaga.data.canvas.ArtistSignatureRepository.clear()
     }
 }
 

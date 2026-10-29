@@ -35,7 +35,9 @@ object ArtistSignatureRepository {
     val updates: StateFlow<Int> = _updates
 
     suspend fun get(artistName: String): ArtistSignature? = withContext(Dispatchers.IO) {
+        if (!AppSettings.signatureApiEnabled.value) return@withContext null
         val baseUrl = AppSettings.signatureApiUrl.value.trim().trimEnd('/')
+            .ifBlank { AppSettings.DEFAULT_SIGNATURE_API_URL }
         if (baseUrl.isBlank()) return@withContext null
         val key = artistName.normalized()
         if (key.isBlank()) return@withContext null
