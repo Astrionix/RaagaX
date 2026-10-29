@@ -171,7 +171,7 @@ export default function ArtistPage() {
       {data.description && (
         <section className="mx-(--body-gutter) mt-3 mb-10" aria-label={`About ${data.name}`}>
           <h2 className="type-title-2-emphasized">About {data.name}</h2>
-          <p className="mt-2 max-w-[720px] type-body-tall whitespace-pre-line text-secondary">{data.description}</p>
+          <p className="mt-2 max-w-[720px] type-body-tall whitespace-pre-line text-secondary text-justify">{data.description}</p>
         </section>
       )}
     </>

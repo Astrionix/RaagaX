@@ -6069,6 +6069,7 @@ private fun DesktopArtistPage(
                                         blurb,
                                         color = DesktopSecondary,
                                         style = MaterialTheme.typography.bodyMedium,
+                                        textAlign = TextAlign.Justify,
                                         modifier = Modifier.padding(horizontal = DesktopPageGutter),
                                     )
                                 }

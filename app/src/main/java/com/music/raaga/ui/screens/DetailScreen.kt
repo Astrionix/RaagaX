@@ -186,8 +186,8 @@ private const val SEARCH_ITEM_INDEX = 1
 /** The inset the header text and the action pills share. */
 private val HEADER_GUTTER = PAGE_GUTTER + 14.dp
 
-/** Extra breathing room for the editorial copy on album and artist pages. */
-private val ABOUT_GUTTER = PAGE_GUTTER + 12.dp
+/** Editorial copy gutter matching the page alignment. */
+private val ABOUT_GUTTER = PAGE_GUTTER
 
 /**
  * How far past the foot of the artwork the title block is allowed to hang.
@@ -1571,6 +1571,7 @@ private fun AboutSection(title: String, text: String, palette: ArtworkPalette) {
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.Medium,
             color = palette.onBackgroundVariant,
+            textAlign = TextAlign.Justify,
             maxLines = if (expanded) Int.MAX_VALUE else 3,
             overflow = TextOverflow.Ellipsis,
             onTextLayout = { result -> if (!expanded) clipped = result.hasVisualOverflow },

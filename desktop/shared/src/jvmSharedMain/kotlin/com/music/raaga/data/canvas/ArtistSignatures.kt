@@ -196,3 +196,4 @@ object ArtistSignatureRepository {
         java.text.Normalizer.normalize(lowercase(Locale.ROOT), java.text.Normalizer.Form.NFD)
             .filter { it.isLetterOrDigit() }
 }
+

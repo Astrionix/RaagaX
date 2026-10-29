@@ -144,3 +144,4 @@ export function useArtistSignature(name: string | null | undefined): ArtistSigna
   });
   return query.data ?? null;
 }
+
