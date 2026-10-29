@@ -23,9 +23,12 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -49,8 +52,10 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.IosShare
+import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -1424,6 +1429,7 @@ internal fun rememberPlayerControlsOnScroll(
  * Scrolling by hand clears the blur and suspends the auto-follow, so you can
  * read ahead; a couple of seconds after you stop it snaps back to the song.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun LyricsPanel(
     lines: List<LyricLine>,
@@ -1904,8 +1910,32 @@ internal fun LyricsPanel(
                             val isPicked = index in picker.picks
                             Modifier
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(if (isPicked) Color.White.copy(alpha = 0.18f) else Color.Transparent)
+                                .background(if (isPicked) Color.White.copy(alpha = 0.22f) else Color.Transparent)
+                                .then(
+                                    if (isPicked) {
+                                        Modifier.border(1.dp, Color.White.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
+                                    } else {
+                                        Modifier
+                                    }
+                                )
                                 .clickable { picker.toggle(index) }
+                        } else if (picker != null) {
+                            Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .combinedClickable(
+                                    interactionSource = interaction,
+                                    indication = LocalIndication.current,
+                                    onClick = {
+                                        if (isSynced) {
+                                            onSeekToLine(line.timeMs)
+                                        } else {
+                                            picker.pick(index)
+                                        }
+                                    },
+                                    onLongClick = {
+                                        picker.pick(index)
+                                    },
+                                )
                         } else {
                             Modifier
                                 .clip(RoundedCornerShape(10.dp))
@@ -1925,7 +1955,22 @@ internal fun LyricsPanel(
                     lineHeight = SUB_LYRIC_LINE_HEIGHT,
                     fontWeight = FontWeight.Bold,
                 )
-                Column(modifier = shape) {
+                val isPicked = picker != null && picker.picking && index in picker.picks
+                Row(
+                    modifier = shape,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (picker != null && picker.picking) {
+                        Icon(
+                            imageVector = if (isPicked) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
+                            contentDescription = null,
+                            tint = if (isPicked) Color.White else Color.White.copy(alpha = 0.35f),
+                            modifier = Modifier
+                                .padding(start = 6.dp, end = 12.dp)
+                                .size(22.dp),
+                        )
+                    }
+                    Column(modifier = if (picker != null && picker.picking) Modifier.weight(1f) else Modifier.fillMaxWidth()) {
                     PanelVoice(
                         line = line,
                         clock = clock,
@@ -2023,6 +2068,7 @@ internal fun LyricsPanel(
                             }
                     }
                 }
+            }
             }
         }
     }

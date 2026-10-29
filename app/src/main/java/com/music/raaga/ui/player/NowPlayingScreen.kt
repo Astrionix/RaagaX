@@ -824,7 +824,7 @@ fun NowPlayingScreen(
     )
     val lyricsPicker = rememberLyricsPicker(
         song = song,
-        lines = lyricsTranslation.displayedLyrics,
+        lines = lyrics ?: emptyList(),
         subLines = lyricsTranslation.subLines,
         artworkUrl = remoteArt,
         haptics = haptics,
@@ -2818,7 +2818,8 @@ fun NowPlayingScreen(
                                 enabled = translateShown && !lyrics.isNullOrEmpty(),
                                 onClick = {
                                     haptics.play(Haptic.Select)
-                                    lyricsPicker.pick(0)
+                                    val startLine = lyrics?.indexOfFirst { it.text.isNotBlank() }?.coerceAtLeast(0) ?: 0
+                                    lyricsPicker.pick(startLine)
                                 },
                             )
                         }
@@ -2842,6 +2843,7 @@ fun NowPlayingScreen(
                             shareEnabled = lyricsPicker.picks.isNotEmpty(),
                             onCancel = lyricsPicker.cancel,
                             onShare = lyricsPicker.share,
+                            count = lyricsPicker.picks.size,
                             modifier = Modifier
                                 .align(Alignment.BottomCenter)
                                 .padding(bottom = 8.dp),
@@ -2908,7 +2910,8 @@ fun NowPlayingScreen(
             // which is what keeps this row of controls in the same place on
             // every screen instead of being shoved off the bottom of a tall one.
             SlidingPlayerDeck(
-                visible = (!lyricsOpen || lyricsControlsOpen) &&
+                visible = !lyricsPicker.picking &&
+                    (!lyricsOpen || lyricsControlsOpen) &&
                     (!queueOpen || queueControlsOpen) &&
                     (!spotifyCanvasPresentation || spotifyCanvasControlsOpen),
                 reveal = playerDeckReveal,

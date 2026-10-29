@@ -121,7 +121,7 @@ internal fun rememberLyricsPicker(
     var picks by remember { mutableStateOf<Set<Int>>(emptySet()) }
     var overBudget by remember { mutableStateOf(false) }
 
-    LaunchedEffect(song.videoId, lines) {
+    LaunchedEffect(song.videoId) {
         picking = false
         picks = emptySet()
         overBudget = false
@@ -150,13 +150,12 @@ internal fun rememberLyricsPicker(
     }
 
     val pick: (Int) -> Unit = { index ->
-        if (picking) {
-            toggle(index)
-        } else {
-            haptics.play(Haptic.Select)
+        haptics.play(Haptic.Select)
+        if (!picking) {
             picking = true
-            picks = emptySet()
+            picks = setOf(index)
             overBudget = false
+        } else {
             toggle(index)
         }
     }
@@ -208,14 +207,20 @@ internal fun LyricsPickBar(
     onCancel: () -> Unit,
     onShare: () -> Unit,
     modifier: Modifier = Modifier,
+    count: Int = 0,
 ) {
     val haptics = rememberHaptics()
+    val shareText = if (count > 0) {
+        "${stringResource(R.string.share)} ($count)"
+    } else {
+        stringResource(R.string.share)
+    }
     Row(
         modifier = modifier
             .padding(horizontal = 16.dp, vertical = 12.dp)
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .background(Color(0xFF141414).copy(alpha = 0.92f))
+            .background(Color(0xFF141414).copy(alpha = 0.95f))
             .padding(12.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -231,7 +236,7 @@ internal fun LyricsPickBar(
             },
         )
         PickAction(
-            label = stringResource(R.string.share),
+            label = shareText,
             icon = Icons.Rounded.IosShare,
             accent = true,
             enabled = shareEnabled,

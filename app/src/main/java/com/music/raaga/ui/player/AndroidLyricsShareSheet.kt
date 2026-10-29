@@ -82,7 +82,10 @@ internal fun AndroidLyricsShareSheet(
         failed = false
         saved = false
         image = runCatching { renderLyricsShareCard(context, request, story) }
-            .onFailure { failed = true }
+            .onFailure {
+                android.util.Log.e("LyricsShare", "renderLyricsShareCard failed", it)
+                failed = true
+            }
             .getOrNull()
     }
 
