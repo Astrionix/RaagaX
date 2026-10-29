@@ -1040,12 +1040,6 @@ private fun ArtistHeader(
                         colorFilter = if (isSvg) ColorFilter.tint(Color.White) else null,
                         modifier = Modifier
                             .padding(top = 14.dp, bottom = 6.dp)
-                            .drawBehind {
-                                drawCircle(
-                                    color = Color.Black.copy(alpha = 0.24f),
-                                    radius = size.maxDimension * 0.55f,
-                                )
-                            }
                             .layout { measurable, constraints ->
                                 val widest = constraints.maxWidth * ARTIST_LOGO_WIDTH * SIGNATURE_SCALE
                                 val height = minOf(widest / aspect, maxLogoHeight.toPx()).roundToInt()
