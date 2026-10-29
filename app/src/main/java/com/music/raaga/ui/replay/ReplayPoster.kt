@@ -397,15 +397,8 @@ private fun drawHeader(
         "Replay · $label"
     }
     canvas.drawText(title, MARGIN, 132f, type.heading(46f, 0xFFFFFFFF.toInt()))
-    val brand = type.heading(46f, 0xE6FFFFFF.toInt()).apply {
-        textAlign = Paint.Align.RIGHT
-    }
-    canvas.drawText("Raaga", POSTER_W - MARGIN, 132f, brand)
-    // The mark, to the left of the word, exactly as the story header and the
-    // card carry it. Without it the one artefact of this app that ends up in
-    // somebody else's chat was the only place the logo didn't appear.
-    val wordWidth = brand.measureText("Raaga")
-    drawLogo(canvas, context, POSTER_W - MARGIN - wordWidth - LOGO_GAP, 132f)
+    // The official Raaga logo at the top right
+    drawLogo(canvas, context, POSTER_W - MARGIN, 132f)
 
     val credit = listOfNotNull(
         holder.ifBlank { context.getString(R.string.default_replay_holder) },
@@ -698,17 +691,22 @@ internal fun drawLogo(
     context: Context,
     right: Float,
     baseline: Float,
-    width: Float = LOGO_W,
     height: Float = LOGO_H,
+    width: Float? = null,
 ) {
     val logo = runCatching {
-        ResourcesCompat.getDrawable(context.resources, R.drawable.ic_logo_mark, null)
-            ?: ResourcesCompat.getDrawable(context.resources, R.drawable.ic_logo, null)
+        ResourcesCompat.getDrawable(context.resources, R.drawable.ic_logo, null)?.mutate()
     }.getOrNull() ?: return
-    val left = right - width
+    logo.colorFilter = null
+    val aspect = if (logo.intrinsicHeight > 0) {
+        logo.intrinsicWidth.toFloat() / logo.intrinsicHeight
+    } else {
+        3.85f
+    }
+    val drawW = width ?: (height * aspect)
+    val left = right - drawW
     val top = baseline - height
-    logo.setTint(0xE6FFFFFF.toInt())
-    logo.setBounds(left.toInt(), top.toInt(), (left + width).toInt(), (top + height).toInt())
+    logo.setBounds(left.toInt(), top.toInt(), (left + drawW).toInt(), (top + height).toInt())
     logo.draw(canvas)
 }
 

@@ -92,7 +92,6 @@ internal suspend fun renderLyricsShareCard(
         context,
         CARD_W - CARD_MARGIN,
         HEADER_BASELINE,
-        LOGO_W,
         LOGO_H,
     )
 
@@ -264,16 +263,15 @@ private const val MAX_CARD_H = 1920f
 private const val CARD_MARGIN = 72f
 private const val CARD_CONTENT_W = CARD_W - CARD_MARGIN * 2
 
-private const val LOGO_W = 78f
-private const val LOGO_H = 52f
+private const val LOGO_H = 46f
 
 /** Baseline of the mark at the top right, and just under it where the gap starts. */
-private const val HEADER_BASELINE = 165f
-private const val HEADER_BOTTOM = 175f
+private const val HEADER_BASELINE = 150f
+private const val HEADER_BOTTOM = 165f
 
 /** Air kept between the fixed furniture and the passage, both ends alike. */
-private const val GAP_ABOVE_BODY = 60f
-private const val GAP_BELOW_BODY = 48f
+private const val GAP_ABOVE_BODY = 55f
+private const val GAP_BELOW_BODY = 45f
 
 /** The sleeve square in the footer, and the air kept under it. */
 private const val FOOTER_THUMB = 160f
