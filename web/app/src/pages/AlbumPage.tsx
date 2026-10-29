@@ -1,5 +1,6 @@
+import { useMemo, useState } from 'react';
 import { useParams } from 'react-router';
-import { DetailHeader } from '@/components/music/DetailHeader';
+import { DetailHeader, type SortOption } from '@/components/music/DetailHeader';
 import { playList, shuffleList } from '@/components/music/play';
 import { Shelves } from '@/components/music/ShelfView';
 import { LoadError, NeedsExtension } from '@/components/music/States';
@@ -23,9 +24,32 @@ export default function AlbumPage() {
   if (album.isError) return <LoadError error={album.error} onRetry={() => void album.refetch()} />;
   if (!album.data) return <AlbumSkeleton />;
 
+  const [sort, setSort] = useState<SortOption>('default');
   const data = album.data;
   const artists = data.artists.map((a) => a.name).join(', ');
-  const tracks = data.tracks;
+  const rawTracks = data.tracks;
+  const tracks = useMemo(() => {
+    if (!rawTracks || rawTracks.length === 0 || sort === 'default') return rawTracks;
+    switch (sort) {
+      case 'title-asc':
+        return [...rawTracks].sort((a, b) => (a.title || '').localeCompare(b.title || '', undefined, { sensitivity: 'base' }));
+      case 'title-desc':
+        return [...rawTracks].sort((a, b) => (b.title || '').localeCompare(a.title || '', undefined, { sensitivity: 'base' }));
+      case 'artist-asc':
+        return [...rawTracks].sort((a, b) => {
+          const aArtist = a.artists?.map((x) => x.name).join(', ') || '';
+          const bArtist = b.artists?.map((x) => x.name).join(', ') || '';
+          return aArtist.localeCompare(bArtist, undefined, { sensitivity: 'base' });
+        });
+      case 'date-added-desc':
+        return [...rawTracks].reverse();
+      case 'date-added-asc':
+        return [...rawTracks];
+      default:
+        return rawTracks;
+    }
+  }, [rawTracks, sort]);
+
   // Album tracks carry no artist or artwork of their own; the queue credits the album's.
   const context = {
     source: { title: data.title, type: 'album' as const, id: data.id },
@@ -40,6 +64,8 @@ export default function AlbumPage() {
         motion={motion}
         onPlay={() => playList(tracks, 0, context)}
         onShuffle={() => shuffleList(tracks, context)}
+        sort={sort}
+        onSortChange={setSort}
       />
       <TrackList
         tracks={tracks}

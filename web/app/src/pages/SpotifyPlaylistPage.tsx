@@ -1,8 +1,8 @@
 import { useMutation } from '@tanstack/react-query';
 import { ListPlus } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
-import { DetailHeader, detailButton } from '@/components/music/DetailHeader';
+import { DetailHeader, detailButton, type SortOption } from '@/components/music/DetailHeader';
 import { playList, shuffleList } from '@/components/music/play';
 import { EmptyState, LoadError, NeedsExtension } from '@/components/music/States';
 import { TrackList } from '@/components/music/TrackList';
@@ -33,11 +33,35 @@ export default function SpotifyPlaylistPage() {
 
   if (extension.state === 'missing') return <NeedsExtension what="your Spotify playlists" />;
   if (!signedIn) return <EmptyState title="Sign in to Spotify" detail="Open Spotify in the sidebar to connect your account." />;
+  const [sort, setSort] = useState<SortOption>('default');
+
   if (rows.status === 'error' && !rows.rows.length) return <LoadError error={rows.error} onRetry={rows.retry} />;
   if (!info.data || (rows.status === 'loading' && !rows.rows.length)) return <PlaylistSkeleton />;
 
-  const playable = rows.rows.filter((t) => !t.unavailable);
-  const missing = rows.rows.filter((t) => t.unavailable === 'missing');
+  const sortedRows = useMemo(() => {
+    if (sort === 'default') return rows.rows;
+    switch (sort) {
+      case 'title-asc':
+        return [...rows.rows].sort((a, b) => (a.title || '').localeCompare(b.title || '', undefined, { sensitivity: 'base' }));
+      case 'title-desc':
+        return [...rows.rows].sort((a, b) => (b.title || '').localeCompare(a.title || '', undefined, { sensitivity: 'base' }));
+      case 'artist-asc':
+        return [...rows.rows].sort((a, b) => {
+          const aArtist = a.artists?.map((x) => x.name).join(', ') || '';
+          const bArtist = b.artists?.map((x) => x.name).join(', ') || '';
+          return aArtist.localeCompare(bArtist, undefined, { sensitivity: 'base' });
+        });
+      case 'date-added-desc':
+        return [...rows.rows].reverse();
+      case 'date-added-asc':
+        return [...rows.rows];
+      default:
+        return rows.rows;
+    }
+  }, [rows.rows, sort]);
+
+  const playable = sortedRows.filter((t) => !t.unavailable);
+  const missing = sortedRows.filter((t) => t.unavailable === 'missing');
   const total = Math.max(rows.total, info.data.total);
   const meta = [
     `${total} ${total === 1 ? 'song' : 'songs'}`,
@@ -65,9 +89,11 @@ export default function SpotifyPlaylistPage() {
         canPlay={playable.length > 0}
         onPlay={() => playList(playable, 0, context)}
         onShuffle={() => shuffleList(playable, context)}
+        sort={sort}
+        onSortChange={setSort}
         extra={<ImportButton title={info.data.name} videoIds={playable.map((t) => t.videoId)} ready={rows.matching === 0} />}
       />
-      <TrackList tracks={rows.rows} variant="playlist" source={context.source} />
+      <TrackList tracks={sortedRows} variant="playlist" source={context.source} />
       <footer className={detailFooter}>
         <p>From Spotify. Songs are matched to YouTube Music by title, artist and length.</p>
       </footer>

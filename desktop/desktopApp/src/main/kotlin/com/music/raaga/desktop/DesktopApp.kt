@@ -142,6 +142,7 @@ import androidx.compose.material.icons.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DeleteSweep
@@ -7598,6 +7599,15 @@ private fun DesktopSourceEditorDialog(
     )
 }
 
+private enum class DesktopCollectionSort(val label: String) {
+    DEFAULT("Default order"),
+    TITLE_ASC("Alphabetical (A to Z)"),
+    TITLE_DESC("Alphabetical (Z to A)"),
+    ARTIST_ASC("Artist (A to Z)"),
+    DATE_ADDED_DESC("Date added (newest first)"),
+    DATE_ADDED_ASC("Date added (oldest first)"),
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun DesktopCollectionPage(
@@ -7623,12 +7633,23 @@ private fun DesktopCollectionPage(
     contentPadding: PaddingValues,
 ) {
     val songs = collection.songs
+    var sort by remember(collection.browseId) { mutableStateOf(DesktopCollectionSort.DEFAULT) }
+    val sortedSongs = remember(songs, sort) {
+        when (sort) {
+            DesktopCollectionSort.DEFAULT -> songs
+            DesktopCollectionSort.TITLE_ASC -> songs.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title })
+            DesktopCollectionSort.TITLE_DESC -> songs.sortedWith(compareByDescending(String.CASE_INSENSITIVE_ORDER) { it.title })
+            DesktopCollectionSort.ARTIST_ASC -> songs.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.artist })
+            DesktopCollectionSort.DATE_ADDED_DESC -> songs.reversed()
+            DesktopCollectionSort.DATE_ADDED_ASC -> songs
+        }
+    }
     // The phone's "search this list": a filter over the rows already loaded.
     var searching by remember(collection.browseId) { mutableStateOf(false) }
     var listQuery by remember(collection.browseId) { mutableStateOf("") }
-    val shownSongs = remember(songs, listQuery) {
+    val shownSongs = remember(sortedSongs, listQuery) {
         val needle = listQuery.trim()
-        songs.withIndex().filter { (_, song) ->
+        sortedSongs.withIndex().filter { (_, song) ->
             needle.isBlank() || song.title.contains(needle, ignoreCase = true) ||
                 song.artist.contains(needle, ignoreCase = true) ||
                 song.albumName.orEmpty().contains(needle, ignoreCase = true)
@@ -7736,10 +7757,10 @@ private fun DesktopCollectionPage(
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            DesktopCircleButton(RaagaIcons.Shuffle, DesktopStrings["shuffle", "Shuffle"], onClick = { onShuffle(songs) })
+                            DesktopCircleButton(RaagaIcons.Shuffle, DesktopStrings["shuffle", "Shuffle"], onClick = { onShuffle(sortedSongs) })
                             DesktopPlayPill(
                                 label = DesktopStrings["play", "Play"],
-                                onClick = { if (songs.isNotEmpty()) onPlaySongs(songs, 0) },
+                                onClick = { if (sortedSongs.isNotEmpty()) onPlaySongs(sortedSongs, 0) },
                                 iconOnly = true,
                             )
                             DesktopCircleButton(
@@ -7754,11 +7775,52 @@ private fun DesktopCollectionPage(
                                 DesktopCircleButton(Icons.Rounded.MoreHoriz, DesktopStrings["more", "More"], onClick = { moreOpen = true })
                                 DropdownMenu(expanded = moreOpen, onDismissRequest = { moreOpen = false }) {
                                     DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                DesktopStrings["sort_by", "Sort by"],
+                                                color = DesktopSecondary,
+                                                style = MaterialTheme.typography.labelMedium,
+                                                fontWeight = FontWeight.Bold,
+                                            )
+                                        },
+                                        onClick = {},
+                                        enabled = false,
+                                    )
+                                    DesktopCollectionSort.entries.forEach { option ->
+                                        DropdownMenuItem(
+                                            text = {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                ) {
+                                                    Text(option.label)
+                                                    if (sort == option) {
+                                                        Icon(
+                                                            Icons.Rounded.Check,
+                                                            contentDescription = null,
+                                                            tint = DesktopAccent,
+                                                            modifier = Modifier.size(16.dp),
+                                                        )
+                                                    }
+                                                }
+                                            },
+                                            onClick = {
+                                                sort = option
+                                                moreOpen = false
+                                            },
+                                        )
+                                    }
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(vertical = 4.dp),
+                                        color = DesktopDivider,
+                                    )
+                                    DropdownMenuItem(
                                         text = { Text(DesktopStrings["download_all", "Download all"]) },
                                         leadingIcon = { Icon(RaagaIcons.Download, null) },
                                         onClick = {
                                             moreOpen = false
-                                            onDownloadAll(songs)
+                                            onDownloadAll(sortedSongs)
                                         },
                                     )
                                     onShare?.let { share ->
@@ -7816,7 +7878,7 @@ private fun DesktopCollectionPage(
                     song = song,
                     collectionType = collection.type,
                     liked = song.videoId in likedIds,
-                    onClick = { _ -> onPlaySongs(songs, index) },
+                    onClick = { _ -> onPlaySongs(sortedSongs, index) },
                     onToggleLike = onToggleLike,
                     onDownload = onDownload,
                     onAddToPlaylist = onAddToPlaylist,

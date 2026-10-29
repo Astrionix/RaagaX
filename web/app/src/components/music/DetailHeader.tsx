@@ -1,5 +1,6 @@
-import { Check, Plus, Shuffle } from 'lucide-react';
-import { useState } from 'react';
+import { Check, Copy, MoreHorizontal, Plus, Shuffle } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { Menu, MenuHeader, MenuItem, MenuSeparator } from '@/components/Menu';
 import { PrefetchLink } from '@/components/PrefetchLink';
 import { PlayIcon } from '@/components/icons/Transport';
 import { useSetListSaved, useSignedIn } from '@/data/music/queries';
@@ -10,6 +11,14 @@ import { ExplicitBadge } from './ExplicitBadge';
 import { MotionArtwork } from './MotionArtwork';
 import { artistHref } from './links';
 
+export type SortOption =
+  | 'default'
+  | 'title-asc'
+  | 'title-desc'
+  | 'artist-asc'
+  | 'date-added-desc'
+  | 'date-added-asc';
+
 interface DetailHeaderProps {
   info: HeaderInfo;
   onPlay: () => void;
@@ -19,6 +28,12 @@ interface DetailHeaderProps {
   extra?: React.ReactNode;
   /** Apple's motion artwork for an album, over the cover once it plays. */
   motion?: AppleMotion | null;
+  /** Current active sorting choice. */
+  sort?: SortOption;
+  /** Callback when user selects a sort option. Enables the three-dots button. */
+  onSortChange?: (sort: SortOption) => void;
+  /** Optional custom copy link or share handler. If omitted, copies window.location.href. */
+  onShare?: () => void;
 }
 
 /** Shuffle (circle) · Play (pill), report §14; also the Spotify playlist's Import button. */
@@ -32,11 +47,25 @@ export const detailButton = {
  * Album and playlist header (report §3, §14): artwork with its glow, title,
  * artist, metadata, a three-line description, then Shuffle · Play.
  */
-export function DetailHeader({ info, onPlay, onShuffle, canPlay, extra, motion }: DetailHeaderProps) {
+export function DetailHeader({ info, onPlay, onShuffle, canPlay, extra, motion, sort = 'default', onSortChange, onShare }: DetailHeaderProps) {
   const [expanded, setExpanded] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const moreRef = useRef<HTMLButtonElement>(null);
   const signedIn = useSignedIn();
   const setSaved = useSetListSaved();
   const library = signedIn ? info.library : null;
+
+  const handleCopy = () => {
+    if (onShare) {
+      onShare();
+    } else {
+      void navigator.clipboard.writeText(window.location.href);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+    setMenuOpen(false);
+  };
   return (
     // Artwork beside the headings, description and actions; stacked and centred below 768px.
     <div className="mx-(--body-gutter) mb-10 grid grid-cols-[auto_minmax(0,1fr)] grid-rows-[auto_1fr_auto] gap-x-[34px] pt-11 [grid-template-areas:'artwork_headings'_'artwork_description'_'artwork_actions'] max-md:grid-cols-[1fr] max-md:grid-rows-[auto] max-md:justify-items-center max-md:pt-4 max-md:text-center max-md:[grid-template-areas:'artwork'_'headings'_'actions'_'description']">
@@ -114,6 +143,92 @@ export function DetailHeader({ info, onPlay, onShuffle, canPlay, extra, motion }
           >
             {library.saved ? <Check size={18} strokeWidth={2.4} /> : <Plus size={18} strokeWidth={2.4} />}
           </button>
+        )}
+        {onSortChange && (
+          <>
+            <button
+              ref={moreRef}
+              className={detailButton.circle}
+              aria-label="More options"
+              title="More options"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((open) => !open)}
+            >
+              <MoreHorizontal size={18} strokeWidth={2.2} />
+            </button>
+            {menuOpen && moreRef.current && (
+              <Menu
+                anchor={moreRef.current}
+                placement="below-end"
+                onClose={() => setMenuOpen(false)}
+                label="Playlist options"
+              >
+                <MenuHeader>Sort By</MenuHeader>
+                <MenuItem
+                  checked={sort === 'default'}
+                  onSelect={() => {
+                    onSortChange('default');
+                    setMenuOpen(false);
+                  }}
+                >
+                  Default order
+                </MenuItem>
+                <MenuItem
+                  checked={sort === 'title-asc'}
+                  onSelect={() => {
+                    onSortChange('title-asc');
+                    setMenuOpen(false);
+                  }}
+                >
+                  Alphabetical (A to Z)
+                </MenuItem>
+                <MenuItem
+                  checked={sort === 'title-desc'}
+                  onSelect={() => {
+                    onSortChange('title-desc');
+                    setMenuOpen(false);
+                  }}
+                >
+                  Alphabetical (Z to A)
+                </MenuItem>
+                <MenuItem
+                  checked={sort === 'artist-asc'}
+                  onSelect={() => {
+                    onSortChange('artist-asc');
+                    setMenuOpen(false);
+                  }}
+                >
+                  Artist (A to Z)
+                </MenuItem>
+                <MenuItem
+                  checked={sort === 'date-added-desc'}
+                  onSelect={() => {
+                    onSortChange('date-added-desc');
+                    setMenuOpen(false);
+                  }}
+                >
+                  Date added (newest first)
+                </MenuItem>
+                <MenuItem
+                  checked={sort === 'date-added-asc'}
+                  onSelect={() => {
+                    onSortChange('date-added-asc');
+                    setMenuOpen(false);
+                  }}
+                >
+                  Date added (oldest first)
+                </MenuItem>
+                <MenuSeparator />
+                <MenuItem
+                  icon={copied ? <Check size={14} strokeWidth={2.4} /> : <Copy size={14} strokeWidth={2} />}
+                  onSelect={handleCopy}
+                >
+                  {copied ? 'Link copied!' : 'Copy link'}
+                </MenuItem>
+              </Menu>
+            )}
+          </>
         )}
         {extra}
       </div>
