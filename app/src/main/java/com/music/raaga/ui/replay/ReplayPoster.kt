@@ -693,14 +693,22 @@ private fun drawRuns(
  * on every version this app supports, so there is nothing to be gained by
  * keeping a second copy of the logo around at a fixed size.
  */
-internal fun drawLogo(canvas: Canvas, context: Context, right: Float, baseline: Float) {
+internal fun drawLogo(
+    canvas: Canvas,
+    context: Context,
+    right: Float,
+    baseline: Float,
+    width: Float = LOGO_W,
+    height: Float = LOGO_H,
+) {
     val logo = runCatching {
-        ResourcesCompat.getDrawable(context.resources, R.drawable.ic_logo, null)
+        ResourcesCompat.getDrawable(context.resources, R.drawable.ic_logo_mark, null)
+            ?: ResourcesCompat.getDrawable(context.resources, R.drawable.ic_logo, null)
     }.getOrNull() ?: return
-    val left = right - LOGO_W
-    val top = baseline - LOGO_H
+    val left = right - width
+    val top = baseline - height
     logo.setTint(0xE6FFFFFF.toInt())
-    logo.setBounds(left.toInt(), top.toInt(), (left + LOGO_W).toInt(), (top + LOGO_H).toInt())
+    logo.setBounds(left.toInt(), top.toInt(), (left + width).toInt(), (top + height).toInt())
     logo.draw(canvas)
 }
 
