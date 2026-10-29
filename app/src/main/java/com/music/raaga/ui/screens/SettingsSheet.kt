@@ -230,6 +230,7 @@ fun SettingsScreen(
     val sessionId by AppSettings.audioSessionId.collectAsStateWithLifecycle()
     val outputPcmMode by AppSettings.outputPcmMode.collectAsStateWithLifecycle()
     val preferUsbDac by AppSettings.preferUsbDac.collectAsStateWithLifecycle()
+    val usbDirectAudio by AppSettings.usbDirectAudio.collectAsStateWithLifecycle()
     val loudnessNormalization by AppSettings.loudnessNormalization.collectAsStateWithLifecycle()
     val outputStatus by AudioOutputStatus.current.collectAsStateWithLifecycle()
     val playingFormat by NerdStats.current.collectAsStateWithLifecycle()
@@ -682,6 +683,16 @@ fun SettingsScreen(
                     checked = preferUsbDac,
                     onCheckedChange = AppSettings::setPreferUsbDac,
                     badge = stringResource(R.string.connected).takeIf { outputStatus.isUsb },
+                )
+            }
+            val usbDirectTitle = stringResource(R.string.usb_direct_audio)
+            row(usbDirectTitle, "usb", "dac", "bitperfect", "audiophile") {
+                SettingsSubRow(
+                    title = usbDirectTitle,
+                    subtitle = stringResource(R.string.usb_direct_audio_subtitle),
+                    checked = usbDirectAudio,
+                    onCheckedChange = AppSettings::setUsbDirectAudio,
+                    badge = "Bit-Perfect".takeIf { outputStatus.isUsb },
                 )
             }
             val loudnessTitle = stringResource(R.string.loudness_normalization)

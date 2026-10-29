@@ -224,8 +224,11 @@ object OutputNegotiator {
             )
         }
 
-        // 2. Direct USB Priority: userspace USB streaming if authorized and viable
-        val isDirectUsbViable = routeKind == AudioRouting.Kind.USB && directUsbProbe?.isViable == true
+        // 2. Direct USB Priority: userspace USB streaming if authorized and viable,
+        // respecting the user's bit-perfect direct USB DAC preference
+        val isDirectUsbViable = routeKind == AudioRouting.Kind.USB &&
+            directUsbProbe?.isViable == true &&
+            com.music.raaga.data.settings.AppSettings.usbDirectAudio.value
         if (isDirectUsbViable) {
             return OutputDescriptor(
                 transport = TransportType.DIRECT_USB,

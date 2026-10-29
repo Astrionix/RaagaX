@@ -248,6 +248,7 @@ internal fun PlaybackQualityLabel(
     song: Song,
     isLoading: Boolean,
     modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
 ) {
     val wifiQuality by AppSettings.audioQualityWifi.collectAsStateWithLifecycle()
     val cellularQuality by AppSettings.audioQualityCellular.collectAsStateWithLifecycle()
@@ -270,6 +271,7 @@ internal fun PlaybackQualityLabel(
         losslessRequested = effectiveQuality == AudioQuality.LOSSLESS,
         effectiveQuality = effectiveQuality,
         nerdStats = nerdStats,
+        onClick = onClick,
         modifier = modifier,
     )
 }
@@ -1483,6 +1485,7 @@ private fun LosslessOrStats(
     effectiveQuality: AudioQuality,
     nerdStats: NerdStats.Snapshot?,
     modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
 ) {
     when {
         // Still resolving — either the player itself is buffering, or a
@@ -1530,6 +1533,7 @@ private fun LosslessOrStats(
                 stringResource(R.string.upgrading_quality)
             },
             animated = false,
+            onClick = onClick,
             modifier = modifier,
         )
         nerdStats?.isLossless == true -> LosslessLabel(
@@ -1540,12 +1544,14 @@ private fun LosslessOrStats(
             // confirmed. It is what makes the badge read as an achievement
             // rather than a label, which only one of these two is.
             animated = true,
+            onClick = onClick,
             modifier = modifier,
         )
         nerdStats?.isDolbyAtmos == true -> LosslessLabel(
             text = "Dolby Atmos",
             animated = true,
             iconPainter = painterResource(R.drawable.ic_dolby_atmos),
+            onClick = onClick,
             modifier = modifier,
         )
         // Lossy, but the good end of lossy — a module's 320kbps tier, which
@@ -1554,16 +1560,19 @@ private fun LosslessOrStats(
         nerdStats?.isHiQuality == true -> LosslessLabel(
             text = stringResource(R.string.high_quality),
             animated = false,
+            onClick = onClick,
             modifier = modifier,
         )
         effectiveQuality == AudioQuality.LOW && nerdStats?.isLowQuality == true -> LosslessLabel(
             text = stringResource(R.string.data_saver),
             animated = false,
+            onClick = onClick,
             modifier = modifier,
         )
         effectiveQuality == AudioQuality.MEDIUM && nerdStats?.isMediumQuality == true -> LosslessLabel(
             text = stringResource(R.string.medium_quality),
             animated = false,
+            onClick = onClick,
             modifier = modifier,
         )
         else -> {}
@@ -1578,9 +1587,21 @@ private fun LosslessLabel(
     modifier: Modifier = Modifier,
     icon: ImageVector = Icons.Rounded.Headphones,
     iconPainter: Painter? = null,
+    onClick: (() -> Unit)? = null,
 ) {
+    val clickModifier = if (onClick != null) {
+        Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            )
+    } else {
+        Modifier
+    }
     Row(
-        modifier = modifier,
+        modifier = modifier.then(clickModifier),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {

@@ -1119,6 +1119,8 @@
     <string name="output_precision">Output precision</string>
 
     <string name="prefer_usb_dac">Prefer USB DAC</string>
+    <string name="usb_direct_audio">Bit-Perfect USB DAC Mode</string>
+    <string name="usb_direct_audio_subtitle">Bypass Android OS 48kHz resampler for external USB DACs</string>
 
     <string name="loudness_normalization">Loudness normalization</string>
 

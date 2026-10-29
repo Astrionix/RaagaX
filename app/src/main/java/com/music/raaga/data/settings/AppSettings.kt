@@ -307,7 +307,10 @@ object AppSettings {
     val outputPcmMode = MutableStateFlow(OutputPcmMode.PCM_16)
 
     /** Prefer an attached USB audio output over the system's normal route. */
-    val preferUsbDac = MutableStateFlow(false)
+    val preferUsbDac = MutableStateFlow(true)
+
+    /** Direct bit-perfect USB DAC mode bypassing Android OS resampler. */
+    val usbDirectAudio = MutableStateFlow(true)
 
     /**
      * Level every track to the same loudness, using YouTube's own
@@ -928,7 +931,8 @@ object AppSettings {
                     ?: OutputPcmMode.PCM_16.name,
             )
         }.getOrDefault(OutputPcmMode.PCM_16)
-        preferUsbDac.value = prefs.getBoolean(KEY_PREFER_USB_DAC, false)
+        preferUsbDac.value = prefs.getBoolean(KEY_PREFER_USB_DAC, true)
+        usbDirectAudio.value = prefs.getBoolean(KEY_USB_DIRECT_AUDIO, true)
         loudnessNormalization.value = prefs.getBoolean(KEY_LOUDNESS_NORMALIZATION, true)
         loudnessOffOnSpeaker.value = prefs.getBoolean(KEY_LOUDNESS_OFF_ON_SPEAKER, true)
         onboardingComplete.value = prefs.getBoolean(KEY_ONBOARDING_COMPLETE, false)
@@ -1680,6 +1684,11 @@ object AppSettings {
         prefs.edit().putBoolean(KEY_PREFER_USB_DAC, value).apply()
     }
 
+    fun setUsbDirectAudio(value: Boolean) {
+        usbDirectAudio.value = value
+        prefs.edit().putBoolean(KEY_USB_DIRECT_AUDIO, value).apply()
+    }
+
     fun setLoudnessNormalization(value: Boolean) {
         loudnessNormalization.value = value
         prefs.edit().putBoolean(KEY_LOUDNESS_NORMALIZATION, value).apply()
@@ -2122,6 +2131,7 @@ object AppSettings {
     private const val KEY_SKIP_SILENCE = "skip_silence"
     private const val KEY_OUTPUT_PCM_MODE = "output_pcm_mode"
     private const val KEY_PREFER_USB_DAC = "prefer_usb_dac"
+    private const val KEY_USB_DIRECT_AUDIO = "usb_direct_audio"
     private const val KEY_LOUDNESS_NORMALIZATION = "loudness_normalization"
     private const val KEY_LOUDNESS_OFF_ON_SPEAKER = "loudness_off_on_speaker"
     private const val KEY_ONBOARDING_COMPLETE = "onboarding_complete"

@@ -5476,7 +5476,7 @@ class PlaybackService : MediaLibraryService() {
             directUsbProbe = directUsbProbe,
             directSupport = directSupport,
             bluetoothTelemetry = btTelemetry,
-            systemMixerRateHz = if (routeKind == AudioRouting.Kind.USB) 48000 else null,
+            systemMixerRateHz = if (routeKind == AudioRouting.Kind.USB) { if (AppSettings.usbDirectAudio.value) null else 48000 } else null,
         )
 
         if (format != null) {
@@ -5576,7 +5576,7 @@ class PlaybackService : MediaLibraryService() {
             // silently re-converted, costing an extra quantization and leaving
             // this readout naming a bit depth that was never written.
             delegateSupportsPcm24 = false,
-            knownSystemMixerRateHz = if (routeKind == AudioRouting.Kind.USB) 48000 else null,
+            knownSystemMixerRateHz = if (routeKind == AudioRouting.Kind.USB) { if (AppSettings.usbDirectAudio.value) null else 48000 } else null,
         )
 
         AudioOutputStatus.publishNegotiation(negotiation)
@@ -5740,6 +5740,9 @@ class PlaybackService : MediaLibraryService() {
         }
         scope.launch {
             AppSettings.preferUsbDac.drop(1).collect { requestOutputReconfiguration() }
+        }
+        scope.launch {
+            AppSettings.usbDirectAudio.drop(1).collect { requestOutputReconfiguration() }
         }
         scope.launch {
             AudioRouting.selectedId.drop(1).collect { requestOutputReconfiguration() }

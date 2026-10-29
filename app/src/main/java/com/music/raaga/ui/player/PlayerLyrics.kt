@@ -50,6 +50,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Language
+import androidx.compose.material.icons.rounded.IosShare
 import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -1147,6 +1148,35 @@ internal fun TranslationToggleButton(
     }
 }
 
+/** The share-as-story button for lyric cards. */
+@Composable
+internal fun LyricsShareButton(
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .size(34.dp)
+            .clip(CircleShape)
+            .background(Color.White.copy(alpha = 0.18f))
+            .clickable(
+                enabled = enabled,
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.IosShare,
+            contentDescription = stringResource(R.string.lyrics_share_title),
+            tint = Color.White.copy(alpha = if (enabled) 0.85f else 0.42f),
+            modifier = Modifier.size(17.dp),
+        )
+    }
+}
+
 /** The left-hand companion to [TranslationToggleButton], producing Latin script. */
 @Composable
 internal fun RomanizationToggleButton(
@@ -1417,6 +1447,7 @@ internal fun LyricsPanel(
     /** Reports whether the lyric list is mid-scroll, so the player above it
      * can stand down its own swipe gestures for as long as it is. */
     onScrollingChange: (Boolean) -> Unit = {},
+    picker: LyricsPicker? = null,
     modifier: Modifier = Modifier,
 ) {
     val panelPlaying = isPlaying && active
@@ -1868,12 +1899,23 @@ internal fun LyricsPanel(
                         }
                     }
                     .blur(blur, BlurredEdgeTreatment.Unbounded)
-                    .clip(RoundedCornerShape(10.dp))
-                    .clickable(
-                        enabled = isSynced,
-                        interactionSource = interaction,
-                        indication = LocalIndication.current,
-                    ) { onSeekToLine(line.timeMs) }
+                    .then(
+                        if (picker != null && picker.picking) {
+                            val isPicked = index in picker.picks
+                            Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (isPicked) Color.White.copy(alpha = 0.18f) else Color.Transparent)
+                                .clickable { picker.toggle(index) }
+                        } else {
+                            Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable(
+                                    enabled = isSynced,
+                                    interactionSource = interaction,
+                                    indication = LocalIndication.current,
+                                ) { onSeekToLine(line.timeMs) }
+                        }
+                    )
                 // Lead and answering vocal are one row: they are one line of
                 // the song, they scale and dim together, and tapping either
                 // seeks to the same place.

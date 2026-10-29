@@ -636,6 +636,7 @@ fun NowPlayingScreen(
     var showSocialJamSheet by remember { mutableStateOf(false) }
     var socialJamInitialTab by remember { mutableStateOf(ConnectJamTab.JAM) }
     var showAudioPipeline by remember { mutableStateOf(false) }
+    var lyricsShareRequest by remember { mutableStateOf<LyricsShareRequest?>(null) }
     var showAudioOutput by remember { mutableStateOf(false) }
     var showLyricsProviders by remember { mutableStateOf(false) }
     // Gated on the Bluetooth permission the first time — see [rememberOutputPicker].
@@ -821,6 +822,14 @@ fun NowPlayingScreen(
         loadingText = lyricsLoadingText,
         haptics = haptics,
     )
+    val lyricsPicker = rememberLyricsPicker(
+        song = song,
+        lines = lyricsTranslation.displayedLyrics,
+        subLines = lyricsTranslation.subLines,
+        artworkUrl = remoteArt,
+        haptics = haptics,
+        onCard = { lyricsShareRequest = it },
+    )
     // Nothing here resets [lyricsOpen] on a track change, deliberately. The
     // panel is a place, not a property of the track: someone reading along who
     // skips — or who simply lets the queue run on — means to carry on reading,
@@ -877,6 +886,8 @@ fun NowPlayingScreen(
     PlayerBackHandler(enabled = showAudioOutput) { showAudioOutput = false }
     PlayerBackHandler(enabled = showLyricsProviders) { showLyricsProviders = false }
     PlayerBackHandler(enabled = showListenTogetherMembers) { showListenTogetherMembers = false }
+    PlayerBackHandler(enabled = lyricsPicker.picking) { lyricsPicker.cancel() }
+    PlayerBackHandler(enabled = lyricsShareRequest != null) { lyricsShareRequest = null }
     PlayerBackHandler(enabled = showAudioPipeline) { showAudioPipeline = false }
 
     PlayerBackHandler(enabled = lyricsOffsetOpen, onBack = onDismissLyricsOffset)
@@ -1391,6 +1402,13 @@ fun NowPlayingScreen(
                 onDismiss = { showAudioPipeline = false },
             )
         }
+        lyricsShareRequest?.let { request ->
+            AndroidLyricsShareSheet(
+                hazeState = drawerHaze,
+                request = request,
+                onDismiss = { lyricsShareRequest = null },
+            )
+        }
         if (showListenTogetherMembers) {
             ListenTogetherMembersSheet(
                 hazeState = drawerHaze,
@@ -1560,6 +1578,7 @@ fun NowPlayingScreen(
                                 PlaybackQualityLabel(
                                     song = song,
                                     isLoading = isLoading,
+                                    onClick = { showAudioPipeline = true },
                                     modifier = Modifier
                                         .align(Alignment.Center)
                                         .padding(horizontal = 8.dp),
@@ -1643,6 +1662,7 @@ fun NowPlayingScreen(
                                     onRevealControls = {},
                                     onHideControls = {},
                                     translationProgress = particleProgress,
+                                    picker = lyricsPicker,
                                     modifier = Modifier.fillMaxSize(),
                                 )
                             }
@@ -2752,6 +2772,7 @@ fun NowPlayingScreen(
                                     onHideControls = { lyricsControlsOpen = false },
                                     translationProgress = particleProgress,
                                     onScrollingChange = { lyricsScrolling = it },
+                                    picker = lyricsPicker,
                                     modifier = Modifier.fillMaxSize(),
                                 )
                             }
@@ -2775,7 +2796,7 @@ fun NowPlayingScreen(
                         animationSpec = tween(if (translateShown) 220 else 160),
                         label = "translateFade",
                     )
-                    if (translateFade > 0.01f) {
+                    if (translateFade > 0.01f && !lyricsPicker.picking) {
                         Box(
                             modifier = Modifier
                                 .align(Alignment.BottomStart)
@@ -2786,6 +2807,19 @@ fun NowPlayingScreen(
                                 showingRomanization = lyricsTranslation.showingRomanization,
                                 enabled = translateShown && !lyrics.isNullOrEmpty(),
                                 onClick = lyricsTranslation.toggleRomanization,
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .graphicsLayer { alpha = translateFade },
+                        ) {
+                            LyricsShareButton(
+                                enabled = translateShown && !lyrics.isNullOrEmpty(),
+                                onClick = {
+                                    haptics.play(Haptic.Select)
+                                    lyricsPicker.pick(0)
+                                },
                             )
                         }
                         Box(
@@ -2802,6 +2836,16 @@ fun NowPlayingScreen(
                                 onClick = lyricsTranslation.toggleTranslation,
                             )
                         }
+                    }
+                    if (lyricsPicker.picking) {
+                        LyricsPickBar(
+                            shareEnabled = lyricsPicker.picks.isNotEmpty(),
+                            onCancel = lyricsPicker.cancel,
+                            onShare = lyricsPicker.share,
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(bottom = 8.dp),
+                        )
                     }
                 }
 
@@ -2953,6 +2997,7 @@ fun NowPlayingScreen(
                 PlaybackQualityLabel(
                     song = song,
                     isLoading = isLoading,
+                    onClick = { showAudioPipeline = true },
                     modifier = Modifier
                         .align(Alignment.Center)
                         .padding(horizontal = 8.dp),

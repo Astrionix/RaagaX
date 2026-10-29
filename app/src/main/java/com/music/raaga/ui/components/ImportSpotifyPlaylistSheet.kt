@@ -221,17 +221,24 @@ fun ImportSpotifyPlaylistSheet(
                                 .background(accentColor),
                         )
                         Spacer(Modifier.width(8.dp))
+                        val titleText = when {
+                            inputUrl.isBlank() -> stringResource(R.string.import_spotify_playlist)
+                            isAppleMusic -> stringResource(R.string.import_apple_music_title)
+                            else -> stringResource(R.string.import_spotify_title)
+                        }
                         Text(
-                            text = if (isAppleMusic)
-                                stringResource(R.string.import_apple_music_title)
-                            else
-                                stringResource(R.string.import_spotify_title),
+                            text = titleText,
                             style = MaterialTheme.typography.titleLarge,
                             color = MaterialTheme.colorScheme.onBackground,
                         )
                     }
+                    val subtitleText = when {
+                        isAppleMusic -> "Apple Music playlist or album"
+                        inputUrl.contains("spotify", ignoreCase = true) -> "Spotify playlist or album"
+                        else -> stringResource(R.string.import_spotify_subtitle)
+                    }
                     Text(
-                        text = stringResource(R.string.import_spotify_subtitle),
+                        text = subtitleText,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -438,8 +445,34 @@ private fun InputContent(
             text = stringResource(R.string.import_spotify_description),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 16.dp),
+            modifier = Modifier.padding(bottom = 14.dp),
         )
+
+        // Universal supported platform cards: Spotify & Apple Music
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            val isSpotifyUrl = url.contains("spotify", ignoreCase = true)
+            val isAppleUrl = AppleMusicParser.looksLikeAppleMusicUrl(url)
+
+            PlatformBadgeCard(
+                name = "Spotify",
+                example = "open.spotify.com",
+                color = SpotifyGreen,
+                active = isSpotifyUrl || (!isAppleUrl && url.isBlank()),
+                modifier = Modifier.weight(1f),
+            )
+            PlatformBadgeCard(
+                name = "Apple Music",
+                example = "music.apple.com",
+                color = AppleRed,
+                active = isAppleUrl,
+                modifier = Modifier.weight(1f),
+            )
+        }
 
         Row(
             modifier = Modifier
@@ -911,3 +944,43 @@ private fun TabPill(
     }
 }
 
+
+@Composable
+private fun PlatformBadgeCard(
+    name: String,
+    example: String,
+    color: Color,
+    active: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val borderColor = if (active) color.copy(alpha = 0.6f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+    val bgColor = if (active) color.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(bgColor)
+            .border(1.dp, borderColor, RoundedCornerShape(10.dp))
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(7.dp)
+                .clip(CircleShape)
+                .background(color),
+        )
+        Column {
+            Text(
+                text = name,
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                color = if (active) color else MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = example,
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+            )
+        }
+    }
+}

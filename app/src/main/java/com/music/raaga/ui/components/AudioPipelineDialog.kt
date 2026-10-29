@@ -9,9 +9,11 @@ import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,6 +26,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -64,6 +67,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -281,6 +285,122 @@ fun AudioPipelineDialog(
                     color = Color.White.copy(alpha = 0.7f),
                     textAlign = TextAlign.Center,
                 )
+
+                // Poweramp-Style Signal Path Hero Card
+                val dspActive = (loudnessNormalization && outputStatus.loudnessGainDb != null) || eqEnabled || spatialAudio
+                val isDirectUsb = outputStatus.transportType == com.music.raaga.playback.audio.TransportType.DIRECT_USB || outputStatus.isUsb
+                val isDirectTrack = outputStatus.directPlaybackActual
+                val inRate = nerdStats?.sampleRateHz ?: 44100
+                val outRate = outputStatus.actualSampleRateHz ?: inRate
+                val isBitExact = outputStatus.outputExact && !dspActive && (inRate == outRate)
+                val isHiRes = (nerdStats?.isHiRes == true) || (outRate > 48000)
+
+                val (heroBadgeText, heroAccentColor) = when {
+                    isBitExact && isDirectUsb -> Pair("BIT-PERFECT DIRECT USB", Color(0xFF10B981))
+                    isBitExact && isDirectTrack -> Pair("BIT-PERFECT DIRECT", Color(0xFF10B981))
+                    isBitExact -> Pair("BIT-PERFECT DIRECT", Color(0xFF10B981))
+                    isHiRes && (isDirectTrack || isDirectUsb) && !dspActive -> Pair("HI-RES DIRECT", Color(0xFF06B6D4))
+                    dspActive -> Pair("DSP ACTIVE", Color(0xFFF59E0B))
+                    inRate != outRate -> Pair("RESAMPLED (${inRate}Hz → ${outRate}Hz)", Color(0xFF818CF8))
+                    else -> Pair("DIRECT PLAYBACK", Color(0xFF06B6D4))
+                }
+
+                Spacer(Modifier.height(14.dp))
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color.White.copy(alpha = 0.06f))
+                        .border(0.75.dp, heroAccentColor.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(7.dp)
+                                    .clip(CircleShape)
+                                    .background(heroAccentColor),
+                            )
+                            Text(
+                                text = heroBadgeText,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Black,
+                                    letterSpacing = 1.1.sp,
+                                    fontSize = 10.5.sp,
+                                ),
+                                color = heroAccentColor,
+                            )
+                        }
+                        val routeTag = when {
+                            isDirectUsb -> "USB DAC"
+                            outputStatus.routeKind == com.music.raaga.playback.AudioRouting.Kind.BLUETOOTH -> "Bluetooth"
+                            outputStatus.routeKind == com.music.raaga.playback.AudioRouting.Kind.WIRED -> "Headphones"
+                            else -> "Speaker"
+                        }
+                        Text(
+                            text = routeTag,
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                            color = Color.White.copy(alpha = 0.5f),
+                        )
+                    }
+
+                    // Source -> Output Flow Summary
+                    val srcCodec = NerdStats.codecLabel(nerdStats?.mimeType) ?: nerdStats?.mimeType ?: "PCM"
+                    val srcDepth = nerdStats?.bitDepth?.let { "$it-bit" } ?: nerdStats?.claimed?.bitDepth?.let { "$it-bit" } ?: "16-bit"
+                    val srcRate = nerdStats?.sampleRateHz?.let { "%.1fkHz".format(Locale.ROOT, it / 1000f) } ?: "44.1kHz"
+                    val srcSummary = "$srcCodec $srcDepth / $srcRate"
+
+                    val dstDepth = when (outputStatus.actualEncoding) {
+                        AudioFormat.ENCODING_PCM_FLOAT -> "32-bit Float"
+                        AudioFormat.ENCODING_PCM_24BIT_PACKED -> "24-bit"
+                        AudioFormat.ENCODING_PCM_32BIT -> "32-bit"
+                        else -> "16-bit"
+                    }
+                    val dstRate = (outputStatus.actualSampleRateHz ?: inRate).let { "%.1fkHz".format(Locale.ROOT, it / 1000f) }
+                    val dstSummary = "DAC $dstDepth / $dstRate"
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(
+                            text = srcSummary,
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                            color = Color.White.copy(alpha = 0.85f),
+                        )
+                        Text(
+                            text = "➔",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = heroAccentColor.copy(alpha = 0.8f),
+                        )
+                        Text(
+                            text = dstSummary,
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                            color = Color.White,
+                        )
+                    }
+
+                    // Hardware DAC / Endpoint Label
+                    val devLabel = outputStatus.directUsbProbe?.productName
+                        ?: outputStatus.deviceName.ifBlank { "System default" }
+                    Text(
+                        text = devLabel,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                        color = Color.White.copy(alpha = 0.6f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
 
             Box(
@@ -534,6 +654,10 @@ fun AudioPipelineDialog(
                         outputStatus.usbEndpointFormat?.let {
                             PipelineRow("USB Device Capability", formatUsbCapability(it))
                             PipelineNote("Reported by Android for the connected USB device. This describes device capabilities and may differ from the active playback format.")
+                        }
+                        outputStatus.directUsbProbe?.takeIf { it.productName != null }?.let { probe ->
+                            val ratesText = "Max ${probe.maxCalculatedSampleRate / 1000} kHz (${probe.supportedBitDepths.joinToString("/")}-bit)"
+                            PipelineRow("USB Direct Hardware", ratesText)
                         }
 
                         if (outputStatus.routeKind == com.music.raaga.playback.AudioRouting.Kind.BLUETOOTH) {
