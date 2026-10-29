@@ -88,6 +88,7 @@ dependencies {
 
     // The shared player loads artwork through Coil, as the phone does.
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.0.4")
+    implementation("io.coil-kt.coil3:coil-svg:3.0.4")
 
     // Automix runs the same two models the Android build does.
     implementation("com.microsoft.onnxruntime:onnxruntime:1.29.0")

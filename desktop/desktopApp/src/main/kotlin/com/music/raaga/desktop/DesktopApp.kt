@@ -1,5 +1,11 @@
 package com.music.raaga.desktop
 
+import com.music.raaga.data.canvas.ArtistSignature
+import com.music.raaga.data.canvas.ArtistSignatureRepository
+import coil3.compose.AsyncImage
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.foundation.layout.aspectRatio
+
 import androidx.compose.foundation.lazy.LazyListState
 import com.music.raaga.ui.components.LiquidGlassSegmentedControl
 import com.music.raaga.ui.components.LiquidGlassVerticalSegmentedNavigation
@@ -5986,6 +5992,18 @@ private fun DesktopArtistPage(
                 val artist = state.data
                 val name = artist.name?.takeIf(String::isNotBlank) ?: fallbackName
                 val palette = rememberDesktopArtworkPalette(artist.thumbnailUrl)
+                var signature by remember(name) { mutableStateOf<ArtistSignature?>(null) }
+                LaunchedEffect(name) {
+                    val backoff = listOf(0L, 2_000L, 6_000L)
+                    for ((index, wait) in backoff.withIndex()) {
+                        if (wait > 0) delay(wait)
+                        val fetched = ArtistSignatureRepository.get(name, forceRefresh = index > 0)
+                        if (fetched != null) {
+                            signature = fetched
+                            break
+                        }
+                    }
+                }
                 // Android caps the top-songs block and pages it sideways so the release shelves are
                 // not buried under a hundred rows.
                 val top = artist.songs.take(MAX_ARTIST_SONGS)
@@ -5995,7 +6013,7 @@ private fun DesktopArtistPage(
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         item(key = "artist-header") {
-                            DesktopArtistBanner(artist.thumbnailUrl, name, palette)
+                            DesktopArtistBanner(artist.thumbnailUrl, name, palette, signature)
                         }
                         if (artist.subscriberCountText != null || artist.monthlyListenerCount != null) {
                             item(key = "artist-stats") {
@@ -6111,7 +6129,12 @@ private fun DesktopArtistPage(
 
 /** The photograph, and the name across the foot of it. */
 @Composable
-private fun DesktopArtistBanner(url: String?, name: String, palette: DesktopArtworkPalette) {
+private fun DesktopArtistBanner(
+    url: String?,
+    name: String,
+    palette: DesktopArtworkPalette,
+    signature: ArtistSignature? = null,
+) {
     Box(Modifier.fillMaxWidth().height(ARTIST_BANNER_HEIGHT)) {
         DesktopArtwork(url, Modifier.matchParentSize(), px = HEADER_ART_PX)
         // Two washes rather than one.
@@ -6133,17 +6156,47 @@ private fun DesktopArtistBanner(url: String?, name: String, palette: DesktopArtw
                 ),
             ),
         )
-        Text(
-            name,
-            style = MaterialTheme.typography.displaySmall,
-            fontWeight = FontWeight.Bold,
-            color = Color.White,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(start = DesktopPageGutter, end = DesktopPageGutter, bottom = 18.dp),
-        )
+        if (signature != null) {
+            val aspect = signature.aspect.coerceIn(0.5f, 5f)
+            val maxSigHeight = (ARTIST_BANNER_HEIGHT * 0.42f).coerceAtMost(90.dp)
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = DesktopPageGutter, end = DesktopPageGutter, bottom = 18.dp),
+                verticalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                AsyncImage(
+                    model = signature.imageUrl,
+                    contentDescription = name,
+                    contentScale = ContentScale.Fit,
+                    colorFilter = ColorFilter.tint(Color.White),
+                    modifier = Modifier
+                        .height(maxSigHeight)
+                        .aspectRatio(aspect, matchHeightConstraintsFirst = true)
+                        .padding(bottom = 2.dp),
+                )
+                Text(
+                    text = "Signed by $name",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = Color.White.copy(alpha = 0.85f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        } else {
+            Text(
+                name,
+                style = MaterialTheme.typography.displaySmall,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = DesktopPageGutter, end = DesktopPageGutter, bottom = 18.dp),
+            )
+        }
     }
 }
 

@@ -7,6 +7,7 @@ import { playList } from '@/components/music/play';
 import { Shelves, TrackShelf } from '@/components/music/ShelfView';
 import { LoadError, NeedsExtension } from '@/components/music/States';
 import { requestAppleAccess, useAppleArtistArt, useUngrantedAppleOrigins, type AppleArtistArt } from '@/data/apple/artistArt';
+import { useArtistSignature, type ArtistSignature } from '@/data/canvas/artistSignatures';
 import { useArtist, useYouTubeReady } from '@/data/music/queries';
 import type { ArtworkColor } from '@/lib/artworkColor';
 import { usePageTint } from '@/lib/usePageTint';
@@ -18,36 +19,58 @@ function luminance(color: string): number {
 }
 
 /**
- * The name, or Apple's title logo in its place (AppleArtistArt.kt). Until the
- * logo has drawn, the name stands in, so the header is never left empty; a
- * logo that fails to load leaves the name.
+ * The artist's handwritten signature or Apple's title logo in place of the name.
+ * Until the image has drawn, the plain name stands in.
  */
-function ArtistName({ name, apple }: { name: string; apple: AppleArtistArt | null }) {
-  const logo = apple?.logoUrl ?? null;
+function ArtistName({
+  name,
+  apple,
+  signature,
+}: {
+  name: string;
+  apple: AppleArtistArt | null;
+  signature: ArtistSignature | null;
+}) {
   const [shown, setShown] = useState<string | null>(null);
-  const logoShown = !!logo && shown === logo;
+  const sigUrl = signature?.imageUrl ?? null;
+  const logo = !sigUrl ? (apple?.logoUrl ?? null) : null;
+  const isSig = !!sigUrl;
+  const activeMedia = sigUrl || logo;
+  const mediaShown = !!activeMedia && shown === activeMedia;
+
   return (
-    <h1
-      className="type-header-emphasized text-[clamp(34px,5vw,64px)] leading-[1.05] [text-shadow:0_2px_20px_#00000059] data-logo:w-full data-logo:[text-shadow:none]"
-      data-logo={logoShown || undefined}
-    >
-      {!logoShown && name}
-      {logo && (
-        <img
-          key={logo}
-          // Apple's title logo in place of the name: at most 82% of the page's width and 30% of the
-          // photo's height (the photo is the column's width over 1.93, and never taller than 70vh).
-          className="mx-auto mt-0 mb-1.5 block h-auto max-h-[min(calc((100vw-var(--web-navigation-width))/1.93*0.3),21vh)] w-auto max-w-[min(82%,640px)] [filter:drop-shadow(0_2px_16px_#00000040)]"
-          src={logo}
-          alt={logoShown ? name : ''}
-          hidden={!logoShown}
-          // Its proportions are known before it decodes; the CSS caps its size.
-          style={{ aspectRatio: String(apple!.logoAspect) }}
-          decoding="async"
-          onLoad={() => setShown(logo)}
-        />
+    <div className="flex flex-col items-center">
+      <h1
+        className="type-header-emphasized text-[clamp(34px,5vw,64px)] leading-[1.05] [text-shadow:0_2px_20px_#00000059] data-logo:w-full data-logo:[text-shadow:none]"
+        data-logo={mediaShown || undefined}
+      >
+        {!mediaShown && name}
+        {activeMedia && (
+          <img
+            key={activeMedia}
+            // Title logo / signature: at most 82% of width and 30% of photo height.
+            className={`mx-auto mt-0 mb-1.5 block h-auto max-h-[min(calc((100vw-var(--web-navigation-width))/1.93*0.3),21vh)] w-auto max-w-[min(82%,640px)] ${
+              isSig
+                ? '[filter:drop-shadow(0_2px_16px_rgba(0,0,0,0.6))_brightness(0)_invert(1)]'
+                : '[filter:drop-shadow(0_2px_16px_#00000040)]'
+            }`}
+            src={activeMedia}
+            alt={mediaShown ? name : ''}
+            hidden={!mediaShown}
+            style={{
+              aspectRatio: String(signature?.aspect ?? apple?.logoAspect ?? 2.5),
+            }}
+            decoding="async"
+            onLoad={() => setShown(activeMedia)}
+          />
+        )}
+      </h1>
+      {isSig && mediaShown && (
+        <p className="mt-1 text-sm text-white/80 [text-shadow:0_1px_8px_rgba(0,0,0,0.6)]">
+          Signed by <strong className="font-semibold text-white">{name}</strong>
+        </p>
       )}
-    </h1>
+    </div>
   );
 }
 
@@ -62,6 +85,7 @@ export default function ArtistPage() {
   const { missing } = useYouTubeReady();
   const artist = useArtist(id);
   const apple = useAppleArtistArt(artist.data?.name);
+  const signature = useArtistSignature(artist.data?.name);
   const appleUngranted = useUngrantedAppleOrigins();
   const tint = useMemo<ArtworkColor | null>(
     () => (apple ? { background: apple.background, dark: luminance(apple.background) < 0.6 } : null),
@@ -99,7 +123,7 @@ export default function ArtistPage() {
           aria-hidden="true"
         />
         <div className="absolute inset-x-0 bottom-6 flex flex-col items-center gap-1.5 px-(--body-gutter) text-center">
-          <ArtistName name={data.name} apple={apple} />
+          <ArtistName name={data.name} apple={apple} signature={signature} />
           {data.audience && <p className="type-callout-emphasized text-secondary">{data.audience}</p>}
           <button
             // The 56px key-colour play button.
