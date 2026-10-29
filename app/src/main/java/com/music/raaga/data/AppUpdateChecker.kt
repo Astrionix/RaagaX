@@ -170,9 +170,9 @@ object AppUpdateChecker {
      * the state is reset, "Install Now" comes straight back without a second
      * download.
      */
-    suspend fun downloadApk(context: Context): Unit = withContext(Dispatchers.IO) {
-        val info = _available.value ?: return@withContext
-        val url = info.apkUrl ?: return@withContext
+    suspend fun downloadApk(context: Context, updateInfo: UpdateInfo? = null): File? = withContext(Dispatchers.IO) {
+        val info = updateInfo ?: _available.value ?: return@withContext null
+        val url = info.apkUrl ?: return@withContext null
         downloadCancelled = false
         _download.value = DownloadState.Downloading(0f)
 
@@ -195,7 +195,7 @@ object AppUpdateChecker {
                         while (true) {
                             if (downloadCancelled) {
                                 _download.value = DownloadState.Idle
-                                return@withContext
+                                return@withContext null
                             }
                             val read = input.read(buffer)
                             if (read == -1) break
@@ -210,13 +210,14 @@ object AppUpdateChecker {
                 }
             }
             _download.value = DownloadState.Ready(target)
+            target
         }.onFailure { error ->
             _download.value = if (downloadCancelled) {
                 DownloadState.Idle
             } else {
                 DownloadState.Failed(error.message ?: "Download failed")
             }
-        }
+        }.getOrNull()
     }
 
     /** Stops an in-flight download; the next read loop sees this and bails. */
@@ -236,6 +237,64 @@ object AppUpdateChecker {
      * without it the installer intent silently does nothing on most ROMs, so
      * the user is sent to that one switch first and taps Install again after.
      */
+    /**
+     * Attempts silent unattended installation on Android 12+ (API 31+).
+     * Returns true if session was created and committed, false if fallback to interactive install is required.
+     */
+    fun silentInstallApk(context: Context, file: File, version: String): Boolean {
+        if (!file.exists() || file.length() == 0L) return false
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            !context.packageManager.canRequestPackageInstalls()
+        ) {
+            return false
+        }
+
+        return try {
+            val packageInstaller = context.packageManager.packageInstaller
+            val params = android.content.pm.PackageInstaller.SessionParams(
+                android.content.pm.PackageInstaller.SessionParams.MODE_FULL_INSTALL
+            ).apply {
+                setAppPackageName(context.packageName)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    setRequireUserAction(android.content.pm.PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
+                }
+            }
+
+            val sessionId = packageInstaller.createSession(params)
+            packageInstaller.openSession(sessionId).use { session ->
+                session.openWrite("raaga_update", 0, file.length()).use { out ->
+                    file.inputStream().use { input ->
+                        input.copyTo(out)
+                    }
+                    session.fsync(out)
+                }
+
+                val intent = Intent(context, com.music.raaga.data.update.AppUpdateInstallReceiver::class.java).apply {
+                    action = com.music.raaga.data.update.AppUpdateInstallReceiver.ACTION_INSTALL_STATUS
+                    putExtra(com.music.raaga.data.update.AppUpdateInstallReceiver.EXTRA_VERSION, version)
+                    putExtra(com.music.raaga.data.update.AppUpdateInstallReceiver.EXTRA_APK_PATH, file.absolutePath)
+                }
+
+                val flags = android.app.PendingIntent.FLAG_UPDATE_CURRENT or (
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) android.app.PendingIntent.FLAG_MUTABLE else 0
+                )
+                val pendingIntent = android.app.PendingIntent.getBroadcast(
+                    context,
+                    sessionId,
+                    intent,
+                    flags,
+                )
+
+                session.commit(pendingIntent.intentSender)
+            }
+            true
+        } catch (e: Exception) {
+            android.util.Log.e("AppUpdateChecker", "Silent install failed: ${e.message}", e)
+            false
+        }
+    }
+
     fun installApk(context: Context, file: File) {
         if (!file.exists() || file.length() == 0L) {
             resetDownload()

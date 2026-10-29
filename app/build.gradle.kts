@@ -377,6 +377,8 @@ dependencies {
     // ---- Casting: Google Cast sender + the route discovery it sits on ----
     implementation("com.google.android.gms:play-services-cast-framework:22.2.0")
     implementation("androidx.mediarouter:mediarouter:1.8.1")
+    // ---- Background tasks: WorkManager for Wi-Fi auto-updates ----
+    implementation("androidx.work:work-runtime-ktx:2.10.0")
 
     // ---- Images: Coil 3 + Palette (dominant colors for the mesh gradient) ----
     implementation("io.coil-kt.coil3:coil-compose:3.0.4")

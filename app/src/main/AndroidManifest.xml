@@ -390,6 +390,15 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
+        <!-- PackageInstaller status receiver for background app updates -->
+        <receiver
+            android:name=".data.update.AppUpdateInstallReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.music.raaga.action.INSTALL_STATUS" />
+            </intent-filter>
+        </receiver>
+
         <!-- Where the Cast framework asks how this app wants to cast. -->
         <meta-data
             android:name="com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME"

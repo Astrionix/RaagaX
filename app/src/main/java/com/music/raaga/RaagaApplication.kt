@@ -81,6 +81,7 @@ class RaagaApplication : Application(), SingletonImageLoader.Factory {
             CoroutineScope(Dispatchers.IO).launch { Innertube.ensureSessionScope() }
         }
         AppSettings.init(this, authStore)
+        com.music.raaga.data.update.AutoUpdateScheduler.schedule(this)
         com.music.raaga.data.connect.RaagaPairingStore.init(this)
         // Restores a party this device is still a member of, so a process death
         // mid-session is something the rest of the party never sees. The socket

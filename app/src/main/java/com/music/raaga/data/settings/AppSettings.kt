@@ -676,6 +676,12 @@ object AppSettings {
     val signatureApiUrl = MutableStateFlow(DEFAULT_SIGNATURE_API_URL)
     val signatureApiEnabled = MutableStateFlow(true)
 
+    /** Automatically check and download newer versions in the background. */
+    val autoUpdateEnabled = MutableStateFlow(true)
+
+    /** When automatic updates are enabled, restrict background downloads to Wi-Fi. */
+    val autoUpdateWifiOnly = MutableStateFlow(true)
+
     // ── SMB ───────────────────────────────────────────────────────────────
 
     /**
@@ -946,6 +952,8 @@ object AppSettings {
         hideStatusBarInPlayer.value = prefs.getBoolean(KEY_HIDE_STATUS_BAR_IN_PLAYER, false)
         showQueueHistory.value = prefs.getBoolean(KEY_SHOW_QUEUE_HISTORY, false)
         signatureApiEnabled.value = prefs.getBoolean(KEY_SIGNATURE_API_ENABLED, true)
+        autoUpdateEnabled.value = prefs.getBoolean(KEY_AUTO_UPDATE_ENABLED, true)
+        autoUpdateWifiOnly.value = prefs.getBoolean(KEY_AUTO_UPDATE_WIFI_ONLY, true)
         showCacheFolder.value = prefs.getBoolean(KEY_SHOW_CACHE_FOLDER, false)
         dolbyAtmos.value = prefs.getBoolean(KEY_DOLBY_ATMOS, true)
         spatialAudio.value = prefs.getBoolean(KEY_SPATIAL_AUDIO, false)
@@ -2149,6 +2157,8 @@ object AppSettings {
     private const val KEY_HIDE_STATUS_BAR_IN_PLAYER = "hide_status_bar_in_player"
     private const val KEY_SHOW_QUEUE_HISTORY = "show_queue_history"
     private const val KEY_SIGNATURE_API_ENABLED = "signature_api_enabled"
+    private const val KEY_AUTO_UPDATE_ENABLED = "auto_update_enabled"
+    private const val KEY_AUTO_UPDATE_WIFI_ONLY = "auto_update_wifi_only" 
     private const val KEY_SHOW_CACHE_FOLDER = "show_cache_folder"
     private const val KEY_DOLBY_ATMOS = "dolby_atmos"
     private const val KEY_SPATIAL_AUDIO = "spatial_audio"
@@ -2267,6 +2277,16 @@ object AppSettings {
         signatureApiEnabled.value = enabled
         prefs.edit().putBoolean(KEY_SIGNATURE_API_ENABLED, enabled).apply()
         com.music.raaga.data.canvas.ArtistSignatureRepository.clear()
+    }
+
+    fun setAutoUpdateEnabled(enabled: Boolean) {
+        autoUpdateEnabled.value = enabled
+        prefs.edit().putBoolean(KEY_AUTO_UPDATE_ENABLED, enabled).apply()
+    }
+
+    fun setAutoUpdateWifiOnly(wifiOnly: Boolean) {
+        autoUpdateWifiOnly.value = wifiOnly
+        prefs.edit().putBoolean(KEY_AUTO_UPDATE_WIFI_ONLY, wifiOnly).apply()
     }
 }
 

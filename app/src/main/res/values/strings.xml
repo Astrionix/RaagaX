@@ -203,6 +203,15 @@
     <string name="current_version_tap_check">Version %1$s · Tap to check</string>
     <string name="reinstall_latest_release">Reinstall latest release</string>
     <string name="reinstall_latest_release_subtitle">Download and install latest release from GitHub</string>
+    <string name="auto_update">Automatic updates</string>
+    <string name="auto_update_subtitle">Automatically check and download updates in the background</string>
+    <string name="auto_update_wifi_only">Download over Wi-Fi only</string>
+    <string name="auto_update_wifi_only_subtitle">Only download updates when connected to an unmetered Wi-Fi network</string>
+    <string name="update_ready_title">Raaga update ready</string>
+    <string name="update_ready_text">Version %1$s is downloaded and ready to install. Tap to apply.</string>
+    <string name="update_pending_action_text">Tap to confirm installing Raaga %1$s.</string>
+    <string name="update_channel_name">Software Updates</string>
+    <string name="update_channel_desc">Notifications for background app updates</string>
     <string name="allow_install_unknown_apps">Please allow Raaga to install unknown apps to update</string>
     <string name="log_copied">Log copied · %1$d lines</string>
     <string name="sign_in_youtube_music">Sign in to YouTube Music</string>
