@@ -203,6 +203,10 @@
     <string name="current_version_tap_check">Version %1$s · Tap to check</string>
     <string name="reinstall_latest_release">Reinstall latest release</string>
     <string name="reinstall_latest_release_subtitle">Download and install latest release from GitHub</string>
+    <string name="auto_update_wifi">Auto-update over Wi-Fi</string>
+    <string name="auto_update_wifi_subtitle">Automatically download updates when connected to Wi-Fi</string>
+    <string name="auto_update_cellular">Auto-update over Cellular</string>
+    <string name="auto_update_cellular_subtitle">Automatically download updates over mobile data</string>
     <string name="auto_update">Automatic updates</string>
     <string name="auto_update_subtitle">Automatically check and download updates in the background</string>
     <string name="auto_update_wifi_only">Download over Wi-Fi only</string>

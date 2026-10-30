@@ -2,6 +2,8 @@ package com.music.raaga.data.update
 
 import android.content.Context
 import android.media.AudioManager
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
@@ -14,8 +16,31 @@ class AppUpdateWorker(
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
-        if (!AppSettings.autoUpdateEnabled.value) {
-            Log.d(TAG, "Automatic updates disabled in settings; skipping check.")
+        val wifiEnabled = AppSettings.autoUpdateWifi.value
+        val cellularEnabled = AppSettings.autoUpdateCellular.value
+
+        if (!wifiEnabled && !cellularEnabled) {
+            Log.d(TAG, "Automatic updates disabled on both Wi-Fi and Cellular; skipping check.")
+            return Result.success()
+        }
+
+        val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+        val activeNetwork = connectivityManager?.activeNetwork
+        val caps = connectivityManager?.getNetworkCapabilities(activeNetwork)
+        val isMetered = connectivityManager?.isActiveNetworkMetered == true
+        val hasWifiTransport = caps?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true ||
+                caps?.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) == true
+        val hasCellularTransport = caps?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true
+
+        val isWifi = hasWifiTransport || (!isMetered && !hasCellularTransport)
+        val isCellular = hasCellularTransport || (isMetered && !hasWifiTransport)
+
+        if (isWifi && !wifiEnabled) {
+            Log.d(TAG, "Connected via Wi-Fi but Wi-Fi auto-updates are disabled; skipping.")
+            return Result.success()
+        }
+        if (isCellular && !cellularEnabled) {
+            Log.d(TAG, "Connected via Cellular but Cellular auto-updates are disabled; skipping.")
             return Result.success()
         }
 

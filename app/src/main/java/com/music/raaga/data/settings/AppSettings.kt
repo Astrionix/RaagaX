@@ -677,6 +677,8 @@ object AppSettings {
     val signatureApiEnabled = MutableStateFlow(true)
 
     /** Automatically check and download newer versions in the background. */
+    val autoUpdateWifi = MutableStateFlow(true)
+    val autoUpdateCellular = MutableStateFlow(true)
     val autoUpdateEnabled = MutableStateFlow(true)
 
     /** When automatic updates are enabled, restrict background downloads to Wi-Fi. */
@@ -952,8 +954,26 @@ object AppSettings {
         hideStatusBarInPlayer.value = prefs.getBoolean(KEY_HIDE_STATUS_BAR_IN_PLAYER, false)
         showQueueHistory.value = prefs.getBoolean(KEY_SHOW_QUEUE_HISTORY, false)
         signatureApiEnabled.value = prefs.getBoolean(KEY_SIGNATURE_API_ENABLED, true)
-        autoUpdateEnabled.value = prefs.getBoolean(KEY_AUTO_UPDATE_ENABLED, true)
-        autoUpdateWifiOnly.value = prefs.getBoolean(KEY_AUTO_UPDATE_WIFI_ONLY, true)
+        val hasAutoWifi = prefs.contains(KEY_AUTO_UPDATE_WIFI)
+        val hasAutoCell = prefs.contains(KEY_AUTO_UPDATE_CELLULAR)
+        if (!hasAutoWifi && !hasAutoCell) {
+            if (prefs.contains(KEY_AUTO_UPDATE_ENABLED) && !prefs.getBoolean(KEY_AUTO_UPDATE_ENABLED, true)) {
+                autoUpdateWifi.value = false
+                autoUpdateCellular.value = false
+            } else if (prefs.contains(KEY_AUTO_UPDATE_WIFI_ONLY) && prefs.getBoolean(KEY_AUTO_UPDATE_WIFI_ONLY, true)) {
+                autoUpdateWifi.value = true
+                autoUpdateCellular.value = false
+            } else {
+                autoUpdateWifi.value = true
+                autoUpdateCellular.value = true
+            }
+        } else {
+            autoUpdateWifi.value = prefs.getBoolean(KEY_AUTO_UPDATE_WIFI, true)
+            autoUpdateCellular.value = prefs.getBoolean(KEY_AUTO_UPDATE_CELLULAR, true)
+        }
+        autoUpdateEnabled.value = autoUpdateWifi.value || autoUpdateCellular.value
+        autoUpdateWifiOnly.value = autoUpdateWifi.value && !autoUpdateCellular.value
+
         showCacheFolder.value = prefs.getBoolean(KEY_SHOW_CACHE_FOLDER, false)
         dolbyAtmos.value = prefs.getBoolean(KEY_DOLBY_ATMOS, true)
         spatialAudio.value = prefs.getBoolean(KEY_SPATIAL_AUDIO, false)
@@ -2157,6 +2177,8 @@ object AppSettings {
     private const val KEY_HIDE_STATUS_BAR_IN_PLAYER = "hide_status_bar_in_player"
     private const val KEY_SHOW_QUEUE_HISTORY = "show_queue_history"
     private const val KEY_SIGNATURE_API_ENABLED = "signature_api_enabled"
+    private const val KEY_AUTO_UPDATE_WIFI = "auto_update_wifi"
+    private const val KEY_AUTO_UPDATE_CELLULAR = "auto_update_cellular"
     private const val KEY_AUTO_UPDATE_ENABLED = "auto_update_enabled"
     private const val KEY_AUTO_UPDATE_WIFI_ONLY = "auto_update_wifi_only" 
     private const val KEY_SHOW_CACHE_FOLDER = "show_cache_folder"
@@ -2279,14 +2301,38 @@ object AppSettings {
         com.music.raaga.data.canvas.ArtistSignatureRepository.clear()
     }
 
+    fun setAutoUpdateWifi(enabled: Boolean) {
+        autoUpdateWifi.value = enabled
+        autoUpdateEnabled.value = enabled || autoUpdateCellular.value
+        autoUpdateWifiOnly.value = enabled && !autoUpdateCellular.value
+        prefs.edit()
+            .putBoolean(KEY_AUTO_UPDATE_WIFI, enabled)
+            .putBoolean(KEY_AUTO_UPDATE_ENABLED, autoUpdateEnabled.value)
+            .putBoolean(KEY_AUTO_UPDATE_WIFI_ONLY, autoUpdateWifiOnly.value)
+            .apply()
+    }
+
+    fun setAutoUpdateCellular(enabled: Boolean) {
+        autoUpdateCellular.value = enabled
+        autoUpdateEnabled.value = autoUpdateWifi.value || enabled
+        autoUpdateWifiOnly.value = autoUpdateWifi.value && !enabled
+        prefs.edit()
+            .putBoolean(KEY_AUTO_UPDATE_CELLULAR, enabled)
+            .putBoolean(KEY_AUTO_UPDATE_ENABLED, autoUpdateEnabled.value)
+            .putBoolean(KEY_AUTO_UPDATE_WIFI_ONLY, autoUpdateWifiOnly.value)
+            .apply()
+    }
+
     fun setAutoUpdateEnabled(enabled: Boolean) {
-        autoUpdateEnabled.value = enabled
-        prefs.edit().putBoolean(KEY_AUTO_UPDATE_ENABLED, enabled).apply()
+        setAutoUpdateWifi(enabled)
+        setAutoUpdateCellular(enabled)
+
     }
 
     fun setAutoUpdateWifiOnly(wifiOnly: Boolean) {
-        autoUpdateWifiOnly.value = wifiOnly
-        prefs.edit().putBoolean(KEY_AUTO_UPDATE_WIFI_ONLY, wifiOnly).apply()
+        setAutoUpdateWifi(true)
+        setAutoUpdateCellular(!wifiOnly)
+
     }
 }
 

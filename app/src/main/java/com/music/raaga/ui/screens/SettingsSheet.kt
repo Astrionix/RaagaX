@@ -226,8 +226,9 @@ fun SettingsScreen(
     val liquidGlass by AppSettings.liquidGlass.collectAsStateWithLifecycle()
     val liquidGlassSupported = isGlassSupported()
     val lyricsBlur by AppSettings.lyricsBlur.collectAsStateWithLifecycle()
-    val autoUpdateEnabled by AppSettings.autoUpdateEnabled.collectAsStateWithLifecycle()
-    val autoUpdateWifiOnly by AppSettings.autoUpdateWifiOnly.collectAsStateWithLifecycle()
+    val autoUpdateWifi by AppSettings.autoUpdateWifi.collectAsStateWithLifecycle()
+    val autoUpdateCellular by AppSettings.autoUpdateCellular.collectAsStateWithLifecycle()
+
     val animatedCanvas by AppSettings.animatedCanvas.collectAsStateWithLifecycle()
     val canvasOverCellular by AppSettings.canvasOverCellular.collectAsStateWithLifecycle()
     val spotifyCanvasEnabled by AppSettings.spotifyCanvasEnabled.collectAsStateWithLifecycle()
@@ -1547,17 +1548,17 @@ fun SettingsScreen(
         }
 
         SearchableSettingsGroup(search, header = stringResource(R.string.software_update)) {
-            val autoUpdateTitle = stringResource(R.string.auto_update)
-            row(autoUpdateTitle, "update", "auto", "automatic", "background", "download", "apk") {
+            val autoUpdateWifiTitle = stringResource(R.string.auto_update_wifi)
+            row(autoUpdateWifiTitle, "update", "wifi", "auto", "automatic", "background", "download", "apk") {
                 SettingsRow(
-                    icon = Icons.Rounded.Sync,
-                    title = autoUpdateTitle,
-                    subtitle = stringResource(R.string.auto_update_subtitle),
+                    icon = Icons.Rounded.Wifi,
+                    title = autoUpdateWifiTitle,
+                    subtitle = stringResource(R.string.auto_update_wifi_subtitle),
                     trailing = {
                         Switch(
-                            checked = autoUpdateEnabled,
+                            checked = autoUpdateWifi,
                             onCheckedChange = { enabled ->
-                                AppSettings.setAutoUpdateEnabled(enabled)
+                                AppSettings.setAutoUpdateWifi(enabled)
                                 com.music.raaga.data.update.AutoUpdateScheduler.schedule(context)
                             },
                             colors = SwitchDefaults.colors(
@@ -1567,40 +1568,39 @@ fun SettingsScreen(
                         )
                     },
                     onClick = {
-                        val next = !autoUpdateEnabled
-                        AppSettings.setAutoUpdateEnabled(next)
+                        val next = !autoUpdateWifi
+                        AppSettings.setAutoUpdateWifi(next)
                         com.music.raaga.data.update.AutoUpdateScheduler.schedule(context)
                     },
                 )
             }
 
-            if (autoUpdateEnabled) {
-                val wifiOnlyTitle = stringResource(R.string.auto_update_wifi_only)
-                row(wifiOnlyTitle, "wifi", "cellular", "data", "metered", "download") {
-                    SettingsRow(
-                        icon = Icons.Rounded.Wifi,
-                        title = wifiOnlyTitle,
-                        subtitle = stringResource(R.string.auto_update_wifi_only_subtitle),
-                        trailing = {
-                            Switch(
-                                checked = autoUpdateWifiOnly,
-                                onCheckedChange = { wifiOnly ->
-                                    AppSettings.setAutoUpdateWifiOnly(wifiOnly)
-                                    com.music.raaga.data.update.AutoUpdateScheduler.schedule(context)
-                                },
-                                colors = SwitchDefaults.colors(
-                                    checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                    checkedBorderColor = MaterialTheme.colorScheme.primary,
-                                ),
-                            )
-                        },
-                        onClick = {
-                            val next = !autoUpdateWifiOnly
-                            AppSettings.setAutoUpdateWifiOnly(next)
-                            com.music.raaga.data.update.AutoUpdateScheduler.schedule(context)
-                        },
-                    )
-                }
+
+            val autoUpdateCellularTitle = stringResource(R.string.auto_update_cellular)
+            row(autoUpdateCellularTitle, "update", "cellular", "data", "mobile", "auto", "automatic", "background", "download", "apk") {
+                SettingsRow(
+                    icon = Icons.Rounded.SignalCellularAlt,
+                    title = autoUpdateCellularTitle,
+                    subtitle = stringResource(R.string.auto_update_cellular_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = autoUpdateCellular,
+                            onCheckedChange = { enabled ->
+                                AppSettings.setAutoUpdateCellular(enabled)
+                                com.music.raaga.data.update.AutoUpdateScheduler.schedule(context)
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                checkedBorderColor = MaterialTheme.colorScheme.primary,
+                            ),
+                        )
+                    },
+                    onClick = {
+                        val next = !autoUpdateCellular
+                        AppSettings.setAutoUpdateCellular(next)
+                        com.music.raaga.data.update.AutoUpdateScheduler.schedule(context)
+                    },
+                )
             }
 
             val checkForUpdatesTitle = stringResource(R.string.check_for_updates)

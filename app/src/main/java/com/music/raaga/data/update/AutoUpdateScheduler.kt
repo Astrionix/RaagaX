@@ -17,17 +17,17 @@ object AutoUpdateScheduler {
      * Re-configures or cancels background periodic update checks based on user settings.
      */
     fun schedule(context: Context) {
-        val enabled = AppSettings.autoUpdateEnabled.value
-        val wifiOnly = AppSettings.autoUpdateWifiOnly.value
+        val wifi = AppSettings.autoUpdateWifi.value
+        val cellular = AppSettings.autoUpdateCellular.value
 
         val workManager = WorkManager.getInstance(context)
 
-        if (!enabled) {
+        if (!wifi && !cellular) {
             workManager.cancelUniqueWork(UNIQUE_WORK_NAME)
             return
         }
 
-        val networkType = if (wifiOnly) NetworkType.UNMETERED else NetworkType.CONNECTED
+        val networkType = if (wifi && !cellular) NetworkType.UNMETERED else NetworkType.CONNECTED
 
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(networkType)
