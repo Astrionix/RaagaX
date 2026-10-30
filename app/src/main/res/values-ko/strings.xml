@@ -1,0 +1,21 @@
+<resources>
+    <string name="app_name">Raaga</string>
+    <string name="cancel">취소</string>
+    <string name="save">저장</string>
+    <string name="close">닫기</string>
+    <string name="back">뒤로</string>
+    <string name="settings">설정</string>
+    <string name="search">검색</string>
+    <string name="clear_search">검색 지우기</string>
+    <string name="library">보관함</string>
+    <string name="home">홈</string>
+    <string name="play">재생</string>
+    <string name="explore">둘러보기</string>
+    <string name="listen_now">지금 듣기</string>
+    <string name="downloads">다운로드</string>
+    <string name="downloaded_songs">다운로드된 곡</string>
+    <string name="local_music">로컬 음악</string>
+    <string name="sleep_timer">수면 타이머</string>
+    <string name="turn_off_timer">타이머 끄기</string>
+    <string name="korean">한국어</string>
+</resources>
