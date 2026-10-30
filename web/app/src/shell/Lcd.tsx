@@ -1,6 +1,4 @@
 import { Maximize2 } from 'lucide-react';
-import { ConnectIcon } from '@/components/icons/ConnectIcon';
-import { useConnect } from '@/playback/connect/connectManager';
 import { useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 import { LogoMark } from '@/components/icons/LogoMark';
@@ -100,55 +98,14 @@ export function Lcd() {
   const status = usePlayer((s) => s.status);
   const error = usePlayer((s) => s.error);
   const openFullScreen = useUi((s) => s.setFullScreen);
-  const toggleSidePanel = useUi((s) => s.toggleSidePanel);
-
-  const activeRemote = useConnect((s) => s.activeRemoteDevice);
-  const remoteStatus = useConnect((s) => s.remoteStatus);
-  const isRemote = Boolean(activeRemote);
-
   // The queue's row for what's playing: it carries the album and each artist's channel.
   const track = usePlayer((s) => {
     const entry = s.queue[s.index]?.track;
     return entry && entry.videoId === s.nowPlaying?.videoId ? entry : null;
   });
+  const video = useHasVideo(nowPlaying?.videoId);
 
-  const effectiveTrack = isRemote && remoteStatus?.track
-    ? {
-        videoId: remoteStatus.track.videoId,
-        title: remoteStatus.track.title,
-        artist: remoteStatus.track.artist,
-        artworkUrl: remoteStatus.track.thumbnailUrl ?? null,
-        albumName: remoteStatus.track.albumName ?? null,
-      }
-    : nowPlaying;
-
-  const video = useHasVideo(effectiveTrack?.videoId);
-
-  if (!effectiveTrack) {
-    if (isRemote) {
-      return (
-        <div className="group/lcd relative flex h-full items-center gap-2 pb-1.5 min-w-0">
-          <button
-            className="flex size-[34px] items-center justify-center rounded-[6px] bg-emerald-500/15 text-emerald-400 p-0 border border-emerald-500/30 cursor-pointer"
-            aria-label="Open device drawer"
-            onClick={() => toggleSidePanel('connect')}
-          >
-            <ConnectIcon size={18} connected />
-          </button>
-          <div className="flex min-w-0 flex-col">
-            <span className={titleClass}>{activeRemote?.name}</span>
-            <button
-              onClick={() => toggleSidePanel('connect')}
-              className="flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 font-medium truncate text-start cursor-pointer"
-            >
-              <span className="inline-block size-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-              <span className="truncate">Connected • Ready to play</span>
-            </button>
-          </div>
-          <Progress />
-        </div>
-      );
-    }
+  if (!nowPlaying) {
     return (
       <div className="grid h-full place-items-center text-tertiary">
         <LogoMark size={26} />
@@ -156,26 +113,23 @@ export function Lcd() {
     );
   }
 
-  const { videoId, title, artist } = effectiveTrack;
-  const remoteAlbumName = isRemote ? remoteStatus?.track?.albumName : null;
-  const album = track?.album ?? (remoteAlbumName ? { id: '', name: remoteAlbumName } : null);
-  const artwork = effectiveTrack.artworkUrl;
-
+  const { videoId, title, artist } = nowPlaying;
+  const album = track?.album ?? null;
   return (
     <div
       className={`group/lcd relative grid h-full items-center gap-x-2 pb-1.5 ${video ? 'grid-cols-[60px_minmax(0,1fr)]' : 'grid-cols-[34px_minmax(0,1fr)]'}`}
     >
-      {/* Artwork opens the full-screen player or Connect drawer */}
+      {/* As Apple's: the artwork opens the full-screen player, with an expand glyph on hover. */}
       <button
         // A music video plays here in small, at 16:9.
         className={`group/art relative block h-[34px] overflow-hidden rounded-[6px] bg-joe p-0 transition-[filter,opacity] ${video ? 'w-[60px] bg-black' : 'w-[34px]'}`}
-        aria-label={isRemote ? 'Manage connected device' : 'Open full screen player'}
-        onClick={() => (isRemote ? toggleSidePanel('connect') : openFullScreen(true))}
+        aria-label="Open full screen player"
+        onClick={() => openFullScreen(true)}
       >
-        {artwork && (
+        {nowPlaying.artworkUrl && (
           <img
-            key={artwork}
-            src={sizedArtwork(artwork, 34)}
+            key={nowPlaying.artworkUrl}
+            src={sizedArtwork(nowPlaying.artworkUrl, 34)}
             alt=""
             referrerPolicy="no-referrer"
             decoding="async"
@@ -186,12 +140,12 @@ export function Lcd() {
         <VideoSurface
           className={`absolute inset-0 transition-opacity duration-300 ${video ? 'opacity-100' : 'opacity-0'}`}
         />
-        {/* Hovering anywhere on the player pill dims the artwork and shows the glyph. */}
+        {/* Hovering anywhere on the player pill dims the artwork and shows the expand glyph. */}
         <span
           className="absolute inset-0 grid place-items-center bg-[rgb(0_0_0/0.5)] text-white opacity-0 transition-opacity duration-200 group-hover/pill:opacity-100 group-focus-visible/art:opacity-100"
           aria-hidden="true"
         >
-          {isRemote ? <ConnectIcon size={16} connected /> : <Maximize2 size={14} strokeWidth={2.25} />}
+          <Maximize2 size={14} strokeWidth={2.25} />
         </span>
       </button>
       {/* Over the seek line, the names soften into the background so the times can sit over them. */}
@@ -211,17 +165,7 @@ export function Lcd() {
         ) : (
           <span className={titleClass}>{status === 'loading' ? 'Loading…' : ''}</span>
         )}
-        {isRemote ? (
-          <button
-            onClick={() => toggleSidePanel('connect')}
-            className="flex items-center gap-1.5 text-start truncate type-callout-medium text-emerald-400 hover:text-emerald-300 font-medium transition-colors cursor-pointer"
-            title={`Listening on ${activeRemote?.name}`}
-          >
-            <span className="inline-block size-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-            <span className="truncate">Listening on {activeRemote?.name}</span>
-            {artist ? <span className="text-secondary/70 truncate">• {artist}</span> : null}
-          </button>
-        ) : status === 'error' ? (
+        {status === 'error' ? (
           <span className="truncate type-callout-medium text-key">{error}</span>
         ) : (
           <span className="truncate type-callout-medium text-secondary">
@@ -244,7 +188,6 @@ const time =
  */
 function Progress() {
   const { bar, elapsed, remaining, dragging, handlers } = useScrubber();
-  const isRemote = Boolean(useConnect((s) => s.activeRemoteDevice));
   return (
     // The hit area: taller than the 2px line it carries.
     <div
@@ -260,12 +203,7 @@ function Progress() {
         aria-hidden="true"
       >
         <MixWindowHighlight />
-        <div
-          ref={bar}
-          className={`relative size-full origin-left scale-x-(--progress) ${
-            isRemote ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.5)]' : 'bg-secondary'
-          } [--progress:0]`}
-        />
+        <div ref={bar} className="relative size-full origin-left scale-x-(--progress) bg-secondary [--progress:0]" />
       </div>
     </div>
   );
