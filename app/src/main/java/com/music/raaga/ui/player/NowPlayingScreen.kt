@@ -41,6 +41,9 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.verticalDrag
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.material.icons.rounded.AutoAwesome
+import com.music.raaga.ui.components.MixViewDialog
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -636,6 +639,7 @@ fun NowPlayingScreen(
     var showSocialJamSheet by remember { mutableStateOf(false) }
     var socialJamInitialTab by remember { mutableStateOf(ConnectJamTab.JAM) }
     var showAudioPipeline by remember { mutableStateOf(false) }
+    var showMixView by remember { mutableStateOf(false) }
     var lyricsShareRequest by remember { mutableStateOf<LyricsShareRequest?>(null) }
     var showAudioOutput by remember { mutableStateOf(false) }
     var showLyricsProviders by remember { mutableStateOf(false) }
@@ -889,6 +893,7 @@ fun NowPlayingScreen(
     PlayerBackHandler(enabled = lyricsPicker.picking) { lyricsPicker.cancel() }
     PlayerBackHandler(enabled = lyricsShareRequest != null) { lyricsShareRequest = null }
     PlayerBackHandler(enabled = showAudioPipeline) { showAudioPipeline = false }
+    PlayerBackHandler(enabled = showMixView) { showMixView = false }
 
     PlayerBackHandler(enabled = lyricsOffsetOpen, onBack = onDismissLyricsOffset)
 
@@ -1400,6 +1405,12 @@ fun NowPlayingScreen(
                 hazeState = drawerHaze,
                 isPlaying = isPlaying,
                 onDismiss = { showAudioPipeline = false },
+            )
+        }
+        if (showMixView) {
+            MixViewDialog(
+                hazeState = drawerHaze,
+                onDismiss = { showMixView = false },
             )
         }
         lyricsShareRequest?.let { request ->
@@ -2997,14 +3008,25 @@ fun NowPlayingScreen(
                 onScrub = onScrub,
                 onScrubFinished = onScrubFinished,
             ) {
-                PlaybackQualityLabel(
-                    song = song,
-                    isLoading = isLoading,
-                    onClick = { showAudioPipeline = true },
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .padding(horizontal = 8.dp),
-                )
+                val mixBlend by AppSettings.smartMixBlend.collectAsStateWithLifecycle()
+                Row(
+                    modifier = Modifier.align(Alignment.Center),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    PlaybackQualityLabel(
+                        song = song,
+                        isLoading = isLoading,
+                        onClick = { showAudioPipeline = true },
+                        modifier = Modifier.padding(horizontal = 4.dp),
+                    )
+                    if (mixBlend != null || (transitionWindow != null && !scrub.scrubbing)) {
+                        AutomixBadge(
+                            isBlending = mixBlend != null,
+                            onClick = { showMixView = true },
+                        )
+                    }
+                }
             }
 
             // The transport rides midway between the two blocks it separates:
@@ -3177,5 +3199,36 @@ private object OverlayBack {
     fun unregister(view: View, callback: Any?) {
         if (callback !is OnBackInvokedCallback) return
         view.findOnBackInvokedDispatcher()?.unregisterOnBackInvokedCallback(callback)
+    }
+}
+
+/** BitChord v1.9: Live Automix status pill that opens the Mix View popup. */
+@Composable
+private fun AutomixBadge(
+    isBlending: Boolean,
+    onClick: () -> Unit,
+) {
+    val bg = if (isBlending) Color(0xFF30D158).copy(alpha = 0.22f) else Color.White.copy(alpha = 0.12f)
+    val tint = if (isBlending) Color(0xFF30D158) else Color.White.copy(alpha = 0.75f)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(bg)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.AutoAwesome,
+            contentDescription = "Automix",
+            tint = tint,
+            modifier = Modifier.size(11.dp),
+        )
+        Spacer(Modifier.width(3.dp))
+        Text(
+            text = if (isBlending) "Mixing" else "Mix",
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, fontWeight = FontWeight.SemiBold),
+            color = tint,
+        )
     }
 }
