@@ -259,10 +259,10 @@ export const Hero: React.FC = () => {
             {/* CTAs */}
             <div className="mt-7">
               <div className="flex flex-wrap items-center justify-center gap-3">
-                {/* Button 1: Download v1.9.8 ARM64-v8a APK */}
+                {/* Button 1: Download v1.9.9 ARM64-v8a APK */}
                 <a
                   href={RAAGAX_CONFIG.directApkUrl}
-                  download="raaga-v1.9.8-arm64-v8a.apk"
+                  download="raaga-v1.9.9-arm64-v8a.apk"
                   aria-label={`Download Raaga ${RAAGAX_CONFIG.versionName} for Android ARM64-v8a`}
                   className="btn-press group h-11 inline-flex items-center gap-2 rounded-full bg-white px-5 text-[14px] font-semibold text-black shadow-[0_0_24px_rgba(255,255,255,0.35),inset_0_1px_1px_0_rgba(255,255,255,0.9)] hover:bg-white/95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 cursor-pointer"
                 >

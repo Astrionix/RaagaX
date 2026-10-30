@@ -42,7 +42,7 @@ export const DownloadSection: React.FC = () => {
             <div className="pt-6 flex flex-wrap items-center justify-center gap-2.5 sm:gap-3">
               <a
                 href={RAAGAX_CONFIG.directApkUrl}
-                download="raaga-v1.9.8-arm64-v8a.apk"
+                download="raaga-v1.9.9-arm64-v8a.apk"
                 aria-label="Download Raaga ARM64-v8a Mobile APK"
                 className="btn-press group h-11 sm:h-12 w-full xs:w-auto inline-flex items-center justify-center gap-2.5 rounded-full bg-white px-6 sm:px-7 text-[13.5px] sm:text-[14px] font-semibold text-black shadow-[0_0_28px_rgba(255,255,255,0.35),inset_0_1px_1px_0_rgba(255,255,255,0.9)] hover:bg-white/95 cursor-pointer"
               >
@@ -80,7 +80,7 @@ export const DownloadSection: React.FC = () => {
             <div className="pt-6 flex flex-wrap items-center justify-center gap-3 sm:gap-4 text-xs font-mono text-white/40">
               <span className="flex items-center gap-1.5 text-white/60">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                Signed Release Build (v1.9.8)
+                Signed Release Build (v1.9.9)
               </span>
               <span>•</span>
               <span>Mobile, Tablet &amp; Desktop</span>

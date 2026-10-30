@@ -33,7 +33,7 @@ export const AllApksModal: React.FC<AllApksModalProps> = ({ isOpen, onClose }) =
       tag: "Modern 64-bit Phones (Recommended · v8a)",
       arch: "arm64-v8a (NDK 27 NEON SIMD)",
       size: "60.8 MB",
-      url: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/Raaga-prod-arm64-v8a-release.apk",
+      url: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.9/Raaga-prod-arm64-v8a-release.apk",
       requirements: "Android 8.0+ (64-bit v8a)",
       desc: "Optimized package tailored exclusively for 64-bit devices. Maximum audio DSP efficiency and smaller footprint.",
       icon: <Zap className="w-5 h-5 text-amber-400" />
@@ -44,7 +44,7 @@ export const AllApksModal: React.FC<AllApksModalProps> = ({ isOpen, onClose }) =
       tag: "All Android Devices Bundle",
       arch: "universal (arm64, armeabi-v7a)",
       size: "155 MB",
-      url: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.8/Raaga-prod-universal-release.apk",
+      url: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.9/Raaga-prod-universal-release.apk",
       requirements: RAAGAX_CONFIG.minAndroid,
       desc: "Single package that runs natively on all Android smartphones, tablets, TV boxes, and car head units.",
       icon: <Smartphone className="w-5 h-5 text-red-400" />

@@ -50,7 +50,7 @@ export function detectDesktopOs(): DetectedDesktop {
       os: 'windows',
       name: 'Windows',
       url: config.desktopDownloads.windowsSetup,
-      fileName: 'Raaga-1.9.8-windows-setup.exe',
+      fileName: 'Raaga-1.9.9-windows-setup.exe',
     };
   }
 
@@ -63,7 +63,7 @@ export function detectDesktopOs(): DetectedDesktop {
       os: 'mac',
       name: 'macOS',
       url: config.desktopDownloads.macArm64,
-      fileName: 'Raaga-1.9.8-macos-arm64.dmg',
+      fileName: 'Raaga-1.9.9-macos-arm64.dmg',
     };
   }
 
@@ -73,7 +73,7 @@ export function detectDesktopOs(): DetectedDesktop {
       os: 'linux',
       name: 'Linux',
       url: config.desktopDownloads.linuxAppImage,
-      fileName: 'Raaga-1.9.8-linux-x86_64.AppImage',
+      fileName: 'Raaga-1.9.9-linux-x86_64.AppImage',
     };
   }
 
@@ -82,7 +82,7 @@ export function detectDesktopOs(): DetectedDesktop {
     os: 'windows',
     name: 'Windows',
     url: config.desktopDownloads.windowsSetup,
-    fileName: 'Raaga-1.9.8-windows-setup.exe',
+    fileName: 'Raaga-1.9.9-windows-setup.exe',
   };
 }
 

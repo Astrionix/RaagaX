@@ -118,12 +118,15 @@ jobs:
         body: |
           ### Raaga ${{ github.ref_name }}
 
-          **Aether Liquid Glass Audio Output Sheet & Intelligent Window Work-Area Protection.**
+          > 💬 **Join Our Community:** Connect with developers, request features, and get live updates on [Discord](https://discord.gg/yGV2HqhSk).
 
           #### Highlights & New Features:
-          - **Liquid Glass Audio Output Sheet**: True localized optical refraction with tactile droplet pods and specular highlights on both Home and Expanded Player.
-          - **Intelligent Window Protection**: Custom work-area insets on Windows & macOS ensure the Windows Taskbar, macOS Dock, and Menu Bar remain visible when maximized.
-          - **Native macOS Controls**: Direct AppKit `- [NSWindow miniaturize:]` Dock animations and zoom handling.
-          - **Cross-Platform Availability**: Installers and OTA updates available for Android, Windows, macOS, and Linux at https://raaga.me.
+          - **1-Tap Local Wi-Fi Jam**: Nearby active Jams on the same Wi-Fi are automatically discovered across Android, Web, and Desktop. Join with a single tap.
+          - **Smart Background Auto-Updates**: Independent Wi-Fi & Cellular toggles in Settings, silent background install on Android 12+, and playback-aware update deferral.
+          - **Lossless Audio Badging & Nerd Stats**: Authentic waveform Lossless vector badges and real-time audio signal metrics (`FLAC • 24-bit • 48.0 kHz`).
+          - **Web Audiophile Parity & Edge Proxy**: Desktop settings (Automix, Spatial Audio, Cache) ported to Web, backed by a Cloudflare Pages streaming proxy to solve CORS.
+          - **12 Adaptive Glass App Icons**: Custom Glass icon switcher (Liquid Glass, Samsung Glass, Pixel Glass in Light, Dark, Clear, and Material You themed).
+          - **Lyric Story Cards & Playlist Sorting**: Generate exportable lyric cards with long-press line picker and 3-dots playlist sorting.
+          - **Cross-Platform Availability**: Installers and OTA updates available for Android, Windows, macOS, Linux, and Web at https://raaga.me.
         make_latest: "true"
         generate_release_notes: false

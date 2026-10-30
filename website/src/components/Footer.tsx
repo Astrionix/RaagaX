@@ -95,7 +95,7 @@ export const Footer: React.FC = () => {
               <li>
                 <a
                   href={RAAGAX_CONFIG.apkDownloadUrl}
-                  download="raaga-v1.9.8-arm64-v8a.apk"
+                  download="raaga-v1.9.9-arm64-v8a.apk"
                   className="text-red-400 hover:text-red-300 transition-colors"
                 >
                   Download APK ({RAAGAX_CONFIG.versionName})
