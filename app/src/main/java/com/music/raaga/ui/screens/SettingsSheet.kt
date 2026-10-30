@@ -222,6 +222,7 @@ fun SettingsScreen(
     val dolbyAtmosSupported = DeviceCodecs.playsDolbyAtmos
     val spatialAudio by AppSettings.spatialAudio.collectAsStateWithLifecycle()
     val nerdStats by AppSettings.showNerdStats.collectAsStateWithLifecycle()
+    val listenTogetherButton by AppSettings.showListenTogetherButton.collectAsStateWithLifecycle()
     val reduceAnimation by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
     val liquidGlass by AppSettings.liquidGlass.collectAsStateWithLifecycle()
@@ -1720,6 +1721,25 @@ fun SettingsScreen(
                         )
                     },
                     onClick = { AppSettings.setShowNerdStats(!nerdStats) },
+                )
+            }
+            val listenTogetherButtonTitle = stringResource(R.string.show_listen_together_button)
+            row(listenTogetherButtonTitle, "party", "jam", "output", "headphones", "player") {
+                SettingsRow(
+                    icon = Icons.Rounded.Groups,
+                    title = listenTogetherButtonTitle,
+                    subtitle = stringResource(R.string.show_listen_together_button_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = listenTogetherButton,
+                            onCheckedChange = AppSettings::setShowListenTogetherButton,
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                checkedBorderColor = MaterialTheme.colorScheme.primary,
+                            ),
+                        )
+                    },
+                    onClick = { AppSettings.setShowListenTogetherButton(!listenTogetherButton) },
                 )
             }
         }

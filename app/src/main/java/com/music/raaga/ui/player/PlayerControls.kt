@@ -40,6 +40,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Size
 import kotlinx.coroutines.delay
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -517,40 +519,44 @@ internal fun PlayerActionRow(
     /** Opens [ListenTogetherMembersSheet] rather than settings directly. */
     onOpenListenTogetherMembers: () -> Unit,
 ) {
+    val showPartyButton by AppSettings.showListenTogetherButton.collectAsStateWithLifecycle()
+    val inParty = rememberPartyBadge().inParty
+    // Just the output glyph in the middle when Listen Together is hidden
+    val compact = !queueOpen && !showPartyButton && !inParty
     BoxWithConstraints(Modifier.fillMaxWidth()) {
-        // Sized for the wider of the two capsules — the three-up one — in both
-        // states. Computed for whichever was on screen it would change as they
-        // swap, and the lyrics and queue glyphs would slide with it.
-        val widestRow = BOTTOM_ACTION_SIZE * 2 + pillWidth(3)
-        val edgeInset = ((maxWidth - widestRow) / 4).coerceAtLeast(0.dp)
-        Row(
+        val edgeInset = ((maxWidth - BOTTOM_ACTION_SIZE * 2 - pillWidth(3)) / 4).coerceAtLeast(0.dp)
+        val compactInset = ((maxWidth - BOTTOM_ACTION_SIZE * 2 - pillWidth(2)) / 4).coerceAtLeast(0.dp)
+        val closeIn = compactInset - edgeInset
+        val compactness = animateFloatAsState(
+            targetValue = if (compact) 1f else 0f,
+            animationSpec = tween(220),
+            label = "actionRowCompact",
+        )
+        Box(
             modifier = Modifier.fillMaxWidth().padding(horizontal = edgeInset),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
+            contentAlignment = Alignment.Center,
         ) {
-            BottomGlyph(
-                icon = RaagaIcons.LyricsQuote,
-                contentDescription = stringResource(if (lyricsOpen) R.string.close_lyrics else R.string.open_lyrics),
-                // Lyrics and the queue are two things to show in one place, so
-                // opening either closes the other; lit to say which is up.
-                onClick = onToggleLyrics,
-                highlighted = lyricsOpen,
-            )
+            Box(
+                Modifier
+                    .align(Alignment.CenterStart)
+                    .offset { IntOffset((closeIn.toPx() * compactness.value).roundToInt(), 0) },
+            ) {
+                BottomGlyph(
+                    icon = RaagaIcons.LyricsQuote,
+                    contentDescription = stringResource(if (lyricsOpen) R.string.close_lyrics else R.string.open_lyrics),
+                    onClick = onToggleLyrics,
+                    highlighted = lyricsOpen,
+                )
+            }
             AnimatedContent(
                 targetState = queueOpen,
                 transitionSpec = {
                     (fadeIn(tween(180, delayMillis = 140)) togetherWith fadeOut(tween(140)))
-                        // Unclipped: the capsule's own rounded ends are what
-                        // the eye follows through the width change, and the
-                        // default clip cuts them square while it happens.
                         .using(SizeTransform(clip = false) { _, _ -> tween(220) })
                 },
                 label = "playerBottomPill",
             ) { showQueueModes ->
                 if (showQueueModes) {
-                    // Always three-up, unlike the output/party capsule — so it
-                    // always takes the narrower spacing. See
-                    // [PILL_SEGMENT_WIDTH_TRIPLE].
                     Pill {
                         PillSegment(
                             icon = RaagaIcons.Shuffle,
@@ -574,10 +580,6 @@ internal fun PlayerActionRow(
                             },
                             onClick = onCycleRepeat,
                             highlighted = repeatMode != Player.REPEAT_MODE_OFF,
-                            // Three states, so the buzz tracks the edges of the
-                            // cycle: leaving off rises, returning to off falls,
-                            // and the step between the two repeat modes is just
-                            // a selection.
                             haptic = when (repeatMode) {
                                 Player.REPEAT_MODE_OFF -> Haptic.ToggleOn
                                 Player.REPEAT_MODE_ONE -> Haptic.ToggleOff
@@ -606,13 +608,19 @@ internal fun PlayerActionRow(
                     )
                 }
             }
-            BottomGlyph(
-                icon = RaagaIcons.Queue,
-                contentDescription = stringResource(R.string.up_next),
-                onClick = onToggleQueue,
-                highlighted = queueOpen,
-                haptic = if (queueOpen) Haptic.Tap else Haptic.Expand,
-            )
+            Box(
+                Modifier
+                    .align(Alignment.CenterEnd)
+                    .offset { IntOffset((-closeIn.toPx() * compactness.value).roundToInt(), 0) },
+            ) {
+                BottomGlyph(
+                    icon = RaagaIcons.Queue,
+                    contentDescription = stringResource(R.string.up_next),
+                    onClick = onToggleQueue,
+                    highlighted = queueOpen,
+                    haptic = if (queueOpen) Haptic.Tap else Haptic.Expand,
+                )
+            }
         }
     }
 }
@@ -753,6 +761,9 @@ private val PLAYER_SKIP_TOUCH_SIZE = 53.dp
 private const val PLAYER_SKIP_HEIGHT_SCALE = 0.85f
 
 private val BOTTOM_ACTION_SIZE = 44.dp
+private val BOTTOM_ACTIVE_TILE_SIZE = 35.dp
+private val BOTTOM_ACTIVE_TILE_CORNER = 7.dp
+private const val BOTTOM_ACTIVE_TILE_ALPHA = 0.62f
 
 /**
  * One half of the output capsule — wider than it is tall, so the capsule reads
@@ -879,6 +890,15 @@ private fun OutputPartyPill(
     onOpenMembers: () -> Unit,
 ) {
     val badge = rememberPartyBadge()
+    val shown by AppSettings.showListenTogetherButton.collectAsStateWithLifecycle()
+    if (!shown && !badge.inParty) {
+        BottomGlyph(
+            icon = Icons.Rounded.Headphones,
+            contentDescription = stringResource(R.string.audio_output),
+            onClick = onOutput,
+        )
+        return
+    }
     Pill {
         PillSegment(
             icon = Icons.Rounded.Headphones,
@@ -1211,18 +1231,29 @@ private fun BottomGlyph(
             ),
         )
     }
+        val tileColor = Color.White.copy(alpha = BOTTOM_ACTIVE_TILE_ALPHA)
     Box(
         modifier = Modifier
             .size(BOTTOM_ACTION_SIZE)
-            .clip(CircleShape)
             .then(
                 if (highlighted) {
                     Modifier
-                        .background(liquidActiveBackground)
-                        .border(1.dp, liquidActiveBorder, CircleShape)
+                        .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                        .drawWithContent {
+                            drawContent()
+                            val side = BOTTOM_ACTIVE_TILE_SIZE.toPx()
+                            val corner = BOTTOM_ACTIVE_TILE_CORNER.toPx()
+                            drawRoundRect(
+                                color = tileColor,
+                                topLeft = Offset((size.width - side) / 2f, (size.height - side) / 2f),
+                                size = Size(side, side),
+                                cornerRadius = CornerRadius(corner, corner),
+                                blendMode = BlendMode.SrcOut,
+                            )
+                        }
                 } else {
                     Modifier
-                }
+                },
             )
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },

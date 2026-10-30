@@ -112,6 +112,8 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -156,6 +158,16 @@ import kotlinx.coroutines.launch
  * it as far down as the panel does left the words ahead of the highlight hard
  * to read at a glance.
  */
+
+/** Whether [text] carries Arabic-script letters (Persian, Arabic, Urdu…). */
+private fun usesArabicScript(text: String): Boolean = text.any { ch ->
+    val code = ch.code
+    code in 0x0600..0x06FF || code in 0x0750..0x077F ||
+        code in 0x08A0..0x08FF || code in 0xFB50..0xFDFF ||
+        code in 0xFE70..0xFEFF
+}
+
+private val PersianLyricFont = FontFamily(Font(R.font.vazirmatn_regular))
 private const val UNSUNG_ALPHA = 0.45f
 private const val UNSUNG_ALPHA_STRIP = 0.55f
 
@@ -2101,6 +2113,11 @@ private fun PanelVoice(
     translationProgress: State<Float>? = null,
     modifier: Modifier = Modifier,
 ) {
+    // Vazirmatn for Persian/Arabic-script lines; Latin lines keep the player's font.
+    val arabicScript = remember(line.text) { usesArabicScript(line.text) }
+    val lyricStyle = remember(style, arabicScript) {
+        if (arabicScript) style.copy(fontFamily = PersianLyricFont) else style
+    }
     if (line.isWordSynced && !browsing) {
         // Every word-synced line goes through the sweep, not just the playing
         // one — a line that has already been sung is fully revealed and one
@@ -2118,7 +2135,7 @@ private fun PanelVoice(
         SweptLyricLine(
             line = line,
             clock = clock,
-            style = style,
+            style = lyricStyle,
             dimAlpha = tail,
             modifier = modifier,
             glowAlpha = glowAlpha,
@@ -2139,7 +2156,7 @@ private fun PanelVoice(
         SweptLyricLine(
             line = line,
             clock = clock,
-            style = style,
+            style = lyricStyle,
             dimAlpha = tail,
             modifier = modifier,
             glowAlpha = 0f,
@@ -2166,7 +2183,7 @@ private fun PanelVoice(
         var layout by remember(displayText) { mutableStateOf<TextLayoutResult?>(null) }
         Text(
             text = displayText,
-            style = style,
+            style = lyricStyle,
             color = Color.White.copy(alpha = lit),
             onTextLayout = { layout = it },
             modifier = modifier.lyricParticles(layout, translationProgress, room).padding(room),
