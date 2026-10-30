@@ -19,15 +19,9 @@ export default function AlbumPage() {
   const album = useAlbum(id);
   usePageTint(useArtworkColor(album.data?.thumbnail));
   const motion = useAlbumMotion(album.data?.title, album.data?.artists.map((a) => a.name).join(', '));
-
-  if (missing) return <NeedsExtension />;
-  if (album.isError) return <LoadError error={album.error} onRetry={() => void album.refetch()} />;
-  if (!album.data) return <AlbumSkeleton />;
-
   const [sort, setSort] = useState<SortOption>('default');
-  const data = album.data;
-  const artists = data.artists.map((a) => a.name).join(', ');
-  const rawTracks = data.tracks;
+
+  const rawTracks = useMemo(() => album.data?.tracks ?? [], [album.data?.tracks]);
   const tracks = useMemo(() => {
     if (!rawTracks || rawTracks.length === 0 || sort === 'default') return rawTracks;
     switch (sort) {
@@ -49,6 +43,13 @@ export default function AlbumPage() {
         return rawTracks;
     }
   }, [rawTracks, sort]);
+
+  if (missing) return <NeedsExtension />;
+  if (album.isError) return <LoadError error={album.error} onRetry={() => void album.refetch()} />;
+  if (!album.data) return <AlbumSkeleton />;
+
+  const data = album.data;
+  const artists = data.artists.map((a) => a.name).join(', ');
 
   // Album tracks carry no artist or artwork of their own; the queue credits the album's.
   const context = {

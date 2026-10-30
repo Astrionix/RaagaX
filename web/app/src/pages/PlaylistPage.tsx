@@ -38,11 +38,7 @@ export default function PlaylistPage() {
     if (hasNextPage && !isFetchingNextPage && !isFetchNextPageError) void fetchNextPage();
   }, [hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage]);
 
-  if (missing) return <NeedsExtension />;
-  if (playlist.isError && !playlist.data) return <LoadError error={playlist.error} onRetry={() => void playlist.refetch()} />;
-  if (!playlist.data || !header) return <PlaylistSkeleton />;
-
-  const rawTracks = playlist.data.pages.flatMap((page) => page.tracks);
+  const rawTracks = useMemo(() => playlist.data?.pages.flatMap((page) => page.tracks) ?? [], [playlist.data]);
   const tracks = useMemo(() => {
     if (!rawTracks || rawTracks.length === 0 || sort === 'default') return rawTracks;
     switch (sort) {
@@ -64,6 +60,10 @@ export default function PlaylistPage() {
         return rawTracks;
     }
   }, [rawTracks, sort]);
+
+  if (missing) return <NeedsExtension />;
+  if (playlist.isError && !playlist.data) return <LoadError error={playlist.error} onRetry={() => void playlist.refetch()} />;
+  if (!playlist.data || !header) return <PlaylistSkeleton />;
 
   const context = { source: { title: header.title, type: 'playlist' as const, id } };
   return (

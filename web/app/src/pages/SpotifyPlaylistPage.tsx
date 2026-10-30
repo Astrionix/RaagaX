@@ -30,13 +30,7 @@ export default function SpotifyPlaylistPage() {
   const info = useSpotifyPlaylistInfo(id);
   const rows = useSpotifyRows(id);
   usePageTint(useArtworkColor(info.data?.imageUrl));
-
-  if (extension.state === 'missing') return <NeedsExtension what="your Spotify playlists" />;
-  if (!signedIn) return <EmptyState title="Sign in to Spotify" detail="Open Spotify in the sidebar to connect your account." />;
   const [sort, setSort] = useState<SortOption>('default');
-
-  if (rows.status === 'error' && !rows.rows.length) return <LoadError error={rows.error} onRetry={rows.retry} />;
-  if (!info.data || (rows.status === 'loading' && !rows.rows.length)) return <PlaylistSkeleton />;
 
   const sortedRows = useMemo(() => {
     if (sort === 'default') return rows.rows;
@@ -59,6 +53,11 @@ export default function SpotifyPlaylistPage() {
         return rows.rows;
     }
   }, [rows.rows, sort]);
+
+  if (extension.state === 'missing') return <NeedsExtension what="your Spotify playlists" />;
+  if (!signedIn) return <EmptyState title="Sign in to Spotify" detail="Open Spotify in the sidebar to connect your account." />;
+  if (rows.status === 'error' && !rows.rows.length) return <LoadError error={rows.error} onRetry={rows.retry} />;
+  if (!info.data || (rows.status === 'loading' && !rows.rows.length)) return <PlaylistSkeleton />;
 
   const playable = sortedRows.filter((t) => !t.unavailable);
   const missing = sortedRows.filter((t) => t.unavailable === 'missing');
