@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -32,7 +31,7 @@ import org.jetbrains.compose.resources.stringResource
 enum class SourceQuality { DOLBY_ATMOS, HI_RES_LOSSLESS, LOSSLESS, HIGH_QUALITY }
 
 fun Song.sourceQualityBadge(): SourceQuality? = when (sourceQuality?.uppercase()) {
-    "DOLBY" -> SourceQuality.DOLBY_ATMOS
+    "DOLBY", "SPATIAL", "SPATIAL_AUDIO" -> SourceQuality.DOLBY_ATMOS
     "HI-RES", "HIRES" -> SourceQuality.HI_RES_LOSSLESS
     // The desktop's local files carry their container here — FLAC, WAV.
     "LOSSLESS", "FLAC", "ALAC", "WAV" ->
@@ -56,12 +55,16 @@ fun SourceQualityBadge(
         when (quality) {
             // The two drawables at their own size, as in the player: the wave
             // is wide and the double-D nearly square.
-            SourceQuality.DOLBY_ATMOS -> Icon(painterResource(Res.drawable.ic_dolby_atmos), null, tint = color)
-            SourceQuality.HI_RES_LOSSLESS, SourceQuality.LOSSLESS -> Icon(
-                rememberVectorPainter(Icons.Rounded.GraphicEq),
+            SourceQuality.DOLBY_ATMOS -> Icon(
+                painterResource(Res.drawable.ic_dolby_atmos),
                 contentDescription = null,
                 tint = color,
-                modifier = Modifier.size(12.dp),
+            )
+            SourceQuality.HI_RES_LOSSLESS, SourceQuality.LOSSLESS -> Icon(
+                painterResource(Res.drawable.ic_lossless),
+                contentDescription = null,
+                tint = color,
+                modifier = Modifier.size(16.dp, 10.dp),
             )
             SourceQuality.HIGH_QUALITY -> Icon(
                 rememberVectorPainter(Icons.Rounded.Headphones),

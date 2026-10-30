@@ -610,6 +610,13 @@ private fun TvQualityLine(showStats: Boolean, modifier: Modifier = Modifier) {
                         tint = TvGlass.TextPrimary.copy(alpha = 0.85f),
                         modifier = Modifier.height(9.dp),
                     )
+                } else if (stats.isLossless) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_lossless),
+                        contentDescription = null,
+                        tint = TvGlass.TextPrimary.copy(alpha = 0.85f),
+                        modifier = Modifier.height(9.dp),
+                    )
                 }
                 Text(
                     text = label,

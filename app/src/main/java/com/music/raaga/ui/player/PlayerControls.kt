@@ -1514,6 +1514,7 @@ private fun LosslessOrStats(
             // confirmed. It is what makes the badge read as an achievement
             // rather than a label, which only one of these two is.
             animated = true,
+            iconPainter = painterResource(R.drawable.ic_lossless),
             onClick = onClick,
             modifier = modifier,
         )
