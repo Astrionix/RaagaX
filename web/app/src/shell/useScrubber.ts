@@ -106,11 +106,13 @@ export function useScrubber() {
         duration = curRemoteStatus.durationMs > 0 ? curRemoteStatus.durationMs / 1000 : 0;
         paused = !curRemoteStatus.isPlaying;
         const basePos = curRemoteStatus.positionMs / 1000;
-        const elapsedSinceAnchor =
-          curRemoteStatus.isPlaying && curRemoteStatus.anchorMonotonicMs > 0
-            ? Math.max(0, (performance.now() - curRemoteStatus.anchorMonotonicMs) / 1000)
+        const localReceipt = curRemoteStatus.localReceiptMonotonicMs ?? 0;
+        const speed = curRemoteStatus.playbackSpeed || 1.0;
+        const elapsedSinceReceipt =
+          curRemoteStatus.isPlaying && localReceipt > 0
+            ? Math.max(0, (performance.now() - localReceipt) / 1000) * speed
             : 0;
-        time = dragging !== null && duration > 0 ? dragging * duration : Math.min(duration || Infinity, basePos + elapsedSinceAnchor);
+        time = dragging !== null && duration > 0 ? dragging * duration : Math.min(duration || Infinity, basePos + elapsedSinceReceipt);
       } else if (audio) {
         duration = audio.duration;
         const head = getPlayhead();

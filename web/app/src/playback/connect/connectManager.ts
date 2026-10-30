@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { ytAuthSnapshot } from '@/extension/useYtAuth';
-import { getPlayhead, usePlayer } from '@/state/player';
+import { getAudio, getPlayhead, usePlayer } from '@/state/player';
 import type {
   ConnectDevice,
   ConnectDeviceStatus,
@@ -91,7 +91,27 @@ let usingCloudflare = true;
 let lastCloudflareFailureTime = 0;
 let temporaryPairCode: string | null = null;
 let pairSubmitTimer: any = null;
+let remoteStatusPollTimer: any = null;
 const pendingHandoffs = new Map<string, (packet: ConnectHandoffPacket) => void>();
+
+function startRemoteStatusPolling() {
+  stopRemoteStatusPolling();
+  remoteStatusPollTimer = setInterval(() => {
+    const { activeRemoteDevice } = useConnect.getState();
+    if (activeRemoteDevice) {
+      useConnect.getState().sendControl('QUERY_STATUS');
+    } else {
+      stopRemoteStatusPolling();
+    }
+  }, 4000);
+}
+
+function stopRemoteStatusPolling() {
+  if (remoteStatusPollTimer) {
+    clearInterval(remoteStatusPollTimer);
+    remoteStatusPollTimer = null;
+  }
+}
 
 export const useConnect = create<ConnectState>()((set, get) => ({
   deviceId: getOrCreateDeviceId(),
@@ -120,7 +140,10 @@ export const useConnect = create<ConnectState>()((set, get) => ({
     const nowPlaying = player.nowPlaying;
 
     if (!nowPlaying) {
+      get().pairDeviceDirectly(target);
       set({ activeRemoteDevice: target });
+      get().sendControl('QUERY_STATUS');
+      startRemoteStatusPolling();
       return;
     }
 
@@ -180,11 +203,28 @@ export const useConnect = create<ConnectState>()((set, get) => ({
         throw new Error(confirmedPacket?.errorMessage || 'Target device failed to confirm playback');
       }
 
-      // 3. Cutover: pause web player and activate remote controller
-      player.togglePlay();
-      if (player.status === 'playing') {
-        // Ensure pause
-        usePlayer.setState({ status: 'paused' });
+      // 3. Cutover: smooth fade-out on source player and activate remote controller
+      const audio = getAudio();
+      if (audio && !audio.paused) {
+        const initialVol = audio.volume;
+        const fadeStart = performance.now();
+        const fadeDuration = 200;
+        const fadeInterval = setInterval(() => {
+          const elapsed = performance.now() - fadeStart;
+          if (elapsed >= fadeDuration) {
+            clearInterval(fadeInterval);
+            audio.volume = initialVol;
+            player.togglePlay();
+            usePlayer.setState({ status: 'paused' });
+          } else {
+            audio.volume = Math.max(0, initialVol * (1 - elapsed / fadeDuration));
+          }
+        }, 16);
+      } else {
+        player.togglePlay();
+        if (player.status === 'playing') {
+          usePlayer.setState({ status: 'paused' });
+        }
       }
 
       // Auto-pair
@@ -197,6 +237,7 @@ export const useConnect = create<ConnectState>()((set, get) => ({
 
       // Poll status
       get().sendControl('QUERY_STATUS');
+      startRemoteStatusPolling();
     } catch (err: any) {
       set({ connectingDeviceId: null });
       throw err;
@@ -204,6 +245,7 @@ export const useConnect = create<ConnectState>()((set, get) => ({
   },
 
   transferBack: () => {
+    stopRemoteStatusPolling();
     const { activeRemoteDevice, remoteStatus } = get();
     if (!activeRemoteDevice) return;
 
@@ -262,11 +304,16 @@ export const useConnect = create<ConnectState>()((set, get) => ({
   },
 
   unpairDevice: (id) => {
+    const isCur = get().activeRemoteDevice?.id === id;
+    if (isCur) {
+      stopRemoteStatusPolling();
+    }
     const updated = get().pairedDevices.filter((p) => p.id !== id);
     saveStoredPairedDevices(updated);
     set({
       pairedDevices: updated,
-      activeRemoteDevice: get().activeRemoteDevice?.id === id ? null : get().activeRemoteDevice,
+      activeRemoteDevice: isCur ? null : get().activeRemoteDevice,
+      remoteStatus: isCur ? null : get().remoteStatus,
     });
   },
 
@@ -461,6 +508,7 @@ function connectRelay(): Promise<void> {
 }
 
 function disconnectRelay() {
+  stopRemoteStatusPolling();
   clearTimeout(reconnectTimer);
   clearInterval(heartbeatTimer);
   clearInterval(announceTimer);
@@ -634,7 +682,12 @@ function handleIncomingMessage(text: string) {
         const status = payload as ConnectDeviceStatus;
         const active = useConnect.getState().activeRemoteDevice;
         if (active && (status.deviceId === active.id || !status.deviceId)) {
-          useConnect.setState({ remoteStatus: status });
+          useConnect.setState({
+            remoteStatus: {
+              ...status,
+              localReceiptMonotonicMs: performance.now(),
+            },
+          });
         }
         break;
       }

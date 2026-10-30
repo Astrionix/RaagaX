@@ -71,6 +71,7 @@ export interface ConnectDeviceStatus {
   protocolVersion: number;
   sessionId?: string | null;
   activeSpeakerDeviceId?: string | null;
+  localReceiptMonotonicMs?: number;
 }
 
 export interface PairedDevice {

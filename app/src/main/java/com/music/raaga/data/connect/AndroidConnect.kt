@@ -62,7 +62,9 @@ object AndroidConnect {
                 val am = ctx.getSystemService(android.media.AudioManager::class.java)
                 val max = am?.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC) ?: 15
                 val cur = am?.getStreamVolume(android.media.AudioManager.STREAM_MUSIC) ?: 15
-                (cur.toFloat() / max.coerceAtLeast(1).toFloat()).coerceIn(0f, 1f)
+                val ratio = (cur.toFloat() / max.coerceAtLeast(1).toFloat()).coerceIn(0f, 1f)
+                // Quadratic inverse calibration: sqrt(ratio) so slider matches human auditory perception
+                kotlin.math.sqrt(ratio)
             } else {
                 1.0f
             }
@@ -338,9 +340,12 @@ object AndroidConnect {
                                 if (ctx != null) {
                                     val am = ctx.getSystemService(android.media.AudioManager::class.java)
                                     val max = am?.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC) ?: 15
+                                    // Logarithmic calibration (v^2) for smooth perceived loudness curve
+                                    val calibrated = (v * v).coerceIn(0f, 1f)
+                                    val streamVol = kotlin.math.round(calibrated * max).toInt().coerceIn(0, max)
                                     am?.setStreamVolume(
                                         android.media.AudioManager.STREAM_MUSIC,
-                                        (v * max).toInt().coerceIn(0, max),
+                                        streamVol,
                                         android.media.AudioManager.FLAG_SHOW_UI,
                                     )
                                 }
