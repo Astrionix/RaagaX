@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { config } from '@/config';
 import { ytAuthSnapshot } from '@/extension/useYtAuth';
 import { ServerClock } from './clock';
-import { cleanCode, CODE_LENGTH, sanitizeServerUrl } from './invite';
+import { cleanCode, CODE_LENGTH, isLocalAddress, parseCodeAndServer, sanitizeServerUrl } from './invite';
 import {
   EMPTY_PLAYBACK,
   EMPTY_QUEUE,
@@ -146,8 +146,15 @@ export function serverCandidates(preferredBase?: string | null): string[] {
     if (clean && !candidates.includes(clean)) candidates.push(clean);
   };
 
-  add(partySettings().customServer);
   add(preferredBase);
+  add(partySettings().customServer);
+
+  // Local Wi-Fi Jam candidates for instant LAN connection
+  const lastLocal = localStorage.getItem('raaga:lastLocalJamHost');
+  if (lastLocal) add(lastLocal);
+  add('http://localhost:8890');
+  add('http://127.0.0.1:8890');
+
   add(effectiveIdleServer);
   for (const s of DEFAULT_SERVERS) {
     add(s);
@@ -323,10 +330,14 @@ export async function createParty(options: { maxMembers?: number; autoplayEnable
  * Automatically attempts fallback across all 3 Render servers if unguided.
  */
 export async function joinParty(rawCode: string, serverUrl?: string | null): Promise<string> {
-  const code = cleanCode(rawCode);
+  const { code, serverUrl: parsedServer } = parseCodeAndServer(rawCode);
   if (!code) throw new PartyError('bad_code', `A party code is ${CODE_LENGTH} letters or digits.`);
   refuseIfRecentlyKicked(code);
-  const candidates = serverCandidates(serverUrl);
+  const targetServer = serverUrl || parsedServer;
+  if (targetServer && isLocalAddress(new URL(targetServer).hostname)) {
+    localStorage.setItem('raaga:lastLocalJamHost', targetServer);
+  }
+  const candidates = serverCandidates(targetServer);
   const current = useParty.getState();
   let lastError: unknown = null;
   const payload = JSON.stringify(await identity());
@@ -354,10 +365,11 @@ export async function joinParty(rawCode: string, serverUrl?: string | null): Pro
 }
 
 export async function previewParty(rawCode: string, serverUrl?: string | null): Promise<PartyPreview> {
-  const code = cleanCode(rawCode);
+  const { code, serverUrl: parsedServer } = parseCodeAndServer(rawCode);
   if (!code) throw new PartyError('bad_code', `A party code is ${CODE_LENGTH} letters or digits.`);
   refuseIfRecentlyKicked(code);
-  const candidates = serverCandidates(serverUrl);
+  const targetServer = serverUrl || parsedServer;
+  const candidates = serverCandidates(targetServer);
   let lastError: unknown = null;
 
   for (const base of candidates) {
@@ -679,3 +691,48 @@ export function messageOf(error: unknown): string {
 }
 
 export const QUEUE_EMPTY = EMPTY_QUEUE;
+
+export interface LocalJamInfo {
+  host: string;
+  code?: string;
+  members?: number;
+  maxMembers?: number;
+}
+
+/** Probes local Wi-Fi / LAN endpoints for any actively hosted Jam session. */
+export async function probeLocalJam(hostHint?: string, codeFilter?: string): Promise<LocalJamInfo | null> {
+  const probeHosts: string[] = [];
+  const add = (h: string | null | undefined) => {
+    const clean = sanitizeServerUrl(h);
+    if (clean && !probeHosts.includes(clean)) probeHosts.push(clean);
+  };
+
+  add(hostHint);
+  add(localStorage.getItem('raaga:lastLocalJamHost'));
+  add('http://localhost:8890');
+  add('http://127.0.0.1:8890');
+  add('http://192.168.43.1:8890'); // standard Android Wi-Fi hotspot gateway
+
+  for (const host of probeHosts) {
+    try {
+      const res = await fetch(`${host}/api/parties/active`, { signal: AbortSignal.timeout(1200) });
+      if (res.ok) {
+        const data = (await res.json()) as { ok?: boolean; code?: string; members?: number; maxMembers?: number };
+        if (data.ok) {
+          if (!codeFilter || !data.code || data.code.toUpperCase() === codeFilter.toUpperCase()) {
+            localStorage.setItem('raaga:lastLocalJamHost', host);
+            return {
+              host,
+              code: data.code,
+              members: data.members,
+              maxMembers: data.maxMembers,
+            };
+          }
+        }
+      }
+    } catch {
+      // not answering on this local host
+    }
+  }
+  return null;
+}

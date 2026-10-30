@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { PageHeader } from '@/components/PageHeader';
 import { useSignedIn } from '@/data/music/queries';
-import { cleanCode, inviteUrl } from '@/party/invite';
+import { cleanCode, inviteUrl, parseCodeAndServer } from '@/party/invite';
 import {
   controlsLocked,
   createParty,
@@ -101,21 +101,23 @@ function StartOrJoin({ signedIn }: { signedIn: boolean }) {
           className={settingsUi.controlRow}
           onSubmit={(e) => {
             e.preventDefault();
-            const cleaned = cleanCode(code);
-            if (cleaned) navigate(`/invite/${cleaned}`);
+            const { code: cleaned, serverUrl } = parseCodeAndServer(code);
+            if (cleaned) {
+              const query = serverUrl ? `?server=${encodeURIComponent(serverUrl)}` : '';
+              navigate(`/invite/${cleaned}${query}`);
+            }
           }}
         >
           <span>Join with a Code</span>
           <span className="flex gap-2">
             <input
-              className="w-[110px] flex-none rounded-[8px] border-0 bg-quaternary px-2.5 py-[5px] text-center type-body tracking-[0.12em] text-primary uppercase"
+              className="w-[140px] flex-none rounded-[8px] border-0 bg-quaternary px-2.5 py-[5px] text-center type-body tracking-[0.08em] text-primary uppercase placeholder:text-xs"
               value={code}
-              maxLength={7}
-              placeholder="ABC123"
+              placeholder="ABC123 or @IP"
               aria-label="Party code"
               onChange={(e) => setCode(e.currentTarget.value.toUpperCase())}
             />
-            <button className={primary} type="submit" disabled={!cleanCode(code)}>
+            <button className={primary} type="submit" disabled={!code.trim()}>
               Join
             </button>
           </span>

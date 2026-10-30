@@ -219,6 +219,19 @@ internal class LocalJamHostServer(
         headers: Map<String, String>,
     ) {
         when {
+            method == "OPTIONS" -> {
+                val resp = "HTTP/1.1 204 No Content\r\n" +
+                        "Connection: close\r\n" +
+                        "Access-Control-Allow-Origin: *\r\n" +
+                        "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n" +
+                        "Access-Control-Allow-Headers: *\r\n" +
+                        "Access-Control-Allow-Private-Network: true\r\n" +
+                        "Access-Control-Max-Age: 86400\r\n" +
+                        "Content-Length: 0\r\n\r\n"
+                out.write(resp.toByteArray(StandardCharsets.UTF_8))
+                out.flush()
+            }
+
             method == "GET" && (path == "/healthz" || path == "/api/time" || path == "/api/parties/active") -> {
                 val now = System.currentTimeMillis()
                 val activePartyJson = if (code.isNotEmpty()) {
@@ -965,7 +978,10 @@ internal class LocalJamHostServer(
                 "Content-Type: application/json; charset=utf-8\r\n" +
                 "Content-Length: ${bytes.size}\r\n" +
                 "Connection: close\r\n" +
-                "Access-Control-Allow-Origin: *\r\n\r\n"
+                "Access-Control-Allow-Origin: *\r\n" +
+                "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n" +
+                "Access-Control-Allow-Headers: *\r\n" +
+                "Access-Control-Allow-Private-Network: true\r\n\r\n"
         out.write(resp.toByteArray(StandardCharsets.UTF_8))
         out.write(bytes)
         out.flush()

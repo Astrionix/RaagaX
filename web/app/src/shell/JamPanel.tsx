@@ -15,6 +15,8 @@ import {
   SkipForward,
   UserMinus,
   Users,
+  Wifi,
+  Zap,
   X,
 } from 'lucide-react';
 import { Artwork } from '@/components/music/Artwork';
@@ -22,6 +24,8 @@ import { JamIcon } from '@/components/icons/JamIcon';
 import {
   cleanCode,
   inviteUrl,
+  isLocalAddress,
+  parseCodeAndServer,
 } from '@/party/invite';
 import {
   controlsLocked,
@@ -32,6 +36,8 @@ import {
   partyServer,
   useParty,
   DEFAULT_SERVER,
+  probeLocalJam,
+  type LocalJamInfo,
 } from '@/party/listenTogether';
 import { usePlayer } from '@/state/player';
 import { useUi } from '@/state/ui';
@@ -92,10 +98,39 @@ function IdleJamView() {
   const [isJoining, setIsJoining] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Local Wi-Fi (LAN) state
+  const [isLocalMode, setIsLocalMode] = useState(() => Boolean(localStorage.getItem('raaga:lastLocalJamHost')));
+  const [localHostInput, setLocalHostInput] = useState(() => localStorage.getItem('raaga:lastLocalJamHost') || '');
+  const [isScanningLan, setIsScanningLan] = useState(false);
+  const [detectedLanJam, setDetectedLanJam] = useState<LocalJamInfo | null>(null);
+
   const autoplay = usePlayer((s) => s.autoplay);
   const authStatus = useYtAuth();
   const signedIn = authStatus.state === 'ready' && authStatus.auth.signedIn;
   const activeAccount = authStatus.state === 'ready' && authStatus.auth.signedIn ? authStatus.auth.active : null;
+
+  const handleScanLocal = useCallback(async () => {
+    setIsScanningLan(true);
+    setErrorMessage(null);
+    try {
+      const found = await probeLocalJam(localHostInput.trim() || undefined);
+      if (found) {
+        setDetectedLanJam(found);
+        if (found.code) {
+          setJoinCodeInput(found.code);
+        }
+        if (found.host) {
+          setLocalHostInput(found.host);
+        }
+      } else {
+        setErrorMessage('No active Jam host found on local Wi-Fi. Check IP or start a Jam on host device.');
+      }
+    } catch {
+      setErrorMessage('Local Wi-Fi probe failed. Check device IP.');
+    } finally {
+      setIsScanningLan(false);
+    }
+  }, [localHostInput]);
 
   const handleStartJam = async () => {
     setIsStarting(true);
@@ -111,12 +146,18 @@ function IdleJamView() {
 
   const handleJoinJam = async (e: React.FormEvent) => {
     e.preventDefault();
-    const clean = cleanCode(joinCodeInput);
-    if (!clean) return;
+    const parsed = parseCodeAndServer(joinCodeInput);
+    const code = parsed.code;
+    if (!code) {
+      setErrorMessage('Please enter a valid 6-character Jam code.');
+      return;
+    }
+
     setIsJoining(true);
     setErrorMessage(null);
     try {
-      await joinParty(clean);
+      const targetServer = parsed.serverUrl || (isLocalMode && localHostInput.trim() ? localHostInput.trim() : null);
+      await joinParty(code, targetServer);
     } catch (err: any) {
       setErrorMessage(err?.message || 'Failed to join Jam. Check code and try again.');
     } finally {
@@ -126,7 +167,7 @@ function IdleJamView() {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Hero Visual Card - Clean rectangular modern card with rounded-xl corners (NO OVAL SHAPES) */}
+      {/* Hero Visual Card */}
       <div className="relative overflow-hidden rounded-2xl border border-quaternary bg-quinary/80 p-5 text-center shadow-sm">
         <div className="mx-auto mb-3.5 grid size-13 place-items-center rounded-xl bg-key/10 text-key shadow-sm">
           <JamIcon size={26} />
@@ -137,7 +178,7 @@ function IdleJamView() {
           Queue songs, invite friends, and listen in synchronized real-time across phones and computers.
         </p>
 
-        {/* Start Button - Rectangular with rounded-xl corners (NO OVAL) */}
+        {/* Start Button */}
         <button
           className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-key px-4 font-semibold text-white shadow-md shadow-key/20 hover:brightness-105 active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer"
           onClick={handleStartJam}
@@ -150,27 +191,79 @@ function IdleJamView() {
         </button>
       </div>
 
-      {/* Join with a Code Section - Clean card with themed input & high contrast */}
+      {/* Join with a Code Section */}
       <div className="rounded-2xl border border-quaternary bg-quinary/80 p-4 shadow-sm">
-        <div className="flex items-center gap-1.5 mb-2.5">
-          <Radio size={13} className="text-secondary" />
-          <h5 className="type-callout-emphasized text-secondary uppercase tracking-wider text-[11px]">
-            Join a Friend's Jam
-          </h5>
+        <div className="flex items-center justify-between mb-2.5">
+          <div className="flex items-center gap-1.5">
+            <Radio size={13} className="text-secondary" />
+            <h5 className="type-callout-emphasized text-secondary uppercase tracking-wider text-[11px]">
+              Join a Friend's Jam
+            </h5>
+          </div>
+          {/* Local Wi-Fi Mode Toggle Pill */}
+          <button
+            type="button"
+            onClick={() => setIsLocalMode((prev) => !prev)}
+            className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium transition-all cursor-pointer ${
+              isLocalMode
+                ? 'bg-green/15 text-green border border-green/30'
+                : 'bg-quaternary/60 text-secondary hover:text-primary'
+            }`}
+            title="Toggle Local Wi-Fi (LAN) Mode for sub-5ms latency on the same Wi-Fi"
+          >
+            <Wifi size={11} className={isLocalMode ? 'text-green animate-pulse' : ''} />
+            <span>Local Wi-Fi</span>
+          </button>
         </div>
+
+        {/* Local Wi-Fi IP / Scan Card (when toggled on) */}
+        {isLocalMode && (
+          <div className="mb-3 rounded-xl border border-green/20 bg-green/5 p-2.5 flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-green flex items-center gap-1">
+                <Zap size={11} /> Local Wi-Fi (LAN) Active
+              </span>
+              <button
+                type="button"
+                onClick={handleScanLocal}
+                disabled={isScanningLan}
+                className="text-[10px] text-green/90 font-medium hover:underline flex items-center gap-1 cursor-pointer disabled:opacity-50"
+              >
+                {isScanningLan ? 'Scanning…' : 'Scan Wi-Fi'}
+              </button>
+            </div>
+            <input
+              type="text"
+              value={localHostInput}
+              onChange={(e) => {
+                setLocalHostInput(e.target.value);
+                localStorage.setItem('raaga:lastLocalJamHost', e.target.value);
+              }}
+              placeholder="Host Device IP (e.g. 192.168.1.5 or localhost)"
+              className="h-8 w-full rounded-lg border border-quaternary bg-page px-2.5 text-xs text-primary placeholder:text-secondary/50 focus:border-green focus:ring-1 focus:ring-green focus:outline-none"
+            />
+            {detectedLanJam && (
+              <div className="flex items-center justify-between bg-green/10 rounded-lg px-2 py-1 text-[11px] text-green">
+                <span>
+                  Found Jam <strong>{detectedLanJam.code}</strong> ({detectedLanJam.members ?? 1} listening)
+                </span>
+                <span className="font-semibold text-[10px]">Auto-filled</span>
+              </div>
+            )}
+          </div>
+        )}
 
         <form onSubmit={handleJoinJam} className="flex gap-2">
           <input
             type="text"
             value={joinCodeInput}
             onChange={(e) => setJoinCodeInput(e.target.value.toUpperCase())}
-            placeholder="CODE (e.g. ABC123)"
-            maxLength={7}
-            className="flex-1 min-w-0 h-10 rounded-xl border border-quaternary bg-page px-3 text-center font-mono text-[14px] font-bold tracking-widest uppercase text-primary placeholder:text-secondary/40 placeholder:font-sans placeholder:tracking-normal placeholder:text-xs placeholder:font-normal focus:border-key focus:ring-1 focus:ring-key focus:outline-none transition-all"
+            placeholder={isLocalMode ? 'CODE or CODE@IP (e.g. ABC123)' : 'CODE (e.g. ABC123)'}
+            className="flex-1 min-w-0 h-10 rounded-xl border border-quaternary bg-page px-3 text-center font-mono text-[13px] font-bold tracking-widest uppercase text-primary placeholder:text-secondary/40 placeholder:font-sans placeholder:tracking-normal placeholder:text-xs placeholder:font-normal focus:border-key focus:ring-1 focus:ring-key focus:outline-none transition-all"
           />
           <button
             type="submit"
-            disabled={!cleanCode(joinCodeInput) || isJoining}
+            disabled={!joinCodeInput.trim() || isJoining}
             className="h-10 px-4 rounded-xl bg-primary text-page font-semibold text-xs hover:opacity-90 active:scale-95 transition-all disabled:opacity-30 disabled:pointer-events-none shrink-0 cursor-pointer"
           >
             {isJoining ? 'Joining…' : 'Join'}
@@ -242,14 +335,21 @@ function IdleJamView() {
 
 function ActiveJamView({ state }: { state: ReturnType<typeof useParty.getState> }) {
   const [copied, setCopied] = useState(false);
+  const [copiedLan, setCopiedLan] = useState(false);
   const player = usePlayer();
   const you = state.you;
   const isHost = you?.isHost === true;
   const locked = controlsLocked(state);
 
   const server = partyServer();
+  const isLan = Boolean(
+    server &&
+      (isLocalAddress(new URL(server.startsWith('http') ? server : `http://${server}`).hostname) ||
+        server.includes('localhost') ||
+        server.includes('127.0.0.1'))
+  );
   const isLocal = !server || server === DEFAULT_SERVER || server.includes('localhost') || server.includes('127.0.0.1');
-  const custom = isLocal ? null : server;
+  const custom = isLocal && !isLan ? null : server;
   const link = state.code ? inviteUrl(state.code, custom) : '';
 
   const copyInvite = useCallback(() => {
@@ -258,6 +358,19 @@ function ActiveJamView({ state }: { state: ReturnType<typeof useParty.getState> 
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }, [link]);
+
+  const copyLanCode = useCallback(() => {
+    if (!state.code || !server) return;
+    try {
+      const url = new URL(server.startsWith('http') ? server : `http://${server}`);
+      const hostWithPort = `${url.hostname}:${url.port || 8890}`;
+      navigator.clipboard.writeText(`${state.code}@${hostWithPort}`);
+      setCopiedLan(true);
+      setTimeout(() => setCopiedLan(false), 2000);
+    } catch {
+      // fallback
+    }
+  }, [state.code, server]);
 
   const toggleHostOnly = () => {
     party.setHostOnlyControl(!state.hostOnlyControl);
@@ -281,22 +394,39 @@ function ActiveJamView({ state }: { state: ReturnType<typeof useParty.getState> 
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Session Code & Share Box - Rectangular card with rounded-2xl (NO OVAL) */}
+      {/* Session Code & Share Box */}
       <div className="relative overflow-hidden rounded-2xl border border-green/30 bg-green/5 p-4 text-center shadow-sm">
+        {isLan && (
+          <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-green/15 text-green text-[10px] font-semibold mb-2">
+            <Wifi size={10} /> Local Wi-Fi Jam (Sub-5ms latency)
+          </div>
+        )}
         <p className="text-[11px] font-semibold tracking-wider text-green uppercase">Session Code</p>
         <p className="my-1.5 type-large-title-emphasized font-mono tracking-[0.25em] text-primary select-all">
           {state.code}
         </p>
         <p className="text-[11px] text-secondary mb-3">{statusText}</p>
 
-        {/* Copy Invite Link - Clean rectangular button with rounded-xl (NO OVAL) */}
-        <button
-          className="mx-auto flex h-9 items-center justify-center gap-1.5 rounded-xl border border-quaternary bg-quaternary/70 px-4 text-xs font-semibold text-primary hover:bg-quaternary active:scale-95 transition-all cursor-pointer"
-          onClick={copyInvite}
-        >
-          {copied ? <Check size={14} className="text-green" /> : <Copy size={14} />}
-          <span>{copied ? 'Link Copied!' : 'Copy Invite Link'}</span>
-        </button>
+        {/* Action Buttons */}
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <button
+            className="flex h-9 items-center justify-center gap-1.5 rounded-xl border border-quaternary bg-quaternary/70 px-3.5 text-xs font-semibold text-primary hover:bg-quaternary active:scale-95 transition-all cursor-pointer"
+            onClick={copyInvite}
+          >
+            {copied ? <Check size={14} className="text-green" /> : <Copy size={14} />}
+            <span>{copied ? 'Link Copied!' : 'Copy Invite Link'}</span>
+          </button>
+          {isLan && (
+            <button
+              className="flex h-9 items-center justify-center gap-1.5 rounded-xl border border-green/30 bg-green/10 px-3 text-xs font-semibold text-green hover:bg-green/20 active:scale-95 transition-all cursor-pointer"
+              onClick={copyLanCode}
+              title="Copy direct CODE@IP format for friends on same Wi-Fi"
+            >
+              {copiedLan ? <Check size={13} /> : <Zap size={13} />}
+              <span>{copiedLan ? 'LAN Code Copied!' : 'Copy LAN Code'}</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Now Playing in Jam */}
@@ -436,7 +566,7 @@ function ActiveJamView({ state }: { state: ReturnType<typeof useParty.getState> 
         </div>
       )}
 
-      {/* Leave / End Jam Button - Clean rectangular button with rounded-xl (NO OVAL) */}
+      {/* Leave / End Jam Button */}
       <div className="pt-1">
         <button
           className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-red/30 bg-red/10 text-xs font-semibold text-red hover:bg-red/20 active:scale-[0.98] transition-all cursor-pointer"
