@@ -6,8 +6,7 @@
       "DOM"
     ],
     "types": [
-      "node",
-      "vite/client"
+      "node"
     ],
     "paths": {
       "@/*": [
