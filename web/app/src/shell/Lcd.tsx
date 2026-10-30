@@ -3,6 +3,7 @@ import { useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 import { LogoMark } from '@/components/icons/LogoMark';
 import { ExplicitBadge } from '@/components/music/ExplicitBadge';
+import { LosslessBadge } from '@/components/music/LosslessBadge';
 import { VideoSurface } from '@/components/music/VideoSurface';
 import { albumHref, artistHref } from '@/components/music/links';
 import { PrefetchLink } from '@/components/PrefetchLink';
@@ -161,6 +162,7 @@ export function Lcd() {
               {title}
             </PageLink>
             {track?.explicit && <ExplicitBadge size={11} />}
+            <LosslessBadge size="xs" className="hidden sm:inline-flex shrink-0 scale-90" />
           </div>
         ) : (
           <span className={titleClass}>{status === 'loading' ? 'Loading…' : ''}</span>
