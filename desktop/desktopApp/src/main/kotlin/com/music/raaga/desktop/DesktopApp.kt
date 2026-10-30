@@ -4341,6 +4341,8 @@ fun RaagaDesktopApp() {
                             // this computer played when there is not.
                             history = remoteHistory.ifEmpty { history },
                             onSongClick = { playSong(it, source = DesktopQueueSource(DesktopStrings["history", "History"], PlaybackSourceType.HISTORY)) },
+                            onPlayAll = { songs, index -> playSongs(songs, index, DesktopQueueSource(DesktopStrings["history", "History"], PlaybackSourceType.HISTORY)) },
+                            onShuffle = { songs -> playSongs(songs.shuffled(), 0, DesktopQueueSource(DesktopStrings["history", "History"], PlaybackSourceType.HISTORY)) },
                             onDownload = ::downloadSong,
                             onAddToPlaylist = { playlistTarget = it },
                             downloadedIds = downloads.map(Song::videoId).toSet(),
@@ -5356,8 +5358,33 @@ private fun DesktopSidebar(
                         modifier = Modifier.padding(horizontal = 4.dp),
                     )
                     Spacer(Modifier.height(8.dp))
-                    DesktopSidebarItem(Icons.Rounded.Settings, "Settings", settingsOpen) {
-                        onOpenSettings()
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Box(modifier = Modifier.weight(1f)) {
+                            DesktopSidebarItem(Icons.Rounded.Settings, "Settings", settingsOpen) {
+                                onOpenSettings()
+                            }
+                        }
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .desktopHoverWash()
+                                .clickable {
+                                    DesktopExternalLinks.open("https://discord.gg/yGV2HqhSk")
+                                },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                RaagaIcons.Discord,
+                                contentDescription = "Discord Community",
+                                tint = Color(0xFF5865F2),
+                                modifier = Modifier.size(19.dp),
+                            )
+                        }
                     }
                 }
             }
@@ -6186,6 +6213,8 @@ private fun DesktopHistoryPage(
     downloadedIds: Set<String>,
     downloadInProgress: Set<String>,
     contentPadding: PaddingValues,
+    onPlayAll: ((List<Song>, Int) -> Unit)? = null,
+    onShuffle: ((List<Song>) -> Unit)? = null,
     menu: (@Composable (Song) -> Unit)? = null,
 ) {
     DesktopPageScaffold(contentPadding) {
@@ -6193,19 +6222,53 @@ private fun DesktopHistoryPage(
             contentPadding = pagePadding(start = DesktopPageGutter, end = DesktopPageGutter, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            if (history.isEmpty()) item { DesktopEmptyPage(RaagaIcons.Clock, "Nothing played yet", "Songs you play will show up here.") }
-            else items(history, key = Song::videoId) {
-                DesktopSongRow(
-                    song = it,
-                    liked = false,
-                    onClick = onSongClick,
-                    onToggleLike = null,
-                    onDownload = onDownload,
-                    onAddToPlaylist = onAddToPlaylist,
-                    downloaded = it.videoId in downloadedIds,
-                    downloadInProgress = it.videoId in downloadInProgress,
-                    menu = menu,
-                )
+            if (history.isEmpty()) {
+                item { DesktopEmptyPage(RaagaIcons.Clock, "Nothing played yet", "Songs you play will show up here.") }
+            } else {
+                item("history-header") {
+                    Column(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 16.dp)) {
+                        Text(
+                            text = DesktopStrings["history", "Recently Played"],
+                            style = MaterialTheme.typography.displaySmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = "${history.size} ${if (history.size == 1) "song" else "songs"} played",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = DesktopSecondary,
+                        )
+                        Spacer(Modifier.height(14.dp))
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            DesktopCircleButton(
+                                icon = RaagaIcons.Shuffle,
+                                contentDescription = DesktopStrings["shuffle", "Shuffle"],
+                                onClick = { onShuffle?.invoke(history) ?: history.shuffled().firstOrNull()?.let(onSongClick) },
+                            )
+                            DesktopPlayPill(
+                                label = DesktopStrings["play", "Play"],
+                                onClick = { onPlayAll?.invoke(history, 0) ?: history.firstOrNull()?.let(onSongClick) },
+                            )
+                        }
+                    }
+                }
+                items(history, key = Song::videoId) {
+                    DesktopSongRow(
+                        song = it,
+                        liked = false,
+                        onClick = onSongClick,
+                        onToggleLike = null,
+                        onDownload = onDownload,
+                        onAddToPlaylist = onAddToPlaylist,
+                        downloaded = it.videoId in downloadedIds,
+                        downloadInProgress = it.videoId in downloadInProgress,
+                        menu = menu,
+                    )
+                }
             }
         }
     }
@@ -6292,16 +6355,53 @@ private fun DesktopLocalMusicPage(
                     placeholder = DesktopStrings["d_search_your_music", "Search your music"],
                 )
                 Spacer(Modifier.width(10.dp))
-                TextButton(onClick = {
-                    sort = when (sort) {
-                        DesktopLibrarySort.TITLE_ASC -> DesktopLibrarySort.TITLE_DESC
-                        DesktopLibrarySort.TITLE_DESC -> DesktopLibrarySort.DATE_ADDED
-                        DesktopLibrarySort.DATE_ADDED -> DesktopLibrarySort.DATE_MODIFIED
-                        DesktopLibrarySort.DATE_MODIFIED -> DesktopLibrarySort.TITLE_ASC
+                var sortMenuOpen by remember { mutableStateOf(false) }
+                Box {
+                    TextButton(onClick = { sortMenuOpen = true }) {
+                        Icon(Icons.Rounded.Sort, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text(sort.label())
                     }
-                    persistence.saveString("${persistenceKey}_sort", sort.name)
-                }) {
-                    Text(sort.label())
+                    DropdownMenu(expanded = sortMenuOpen, onDismissRequest = { sortMenuOpen = false }) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    DesktopStrings["sort_by", "Sort by"],
+                                    color = DesktopSecondary,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                            },
+                            onClick = {},
+                            enabled = false,
+                        )
+                        DesktopLibrarySort.entries.forEach { option ->
+                            DropdownMenuItem(
+                                text = {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text(option.label())
+                                        if (sort == option) {
+                                            Icon(
+                                                Icons.Rounded.Check,
+                                                contentDescription = null,
+                                                tint = DesktopAccent,
+                                                modifier = Modifier.size(16.dp),
+                                            )
+                                        }
+                                    }
+                                },
+                                onClick = {
+                                    sort = option
+                                    persistence.saveString("${persistenceKey}_sort", option.name)
+                                    sortMenuOpen = false
+                                },
+                            )
+                        }
+                    }
                 }
                 IconButton(onClick = {
                     view = if (view == DesktopLibraryView.LIST) DesktopLibraryView.GRID else DesktopLibraryView.LIST
@@ -7155,6 +7255,22 @@ private fun DesktopSettingsScreen(
                     )
                 }
             }
+            if (section == DesktopSettingsSection.MISCELLANEOUS) item {
+                SettingsGroup("Community & Links") {
+                    SettingsRow(
+                        RaagaIcons.Discord,
+                        "Discord Community",
+                        "Join the official Raaga Discord server for announcements & support",
+                        onClick = { DesktopExternalLinks.open("https://discord.gg/yGV2HqhSk") },
+                    )
+                    SettingsRow(
+                        Icons.Rounded.Devices,
+                        "Mobile App",
+                        "Download Raaga for Android on raaga.me",
+                        onClick = { DesktopExternalLinks.open("https://raaga.me") },
+                    )
+                }
+            }
             if (section == DesktopSettingsSection.ADVANCED) item {
                 SettingsGroup(DesktopStrings["advanced_options", "Advanced options"]) {
                     SettingsToggle(
@@ -7608,13 +7724,29 @@ private fun DesktopCollectionPage(
                             }
                         }
                     }
-                    Box(Modifier.size(286.dp).clip(RoundedCornerShape(8.dp))) {
-                        DesktopArtwork(
-                            collection.thumbnailUrl ?: songs.firstOrNull()?.thumbnailUrl,
-                            Modifier.fillMaxSize(),
-                        )
-                        albumCanvas?.let {
-                            DesktopCanvasView(it.url, Modifier.fillMaxSize(), fallbackUrl = it.fallbackUrl)
+                    Box(Modifier.size(286.dp)) {
+                        val coverUrl = collection.thumbnailUrl ?: songs.firstOrNull()?.thumbnailUrl
+                        if (coverUrl != null) {
+                            DesktopArtwork(
+                                coverUrl,
+                                Modifier
+                                    .size(260.dp)
+                                    .align(Alignment.Center)
+                                    .graphicsLayer {
+                                        alpha = 0.35f
+                                        scaleX = 0.92f
+                                        scaleY = 0.92f
+                                    }
+                                    .blur(22.dp)
+                                    .clip(RoundedCornerShape(14.dp)),
+                                px = CARD_ART_PX,
+                            )
+                        }
+                        Box(Modifier.fillMaxSize().clip(RoundedCornerShape(10.dp))) {
+                            DesktopArtwork(coverUrl, Modifier.fillMaxSize())
+                            albumCanvas?.let {
+                                DesktopCanvasView(it.url, Modifier.fillMaxSize(), fallbackUrl = it.fallbackUrl)
+                            }
                         }
                     }
                     Spacer(Modifier.width(30.dp))

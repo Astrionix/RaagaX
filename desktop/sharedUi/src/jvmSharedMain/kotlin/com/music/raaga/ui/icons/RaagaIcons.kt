@@ -762,4 +762,48 @@ object RaagaIcons {
             }
         }.build()
     }
+
+    /** Discord brand icon for community links. */
+    val Discord: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "discord",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f,
+        ).apply {
+            path(fill = stroke) {
+                moveTo(20.317f, 4.37f)
+                curveToRelative(-1.53f, -0.7f, -3.17f, -1.2f, -4.885f, -1.49f)
+                curveToRelative(-0.21f, 0.38f, -0.45f, 0.88f, -0.62f, 1.28f)
+                curveToRelative(-1.82f, -0.27f, -3.63f, -0.27f, -5.43f, 0f)
+                curveToRelative(-0.17f, -0.4f, -0.42f, -0.9f, -0.63f, -1.28f)
+                curveToRelative(-1.72f, 0.29f, -3.36f, 0.79f, -4.89f, 1.49f)
+                curveTo(0.777f, 8.97f, -0.043f, 13.45f, 0.017f, 17.88f)
+                curveToRelative(2.05f, 1.51f, 4.04f, 2.43f, 5.99f, 3.03f)
+                curveToRelative(0.49f, -0.66f, 0.92f, -1.37f, 1.29f, -2.12f)
+                curveToRelative(-0.71f, -0.27f, -1.39f, -0.62f, -2.03f, -1.04f)
+                curveToRelative(0.17f, -0.12f, 0.34f, -0.25f, 0.5f, -0.38f)
+                curveToRelative(3.92f, 1.8f, 8.18f, 1.8f, 12.06f, 0f)
+                curveToRelative(0.17f, 0.13f, 0.33f, 0.26f, 0.5f, 0.38f)
+                curveToRelative(-0.64f, 0.42f, -1.32f, 0.77f, -2.03f, 1.04f)
+                curveToRelative(0.37f, 0.75f, 0.8f, 1.46f, 1.29f, 2.12f)
+                curveToRelative(1.95f, -0.6f, 3.94f, -1.52f, 5.99f, -3.03f)
+                curveToRelative(0.08f, -5.13f, -1.35f, -9.57f, -3.81f, -13.51f)
+                close()
+                moveTo(8.02f, 15.33f)
+                curveToRelative(-1.18f, 0f, -2.15f, -1.08f, -2.15f, -2.42f)
+                curveToRelative(0f, -1.33f, 0.95f, -2.42f, 2.15f, -2.42f)
+                curveToRelative(1.21f, 0f, 2.17f, 1.09f, 2.15f, 2.42f)
+                curveToRelative(0f, 1.34f, -0.95f, 2.42f, -2.15f, 2.42f)
+                close()
+                moveTo(15.98f, 15.33f)
+                curveToRelative(-1.18f, 0f, -2.15f, -1.08f, -2.15f, -2.42f)
+                curveToRelative(0f, -1.33f, 0.95f, -2.42f, 2.15f, -2.42f)
+                curveToRelative(1.21f, 0f, 2.17f, 1.09f, 2.15f, 2.42f)
+                curveToRelative(0f, 1.34f, -0.95f, 2.42f, -2.15f, 2.42f)
+                close()
+            }
+        }.build()
+    }
 }
