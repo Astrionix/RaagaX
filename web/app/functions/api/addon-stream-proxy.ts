@@ -1,6 +1,9 @@
-interface Env {}
+interface CloudflareContext {
+  request: Request;
+  env?: unknown;
+}
 
-export const onRequest: PagesFunction<Env> = async (context) => {
+export async function onRequest(context: CloudflareContext): Promise<Response> {
   const url = new URL(context.request.url);
   const target = url.searchParams.get('url');
 
@@ -39,12 +42,13 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       status: fetchRes.status,
       headers: responseHeaders,
     });
-  } catch (err: any) {
-    return new Response(`Audio stream proxy failed: ${err?.message || String(err)}`, {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return new Response(`Audio stream proxy failed: ${message}`, {
       status: 502,
       headers: {
         'Access-Control-Allow-Origin': '*',
       },
     });
   }
-};
+}

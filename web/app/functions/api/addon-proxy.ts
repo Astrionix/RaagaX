@@ -1,6 +1,9 @@
-interface Env {}
+interface CloudflareContext {
+  request: Request;
+  env?: unknown;
+}
 
-export const onRequest: PagesFunction<Env> = async (context) => {
+export async function onRequest(context: CloudflareContext): Promise<Response> {
   const url = new URL(context.request.url);
   const target = url.searchParams.get('url');
 
@@ -46,8 +49,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         'Access-Control-Allow-Origin': '*',
       },
     });
-  } catch (err: any) {
-    return new Response(JSON.stringify({ error: `Addon proxy request failed: ${err?.message || String(err)}` }), {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return new Response(JSON.stringify({ error: `Addon proxy request failed: ${message}` }), {
       status: 502,
       headers: {
         'Content-Type': 'application/json',
@@ -55,4 +59,4 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       },
     });
   }
-};
+}
