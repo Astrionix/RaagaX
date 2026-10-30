@@ -222,7 +222,7 @@ class LocalJamHostServer(
     ) {
         when {
             method == "OPTIONS" -> {
-                val resp = "HTTP/1.1 204 No Content\r\n" +
+                val resp = "HTTP/1.1 200 OK\r\n" +
                         "Connection: close\r\n" +
                         "Access-Control-Allow-Origin: *\r\n" +
                         "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n" +

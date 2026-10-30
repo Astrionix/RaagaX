@@ -244,8 +244,20 @@ async function errorOf(response: Response): Promise<PartyError> {
 
 async function request<T>(url: string, init: RequestInit = {}): Promise<T> {
   let response: Response;
+  const isLocal = (() => {
+    try {
+      return isLocalAddress(new URL(url).hostname);
+    } catch {
+      return false;
+    }
+  })();
+
+  // Use text/plain for local LAN requests so browsers treat it as a CORS-safelisted simple request,
+  // bypassing the OPTIONS preflight that older mobile/desktop APKs do not handle.
+  const contentType = isLocal ? 'text/plain;charset=UTF-8' : 'application/json';
+
   try {
-    response = await fetch(url, { ...init, headers: { 'Content-Type': 'application/json', ...init.headers } });
+    response = await fetch(url, { ...init, headers: { 'Content-Type': contentType, ...init.headers } });
   } catch {
     // 1. Fallback via Companion Extension bridge if installed and direct browser fetch was blocked by CORS
     try {
@@ -337,7 +349,8 @@ export async function joinParty(rawCode: string, serverUrl?: string | null): Pro
   if (targetServer && isLocalAddress(new URL(targetServer).hostname)) {
     localStorage.setItem('raaga:lastLocalJamHost', targetServer);
   }
-  const candidates = serverCandidates(targetServer);
+  const isDirectLocal = Boolean(targetServer && (() => { try { return isLocalAddress(new URL(targetServer).hostname); } catch { return false; } })());
+  const candidates = isDirectLocal ? [sanitizeServerUrl(targetServer)!] : serverCandidates(targetServer);
   const current = useParty.getState();
   let lastError: unknown = null;
   const payload = JSON.stringify(await identity());
@@ -369,7 +382,8 @@ export async function previewParty(rawCode: string, serverUrl?: string | null): 
   if (!code) throw new PartyError('bad_code', `A party code is ${CODE_LENGTH} letters or digits.`);
   refuseIfRecentlyKicked(code);
   const targetServer = serverUrl || parsedServer;
-  const candidates = serverCandidates(targetServer);
+  const isDirectLocal = Boolean(targetServer && (() => { try { return isLocalAddress(new URL(targetServer).hostname); } catch { return false; } })());
+  const candidates = isDirectLocal ? [sanitizeServerUrl(targetServer)!] : serverCandidates(targetServer);
   let lastError: unknown = null;
 
   for (const base of candidates) {
