@@ -6652,7 +6652,17 @@ class PlaybackService : MediaLibraryService() {
             }
             val remote = com.music.raaga.data.connect.AndroidConnect.manager.activeRemoteDevice.value
             if (remote != null) {
-                return com.music.raaga.data.connect.AndroidConnect.manager.remoteStatus.value?.positionMs ?: 0L
+                val st = com.music.raaga.data.connect.AndroidConnect.manager.remoteStatus.value
+                val pos = st?.positionMs ?: 0L
+                if (st?.isPlaying == true && pos > 0L) {
+                    val anchor = st.anchorMonotonicMs
+                    val elapsed = if (anchor > 0L) {
+                        (com.music.raaga.data.MonotonicClock.nowMs() - anchor).coerceAtLeast(0L)
+                    } else 0L
+                    val dur = if (st.durationMs > 0L) st.durationMs else Long.MAX_VALUE
+                    return (pos + elapsed).coerceAtMost(dur)
+                }
+                return pos
             }
             return super.currentPosition
         }

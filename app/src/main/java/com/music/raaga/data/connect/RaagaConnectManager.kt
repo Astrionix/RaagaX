@@ -113,6 +113,7 @@ class RaagaConnectManager(
             onHandoffAbortRequested?.invoke(packet)
         },
         onPair = { req -> handlePairRequestDirect(req) },
+        accountIdProvider = accountIdProvider,
         preferredPort = 8895,
     )
 
@@ -229,6 +230,7 @@ class RaagaConnectManager(
     private var lastRemoteStatusReceivedAt: Long = 0L
 
     init {
+        RaagaConnectClient.accountIdProvider = accountIdProvider
         scope.launch {
             combine(
                 discovery.discoveredDevices,

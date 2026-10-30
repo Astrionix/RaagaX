@@ -24,6 +24,19 @@ object RaagaConnectClient {
         isLenient = true
     }
 
+    @Volatile
+    var accountIdProvider: () -> String? = { null }
+
+    private fun sha256Hex(input: String): String {
+        return try {
+            val md = java.security.MessageDigest.getInstance("SHA-256")
+            val bytes = md.digest(input.toByteArray(StandardCharsets.UTF_8))
+            bytes.joinToString("") { "%02x".format(it) }
+        } catch (_: Exception) {
+            input.hashCode().toString()
+        }
+    }
+
     private fun applyAuthHeaders(
         conn: HttpURLConnection,
         method: String = "GET",
@@ -31,6 +44,10 @@ object RaagaConnectClient {
         body: String = "",
     ) {
         conn.setRequestProperty("X-Raaga-Device-Id", RaagaPairingStore.deviceId)
+        val account = accountIdProvider()?.trim()
+        if (!account.isNullOrBlank()) {
+            conn.setRequestProperty("X-Raaga-Account-Hash", sha256Hex(account).take(16))
+        }
         val syncKey = RaagaPairingStore.getSyncKey()
         if (!syncKey.isNullOrBlank()) {
             val timestamp = System.currentTimeMillis().toString()

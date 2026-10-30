@@ -2121,8 +2121,11 @@ private fun RaagaApp(
     val remoteStatus by AndroidConnect.manager.remoteStatus.collectAsStateWithLifecycle()
 
     val remotePlaybackPosition = remember { com.music.raaga.playback.PlaybackPosition() }
-    LaunchedEffect(remoteStatus?.positionMs) {
-        remotePlaybackPosition.positionMs = remoteStatus?.positionMs ?: 0L
+    LaunchedEffect(remoteStatus?.positionMs, remoteStatus?.isPlaying) {
+        val pos = remoteStatus?.positionMs ?: 0L
+        val isPlaying = remoteStatus?.isPlaying == true
+        remotePlaybackPosition.report(pos, System.nanoTime())
+        remotePlaybackPosition.advancing = isPlaying
     }
 
     val remoteSong = remember(remoteStatus?.track) {

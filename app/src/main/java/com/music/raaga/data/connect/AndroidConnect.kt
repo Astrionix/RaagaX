@@ -275,7 +275,7 @@ object AndroidConnect {
                 }
             }
 
-            withTimeoutOrNull(4500) { deferredReady.await() }
+            withTimeoutOrNull(10000) { deferredReady.await() }
                 ?: packet.copy(phase = HandoffPhase.ABORT, errorMessage = "Buffering timed out")
         },
         onHandoffCommitRequested = { packet ->

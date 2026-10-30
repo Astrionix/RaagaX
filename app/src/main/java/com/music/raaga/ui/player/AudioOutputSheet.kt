@@ -1445,8 +1445,16 @@ private fun RaagaConnectSection(
                         .liquidGlassCard(active = false)
                         .clickable(enabled = !isConnecting) {
                             haptics.play(Haptic.Select)
-                            connectManager.pairDeviceDirectly(device)
-                            connectManager.transferLocalPlaybackTo(device)
+                            connectManager.transferLocalPlaybackTo(
+                                target = device,
+                                onSuccess = {
+                                    connectManager.pairDeviceDirectly(device)
+                                },
+                                onError = {
+                                    showPairingCard = true
+                                    pairTab = 0
+                                }
+                            )
                         }
                         .padding(horizontal = 14.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -1512,6 +1520,8 @@ private fun RaagaConnectSection(
                             .clickable {
                                 haptics.play(Haptic.Select)
                                 connectManager.pairDeviceDirectly(device)
+                                showPairingCard = true
+                                pairTab = 0
                             }
                             .padding(horizontal = 10.dp, vertical = 5.dp),
                         contentAlignment = Alignment.Center,

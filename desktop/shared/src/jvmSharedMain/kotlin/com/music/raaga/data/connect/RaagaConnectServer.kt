@@ -40,6 +40,7 @@ class RaagaConnectServer(
     private val onHandoffCommit: (suspend (ConnectHandoffPacket) -> ConnectHandoffPacket)? = null,
     private val onHandoffAbort: ((ConnectHandoffPacket) -> Unit)? = null,
     private val onPair: ((ConnectPairRequest) -> ConnectPairResponse)? = null,
+    private val accountIdProvider: () -> String? = { null },
     private val preferredPort: Int = 8895,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -104,17 +105,37 @@ class RaagaConnectServer(
         serverSocket = null
     }
 
+    private fun sha256Hex(input: String): String {
+        return try {
+            val md = MessageDigest.getInstance("SHA-256")
+            val bytes = md.digest(input.toByteArray(StandardCharsets.UTF_8))
+            bytes.joinToString("") { "%02x".format(it) }
+        } catch (_: Exception) {
+            input.hashCode().toString()
+        }
+    }
+
     private fun isAuthorized(
         senderDeviceId: String,
         syncKey: String?,
         timestampStr: String,
         signature: String,
+        accountHash: String,
         method: String,
         path: String,
         body: String,
     ): Boolean {
         val pairedList = RaagaPairingStore.pairedDevices.value
         val localSyncKey = RaagaPairingStore.getSyncKey()
+        val localAccount = accountIdProvider()?.trim()
+
+        // 0. Account Identity Check: If both sender and receiver belong to the same signed-in user
+        if (!localAccount.isNullOrBlank() && accountHash.isNotBlank()) {
+            val expectedHash = sha256Hex(localAccount).take(16)
+            if (MessageDigest.isEqual(expectedHash.toByteArray(StandardCharsets.UTF_8), accountHash.toByteArray(StandardCharsets.UTF_8))) {
+                return true
+            }
+        }
 
         // Discovered != Authorized: without pairing or sync key, reject mutating requests
         if (pairedList.isEmpty() && localSyncKey.isNullOrBlank()) {
@@ -172,6 +193,7 @@ class RaagaConnectServer(
             var headerSyncKey = ""
             var headerTimestamp = ""
             var headerSignature = ""
+            var headerAccountHash = ""
             var line: String?
             while (reader.readLine().also { line = it } != null) {
                 if (line.isNullOrBlank()) break
@@ -186,6 +208,8 @@ class RaagaConnectServer(
                     headerTimestamp = header.substringAfter(":").trim()
                 } else if (header.startsWith("X-Raaga-Signature:", ignoreCase = true)) {
                     headerSignature = header.substringAfter(":").trim()
+                } else if (header.startsWith("X-Raaga-Account-Hash:", ignoreCase = true)) {
+                    headerAccountHash = header.substringAfter(":").trim()
                 }
             }
 
@@ -243,7 +267,7 @@ class RaagaConnectServer(
                         val packet = json.decodeFromString<ConnectHandoffPacket>(body)
                         val effectiveSenderId = senderDeviceId.ifBlank { packet.sourceDeviceId }
                         val effectiveSyncKey = headerSyncKey.ifBlank { packet.syncKey ?: "" }
-                        if (!isAuthorized(effectiveSenderId, effectiveSyncKey, headerTimestamp, headerSignature, method, path, body)) {
+                        if (!isAuthorized(effectiveSenderId, effectiveSyncKey, headerTimestamp, headerSignature, headerAccountHash, method, path, body)) {
                             writeResponse(writer, 401, "Unauthorized", """{"error":"Unauthorized device"}""")
                             return
                         }
@@ -265,7 +289,7 @@ class RaagaConnectServer(
                         val packet = json.decodeFromString<ConnectHandoffPacket>(body)
                         val effectiveSenderId = senderDeviceId.ifBlank { packet.sourceDeviceId }
                         val effectiveSyncKey = headerSyncKey.ifBlank { packet.syncKey ?: "" }
-                        if (!isAuthorized(effectiveSenderId, effectiveSyncKey, headerTimestamp, headerSignature, method, path, body)) {
+                        if (!isAuthorized(effectiveSenderId, effectiveSyncKey, headerTimestamp, headerSignature, headerAccountHash, method, path, body)) {
                             writeResponse(writer, 401, "Unauthorized", """{"error":"Unauthorized device"}""")
                             return
                         }
@@ -287,7 +311,7 @@ class RaagaConnectServer(
                         val packet = json.decodeFromString<ConnectHandoffPacket>(body)
                         val effectiveSenderId = senderDeviceId.ifBlank { packet.sourceDeviceId }
                         val effectiveSyncKey = headerSyncKey.ifBlank { packet.syncKey ?: "" }
-                        if (!isAuthorized(effectiveSenderId, effectiveSyncKey, headerTimestamp, headerSignature, method, path, body)) {
+                        if (!isAuthorized(effectiveSenderId, effectiveSyncKey, headerTimestamp, headerSignature, headerAccountHash, method, path, body)) {
                             writeResponse(writer, 401, "Unauthorized", """{"error":"Unauthorized device"}""")
                             return
                         }
@@ -304,7 +328,7 @@ class RaagaConnectServer(
                         val payload = json.decodeFromString<ConnectPlaybackTransfer>(body)
                         val effectiveSenderId = senderDeviceId.ifBlank { payload.sourceDeviceId }
                         val effectiveSyncKey = headerSyncKey.ifBlank { payload.syncKey ?: "" }
-                        if (!isAuthorized(effectiveSenderId, effectiveSyncKey, headerTimestamp, headerSignature, method, path, body)) {
+                        if (!isAuthorized(effectiveSenderId, effectiveSyncKey, headerTimestamp, headerSignature, headerAccountHash, method, path, body)) {
                             writeResponse(writer, 401, "Unauthorized", """{"error":"Unauthorized device"}""")
                             return
                         }
@@ -321,7 +345,7 @@ class RaagaConnectServer(
                         val payload = json.decodeFromString<ConnectControlCommand>(body)
                         val effectiveSenderId = senderDeviceId.ifBlank { payload.senderDeviceId }
                         val effectiveSyncKey = headerSyncKey.ifBlank { payload.syncKey ?: "" }
-                        if (!isAuthorized(effectiveSenderId, effectiveSyncKey, headerTimestamp, headerSignature, method, path, body)) {
+                        if (!isAuthorized(effectiveSenderId, effectiveSyncKey, headerTimestamp, headerSignature, headerAccountHash, method, path, body)) {
                             writeResponse(writer, 401, "Unauthorized", """{"error":"Unauthorized device"}""")
                             return
                         }

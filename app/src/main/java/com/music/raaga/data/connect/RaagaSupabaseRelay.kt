@@ -123,13 +123,13 @@ class RaagaSupabaseRelay(
         if (!pairCode.isNullOrBlank()) {
             set.add("raaga_pair_$pairCode")
         }
-        val sync = syncKeyProvider()?.trim()
-        if (!sync.isNullOrBlank()) {
-            set.add("raaga_sync_" + sha256Hex(sync).take(16))
-        }
         val account = accountIdProvider()?.trim()
         if (!account.isNullOrBlank()) {
             set.add("raaga_acc_" + sha256Hex(account).take(16))
+        }
+        val sync = syncKeyProvider()?.trim()
+        if (!sync.isNullOrBlank()) {
+            set.add("raaga_sync_" + sha256Hex(sync).take(16))
         }
         return set
     }
@@ -139,13 +139,13 @@ class RaagaSupabaseRelay(
         if (!pairCode.isNullOrBlank()) {
             return "raaga_pair_$pairCode"
         }
-        val sync = syncKeyProvider()?.trim()
-        if (!sync.isNullOrBlank()) {
-            return "raaga_sync_" + sha256Hex(sync).take(16)
-        }
         val account = accountIdProvider()?.trim()
         if (!account.isNullOrBlank()) {
             return "raaga_acc_" + sha256Hex(account).take(16)
+        }
+        val sync = syncKeyProvider()?.trim()
+        if (!sync.isNullOrBlank()) {
+            return "raaga_sync_" + sha256Hex(sync).take(16)
         }
         return null
     }
@@ -223,6 +223,12 @@ class RaagaSupabaseRelay(
         connectJob = scope.launch {
             while (isActive) {
                 try {
+                    val now = System.currentTimeMillis()
+                    if (!usingCloudflare && (now - lastCloudflareFailureTime > 60_000L)) {
+                        // Cooldown expired; retry primary Cloudflare Edge Relay
+                        usingCloudflare = true
+                        disconnectWebSocket()
+                    }
                     val expected = computeActiveChannels()
                     if (expected.isNotEmpty() && (!isConnected || webSocket == null)) {
                         connectWebSocket()
@@ -289,6 +295,9 @@ class RaagaSupabaseRelay(
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 if (webSocket !== this@RaagaSupabaseRelay.webSocket) return
                 isConnected = true
+                if (usingCloudflare) {
+                    lastCloudflareFailureTime = 0L
+                }
                 joinedChannels.clear()
 
                 if (!usingCloudflare) {
@@ -348,8 +357,9 @@ class RaagaSupabaseRelay(
                 joinedChannels.clear()
                 heartbeatJob?.cancel()
                 announceJob?.cancel()
-                // Failover between Supabase and Cloudflare gracefully if needed
-                if (!usingCloudflare) {
+                // Failover between Cloudflare and Supabase gracefully
+                if (usingCloudflare) {
+                    usingCloudflare = false
                     lastCloudflareFailureTime = System.currentTimeMillis()
                 }
             }
