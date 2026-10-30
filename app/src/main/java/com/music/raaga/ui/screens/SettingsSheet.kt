@@ -87,6 +87,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatDelegate
 import com.music.raaga.data.settings.AutoDownloadPlaylist
+import com.music.raaga.download.PlaylistSyncWorker
 import com.music.raaga.data.AppUpdateChecker
 import com.music.raaga.data.lyrics.translationLanguageName
 import androidx.compose.material3.AlertDialog
@@ -252,6 +253,7 @@ fun SettingsScreen(
     val wifiOnlyDownloads by AppSettings.wifiOnlyDownloads.collectAsStateWithLifecycle()
     val exportDownloads by AppSettings.exportDownloads.collectAsStateWithLifecycle()
     val autoDownloadPlaylists by AppSettings.autoDownloadPlaylists.collectAsStateWithLifecycle()
+    val keepPlaylistsUpdated by AppSettings.keepPlaylistsUpdated.collectAsStateWithLifecycle()
     val stopOnTaskRemoved by AppSettings.stopOnTaskRemoved.collectAsStateWithLifecycle()
     val hideVolumeBar by AppSettings.hideVolumeBar.collectAsStateWithLifecycle()
     val hideSongStatus by AppSettings.hideSongStatus.collectAsStateWithLifecycle()
@@ -642,6 +644,27 @@ fun SettingsScreen(
                     subtitle = stringResource(R.string.auto_download_playlists_subtitle),
                     value = autoDownloadPlaylists.localizedLabel(),
                     onClick = { pickingAutoDownloadPlaylists = true },
+                )
+            }
+            row("Keep playlists updated", "sync", "playlist", "update", divided = false) {
+                SettingsRow(
+                    icon = Icons.Rounded.Sync,
+                    title = "Keep playlists updated",
+                    subtitle = "Check downloaded playlists for new songs every 12 hours (Wi-Fi)",
+                    trailing = {
+                        Switch(
+                            checked = keepPlaylistsUpdated,
+                            onCheckedChange = { enabled ->
+                                AppSettings.setKeepPlaylistsUpdated(enabled)
+                                if (enabled) PlaylistSyncWorker.schedule(context)
+                                else PlaylistSyncWorker.cancel(context)
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                checkedBorderColor = MaterialTheme.colorScheme.primary,
+                            ),
+                        )
+                    },
                 )
             }
         }

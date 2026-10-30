@@ -275,6 +275,13 @@ object AppSettings {
     /** Auto-download tracks added to user playlists. */
     val autoDownloadPlaylists = MutableStateFlow(AutoDownloadPlaylist.OFF)
 
+    /**
+     * Periodically check downloaded playlists for newly added tracks and
+     * notify the user when new songs are found. Mirrors BitChord v1.9's
+     * 'Keep playlists updated' auto-sync feature (WorkManager, Wi-Fi, idle).
+     */
+    val keepPlaylistsUpdated = MutableStateFlow(true)
+
     /** Whether the active network charges for data. `null` while offline. */
     val meteredConnection = MutableStateFlow<Boolean?>(null)
 
@@ -933,6 +940,7 @@ object AppSettings {
                 prefs.getString(KEY_AUTO_DOWNLOAD_PLAYLISTS, null) ?: AutoDownloadPlaylist.OFF.name,
             )
         }.getOrDefault(AutoDownloadPlaylist.OFF)
+        keepPlaylistsUpdated.value = prefs.getBoolean(KEY_KEEP_PLAYLISTS_UPDATED, true)
         crossfadeSeconds.value = prefs.getInt(KEY_CROSSFADE, 0)
         smartFadeEnabled.value = prefs.getBoolean(KEY_SMART_FADE, false)
         automixPerformanceMode.value = runCatching {
@@ -1279,6 +1287,11 @@ object AppSettings {
     fun setAutoDownloadPlaylists(value: AutoDownloadPlaylist) {
         autoDownloadPlaylists.value = value
         prefs.edit().putString(KEY_AUTO_DOWNLOAD_PLAYLISTS, value.name).apply()
+    }
+
+    fun setKeepPlaylistsUpdated(value: Boolean) {
+        keepPlaylistsUpdated.value = value
+        prefs.edit().putBoolean(KEY_KEEP_PLAYLISTS_UPDATED, value).apply()
     }
 
     fun setCrossfadeSeconds(value: Int) {
@@ -2170,6 +2183,7 @@ object AppSettings {
     private const val KEY_WIFI_ONLY_DOWNLOADS = "wifi_only_downloads"
     private const val KEY_EXPORT_DOWNLOADS = "export_downloads"
     private const val KEY_AUTO_DOWNLOAD_PLAYLISTS = "auto_download_playlists"
+    private const val KEY_KEEP_PLAYLISTS_UPDATED = "keep_playlists_updated"
     private const val KEY_LOSSLESS = "lossless_audio"
     private const val KEY_CROSSFADE = "crossfade_seconds"
     private const val KEY_SMART_FADE = "smart_fade_enabled"

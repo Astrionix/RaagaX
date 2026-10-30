@@ -82,6 +82,10 @@ class RaagaApplication : Application(), SingletonImageLoader.Factory {
         }
         AppSettings.init(this, authStore)
         com.music.raaga.data.update.AutoUpdateScheduler.schedule(this)
+        // BitChord v1.9: "Keep playlists updated" — schedule background sync if enabled.
+        if (AppSettings.keepPlaylistsUpdated.value) {
+            com.music.raaga.download.PlaylistSyncWorker.schedule(this)
+        }
         com.music.raaga.data.connect.RaagaPairingStore.init(this)
         // Restores a party this device is still a member of, so a process death
         // mid-session is something the rest of the party never sees. The socket

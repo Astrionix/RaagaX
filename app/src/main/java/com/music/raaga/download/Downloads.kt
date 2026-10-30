@@ -393,6 +393,18 @@ object Downloads {
         url.startsWith("file:") || url.startsWith("content:")
 
     /** Drop a release from the record without touching the files under it. */
+    /**
+     * Updates the ordered list of video IDs for a saved playlist, persisting
+     * the new baseline so future sync runs start from a current snapshot.
+     *
+     * Called by [PlaylistSyncWorker] after it discovers new tracks online.
+     * Does nothing if the playlist is not currently saved.
+     */
+    fun updatePlaylistVideoIds(id: String, videoIds: List<String>) {
+        val existing = _collections.value[id] ?: return
+        recordCollections { it + (id to existing.copy(videoIds = videoIds)) }
+    }
+
     fun forgetCollection(id: String) {
         if (id !in _collections.value) return
         recordCollections { it - id }
