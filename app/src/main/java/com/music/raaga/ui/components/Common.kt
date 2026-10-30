@@ -139,7 +139,7 @@ fun ExplicitSongTitle(
 ) {
     Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
         if (song.isExplicit == true) {
-            // BitChord v1.9: Apple-style explicit badge
+            // Apple-style explicit badge
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier

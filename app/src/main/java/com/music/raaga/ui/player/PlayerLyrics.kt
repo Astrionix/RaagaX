@@ -2178,7 +2178,7 @@ private fun PanelVoice(
             targetValue = if (!synced || sung || isActive) 1f else UNSUNG_ALPHA,
             label = "lyricLit",
         )
-        // BitChord v1.9: Render instrumental glyph for gaps and musical interludes
+        // Render instrumental glyph for gaps and musical interludes
         val displayText = if (line.isGap || line.text.isBlank()) "\u2022\u2022\u2022" else line.text
         var layout by remember(displayText) { mutableStateOf<TextLayoutResult?>(null) }
         Text(

@@ -82,7 +82,7 @@ class RaagaApplication : Application(), SingletonImageLoader.Factory {
         }
         AppSettings.init(this, authStore)
         com.music.raaga.data.update.AutoUpdateScheduler.schedule(this)
-        // BitChord v1.9: "Keep playlists updated" — schedule background sync if enabled.
+        // "Keep playlists updated" — schedule background sync if enabled.
         if (AppSettings.keepPlaylistsUpdated.value) {
             com.music.raaga.download.PlaylistSyncWorker.schedule(this)
         }

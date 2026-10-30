@@ -3202,7 +3202,7 @@ private object OverlayBack {
     }
 }
 
-/** BitChord v1.9: Live Automix status pill that opens the Mix View popup. */
+/** Live Automix status pill that opens the Mix View popup. */
 @Composable
 private fun AutomixBadge(
     isBlending: Boolean,

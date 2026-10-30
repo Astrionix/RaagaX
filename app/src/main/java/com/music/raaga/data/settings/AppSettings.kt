@@ -277,7 +277,7 @@ object AppSettings {
 
     /**
      * Periodically check downloaded playlists for newly added tracks and
-     * notify the user when new songs are found. Mirrors BitChord v1.9's
+     * notify the user when new songs are found. Automated
      * 'Keep playlists updated' auto-sync feature (WorkManager, Wi-Fi, idle).
      */
     val keepPlaylistsUpdated = MutableStateFlow(true)

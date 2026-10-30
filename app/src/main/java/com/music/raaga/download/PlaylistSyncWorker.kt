@@ -20,7 +20,7 @@ import com.music.raaga.data.settings.AppSettings
 import java.util.concurrent.TimeUnit
 
 /**
- * Background worker that mirrors BitChord v1.9's "Keep playlists updated"
+ * Background worker that implements the "Keep playlists updated"
  * auto-sync feature.
  *
  * Runs every 12 hours on Wi-Fi while the device is idle.  For every playlist

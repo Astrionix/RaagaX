@@ -57,7 +57,7 @@ import kotlin.math.roundToInt
 
 /**
  * Frosted pop-up displaying live Automix status, beat-matching metrics, and
- * transition settings — mirroring BitChord v1.9's new Automix mix view popup.
+ * transition settings.
  */
 @Composable
 fun MixViewDialog(

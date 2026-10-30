@@ -693,7 +693,7 @@ class PlaybackService : MediaLibraryService() {
         val resolver = streamResolver ?: return@withContext null
         val resolved = resolver.resolveDataSpec(DataSpec(uri)).uri
         if (resolved.scheme != "http" && resolved.scheme != "https") {
-            // BitChord v1.9: Cast downloaded tracks via remote stream fallback
+            // Cast downloaded tracks via remote stream fallback
             val videoId = item.mediaId
             if (videoId.isNotBlank() && !videoId.startsWith("file://") && !videoId.startsWith("content://")) {
                 val remoteUrl = runCatching { StreamResolver.resolve(videoId) }.getOrNull()

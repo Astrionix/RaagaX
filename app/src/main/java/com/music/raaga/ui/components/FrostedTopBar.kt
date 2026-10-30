@@ -155,7 +155,7 @@ fun topBarContentPadding(): Dp = topBarHeight() + TopBarContentGap
  */
 /**
  * Lambda-based overload to defer reading the scrolled state into [FrostedTopBar],
- * isolating recomposition from parent caller screens (BitChord commit 04f64c9).
+ * isolating recomposition from parent caller screens.
  */
 @Composable
 fun FrostedTopBar(
