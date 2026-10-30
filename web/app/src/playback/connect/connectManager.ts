@@ -90,6 +90,7 @@ let activeChannel: string | null = null;
 let usingCloudflare = true;
 let lastCloudflareFailureTime = 0;
 let temporaryPairCode: string | null = null;
+let pairSubmitTimer: any = null;
 const pendingHandoffs = new Map<string, (packet: ConnectHandoffPacket) => void>();
 
 export const useConnect = create<ConnectState>()((set, get) => ({
@@ -270,6 +271,8 @@ export const useConnect = create<ConnectState>()((set, get) => ({
   },
 
   generatePairCode: () => {
+    clearInterval(pairSubmitTimer);
+    pairSubmitTimer = null;
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     temporaryPairCode = code;
     set({
@@ -282,6 +285,8 @@ export const useConnect = create<ConnectState>()((set, get) => ({
   },
 
   cancelPairCode: () => {
+    clearInterval(pairSubmitTimer);
+    pairSubmitTimer = null;
     temporaryPairCode = null;
     set({ pairCode: null, pairingFeedback: null });
     connectRelay();
@@ -294,25 +299,45 @@ export const useConnect = create<ConnectState>()((set, get) => ({
       return false;
     }
 
-    set({ pairingFeedback: 'Connecting...' });
+    clearInterval(pairSubmitTimer);
+    set({ pairingFeedback: 'Connecting to device...' });
     const { deviceId, deviceName } = get();
 
-    const req = {
-      code: clean,
-      fromDevice: {
-        id: deviceId,
-        name: deviceName,
-        type: 'DESKTOP' as const,
-        host: 'cloud',
-        port: 0,
-        lastSeenTimestamp: Date.now(),
-        isCloud: true,
-      },
-      timestamp: Date.now(),
-    };
+    // 1. Join room: `raaga_pair_${clean}`
+    temporaryPairCode = clean;
+    await connectRelay();
 
-    const pairChannel = `raaga_pair_${clean}`;
-    broadcastRawToChannel(pairChannel, 'pair_request', req);
+    // 2. Transmit pair_request periodically until answered or 12s timeout
+    let attempts = 0;
+    pairSubmitTimer = setInterval(() => {
+      attempts++;
+      if (!temporaryPairCode || attempts > 24) {
+        clearInterval(pairSubmitTimer);
+        pairSubmitTimer = null;
+        if (temporaryPairCode === clean) {
+          temporaryPairCode = null;
+          connectRelay();
+          set({ pairingFeedback: 'Device not found or code expired. Try again.' });
+        }
+        return;
+      }
+
+      const req = {
+        code: clean,
+        fromDevice: {
+          id: deviceId,
+          name: deviceName,
+          type: 'DESKTOP' as const,
+          host: 'cloud',
+          port: 0,
+          lastSeenTimestamp: Date.now(),
+          isCloud: true,
+        },
+      };
+
+      const pairChannel = `raaga_pair_${clean}`;
+      broadcastRawToChannel(pairChannel, 'pair_request', req);
+    }, 500);
 
     return true;
   },
@@ -339,79 +364,98 @@ async function computeTargetChannel(): Promise<string> {
   return 'raaga_cloud_public';
 }
 
-async function connectRelay() {
+function connectRelay(): Promise<void> {
   clearTimeout(reconnectTimer);
   clearInterval(heartbeatTimer);
   clearInterval(announceTimer);
 
-  const channel = await computeTargetChannel();
-  activeChannel = channel;
-  const state = useConnect.getState();
+  return new Promise((resolve) => {
+    let resolved = false;
+    const finish = () => {
+      if (!resolved) {
+        resolved = true;
+        resolve();
+      }
+    };
 
-  const now = Date.now();
-  if (!usingCloudflare && now - lastCloudflareFailureTime > 60_000) {
-    usingCloudflare = true;
-  }
+    computeTargetChannel().then((channel) => {
+      activeChannel = channel;
+      const state = useConnect.getState();
 
-  const url = usingCloudflare
-    ? `${CLOUDFLARE_WS_URL}?channel=${channel}&deviceId=${state.deviceId}`
-    : SUPABASE_WS_URL;
+      const now = Date.now();
+      if (!usingCloudflare && now - lastCloudflareFailureTime > 60_000) {
+        usingCloudflare = true;
+      }
 
-  try {
-    if (socket) {
+      const url = usingCloudflare
+        ? `${CLOUDFLARE_WS_URL}?channel=${channel}&deviceId=${state.deviceId}`
+        : SUPABASE_WS_URL;
+
       try {
-        socket.close();
-      } catch {}
-      socket = null;
-    }
-
-    socket = new WebSocket(url);
-
-    socket.onopen = () => {
-      useConnect.setState({ isConnected: true });
-      if (usingCloudflare) lastCloudflareFailureTime = 0;
-
-      if (!usingCloudflare) {
-        // Join Phoenix Supabase topic
-        const joinMsg = {
-          topic: `realtime:${channel}`,
-          event: 'phx_join',
-          payload: { config: { broadcast: { ack: false, self: false }, presence: { key: '' } } },
-          ref: '1',
-        };
-        socket?.send(JSON.stringify(joinMsg));
-      }
-
-      // Heartbeat
-      heartbeatTimer = setInterval(() => {
-        if (socket?.readyState === WebSocket.OPEN) {
-          socket.send(JSON.stringify({ topic: 'phoenix', event: 'heartbeat', payload: {}, ref: 'hb' }));
+        if (socket) {
+          try {
+            socket.close();
+          } catch {}
+          socket = null;
         }
-      }, 25000);
 
-      // Announcement
-      sendAnnounce();
-      announceTimer = setInterval(sendAnnounce, 25000);
-    };
+        socket = new WebSocket(url);
 
-    socket.onmessage = (event) => {
-      handleIncomingMessage(event.data);
-    };
+        socket.onopen = () => {
+          useConnect.setState({ isConnected: true });
+          if (usingCloudflare) lastCloudflareFailureTime = 0;
 
-    socket.onerror = () => {
-      if (usingCloudflare) {
-        usingCloudflare = false;
-        lastCloudflareFailureTime = Date.now();
+          if (!usingCloudflare) {
+            // Join Phoenix Supabase topic
+            const joinMsg = {
+              topic: `realtime:${channel}`,
+              event: 'phx_join',
+              payload: { config: { broadcast: { ack: false, self: false }, presence: { key: '' } } },
+              ref: '1',
+            };
+            socket?.send(JSON.stringify(joinMsg));
+          }
+
+          // Heartbeat
+          heartbeatTimer = setInterval(() => {
+            if (socket?.readyState === WebSocket.OPEN) {
+              socket.send(JSON.stringify({ topic: 'phoenix', event: 'heartbeat', payload: {}, ref: 'hb' }));
+            }
+          }, 25000);
+
+          // Announcement
+          sendAnnounce();
+          announceTimer = setInterval(sendAnnounce, 25000);
+
+          finish();
+        };
+
+        socket.onmessage = (event) => {
+          handleIncomingMessage(event.data);
+        };
+
+        socket.onerror = () => {
+          if (usingCloudflare) {
+            usingCloudflare = false;
+            lastCloudflareFailureTime = Date.now();
+          }
+          finish();
+        };
+
+        socket.onclose = () => {
+          useConnect.setState({ isConnected: false });
+          reconnectTimer = setTimeout(connectRelay, 5000);
+          finish();
+        };
+
+        // Fallback safety timeout so callers never hang
+        setTimeout(finish, 2000);
+      } catch {
+        reconnectTimer = setTimeout(connectRelay, 5000);
+        finish();
       }
-    };
-
-    socket.onclose = () => {
-      useConnect.setState({ isConnected: false });
-      reconnectTimer = setTimeout(connectRelay, 5000);
-    };
-  } catch {
-    reconnectTimer = setTimeout(connectRelay, 5000);
-  }
+    });
+  });
 }
 
 function disconnectRelay() {
@@ -531,39 +575,79 @@ function handleIncomingMessage(text: string) {
       case 'pair_request': {
         // If we have an active pair code matching the request
         const currentCode = useConnect.getState().pairCode;
-        if (currentCode && payload.code === currentCode) {
+        if (currentCode && payload.code === currentCode && payload.fromDevice) {
+          const incomingDev = payload.fromDevice;
+          let syncKey = localStorage.getItem(SYNC_KEY);
+          if (!syncKey) {
+            syncKey = 'sync_' + Math.random().toString(36).substring(2, 12);
+            localStorage.setItem(SYNC_KEY, syncKey);
+          }
+
           const resp = {
             code: currentCode,
             success: true,
-            targetDeviceId: payload.fromDevice.id,
-            device: {
+            message: `Paired with ${useConnect.getState().deviceName}`,
+            fromDevice: {
               id: deviceId,
               name: useConnect.getState().deviceName,
-              type: 'DESKTOP',
+              type: 'DESKTOP' as const,
               host: 'cloud',
               port: 0,
               lastSeenTimestamp: Date.now(),
               isCloud: true,
             },
+            targetDeviceId: incomingDev.id,
+            syncKey,
           };
-          broadcastRawToChannel(`raaga_pair_${currentCode}`, 'pair_response', resp);
-          useConnect.getState().pairDeviceDirectly(payload.fromDevice);
+
+          const pairChannel = `raaga_pair_${currentCode}`;
+          broadcastRawToChannel(pairChannel, 'pair_response', resp);
+          setTimeout(() => broadcastRawToChannel(pairChannel, 'pair_response', resp), 200);
+
+          useConnect.getState().pairDeviceDirectly(incomingDev);
           useConnect.setState({
-            pairingFeedback: `Paired with ${payload.fromDevice.name}!`,
+            pairingFeedback: `Successfully paired with ${incomingDev.name}!`,
             pairCode: null,
           });
+
+          temporaryPairCode = null;
+          setTimeout(() => {
+            connectRelay();
+            setTimeout(sendAnnounce, 400);
+          }, 600);
         }
         break;
       }
 
       case 'pair_response': {
         const state = useConnect.getState();
-        if (payload.targetDeviceId === state.deviceId && payload.success && payload.device) {
-          state.pairDeviceDirectly(payload.device);
+        const incomingDev = payload.fromDevice || payload.device;
+        if (payload.targetDeviceId === state.deviceId && payload.success && incomingDev) {
+          clearInterval(pairSubmitTimer);
+          pairSubmitTimer = null;
+          if (payload.syncKey) {
+            localStorage.setItem(SYNC_KEY, payload.syncKey);
+          }
+          state.pairDeviceDirectly(incomingDev);
           useConnect.setState({
-            pairingFeedback: `Successfully paired with ${payload.device.name}!`,
+            pairingFeedback: `Successfully paired with ${incomingDev.name}!`,
             pairCode: null,
           });
+
+          // Finished pairing; revert temporary pair code and reconnect to permanent synced channel
+          temporaryPairCode = null;
+          setTimeout(() => {
+            connectRelay();
+            setTimeout(sendAnnounce, 400);
+          }, 600);
+        } else if (payload.targetDeviceId === state.deviceId && !payload.success) {
+          clearInterval(pairSubmitTimer);
+          pairSubmitTimer = null;
+          useConnect.setState({
+            pairingFeedback: payload.message || 'Pairing code mismatch or expired',
+          });
+          temporaryPairCode = null;
+          connectRelay();
         }
         break;
       }
