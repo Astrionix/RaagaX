@@ -97,6 +97,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -2567,6 +2568,10 @@ private fun RaagaApp(
                         }
                     },
                     modifier = Modifier
+                        .drawWithContent {
+                            val coveredByPlayer = showNowPlaying && (playerSong != null || (activeRemoteDevice != null && remoteSong != null))
+                            if (!coveredByPlayer) drawContent()
+                        }
                         .hazeSource(hazeState)
                         .then(
                             if (glassActive) {
