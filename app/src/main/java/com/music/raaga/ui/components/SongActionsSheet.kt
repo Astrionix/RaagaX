@@ -56,6 +56,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -619,6 +624,7 @@ private fun SleepTimerPicker(palette: ArtworkPalette, onBack: () -> Unit) {
     val afterTrack by SleepTimer.afterTrack.collectAsStateWithLifecycle()
     val countdown = sleepTimerCountdown()
 
+    var showCustomDialog by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
@@ -675,6 +681,15 @@ private fun SleepTimerPicker(palette: ArtworkPalette, onBack: () -> Unit) {
                 SleepTimer.start(minutes)
                 onBack()
             }
+        val isCustom = chosen != null && chosen !in SleepTimer.PRESETS
+        val customLabel = if (isCustom) "Custom (${formatSleepDuration(chosen!!)})" else "Custom duration..."
+        SleepOption(
+            label = customLabel,
+            selected = isCustom,
+            accent = palette.accent,
+        ) {
+            showCustomDialog = true
+        }
         }
         if (chosen != null || afterTrack) {
             ActionRow(Icons.Rounded.Close, stringResource(R.string.turn_off_timer), accent = palette.accent) {
@@ -682,7 +697,70 @@ private fun SleepTimerPicker(palette: ArtworkPalette, onBack: () -> Unit) {
                 onBack()
             }
         }
+        if (showCustomDialog) {
+            var sliderValue by remember { mutableStateOf((chosen ?: 30).coerceIn(5, 720).toFloat()) }
+            val currentMins = sliderValue.toInt()
+            AlertDialog(
+                onDismissRequest = { showCustomDialog = false },
+                title = { Text(stringResource(R.string.sleep_timer)) },
+                text = {
+                    Column(Modifier.fillMaxWidth()) {
+                        Text(
+                            text = formatSleepDuration(currentMins),
+                            style = MaterialTheme.typography.headlineMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .align(Alignment.CenterHorizontally)
+                                .padding(bottom = 12.dp),
+                        )
+                        Slider(
+                            value = sliderValue,
+                            onValueChange = { sliderValue = it },
+                            valueRange = 5f..720f,
+                            colors = SliderDefaults.colors(
+                                thumbColor = MaterialTheme.colorScheme.primary,
+                                activeTrackColor = MaterialTheme.colorScheme.primary,
+                            ),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Text("5m", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("12h", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        SleepTimer.start(currentMins)
+                        showCustomDialog = false
+                        onBack()
+                    }) {
+                        Text(stringResource(R.string.save))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showCustomDialog = false }) {
+                        Text(stringResource(R.string.cancel))
+                    }
+                },
+            )
+        }
         Spacer(Modifier.height(24.dp))
+    }
+}
+
+private fun formatSleepDuration(minutes: Int): String {
+    val h = minutes / 60
+    val m = minutes % 60
+    return when {
+        h == 0 -> "$m min"
+        m == 0 -> if (h == 1) "1 hour" else "$h hours"
+        else -> "${h}h ${m}m"
     }
 }
 

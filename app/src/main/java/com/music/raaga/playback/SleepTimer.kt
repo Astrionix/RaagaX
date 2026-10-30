@@ -32,13 +32,20 @@ object SleepTimer {
     /** Durations offered in the picker. */
     val PRESETS = listOf(15, 30, 45, 60)
 
+    /** Minimum duration allowed for a custom timer (5 minutes). */
+    const val MIN_CUSTOM_MINUTES = 5
+
+    /** Maximum duration allowed for a custom timer (12 hours = 720 minutes). */
+    const val MAX_CUSTOM_MINUTES = 720
+
     /** Whether any kind of timer is currently armed. */
     val isRunning: Boolean get() = deadline.value != null || afterTrack.value
 
     fun start(minutes: Int) {
+        val validMinutes = minutes.coerceIn(MIN_CUSTOM_MINUTES, MAX_CUSTOM_MINUTES)
         afterTrack.value = false
-        this.minutes.value = minutes
-        deadline.value = SystemClock.elapsedRealtime() + minutes * 60_000L
+        this.minutes.value = validMinutes
+        deadline.value = SystemClock.elapsedRealtime() + validMinutes * 60_000L
     }
 
     /** Pause once the track playing right now finishes. */

@@ -73,6 +73,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.FontWeight
 import coil3.compose.AsyncImage
 import com.music.raaga.R
 import com.music.raaga.data.model.ROW_ART_PX
@@ -138,14 +139,24 @@ fun ExplicitSongTitle(
 ) {
     Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
         if (song.isExplicit == true) {
-            Text(
-                text = "E",
-                style = MaterialTheme.typography.labelSmall,
-                color = color,
+            // BitChord v1.9: Apple-style explicit badge
+            Box(
+                contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .border(1.dp, color.copy(alpha = 0.72f), RoundedCornerShape(2.dp))
-                    .padding(horizontal = 3.dp),
-            )
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(color.copy(alpha = 0.18f))
+                    .padding(horizontal = 4.dp, vertical = 1.dp),
+            ) {
+                Text(
+                    text = "E",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        lineHeight = 12.sp,
+                    ),
+                    color = color.copy(alpha = 0.88f),
+                )
+            }
             Spacer(Modifier.width(6.dp))
         }
         Text(
@@ -158,8 +169,6 @@ fun ExplicitSongTitle(
         )
     }
 }
-
-/** Share of the row a lead-shelf card takes, so the next one peeks in past it. */
 private const val HERO_CARD_FRACTION = 0.70f
 
 /**

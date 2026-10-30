@@ -2161,9 +2161,11 @@ private fun PanelVoice(
             targetValue = if (!synced || sung || isActive) 1f else UNSUNG_ALPHA,
             label = "lyricLit",
         )
-        var layout by remember(line.text) { mutableStateOf<TextLayoutResult?>(null) }
+        // BitChord v1.9: Render instrumental glyph for gaps and musical interludes
+        val displayText = if (line.isGap || line.text.isBlank()) "\u2022\u2022\u2022" else line.text
+        var layout by remember(displayText) { mutableStateOf<TextLayoutResult?>(null) }
         Text(
-            text = line.text,
+            text = displayText,
             style = style,
             color = Color.White.copy(alpha = lit),
             onTextLayout = { layout = it },
