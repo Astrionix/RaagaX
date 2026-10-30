@@ -39,3 +39,4 @@ export function MqaLogo({
 }
 
 export default MqaLogo;
+

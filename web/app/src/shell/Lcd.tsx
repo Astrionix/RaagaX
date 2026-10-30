@@ -162,7 +162,7 @@ export function Lcd() {
               {title}
             </PageLink>
             {track?.explicit && <ExplicitBadge size={11} />}
-            <LosslessBadge size="xs" className="hidden sm:inline-flex shrink-0 scale-90" />
+            <LosslessBadge size="xs" className="hidden sm:inline-flex shrink-0 opacity-80" />
           </div>
         ) : (
           <span className={titleClass}>{status === 'loading' ? 'Loading…' : ''}</span>

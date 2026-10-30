@@ -35,3 +35,4 @@ export function AppleDigitalMasterLogo({
 }
 
 export default AppleDigitalMasterLogo;
+

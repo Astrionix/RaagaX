@@ -17,8 +17,7 @@ interface LosslessBadgeProps {
 
 /**
  * Clean Lossless / Hi-Res / Spatial Audio Quality indicator with official Apple Lossless wave logo.
- * Displays the 3 interlocking sine wave ribbons for Apple Lossless and Hi-Res Lossless,
- * or dedicated logos for Dolby/Spatial, Apple Digital Master, MQA, DSD, FLAC.
+ * Displays the plain vector logo directly next to its name (e.g. Lossless, Hi-Res Lossless) with no oval capsule.
  */
 export function LosslessBadge({
   className = '',
@@ -68,7 +67,7 @@ export function LosslessBadge({
     ? 'Hi-Res Lossless'
     : 'Lossless';
 
-  const iconHeight = size === 'lg' ? 14 : size === 'md' ? 12 : size === 'xs' ? 9 : 11;
+  const iconHeight = size === 'lg' ? 14 : size === 'md' ? 12 : size === 'xs' ? 10 : 11;
 
   const renderIcon = () => {
     if (isDolby) {
@@ -91,7 +90,7 @@ export function LosslessBadge({
 
   return (
     <span
-      className={`inline-flex items-center justify-center gap-1.5 px-2 py-0.5 rounded-full border border-white/10 bg-white/5 font-medium text-[11px] leading-none tracking-wide text-white/90 select-none shadow-sm backdrop-blur-sm transition-opacity ${className}`}
+      className={`inline-flex items-center gap-1.5 font-medium text-[12px] leading-none tracking-normal text-white/80 select-none ${className}`}
       title={
         isHiRes
           ? 'Hi-Res Lossless Studio Audio (up to 24-bit/192kHz)'
@@ -107,7 +106,7 @@ export function LosslessBadge({
       }
     >
       {renderIcon()}
-      {showLabel && <span>{label}</span>}
+      {showLabel && <span className="opacity-95">{label}</span>}
     </span>
   );
 }
