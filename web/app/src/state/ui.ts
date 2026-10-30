@@ -1,9 +1,9 @@
 import { create } from 'zustand';
 
-export type SidePanel = 'up-next' | 'lyrics' | 'jam' | null;
+export type SidePanel = 'up-next' | 'lyrics' | 'jam' | 'connect' | null;
 
 interface UiState {
-  /** The right-hand glass panel; one of Up Next, Lyrics, or Jam at a time. */
+  /** The right-hand glass panel; one of Up Next, Lyrics, Jam, or Connect at a time. */
   sidePanel: SidePanel;
   toggleSidePanel: (panel: Exclude<SidePanel, null>) => void;
   closeSidePanel: () => void;

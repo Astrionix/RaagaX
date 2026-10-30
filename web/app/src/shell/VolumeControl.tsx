@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { VolumeIcon } from '@/components/icons/Transport';
+import { useConnect } from '@/playback/connect/connectManager';
 import { usePlayer } from '@/state/player';
 import { nextVolumeFromWheel } from './wheelVolume';
 
@@ -9,9 +10,6 @@ import { nextVolumeFromWheel } from './wheelVolume';
  * out while it's open, which is what [fadeForVolume] is for; both the player
  * pill and the full-screen player hold it in a `group/actions` row that
  * carries `data-volume-open`.
- *
- * The level slides in from the row's right edge, clearing the speaker: set
- * `--volume-gap` on the row where the speaker is a different size.
  */
 const slider = [
   'absolute top-1/2 right-[var(--volume-gap,33px)] mx-0 mb-0 -mt-2 block h-4 w-24 cursor-pointer appearance-none bg-transparent',
@@ -35,24 +33,22 @@ interface VolumeControlProps {
   iconSize?: number;
 }
 
-/**
- * Mouse-wheel volume over the control: React registers onWheel as a passive
- * listener, so preventDefault there would be ignored and the page would
- * scroll behind the pill — this native listener opts out with
- * { passive: false }. The page only stops scrolling while the wheel actually
- * changes the volume; at the limits it does nothing, because the player pill
- * sits outside the page's scroll area and wheeling over any part of it never
- * scrolls the page. Each step calls onOpen (it opens the slider, so the level
- * shows while it moves), and reading the store via getState keeps the handler
- * free of stale volume/mute values — setVolume also clears mute, so scrolling
- * up while muted unmutes.
- */
 function useVolumeWheel(onStep: () => void) {
   const ref = useRef<HTMLSpanElement | null>(null);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
+      const activeRemote = useConnect.getState().activeRemoteDevice;
+      if (activeRemote) {
+        const curVol = useConnect.getState().remoteStatus?.volume ?? 1.0;
+        const next = nextVolumeFromWheel(curVol, e.deltaY);
+        if (next === curVol) return;
+        e.preventDefault();
+        onStep();
+        useConnect.getState().sendControl('VOLUME', { volume: next });
+        return;
+      }
       const { volume, setVolume } = usePlayer.getState();
       const next = nextVolumeFromWheel(volume, e.deltaY);
       if (next === volume) return;
@@ -67,11 +63,36 @@ function useVolumeWheel(onStep: () => void) {
 }
 
 export function VolumeControl({ open, onOpen, className, iconSize = 20 }: VolumeControlProps) {
-  const volume = usePlayer((s) => s.volume);
-  const muted = usePlayer((s) => s.muted);
-  const setVolume = usePlayer((s) => s.setVolume);
-  const toggleMute = usePlayer((s) => s.toggleMute);
+  const activeRemote = useConnect((s) => s.activeRemoteDevice);
+  const remoteStatus = useConnect((s) => s.remoteStatus);
+  const sendControl = useConnect((s) => s.sendControl);
+
+  const localVolume = usePlayer((s) => s.volume);
+  const localMuted = usePlayer((s) => s.muted);
+  const setLocalVolume = usePlayer((s) => s.setVolume);
+  const toggleLocalMute = usePlayer((s) => s.toggleMute);
+
+  const isRemote = Boolean(activeRemote);
+  const volume = isRemote ? remoteStatus?.volume ?? 1.0 : localVolume;
+  const muted = isRemote ? false : localMuted;
   const level = muted ? 0 : volume;
+
+  const handleVolumeChange = (v: number) => {
+    if (isRemote) {
+      sendControl('VOLUME', { volume: v });
+    } else {
+      setLocalVolume(v);
+    }
+  };
+
+  const handleMuteToggle = () => {
+    if (isRemote) {
+      sendControl('VOLUME', { volume: volume > 0 ? 0 : 0.8 });
+    } else {
+      toggleLocalMute();
+    }
+  };
+
   const wheelRef = useVolumeWheel(onOpen);
   return (
     <span ref={wheelRef}>
@@ -86,13 +107,13 @@ export function VolumeControl({ open, onOpen, className, iconSize = 20 }: Volume
         aria-label="Volume"
         tabIndex={open ? 0 : -1}
         style={{ '--fill': `${level * 100}%` } as React.CSSProperties}
-        onChange={(e) => setVolume(Number(e.currentTarget.value))}
+        onChange={(e) => handleVolumeChange(Number(e.currentTarget.value))}
       />
       <button
         className={className}
         aria-label={muted ? 'Unmute' : 'Mute'}
         aria-pressed={muted}
-        onClick={toggleMute}
+        onClick={handleMuteToggle}
         onPointerEnter={onOpen}
         onFocus={onOpen}
       >

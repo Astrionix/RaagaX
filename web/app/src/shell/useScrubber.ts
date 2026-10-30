@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useConnect } from '@/playback/connect/connectManager';
 import { getAudio, getMixBeat, getPlayhead, usePlayer } from '@/state/player';
 
 export function clock(seconds: number): string {
@@ -39,8 +40,7 @@ interface Pulse {
 /**
  * One frame of the pulse: the fill claims the whole bar while a blend runs
  * (through the outgoing song and the incoming one) and its brightness
- * breathes on the blend's beat. The phase runs free at the beat and only
- * leans toward the mix's clock, so the clock's wobble never shows as a lurch.
+ * breathes on the blend's beat.
  */
 function stepPulse(p: Pulse, now: number, beat: { phase: number | null } | null, paused: boolean) {
   const dt = Math.min(0.1, Math.max(0, (now - p.last) / 1000));
@@ -66,7 +66,7 @@ function stepPulse(p: Pulse, now: number, beat: { phase: number | null } | null,
  * A seek line drawn from the media clock every frame while playing, by writing
  * `--progress` on the bar and the times into their spans: no React state, so
  * nothing re-renders. Pressing or dragging on the scrubber seeks on release.
- * Shared by the LCD and the full-screen player.
+ * Supports both local audio engine and remote Raaga Connect speakers.
  */
 export function useScrubber() {
   const bar = useRef<HTMLDivElement>(null);
@@ -75,26 +75,53 @@ export function useScrubber() {
   /** "Mixing", in the times' place while an Automix blend runs (the phone's MixingLabel). */
   const mixLabel = useRef<HTMLSpanElement>(null);
   const pulse = useRef<Pulse>({ cover: 0, depth: 0, phase: 0, locked: false, last: performance.now() });
+
   const status = usePlayer((s) => s.status);
   const deck = usePlayer((s) => s.deck);
   const mixing = usePlayer((s) => s.mixing);
   const seek = usePlayer((s) => s.seek);
+
+  const activeRemote = useConnect((s) => s.activeRemoteDevice);
+  const remoteStatus = useConnect((s) => s.remoteStatus);
+
   const [dragging, setDragging] = useState<number | null>(null);
 
   useEffect(() => {
+    const isRemote = Boolean(useConnect.getState().activeRemoteDevice);
     const audio = getAudio();
     const element = bar.current;
-    if (!audio || !element) return;
+    if (!element) return;
+    if (!isRemote && !audio) return;
+
     let frame = 0;
     const draw = () => {
-      const duration = audio.duration;
-      // during a loop mix the element is paused under the decks: the mix's own playhead
-      const head = getPlayhead();
-      const paused = head?.paused ?? audio.paused;
-      const time = dragging !== null && Number.isFinite(duration) ? dragging * duration : (head?.sec ?? audio.currentTime);
+      const activeRemoteDev = useConnect.getState().activeRemoteDevice;
+      const curRemoteStatus = useConnect.getState().remoteStatus;
+
+      let duration = 0;
+      let time = 0;
+      let paused = true;
+
+      if (activeRemoteDev && curRemoteStatus) {
+        duration = curRemoteStatus.durationMs > 0 ? curRemoteStatus.durationMs / 1000 : 0;
+        paused = !curRemoteStatus.isPlaying;
+        const basePos = curRemoteStatus.positionMs / 1000;
+        const elapsedSinceAnchor =
+          curRemoteStatus.isPlaying && curRemoteStatus.anchorMonotonicMs > 0
+            ? Math.max(0, (performance.now() - curRemoteStatus.anchorMonotonicMs) / 1000)
+            : 0;
+        time = dragging !== null && duration > 0 ? dragging * duration : Math.min(duration || Infinity, basePos + elapsedSinceAnchor);
+      } else if (audio) {
+        duration = audio.duration;
+        const head = getPlayhead();
+        paused = head?.paused ?? audio.paused;
+        time = dragging !== null && Number.isFinite(duration) ? dragging * duration : (head?.sec ?? audio.currentTime);
+      }
+
       const base = Math.min(1, Math.max(0, duration > 0 ? time / duration : 0));
-      const beat = dragging === null ? getMixBeat() : null;
+      const beat = dragging === null && !activeRemoteDev ? getMixBeat() : null;
       const mix = stepPulse(pulse.current, performance.now(), beat, paused);
+
       element.style.setProperty('--progress', String(base + (1 - base) * mix.cover));
       element.style.opacity = mix.active ? String(mix.alpha) : '';
       if (elapsed.current) elapsed.current.textContent = clock(time);
@@ -102,17 +129,23 @@ export function useScrubber() {
       for (const span of [elapsed.current, remaining.current]) {
         if (span) span.style.opacity = mix.active ? String(1 - mix.cover) : '';
       }
-      if (mixLabel.current) mixLabel.current.style.opacity = mix.active ? String(mix.cover * (0.35 + 0.65 * mix.alpha)) : '0';
-      if (!paused || dragging !== null || mix.active || beat) frame = requestAnimationFrame(draw);
+      if (mixLabel.current)
+        mixLabel.current.style.opacity = mix.active ? String(mix.cover * (0.35 + 0.65 * mix.alpha)) : '0';
+
+      if (!paused || dragging !== null || mix.active || beat) {
+        frame = requestAnimationFrame(draw);
+      }
     };
+
     draw();
     const onSeeked = () => draw();
-    audio.addEventListener('seeked', onSeeked);
+    audio?.addEventListener('seeked', onSeeked);
+
     return () => {
       cancelAnimationFrame(frame);
-      audio.removeEventListener('seeked', onSeeked);
+      audio?.removeEventListener('seeked', onSeeked);
     };
-  }, [status, deck, dragging, mixing]);
+  }, [status, deck, dragging, mixing, activeRemote, remoteStatus]);
 
   const fractionAt = (event: React.PointerEvent<HTMLElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -121,7 +154,8 @@ export function useScrubber() {
 
   const handlers = {
     onPointerDown: (e: React.PointerEvent<HTMLElement>) => {
-      if (!getAudio()) return;
+      const isRemote = Boolean(useConnect.getState().activeRemoteDevice);
+      if (!isRemote && !getAudio()) return;
       e.currentTarget.setPointerCapture(e.pointerId);
       setDragging(fractionAt(e));
     },
@@ -130,8 +164,20 @@ export function useScrubber() {
     },
     onPointerUp: (e: React.PointerEvent<HTMLElement>) => {
       if (dragging === null) return;
-      const audio = getAudio();
-      if (audio && Number.isFinite(audio.duration)) seek(fractionAt(e) * audio.duration);
+      const frac = fractionAt(e);
+      const isRemote = Boolean(useConnect.getState().activeRemoteDevice);
+      const curRemoteStatus = useConnect.getState().remoteStatus;
+
+      if (isRemote && curRemoteStatus) {
+        const duration = curRemoteStatus.durationMs > 0 ? curRemoteStatus.durationMs / 1000 : 0;
+        const targetMs = Math.round(frac * duration * 1000);
+        useConnect.getState().sendControl('SEEK', { positionMs: targetMs });
+      } else {
+        const audio = getAudio();
+        if (audio && Number.isFinite(audio.duration)) {
+          seek(frac * audio.duration);
+        }
+      }
       setDragging(null);
     },
     onPointerCancel: () => setDragging(null),
