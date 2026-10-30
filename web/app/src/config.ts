@@ -7,7 +7,7 @@ export const config = {
   extensionFirefoxUrl: import.meta.env.VITE_EXTENSION_FIREFOX_URL || '/downloads/raaga-extension-firefox.zip',
   /** The version the zips above hold, for the "update available" notice. */
   extensionManifestUrl: import.meta.env.VITE_EXTENSION_MANIFEST_URL || '/downloads/extension.json',
-  androidAppUrl: import.meta.env.VITE_ANDROID_APP_URL || 'https://github.com/Astrionix/RaagaX/releases/latest',
+  androidAppUrl: import.meta.env.VITE_ANDROID_APP_URL || 'https://raaga.me',
   /** Raaga's Discord community server invite. */
   discordCommunityUrl: import.meta.env.VITE_DISCORD_COMMUNITY_URL || 'https://discord.gg/yGV2HqhSk',
   /** Raaga's Listen Together primary server. */
