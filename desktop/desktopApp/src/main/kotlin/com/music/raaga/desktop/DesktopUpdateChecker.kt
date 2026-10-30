@@ -54,7 +54,7 @@ internal object DesktopUpdateChecker {
 
     private val httpClient by lazy {
         HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(10))
+            .connectTimeout(Duration.ofSeconds(60))
             .followRedirects(HttpClient.Redirect.NORMAL)
             .build()
     }
