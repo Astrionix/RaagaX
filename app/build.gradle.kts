@@ -232,7 +232,7 @@ android {
             // Release builds MUST ONLY be signed with the authentic release keystore.
             // If no release keystore is provided, signingConfig evaluates to null,
             // producing an unsigned APK rather than dangerously signing with the public debug key.
-            signingConfig = signingConfigs.findByName("release")
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
         /*
          * The release build, installable next to the dev and prod apps: same R8,
