@@ -5,8 +5,9 @@ export interface ConnectIconProps {
 }
 
 /**
- * Universal Connect to Device icon (Spotify Connect / Material Devices glyph).
- * Highlights and renders active signal waves when a remote speaker is connected.
+ * Spotify Connect Style icon (Monitor + Speaker).
+ * Features a desktop display in the background and a smart speaker in the foreground.
+ * When connected, highlights the speaker driver and animates sound waves.
  */
 export function ConnectIcon({ size = 20, className = '', connected = false }: ConnectIconProps) {
   return (
@@ -22,17 +23,33 @@ export function ConnectIcon({ size = 20, className = '', connected = false }: Co
       className={className}
       aria-hidden="true"
     >
-      {/* Desktop / Speaker monitor */}
-      <rect x="2" y="3" width="20" height="14" rx="2" />
-      <path d="M8 21h8" />
-      <path d="M12 17v4" />
-      {connected ? (
-        <>
-          <circle cx="12" cy="10" r="2" fill="currentColor" stroke="none" />
-          <path d="M7 10a5 5 0 0 1 10 0" strokeWidth="1.8" />
-        </>
-      ) : (
-        <circle cx="12" cy="10" r="1.5" fill="currentColor" stroke="none" />
+      {/* Background Monitor / TV screen */}
+      <path d="M7 6H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h3" />
+      <path d="M5 19h3" />
+      <path d="M6 16v3" />
+
+      {/* Speaker unit in foreground */}
+      <rect width="9" height="15" x="11" y="5" rx="2" />
+      {/* Speaker Tweeter dot */}
+      <circle cx="15.5" cy="8.5" r="0.75" fill="currentColor" stroke="none" />
+      {/* Speaker Subwoofer / Driver */}
+      <circle
+        cx="15.5"
+        cy="14"
+        r={connected ? 2.2 : 2}
+        fill={connected ? 'currentColor' : 'none'}
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+
+      {/* Active Audio Signal Broadcast Waves */}
+      {connected && (
+        <path
+          d="M21.5 8.5a4.5 4.5 0 0 1 0 7.5"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          className="opacity-90"
+        />
       )}
     </svg>
   );
