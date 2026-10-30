@@ -5,7 +5,7 @@
  */
 
 export const INVITE_ORIGIN = 'https://web.raaga.me';
-export const LEGACY_INVITE_ORIGIN = 'https://raaga.app';
+export const LEGACY_INVITE_ORIGIN = 'https://raaga.me';
 export const CODE_LENGTH = 6;
 export const DEFAULT_LOCAL_JAM_PORT = 8890;
 

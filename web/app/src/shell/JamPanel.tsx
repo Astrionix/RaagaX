@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   Check,
   Copy,
@@ -9,6 +9,7 @@ import {
   Play,
   Pause,
   Radio,
+  RotateCw,
   Share2,
   Shield,
   ShieldAlert,
@@ -34,10 +35,12 @@ import {
   leaveParty,
   party,
   partyServer,
+  useNearbyJams,
   useParty,
   DEFAULT_SERVER,
   probeLocalJam,
   type LocalJamInfo,
+  type NearbyJam,
 } from '@/party/listenTogether';
 import { usePlayer } from '@/state/player';
 import { useUi } from '@/state/ui';
@@ -98,39 +101,26 @@ function IdleJamView() {
   const [isJoining, setIsJoining] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Local Wi-Fi (LAN) state
+  // Local Wi-Fi Nearby Discovery Store
+  const nearbyJams = useNearbyJams((s) => s.nearbyJams);
+  const isScanningNearby = useNearbyJams((s) => s.isScanning);
+  const scanNearby = useNearbyJams((s) => s.scan);
+
+  // Auto-scan for nearby Jams on local Wi-Fi when panel is opened
+  useEffect(() => {
+    void scanNearby();
+    const timer = setInterval(() => void scanNearby(), 20_000);
+    return () => clearInterval(timer);
+  }, [scanNearby]);
+
+  // Local Wi-Fi manual host state
   const [isLocalMode, setIsLocalMode] = useState(() => Boolean(localStorage.getItem('raaga:lastLocalJamHost')));
   const [localHostInput, setLocalHostInput] = useState(() => localStorage.getItem('raaga:lastLocalJamHost') || '');
-  const [isScanningLan, setIsScanningLan] = useState(false);
-  const [detectedLanJam, setDetectedLanJam] = useState<LocalJamInfo | null>(null);
 
   const autoplay = usePlayer((s) => s.autoplay);
   const authStatus = useYtAuth();
   const signedIn = authStatus.state === 'ready' && authStatus.auth.signedIn;
   const activeAccount = authStatus.state === 'ready' && authStatus.auth.signedIn ? authStatus.auth.active : null;
-
-  const handleScanLocal = useCallback(async () => {
-    setIsScanningLan(true);
-    setErrorMessage(null);
-    try {
-      const found = await probeLocalJam(localHostInput.trim() || undefined);
-      if (found) {
-        setDetectedLanJam(found);
-        if (found.code) {
-          setJoinCodeInput(found.code);
-        }
-        if (found.host) {
-          setLocalHostInput(found.host);
-        }
-      } else {
-        setErrorMessage('No active Jam host found on local Wi-Fi. Check IP or start a Jam on host device.');
-      }
-    } catch {
-      setErrorMessage('Local Wi-Fi probe failed. Check device IP.');
-    } finally {
-      setIsScanningLan(false);
-    }
-  }, [localHostInput]);
 
   const handleStartJam = async () => {
     setIsStarting(true);
@@ -167,6 +157,97 @@ function IdleJamView() {
 
   return (
     <div className="flex flex-col gap-4">
+      {/* 1. NEARBY JAMS ON THIS WI-FI (AVAILABLE DEVICES) */}
+      {nearbyJams.length > 0 && (
+        <div className="flex flex-col gap-2 rounded-2xl border border-green/30 bg-green/5 p-3.5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <span className="relative flex size-2.5">
+                <span className="absolute inline-flex h-full w-full rounded-full bg-green opacity-75 animate-ping" />
+                <span className="relative inline-flex size-2.5 rounded-full bg-green" />
+              </span>
+              <span className="text-[11px] font-bold text-green uppercase tracking-wider">
+                Available on this Wi-Fi ({nearbyJams.length})
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => void scanNearby()}
+              disabled={isScanningNearby}
+              className="text-[10px] text-green/80 font-medium hover:underline flex items-center gap-1 cursor-pointer disabled:opacity-50"
+              title="Rescan Wi-Fi for Jams"
+            >
+              <RotateCw size={10} className={isScanningNearby ? 'animate-spin' : ''} />
+              <span>{isScanningNearby ? 'Scanning…' : 'Scan'}</span>
+            </button>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            {nearbyJams.map((jam) => (
+              <div
+                key={`${jam.host}-${jam.code}`}
+                className="flex flex-col gap-2 rounded-xl border border-quaternary/60 bg-quinary/90 p-3 hover:border-green/40 transition-all shadow-sm"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <div className="grid size-7 flex-none place-items-center rounded-lg bg-green/15 text-green">
+                      <Wifi size={14} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-bold text-primary">{jam.hostName}</p>
+                      <p className="text-[10px] text-secondary">
+                        {jam.members} {jam.members === 1 ? 'person' : 'people'} listening · Sub-5ms LAN
+                      </p>
+                    </div>
+                  </div>
+                  <span className="rounded-md bg-green/15 px-2 py-0.5 font-mono text-[11px] font-bold tracking-wider text-green">
+                    {jam.code}
+                  </span>
+                </div>
+
+                {jam.title && (
+                  <div className="flex items-center gap-2.5 rounded-lg bg-page/70 p-1.5 border border-quaternary/30">
+                    <div className="size-8 flex-none rounded overflow-hidden bg-quaternary">
+                      {jam.thumbnailUrl ? (
+                        <Artwork src={jam.thumbnailUrl} displayWidth={32} radius="4px" />
+                      ) : (
+                        <div className="grid size-full place-items-center text-secondary">
+                          <Headphones size={12} />
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[11px] font-semibold text-primary">{jam.title}</p>
+                      <p className="truncate text-[10px] text-secondary">{jam.artist || 'Unknown'}</p>
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setIsJoining(true);
+                    setErrorMessage(null);
+                    try {
+                      await joinParty(jam.code, jam.host);
+                    } catch (err: any) {
+                      setErrorMessage(err?.message || 'Could not join nearby Jam.');
+                    } finally {
+                      setIsJoining(false);
+                    }
+                  }}
+                  disabled={isJoining}
+                  className="flex h-8 w-full items-center justify-center gap-1.5 rounded-lg bg-green font-bold text-xs text-black shadow-sm hover:brightness-105 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <Zap size={12} className="fill-current" />
+                  <span>Join {jam.hostName}'s Jam</span>
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Hero Visual Card */}
       <div className="relative overflow-hidden rounded-2xl border border-quaternary bg-quinary/80 p-5 text-center shadow-sm">
         <div className="mx-auto mb-3.5 grid size-13 place-items-center rounded-xl bg-key/10 text-key shadow-sm">
@@ -221,15 +302,16 @@ function IdleJamView() {
           <div className="mb-3 rounded-xl border border-green/20 bg-green/5 p-2.5 flex flex-col gap-2">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-semibold text-green flex items-center gap-1">
-                <Zap size={11} /> Local Wi-Fi (LAN) Active
+                <Zap size={11} /> Local Wi-Fi (LAN) Mode
               </span>
               <button
                 type="button"
-                onClick={handleScanLocal}
-                disabled={isScanningLan}
+                onClick={() => void scanNearby()}
+                disabled={isScanningNearby}
                 className="text-[10px] text-green/90 font-medium hover:underline flex items-center gap-1 cursor-pointer disabled:opacity-50"
               >
-                {isScanningLan ? 'Scanning…' : 'Scan Wi-Fi'}
+                <RotateCw size={10} className={isScanningNearby ? 'animate-spin' : ''} />
+                <span>{isScanningNearby ? 'Scanning…' : 'Scan Wi-Fi'}</span>
               </button>
             </div>
             <input
@@ -242,14 +324,6 @@ function IdleJamView() {
               placeholder="Host Device IP (e.g. 192.168.1.5 or localhost)"
               className="h-8 w-full rounded-lg border border-quaternary bg-page px-2.5 text-xs text-primary placeholder:text-secondary/50 focus:border-green focus:ring-1 focus:ring-green focus:outline-none"
             />
-            {detectedLanJam && (
-              <div className="flex items-center justify-between bg-green/10 rounded-lg px-2 py-1 text-[11px] text-green">
-                <span>
-                  Found Jam <strong>{detectedLanJam.code}</strong> ({detectedLanJam.members ?? 1} listening)
-                </span>
-                <span className="font-semibold text-[10px]">Auto-filled</span>
-              </div>
-            )}
           </div>
         )}
 

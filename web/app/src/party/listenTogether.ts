@@ -736,3 +736,119 @@ export async function probeLocalJam(hostHint?: string, codeFilter?: string): Pro
   }
   return null;
 }
+
+export interface NearbyJam {
+  host: string;
+  code: string;
+  hostName: string;
+  members: number;
+  maxMembers: number;
+  title?: string;
+  artist?: string;
+  thumbnailUrl?: string;
+  isPlaying?: boolean;
+}
+
+interface NearbyJamsStore {
+  nearbyJams: NearbyJam[];
+  isScanning: boolean;
+  lastScannedAt: number;
+  scan: () => Promise<NearbyJam[]>;
+}
+
+/**
+ * Discovers any active Jam sessions running on the local Wi-Fi / LAN across
+ * Android, Desktop, or other PCs on the same network.
+ */
+export const useNearbyJams = create<NearbyJamsStore>((set, get) => ({
+  nearbyJams: [],
+  isScanning: false,
+  lastScannedAt: 0,
+  scan: async () => {
+    if (get().isScanning) return get().nearbyJams;
+    set({ isScanning: true });
+    try {
+      const results: NearbyJam[] = [];
+      const hostsSeen = new Set<string>();
+
+      const checkHost = async (host: string) => {
+        const clean = sanitizeServerUrl(host);
+        if (!clean || hostsSeen.has(clean)) return;
+        hostsSeen.add(clean);
+        try {
+          const res = await fetch(`${clean}/api/parties/active`, { signal: AbortSignal.timeout(800) });
+          if (res.ok) {
+            const data = (await res.json()) as {
+              ok?: boolean;
+              code?: string;
+              hostName?: string;
+              members?: number;
+              maxMembers?: number;
+              title?: string;
+              artist?: string;
+              thumbnailUrl?: string;
+              isPlaying?: boolean;
+            };
+            if (data && data.ok && data.code) {
+              const jam: NearbyJam = {
+                host: clean,
+                code: data.code.toUpperCase(),
+                hostName: data.hostName || 'Nearby Device',
+                members: data.members ?? 1,
+                maxMembers: data.maxMembers ?? 5,
+                title: data.title || undefined,
+                artist: data.artist || undefined,
+                thumbnailUrl: data.thumbnailUrl || undefined,
+                isPlaying: data.isPlaying ?? true,
+              };
+              results.push(jam);
+              set({ nearbyJams: [...results] });
+            }
+          }
+        } catch {
+          // host offline or unreachable
+        }
+      };
+
+      // 1. High-priority local targets
+      const immediate = [
+        localStorage.getItem('raaga:lastLocalJamHost'),
+        'http://localhost:8890',
+        'http://127.0.0.1:8890',
+        'http://192.168.43.1:8890',
+      ].filter(Boolean) as string[];
+      await Promise.allSettled(immediate.map(checkHost));
+
+      // 2. Discover local Wi-Fi subnet
+      const subnets = new Set<string>();
+      if (typeof window !== 'undefined') {
+        const host = window.location.hostname;
+        const match = host.match(/^(\d{1,3}\.\d{1,3}\.\d{1,3})\.\d{1,3}$/);
+        if (match && match[1]) subnets.add(match[1]);
+      }
+      if (subnets.size === 0) {
+        subnets.add('192.168.29'); // Jio / Airtel Fiber
+        subnets.add('192.168.1');  // ACT / BSNL / Standard
+        subnets.add('192.168.0');  // TP-Link
+        subnets.add('192.168.43'); // Android Mobile Hotspot
+      }
+
+      for (const subnet of subnets) {
+        // Probe router/gateway and addresses in fast concurrent chunks
+        const ips = [1, ...Array.from({ length: 70 }, (_, i) => i + 2)];
+        const chunkSize = 25;
+        for (let i = 0; i < ips.length; i += chunkSize) {
+          const chunk = ips.slice(i, i + chunkSize);
+          await Promise.allSettled(chunk.map((num) => checkHost(`http://${subnet}.${num}:8890`)));
+          if (results.length > 0) break;
+        }
+        if (results.length > 0) break;
+      }
+
+      set({ nearbyJams: results, lastScannedAt: Date.now() });
+      return results;
+    } finally {
+      set({ isScanning: false });
+    }
+  },
+}));

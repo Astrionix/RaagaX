@@ -237,7 +237,13 @@ class LocalJamHostServer(
             method == "GET" && (path == "/healthz" || path == "/api/time" || path == "/api/parties/active") -> {
                 val now = System.currentTimeMillis()
                 val activePartyJson = if (code.isNotEmpty()) {
-                    """, "code":"$code", "members":${members.size}, "maxMembers":$maxMembers"""
+                    val hostMember = members.values.firstOrNull { it.isHost } ?: members.values.firstOrNull()
+                    val hostName = hostMember?.displayName?.replace(""", "\\\"").orEmpty().ifBlank { "Host" }
+                    val track = playback.track
+                    val trackTitle = track?.title?.replace(""", "\\\"").orEmpty()
+                    val trackArtist = track?.artist?.replace(""", "\\\"").orEmpty()
+                    val trackArt = track?.thumbnailUrl?.replace(""", "\\\"").orEmpty()
+                    """, "code":"$code", "members":${members.size}, "maxMembers":$maxMembers, "hostName":"$hostName", "title":"$trackTitle", "artist":"$trackArtist", "thumbnailUrl":"$trackArt", "isPlaying":${playback.isPlaying}"""
                 } else ""
                 sendJson(out, 200, "OK", """{"ok":true,"serverMs":$now$activePartyJson}""")
             }
