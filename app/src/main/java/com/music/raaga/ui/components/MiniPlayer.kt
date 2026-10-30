@@ -354,36 +354,13 @@ fun MiniPlayer(
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onBackground,
                 )
-                val activeRemoteDevice by AndroidConnect.manager.activeRemoteDevice.collectAsStateWithLifecycle()
-                if (activeRemoteDevice != null) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Rounded.Devices,
-                            contentDescription = null,
-                            tint = Color(0xFF1DB954),
-                            modifier = Modifier.size(13.dp),
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text(
-                            text = activeRemoteDevice?.name ?: "",
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold,
-                            ),
-                            color = Color(0xFF1DB954),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                } else {
-                    Text(
-                        text = song.artist,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
+                Text(
+                    text = song.artist,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
             // Crossfade between the spinner and the play/pause button so the
             // swap is a gentle alpha blend rather than an instant layout switch.

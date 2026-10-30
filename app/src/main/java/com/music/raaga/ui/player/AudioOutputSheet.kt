@@ -147,24 +147,7 @@ internal fun AudioOutputSheet(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            // Raaga Connect: 2-way Spotify Connect style device handoff & remote control
-            val connectManager = AndroidConnect.manager
-            val activeRemote by connectManager.activeRemoteDevice.collectAsStateWithLifecycle()
-
-            LaunchedEffect(Unit) {
-                connectManager.refreshDiscovery()
-            }
-
-            RaagaConnectSection(
-                connectManager = connectManager,
-                activeRemote = activeRemote,
-            )
-
-            HorizontalDivider(
-                thickness = 1.dp,
-                color = Color.White.copy(alpha = 0.08f),
-                modifier = Modifier.padding(vertical = 2.dp),
-            )
+            // Connect to device feature removed from UI
 
             // Local phone audio routing & Google Cast
             Column(

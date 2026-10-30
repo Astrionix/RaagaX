@@ -3743,9 +3743,7 @@ fun RaagaDesktopApp() {
                             },
                         )
                     }
-                    if (overlays.connectDevice) {
-                        DesktopConnectDialog(onDismiss = { overlays.connectDevice = false })
-                    }
+
                     if (overlays.spotifySync) {
                         DesktopSpotifySyncDialog(
                             onDismiss = { overlays.spotifySync = false },
@@ -4780,55 +4778,6 @@ private fun DesktopTopBar(
                                                 ),
                                                 color = Color.White,
                                             )
-                                            val activeRemoteDevice by DesktopConnect.manager.activeRemoteDevice.collectAsState()
-                                            val controlledByDevice by DesktopConnect.controlledByDeviceName.collectAsState()
-                                            if (activeRemoteDevice != null) {
-                                                Row(
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    horizontalArrangement = Arrangement.Center,
-                                                ) {
-                                                    Icon(
-                                                        Icons.Rounded.Devices,
-                                                        contentDescription = null,
-                                                        tint = Color(0xFF1DB954),
-                                                        modifier = Modifier.size(11.dp),
-                                                    )
-                                                    Spacer(Modifier.width(4.dp))
-                                                    Text(
-                                                        "Playing on ${activeRemoteDevice!!.name}",
-                                                        color = Color(0xFF1DB954),
-                                                        maxLines = 1,
-                                                        overflow = TextOverflow.Ellipsis,
-                                                        style = MaterialTheme.typography.labelSmall.copy(
-                                                            fontWeight = FontWeight.Medium,
-                                                            fontSize = 11.sp,
-                                                        ),
-                                                    )
-                                                }
-                                            } else if (controlledByDevice != null) {
-                                                Row(
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    horizontalArrangement = Arrangement.Center,
-                                                ) {
-                                                    Icon(
-                                                        Icons.Rounded.Devices,
-                                                        contentDescription = null,
-                                                        tint = Color(0xFF1DB954),
-                                                        modifier = Modifier.size(11.dp),
-                                                    )
-                                                    Spacer(Modifier.width(4.dp))
-                                                    Text(
-                                                        "${song.artist} • Connected to $controlledByDevice",
-                                                        color = Color(0xFF1DB954),
-                                                        maxLines = 1,
-                                                        overflow = TextOverflow.Ellipsis,
-                                                        style = MaterialTheme.typography.labelSmall.copy(
-                                                            fontWeight = FontWeight.Medium,
-                                                            fontSize = 11.sp,
-                                                        ),
-                                                    )
-                                                }
-                                            } else {
                                                 Text(
                                                     song.artist,
                                                     color = Color.White.copy(alpha = 0.60f),
@@ -4838,7 +4787,6 @@ private fun DesktopTopBar(
                                                         fontSize = 11.sp,
                                                     ),
                                                 )
-                                            }
                                         }
                                         Box(
                                             modifier = Modifier.size(30.dp),
@@ -4999,48 +4947,7 @@ private fun DesktopTopBar(
                         horizontalArrangement = Arrangement.spacedBy(2.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        val activeRemoteDevice by DesktopConnect.manager.activeRemoteDevice.collectAsState()
-                        val controlledByDevice by DesktopConnect.controlledByDeviceName.collectAsState()
-                        val isConnectActive = activeRemoteDevice != null || controlledByDevice != null || sidePanel == DesktopSidePanel.CONNECT
-                        Box(
-                            modifier = Modifier
-                                .size(30.dp)
-                                .clip(CircleShape)
-                                .then(
-                                    if (isConnectActive) {
-                                        Modifier
-                                            .background(
-                                                Brush.verticalGradient(
-                                                    listOf(
-                                                        Color(0xFF1DB954).copy(alpha = 0.28f),
-                                                        Color(0xFF1DB954).copy(alpha = 0.12f),
-                                                    ),
-                                                ),
-                                            )
-                                            .border(
-                                                1.dp,
-                                                Brush.verticalGradient(
-                                                    listOf(
-                                                        Color(0xFF1DB954).copy(alpha = 0.70f),
-                                                        Color(0xFF1DB954).copy(alpha = 0.25f),
-                                                    ),
-                                                ),
-                                                CircleShape,
-                                            )
-                                    } else {
-                                        Modifier.desktopHoverWash()
-                                    }
-                                )
-                                .clickable(onClick = onOpenConnectDevice),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(
-                                Icons.Rounded.Devices,
-                                DesktopStrings["connect_to_device", "Connect to a device"],
-                                tint = if (isConnectActive) Color(0xFF1ED760) else Color.White.copy(alpha = 0.65f),
-                                modifier = Modifier.size(17.dp),
-                            )
-                        }
+
 
                         DesktopToolbarButton(onClick = onOpenAudioOutput, size = 30.dp) {
                             Icon(
@@ -5676,15 +5583,7 @@ private fun DesktopMiniPlayer(
             Text(song.title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold)
             Text(song.artist, color = DesktopSecondary, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        val connectActive by DesktopConnect.manager.activeRemoteDevice.collectAsState()
-        IconButton(onClick = onOpenConnectDevice) {
-            Icon(
-                Icons.Rounded.Devices,
-                DesktopStrings["connect_to_device", "Connect to a device"],
-                tint = if (connectActive != null) Color(0xFF1DB954) else Color.White.copy(alpha = 0.75f),
-                modifier = Modifier.size(19.dp),
-            )
-        }
+
         IconButton(onClick = onPlayPause) {
             Icon(if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (isPlaying) "Pause" else "Play", tint = Color.White)
         }

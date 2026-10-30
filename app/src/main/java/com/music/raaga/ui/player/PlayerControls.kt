@@ -1054,37 +1054,7 @@ internal fun OutputCaption(
     /** Who's in it, before the settings page — see [ListenTogetherMembersSheet]. */
     onOpenMembers: () -> Unit,
 ) {
-    val activeRemoteDevice by AndroidConnect.manager.activeRemoteDevice.collectAsStateWithLifecycle()
-    if (activeRemoteDevice != null) {
-        val captionModifier = Modifier
-            .fillMaxWidth(0.75f)
-            .clickable { onOpenOutput() }
-        Row(
-            modifier = captionModifier,
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.Devices,
-                contentDescription = null,
-                tint = Color(0xFF1DB954),
-                modifier = Modifier.size(13.dp),
-            )
-            Spacer(Modifier.width(6.dp))
-            Text(
-                text = "Playing on ${activeRemoteDevice?.name}",
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                ),
-                color = Color(0xFF1DB954),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center,
-            )
-        }
-        return
-    }
+
 
     val badge = rememberPartyBadge()
     val outputName = rememberAudioOutputName(accountName)
