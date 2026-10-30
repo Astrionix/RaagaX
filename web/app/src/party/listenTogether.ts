@@ -832,7 +832,7 @@ export const useNearbyJams = create<NearbyJamsStore>((set, get) => ({
                 results.push({
                   host: renderServer,
                   code: p.code.toUpperCase(),
-                  hostName: p.sameNetwork ? `${p.hostName || 'Nearby Host'} (Wi-Fi)` : (p.hostName || 'Live Jam'),
+                  hostName: p.hostName || 'Live Jam',
                   members: p.memberCount ?? 1,
                   maxMembers: p.maxMembers ?? 5,
                   title: p.track?.title,
