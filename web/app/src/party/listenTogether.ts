@@ -810,6 +810,47 @@ export const useNearbyJams = create<NearbyJamsStore>((set, get) => ({
         }
       };
 
+      // 0. Discover via Render backend over internet (and same-network public IP matching)
+      try {
+        const renderServer = idleServer();
+        const res = await fetch(`${renderServer}/api/parties/discover`, { signal: AbortSignal.timeout(3000) });
+        if (res.ok) {
+          const data = (await res.json()) as {
+            parties?: Array<{
+              code: string;
+              hostName: string;
+              memberCount: number;
+              maxMembers: number;
+              track?: { title?: string; artist?: string; thumbnailUrl?: string };
+              isPlaying?: boolean;
+              sameNetwork?: boolean;
+            }>;
+          };
+          if (data && Array.isArray(data.parties)) {
+            for (const p of data.parties) {
+              if (p && p.code && !results.some((r) => r.code === p.code.toUpperCase())) {
+                results.push({
+                  host: renderServer,
+                  code: p.code.toUpperCase(),
+                  hostName: p.sameNetwork ? `${p.hostName || 'Nearby Host'} (Wi-Fi)` : (p.hostName || 'Live Jam'),
+                  members: p.memberCount ?? 1,
+                  maxMembers: p.maxMembers ?? 5,
+                  title: p.track?.title,
+                  artist: p.track?.artist,
+                  thumbnailUrl: p.track?.thumbnailUrl,
+                  isPlaying: p.isPlaying ?? true,
+                });
+              }
+            }
+            if (results.length > 0) {
+              set({ nearbyJams: [...results] });
+            }
+          }
+        }
+      } catch {
+        // Render discover offline or unreachable
+      }
+
       // 1. High-priority local targets
       const immediate = [
         localStorage.getItem('raaga:lastLocalJamHost'),

@@ -23,11 +23,13 @@ import (
 	"raaga/backend/config"
 	"raaga/backend/hub"
 	"raaga/backend/party"
+	"raaga/backend/presence"
 	"raaga/backend/protocol"
 )
 
 var (
 	store    = party.NewPartyStore()
+	presenceTracker = presence.NewTracker(10*time.Minute, 10000)
 	hubInst  = hub.NewHub()
 	createLimiter = newIPRateLimiter(time.Minute, config.CreateRatePerMinute, config.RateLimitMaxEntries)
 	upgrader = websocket.Upgrader{
@@ -48,6 +50,9 @@ func main() {
 	mux.HandleFunc("GET /{$}", handleRoot)
 	mux.HandleFunc("GET /healthz", handleHealthz)
 	mux.HandleFunc("GET /api/time", handleTime)
+	mux.HandleFunc("GET /api/presence", handlePresenceCounts)
+	mux.HandleFunc("POST /api/presence", handlePresencePing)
+	mux.HandleFunc("GET /api/parties/discover", handleDiscoverParties)
 	mux.HandleFunc("POST /api/parties", handleCreateParty)
 	mux.HandleFunc("POST /api/parties/{code}/join", handleJoinParty)
 	mux.HandleFunc("GET /api/parties/{code}", handleGetParty)
@@ -253,6 +258,9 @@ func handleCreateParty(w http.ResponseWriter, r *http.Request) {
 	maxMembers := 5
 	if req.MaxMembers != nil { maxMembers = *req.MaxMembers }
 	p, err := store.CreateWithLimits(config.MaxParties, maxMembers)
+	if p != nil {
+		p.HostIP = clientIP(r)
+	}
 	if err != nil {
 		if pe, ok := err.(*party.PartyError); ok {
 			jsonError(w, pe.Status, pe.Code, pe.Message)
@@ -1217,4 +1225,46 @@ func startHeartbeatTicker() {
 			}
 		}
 	}
+}
+
+
+func handleDiscoverParties(w http.ResponseWriter, r *http.Request) {
+	ip := clientIP(r)
+	parties := store.FindDiscoverable(ip)
+	jsonResponse(w, http.StatusOK, map[string]interface{}{
+		"parties": parties,
+	})
+}
+
+func handlePresencePing(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		ID       string `json:"id"`
+		Platform string `json:"platform"`
+		Open     bool   `json:"open"`
+	}
+	if !decodeJSONBody(w, r, &body) {
+		return
+	}
+	id, ok := presence.ParseID(body.ID)
+	if !ok {
+		jsonError(w, http.StatusBadRequest, "invalid_id", "Malformed UUID")
+		return
+	}
+	plat, ok := presence.ParsePlatform(body.Platform)
+	if !ok {
+		plat = presence.PC
+	}
+	if body.Open {
+		presenceTracker.Ping(id, plat, clock.NowMs())
+	} else {
+		presenceTracker.Close(id)
+	}
+	jsonResponse(w, http.StatusOK, map[string]interface{}{
+		"intervalSec": 300,
+	})
+}
+
+func handlePresenceCounts(w http.ResponseWriter, r *http.Request) {
+	counts := presenceTracker.Counts()
+	jsonResponse(w, http.StatusOK, counts)
 }

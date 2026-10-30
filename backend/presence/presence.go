@@ -25,7 +25,7 @@ func ParsePlatform(s string) (Platform, bool) {
 	switch s {
 	case "android":
 		return Android, true
-	case "pc":
+	case "pc", "web", "browser":
 		return PC, true
 	}
 	return 0, false

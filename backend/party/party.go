@@ -472,6 +472,7 @@ type Party struct {
 	// seconds. It travels with MaxMembers on the members frame instead, which
 	// is only sent when something about the membership actually changes.
 	HostOnlyControl bool
+	HostIP          string
 	CreatedAtMs     int64
 	TouchedAtMs     int64
 	EmptySinceMs    *int64
@@ -804,6 +805,63 @@ func (s *PartyStore) All() []*Party {
 	res := make([]*Party, 0, len(s.parties))
 	for _, p := range s.parties {
 		res = append(res, p)
+	}
+	return res
+}
+
+type DiscoverableParty struct {
+	Code        string                 `json:"code"`
+	HostName    string                 `json:"hostName"`
+	MemberCount int                    `json:"memberCount"`
+	MaxMembers  int                    `json:"maxMembers"`
+	Track       map[string]interface{} `json:"track,omitempty"`
+	IsPlaying   bool                   `json:"isPlaying"`
+	SameNetwork bool                   `json:"sameNetwork"`
+}
+
+func (s *PartyStore) FindDiscoverable(clientIP string) []DiscoverableParty {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	res := make([]DiscoverableParty, 0)
+	now := clock.NowMs()
+	for _, p := range s.parties {
+		p.Lock()
+		if p.IsExpired(now) || len(p.Members) == 0 {
+			p.Unlock()
+			continue
+		}
+		host := p.Host()
+		hostName := "Host"
+		if host != nil && host.DisplayName != "" {
+			hostName = host.DisplayName
+		}
+		var trackInfo map[string]interface{}
+		isPlaying := false
+		if p.Playback != nil {
+			isPlaying = p.Playback.IsPlaying
+			if p.Playback.Track != nil {
+				thumb := ""
+				if p.Playback.Track.ThumbnailUrl != nil {
+					thumb = *p.Playback.Track.ThumbnailUrl
+				}
+				trackInfo = map[string]interface{}{
+					"title":        p.Playback.Track.Title,
+					"artist":       p.Playback.Track.Artist,
+					"thumbnailUrl": thumb,
+				}
+			}
+		}
+		sameNet := (clientIP != "" && p.HostIP != "" && p.HostIP == clientIP)
+		res = append(res, DiscoverableParty{
+			Code:        p.Code,
+			HostName:    hostName,
+			MemberCount: len(p.Members),
+			MaxMembers:  p.MaxMembers,
+			Track:       trackInfo,
+			IsPlaying:   isPlaying,
+			SameNetwork: sameNet,
+		})
+		p.Unlock()
 	}
 	return res
 }
