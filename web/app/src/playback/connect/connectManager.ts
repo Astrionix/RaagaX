@@ -423,9 +423,11 @@ function connectRelay(): Promise<void> {
             }
           }, 25000);
 
-          // Announcement
+          // Announcement & Discovery
           sendAnnounce();
+          sendDiscover();
           announceTimer = setInterval(sendAnnounce, 25000);
+          probeLocalHost();
 
           finish();
         };
@@ -482,6 +484,59 @@ function sendAnnounce() {
   broadcastToRelay('announce', payload);
 }
 
+function sendDiscover() {
+  const { deviceId } = useConnect.getState();
+  broadcastToRelay('discover', { id: deviceId });
+}
+
+async function probeLocalHost() {
+  for (const port of [8895, 8896, 8894]) {
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/raaga-connect/info`, {
+        signal: AbortSignal.timeout(600),
+      });
+      if (res.ok) {
+        const info = await res.json();
+        if (info && info.deviceId && info.deviceId !== useConnect.getState().deviceId) {
+          const dev: ConnectDevice = {
+            id: info.deviceId,
+            name: info.deviceName || 'Local Raaga',
+            type: info.deviceType || 'DESKTOP',
+            host: '127.0.0.1',
+            port,
+            lastSeenTimestamp: Date.now(),
+            isCloud: false,
+          };
+          const exists = useConnect.getState().discoveredDevices.some((d) => d.id === dev.id);
+          if (!exists) {
+            useConnect.setState((s) => ({ discoveredDevices: [...s.discoveredDevices, dev] }));
+          }
+        }
+      }
+    } catch {}
+  }
+}
+
+async function probeLocalDevice(id: string, host: string, port: number) {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 1200);
+    const res = await fetch(`http://${host}:${port}/raaga-connect/info`, {
+      signal: controller.signal,
+      mode: 'cors',
+    });
+    clearTimeout(timer);
+    if (res.ok) {
+      const data = await res.json();
+      const current = useConnect.getState().discoveredDevices;
+      const updated = current.map((d) =>
+        d.id === id ? { ...d, isCloud: false, host, port, name: data.deviceName || d.name } : d
+      );
+      useConnect.setState({ discoveredDevices: updated });
+    }
+  } catch {}
+}
+
 function broadcastToRelay(eventName: string, payload: any) {
   if (!socket || socket.readyState !== WebSocket.OPEN || !activeChannel) return;
   broadcastRawToChannel(activeChannel, eventName, payload);
@@ -520,19 +575,31 @@ function handleIncomingMessage(text: string) {
         if (payload.id === deviceId) return;
         const devices = useConnect.getState().discoveredDevices;
         const existing = devices.find((d) => d.id === payload.id);
+        const host = payload.host || 'cloud';
+        const port = Number(payload.port) || 0;
         const updatedDev: ConnectDevice = {
           id: payload.id,
           name: payload.name || 'Remote Device',
           type: payload.type || 'PHONE',
-          host: 'cloud',
-          port: 0,
+          host,
+          port,
           lastSeenTimestamp: Date.now(),
-          isCloud: true,
+          isCloud: existing ? existing.isCloud : true,
         };
         const nextDevices = existing
           ? devices.map((d) => (d.id === payload.id ? updatedDev : d))
           : [...devices, updatedDev];
         useConnect.setState({ discoveredDevices: nextDevices });
+
+        if (host && host !== 'cloud' && port > 0) {
+          probeLocalDevice(payload.id, host, port);
+        }
+        break;
+      }
+
+      case 'discover': {
+        if (payload.id === deviceId) return;
+        sendAnnounce();
         break;
       }
 

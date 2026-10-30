@@ -131,10 +131,13 @@ class RaagaSupabaseRelay(
         if (!sync.isNullOrBlank()) {
             set.add("raaga_sync_" + sha256Hex(sync).take(16))
         }
+        if (set.isEmpty()) {
+            set.add("raaga_cloud_public")
+        }
         return set
     }
 
-    fun computeCurrentChannel(): String? {
+    fun computeCurrentChannel(): String {
         val pairCode = temporaryPairCode
         if (!pairCode.isNullOrBlank()) {
             return "raaga_pair_$pairCode"
@@ -147,7 +150,7 @@ class RaagaSupabaseRelay(
         if (!sync.isNullOrBlank()) {
             return "raaga_sync_" + sha256Hex(sync).take(16)
         }
-        return null
+        return "raaga_cloud_public"
     }
 
     private fun sha256Hex(input: String): String {
@@ -402,6 +405,8 @@ class RaagaSupabaseRelay(
                 "id": "${local.id}",
                 "name": "${local.name}",
                 "type": "${local.type.name}",
+                "host": "${local.host}",
+                "port": ${local.port},
                 "isCloud": true
             }
         """.trimIndent()

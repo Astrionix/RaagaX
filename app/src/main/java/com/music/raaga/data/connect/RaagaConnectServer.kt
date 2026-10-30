@@ -187,6 +187,18 @@ class RaagaConnectServer(
             val method = parts[0].uppercase()
             val path = parts[1]
 
+            // Handle CORS preflight for web browsers on local network
+            if (method == "OPTIONS") {
+                writer.write("HTTP/1.1 204 No Content\r\n")
+                writer.write("Access-Control-Allow-Origin: *\r\n")
+                writer.write("Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n")
+                writer.write("Access-Control-Allow-Headers: *\r\n")
+                writer.write("Access-Control-Max-Age: 86400\r\n")
+                writer.write("Connection: close\r\n\r\n")
+                writer.flush()
+                return
+            }
+
             // Read headers to determine Content-Length, Sender Device ID, Sync Key, Timestamp, and HMAC Signature
             var contentLength = 0
             var senderDeviceId = ""

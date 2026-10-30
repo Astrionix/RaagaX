@@ -93,3 +93,4 @@ export interface ConnectPairResponse {
   syncKey?: string | null;
   device?: ConnectDevice | null;
 }
+

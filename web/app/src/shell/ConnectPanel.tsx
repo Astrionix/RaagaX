@@ -236,7 +236,7 @@ export function ConnectPanel() {
                                 : isCurrent
                                 ? 'Currently Playing'
                                 : isOnline
-                                ? 'Online • Tap to switch'
+                                ? `${onlineDev?.isCloud ? '☁️ Cloud' : '🟢 Local Wi-Fi'} • Tap to switch`
                                 : 'Offline'}
                             </div>
                           </div>
@@ -295,7 +295,11 @@ export function ConnectPanel() {
                           <div className="min-w-0">
                             <div className="type-body-emphasized truncate text-primary">{dev.name}</div>
                             <div className="type-caption-1 text-emerald-400 truncate">
-                              {isConnecting ? 'Connecting...' : 'Discovered via Cloud • Tap to play'}
+                              {isConnecting
+                                ? 'Connecting...'
+                                : dev.isCloud
+                                ? '☁️ Cloud • Tap to play'
+                                : '🟢 Local Wi-Fi • Tap to play'}
                             </div>
                           </div>
                         </div>
@@ -421,3 +425,4 @@ export function ConnectPanel() {
     </div>
   );
 }
+
