@@ -55,7 +55,7 @@ describe('addonClient', () => {
 
       const searchResults = await client.search('Shape of You', 'LOSSLESS');
       expect(searchResults.length).toBeGreaterThan(0);
-      expect(searchResults[0].title).toBe('Shape of You');
+      expect(searchResults[0]?.title).toBe('Shape of You');
     });
 
     it('fetches manifest, searches and streams from bitchord-hires addon', async () => {

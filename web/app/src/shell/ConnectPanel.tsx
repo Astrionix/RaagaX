@@ -10,7 +10,6 @@ import {
   Trash2,
   RefreshCw,
   Radio,
-  Wifi,
 } from 'lucide-react';
 import { ConnectIcon } from '@/components/icons/ConnectIcon';
 import { useConnect } from '@/playback/connect/connectManager';
@@ -20,7 +19,6 @@ import { useUi } from '@/state/ui';
 export function ConnectPanel() {
   const closeSidePanel = useUi((s) => s.closeSidePanel);
   const {
-    deviceName,
     isConnected,
     discoveredDevices,
     pairedDevices,

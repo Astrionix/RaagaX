@@ -6,7 +6,8 @@
       "DOM"
     ],
     "types": [
-      "node"
+      "node",
+      "vite/client"
     ],
     "paths": {
       "@/*": [
@@ -19,6 +20,7 @@
   },
   "include": [
     "vite.config.ts",
+    "src/vite-env.d.ts",
     "src/**/*.test.ts"
   ]
 }
