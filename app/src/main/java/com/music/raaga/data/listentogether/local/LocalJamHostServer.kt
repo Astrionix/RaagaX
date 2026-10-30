@@ -238,11 +238,12 @@ class LocalJamHostServer(
                 val now = System.currentTimeMillis()
                 val activePartyJson = if (code.isNotEmpty()) {
                     val hostMember = members.values.firstOrNull { it.isHost } ?: members.values.firstOrNull()
-                    val hostName = hostMember?.displayName?.replace(""", "\\\"").orEmpty().ifBlank { "Host" }
-                    val track = playback.track
-                    val trackTitle = track?.title?.replace(""", "\\\"").orEmpty()
-                    val trackArtist = track?.artist?.replace(""", "\\\"").orEmpty()
-                    val trackArt = track?.thumbnailUrl?.replace(""", "\\\"").orEmpty()
+                    val hostName = hostMember?.displayName?.replace("\"", "\\"").orEmpty().ifBlank { "Host" }
+                    val currentTrack = playback.track
+                    val trackTitle = currentTrack?.title?.replace("\"", "\\"").orEmpty()
+                    val trackArtist = currentTrack?.artist?.replace("\"", "\\"").orEmpty()
+                    val trackArt = currentTrack?.thumbnailUrl?.replace("\"", "\\"").orEmpty()
+
                     """, "code":"$code", "members":${members.size}, "maxMembers":$maxMembers, "hostName":"$hostName", "title":"$trackTitle", "artist":"$trackArtist", "thumbnailUrl":"$trackArt", "isPlaying":${playback.isPlaying}"""
                 } else ""
                 sendJson(out, 200, "OK", """{"ok":true,"serverMs":$now$activePartyJson}""")
