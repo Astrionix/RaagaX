@@ -153,6 +153,39 @@ fun topBarContentPadding(): Dp = topBarHeight() + TopBarContentGap
  * Apple Music behaviour: the big in-list header owns the title at rest;
  * once the list scrolls, the small centered title fades in.
  */
+/**
+ * Lambda-based overload to defer reading the scrolled state into [FrostedTopBar],
+ * isolating recomposition from parent caller screens (BitChord commit 04f64c9).
+ */
+@Composable
+fun FrostedTopBar(
+    title: String,
+    scrolled: () -> Boolean,
+    modifier: Modifier = Modifier,
+    transparentBackdrop: Boolean = false,
+    artworkPageChrome: Boolean = false,
+    backButtonHazeState: HazeState? = null,
+    trailingTitle: String? = null,
+    onBack: (() -> Unit)? = null,
+    refreshing: Boolean = false,
+    pullFraction: () -> Float = { 0f },
+    actions: @Composable () -> Unit = {},
+) {
+    FrostedTopBar(
+        title = title,
+        scrolled = scrolled(),
+        modifier = modifier,
+        transparentBackdrop = transparentBackdrop,
+        artworkPageChrome = artworkPageChrome,
+        backButtonHazeState = backButtonHazeState,
+        trailingTitle = trailingTitle,
+        onBack = onBack,
+        refreshing = refreshing,
+        pullFraction = pullFraction,
+        actions = actions,
+    )
+}
+
 @Composable
 fun FrostedTopBar(
     title: String,

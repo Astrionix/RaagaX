@@ -311,6 +311,7 @@ object AppSettings {
 
     /** Direct bit-perfect USB DAC mode bypassing Android OS resampler. */
     val usbDirectAudio = MutableStateFlow(true)
+    val convertForLimitedDac = MutableStateFlow(true)
 
     /**
      * Level every track to the same loudness, using YouTube's own
@@ -948,6 +949,7 @@ object AppSettings {
         }.getOrDefault(OutputPcmMode.PCM_16)
         preferUsbDac.value = prefs.getBoolean(KEY_PREFER_USB_DAC, true)
         usbDirectAudio.value = prefs.getBoolean(KEY_USB_DIRECT_AUDIO, true)
+        convertForLimitedDac.value = prefs.getBoolean(KEY_CONVERT_FOR_LIMITED_DAC, true)
         loudnessNormalization.value = prefs.getBoolean(KEY_LOUDNESS_NORMALIZATION, true)
         loudnessOffOnSpeaker.value = prefs.getBoolean(KEY_LOUDNESS_OFF_ON_SPEAKER, true)
         onboardingComplete.value = prefs.getBoolean(KEY_ONBOARDING_COMPLETE, false)
@@ -1728,6 +1730,11 @@ object AppSettings {
         prefs.edit().putBoolean(KEY_USB_DIRECT_AUDIO, value).apply()
     }
 
+    fun setConvertForLimitedDac(value: Boolean) {
+        convertForLimitedDac.value = value
+        prefs.edit().putBoolean(KEY_CONVERT_FOR_LIMITED_DAC, value).apply()
+    }
+
     fun setLoudnessNormalization(value: Boolean) {
         loudnessNormalization.value = value
         prefs.edit().putBoolean(KEY_LOUDNESS_NORMALIZATION, value).apply()
@@ -2171,6 +2178,7 @@ object AppSettings {
     private const val KEY_OUTPUT_PCM_MODE = "output_pcm_mode"
     private const val KEY_PREFER_USB_DAC = "prefer_usb_dac"
     private const val KEY_USB_DIRECT_AUDIO = "usb_direct_audio"
+    private const val KEY_CONVERT_FOR_LIMITED_DAC = "convert_for_limited_dac"
     private const val KEY_LOUDNESS_NORMALIZATION = "loudness_normalization"
     private const val KEY_LOUDNESS_OFF_ON_SPEAKER = "loudness_off_on_speaker"
     private const val KEY_ONBOARDING_COMPLETE = "onboarding_complete"

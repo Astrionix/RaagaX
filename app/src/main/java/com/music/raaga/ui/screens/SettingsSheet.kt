@@ -242,6 +242,7 @@ fun SettingsScreen(
     val outputPcmMode by AppSettings.outputPcmMode.collectAsStateWithLifecycle()
     val preferUsbDac by AppSettings.preferUsbDac.collectAsStateWithLifecycle()
     val usbDirectAudio by AppSettings.usbDirectAudio.collectAsStateWithLifecycle()
+    val convertForLimitedDac by AppSettings.convertForLimitedDac.collectAsStateWithLifecycle()
     val loudnessNormalization by AppSettings.loudnessNormalization.collectAsStateWithLifecycle()
     val outputStatus by AudioOutputStatus.current.collectAsStateWithLifecycle()
     val playingFormat by NerdStats.current.collectAsStateWithLifecycle()
@@ -705,6 +706,16 @@ fun SettingsScreen(
                     onCheckedChange = AppSettings::setUsbDirectAudio,
                     badge = "Bit-Perfect".takeIf { outputStatus.isUsb },
                 )
+            }
+            if (usbDirectAudio) {
+                row("Convert for Limited DAC", "usb", "dac", "convert", "downsample") {
+                    SettingsSubRow(
+                        title = "Convert for Limited DAC",
+                        subtitle = "Convert high-res audio to the best format supported by limited USB DACs instead of rejecting playback",
+                        checked = convertForLimitedDac,
+                        onCheckedChange = AppSettings::setConvertForLimitedDac,
+                    )
+                }
             }
             val loudnessTitle = stringResource(R.string.loudness_normalization)
             row(loudnessTitle, "loudness", "volume", "normalize", "replaygain", "lufs") {

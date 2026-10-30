@@ -31,4 +31,5 @@ enum class EntityType {
     @SerialName("ALBUM") ALBUM,
     @SerialName("ARTIST") ARTIST,
     @SerialName("PLAYLIST") PLAYLIST,
+    @SerialName("OTHER") OTHER,
 }

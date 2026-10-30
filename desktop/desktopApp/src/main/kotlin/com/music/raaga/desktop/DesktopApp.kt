@@ -4256,7 +4256,7 @@ fun RaagaDesktopApp() {
                                         source = DesktopQueueSource(entity.title, PlaybackSourceType.SEARCH),
                                     )
                                     EntityType.ARTIST -> openArtist(entity.id, entity.title)
-                                    EntityType.ALBUM, EntityType.PLAYLIST -> openBrowseItem(
+                                    EntityType.ALBUM, EntityType.PLAYLIST, EntityType.OTHER -> openBrowseItem(
                                         BrowseItem(
                                             browseId = entity.id,
                                             title = entity.title,

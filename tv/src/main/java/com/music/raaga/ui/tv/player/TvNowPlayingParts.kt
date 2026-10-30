@@ -120,6 +120,16 @@ fun TvPlayerBackground(
     artworkUrl: String?,
     modifier: Modifier = Modifier,
 ) {
+    val style by com.music.raaga.data.settings.TvSettings.tvPlayerStyle.collectAsState()
+    if (style == "amoled") {
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .background(Color.Black),
+        )
+        return
+    }
+
     val mesh = rememberArtworkMesh(imageUrl = artworkUrl)
     Box(modifier = modifier.fillMaxSize()) {
         ArtworkMeshBackdrop(

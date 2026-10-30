@@ -3189,7 +3189,7 @@ private fun RaagaApp(
                                             QueueSource(entity.title, PlaybackSourceType.SEARCH),
                                         )
                                     }
-                                    EntityType.ALBUM, EntityType.ARTIST, EntityType.PLAYLIST -> {
+                                    EntityType.ALBUM, EntityType.ARTIST, EntityType.PLAYLIST, EntityType.OTHER -> {
                                         viewModel.openDetail(
                                             browseId = entity.id,
                                             title = entity.title,

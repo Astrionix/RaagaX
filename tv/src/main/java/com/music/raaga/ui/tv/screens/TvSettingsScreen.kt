@@ -83,6 +83,7 @@ fun TvSettingsScreen(
     val canvas by AppSettings.animatedCanvas.collectAsState()
     val lyricsCanvas by TvSettings.tvLyricsCanvasEnabled.collectAsState()
     val nerdStats by AppSettings.showNerdStats.collectAsState()
+    val playerStyle by TvSettings.tvPlayerStyle.collectAsState()
     val themeId by TvSettings.tvTheme.collectAsState()
     val uiScale by TvSettings.tvUiScale.collectAsState()
     val refreshRate by TvRefreshRateController.preference.collectAsState()
@@ -259,6 +260,18 @@ fun TvSettingsScreen(
                     value = onOff(nerdStats),
                     onFocused = { blurb = "Shows the codec, bitrate and sample rate of what's playing." },
                     onClick = { AppSettings.setShowNerdStats(!nerdStats) },
+                )
+            }
+
+            item {
+                TvListRow(
+                    title = "Player Background",
+                    value = if (playerStyle == "amoled") "AMOLED" else "Default",
+                    onFocused = { blurb = "Choose between dynamic artwork mesh background or pure pitch black for OLED TVs." },
+                    onClick = {
+                        val next = if (playerStyle == "amoled") "default" else "amoled"
+                        TvSettings.setTvPlayerStyle(next)
+                    },
                 )
             }
 

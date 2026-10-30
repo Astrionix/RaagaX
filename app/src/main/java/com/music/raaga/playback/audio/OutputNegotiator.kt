@@ -225,21 +225,33 @@ object OutputNegotiator {
         }
 
         // 2. Direct USB Priority: userspace USB streaming if authorized and viable,
-        // respecting the user's bit-perfect direct USB DAC preference
+        // respecting the user's bit-perfect direct USB DAC preference and DAC format limits
         val isDirectUsbViable = routeKind == AudioRouting.Kind.USB &&
             directUsbProbe?.isViable == true &&
             com.music.raaga.data.settings.AppSettings.usbDirectAudio.value
-        if (isDirectUsbViable) {
-            return OutputDescriptor(
-                transport = TransportType.DIRECT_USB,
-                encoding = PcmEncoding.PCM_FLOAT,
-                sampleRateHz = sampleRateHz,
-                channelCount = channelCount,
-                isDirect = true,
-                systemMixerRateHz = null, // Bypasses Android AudioFlinger entirely
-                fallbackReason = FallbackReason.NONE,
-                fallbackDetail = null,
+        if (isDirectUsbViable && directUsbProbe != null) {
+            val allowConversion = com.music.raaga.data.settings.AppSettings.convertForLimitedDac.value
+            val sourceDepth = source.bitDepth ?: 16
+            val dacResult = com.music.raaga.playback.audio.usb.DacFormatConverter.resolve(
+                sourceSampleRateHz = sampleRateHz,
+                sourceBitDepth = sourceDepth,
+                probe = directUsbProbe,
+                allowConversion = allowConversion,
             )
+
+            if (dacResult != null) {
+                val fallbackReason = if (dacResult.isDacLimited) FallbackReason.ROUTE_LIMITATION else FallbackReason.NONE
+                return OutputDescriptor(
+                    transport = TransportType.DIRECT_USB,
+                    encoding = dacResult.encoding,
+                    sampleRateHz = dacResult.sampleRateHz,
+                    channelCount = channelCount,
+                    isDirect = true,
+                    systemMixerRateHz = null, // Bypasses Android AudioFlinger entirely
+                    fallbackReason = fallbackReason,
+                    fallbackDetail = dacResult.conversionDetail,
+                )
+            }
         }
 
         // 3. Android DIRECT Playback Evaluation (API 33+)
