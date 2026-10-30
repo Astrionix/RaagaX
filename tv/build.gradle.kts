@@ -374,6 +374,8 @@ dependencies {
     // FFmpeg line with an AC-4 decoder) by native/ffmpeg/build.sh. It needs
     // media3-decoder, which media3-exoplayer already brings.
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-guava:1.9.0")
+    // ---- Background tasks: WorkManager for Wi-Fi auto-updates ----
+    implementation("androidx.work:work-runtime-ktx:2.10.0")
 
     // ---- Images: Coil 3 + Palette (dominant colors for the mesh gradient) ----
     implementation("io.coil-kt.coil3:coil-compose:3.0.4")
