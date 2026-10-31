@@ -32,6 +32,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.ScrollState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Notes
 import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
@@ -179,6 +180,26 @@ import com.music.raaga.ui.player.fullBleedArtworkAvailable
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import java.util.Locale
+import androidx.activity.compose.BackHandler
+import androidx.annotation.StringRes
+import androidx.compose.material3.IconButton
+
+enum class SettingsCategory(
+    @StringRes val titleRes: Int,
+) {
+    AUDIO_QUALITY(R.string.audio_quality),
+    DOWNLOADS(R.string.downloads),
+    PLAYBACK(R.string.playback),
+    APPEARANCE(R.string.appearance),
+    PERFORMANCE(R.string.performance),
+    LOCAL_MUSIC(R.string.local_music),
+    STORAGE(R.string.storage),
+    YOUR_DATA(R.string.your_data),
+    MISCELLANEOUS(R.string.miscellaneous),
+    LANGUAGE(R.string.language),
+    SOFTWARE_UPDATE(R.string.software_update),
+    ADVANCED_OPTIONS(R.string.advanced_options),
+}
 
 /**
  * Grouped settings, in the shape phones have taught people to expect: inset
@@ -329,6 +350,19 @@ fun SettingsScreen(
     // Filters the rows below — see [SettingsSearch]. Blank shows everything,
     // exactly as if the field weren't there.
     var searchQuery by remember { mutableStateOf("") }
+    var activeCategory by rememberSaveable { mutableStateOf<SettingsCategory?>(null) }
+    val cacheLimitMb = remember(cacheLimitBytes) { (cacheLimitBytes / (1024 * 1024)).toInt() }
+    val selectedLanguage = remember {
+        AppCompatDelegate.getApplicationLocales().get(0)?.language ?: Locale.getDefault().language
+    }
+
+    BackHandler(enabled = searchQuery.isNotEmpty()) {
+        searchQuery = ""
+    }
+    BackHandler(enabled = searchQuery.isEmpty() && activeCategory != null) {
+        activeCategory = null
+    }
+
     var picking by remember { mutableStateOf<QualityTarget?>(null) }
     var pickingDownloadQuality by remember { mutableStateOf(false) }
     var pickingAutoDownloadPlaylists by remember { mutableStateOf(false) }
@@ -432,6 +466,9 @@ fun SettingsScreen(
             scrollState.scrollTo(0)
         }
     }
+    LaunchedEffect(activeCategory) {
+        scrollState.scrollTo(0)
+    }
 
     Column(
         modifier = modifier
@@ -439,47 +476,187 @@ fun SettingsScreen(
             .verticalScroll(scrollState)
             .padding(contentPadding),
     ) {
-        Text(
-            text = stringResource(R.string.settings),
-            style = MaterialTheme.typography.displayLarge,
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 14.dp),
-        )
-        SearchField(
-            query = searchQuery,
-            onQueryChange = { searchQuery = it },
-            onSubmit = {},
-            placeholder = stringResource(R.string.settings_search_hint),
-            modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 4.dp),
-        )
-
-        SearchableSettingsGroup(search) {
-            val accountTitle = stringResource(R.string.account_integrations)
-            // What the row opens is the scrobbling screen, so the services it
-            // signs into are worth typing at this field even though none of
-            // them is named on the row itself.
-            row(accountTitle, "scrobbling", "last.fm", "listenbrainz") {
-                SettingsRow(
-                    icon = Icons.Rounded.Person,
-                    title = accountTitle,
-                    subtitle = account?.email?.takeIf { it.isNotBlank() }
-                        ?: stringResource(if (signedIn) R.string.signed_in else R.string.not_signed_in),
-                    onClick = onAccountScrobbling,
+        if (searchQuery.isNotBlank() || activeCategory == null) {
+            Text(
+                text = stringResource(R.string.settings),
+                style = MaterialTheme.typography.displayLarge,
+                color = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 14.dp),
+            )
+            SearchField(
+                query = searchQuery,
+                onQueryChange = { searchQuery = it },
+                onSubmit = {},
+                placeholder = stringResource(R.string.settings_search_hint),
+                modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 4.dp),
+            )
+        } else {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 6.dp, end = 20.dp, top = 8.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(
+                    onClick = { activeCategory = null },
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                        contentDescription = stringResource(R.string.back),
+                        tint = MaterialTheme.colorScheme.onBackground,
+                    )
+                }
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    text = stringResource(activeCategory!!.titleRes),
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
-            // Sits with the account rather than with Playback: a party is up to
-            // five signed-in people, and being signed in is the whole of what
-            // the row needs before it will do anything.
-            val listenTogetherTitle = stringResource(R.string.listen_together)
-            row(listenTogetherTitle, "jam", "party", "sync", "friends") {
+        }
+
+        if (searchQuery.isNotBlank() || activeCategory == null) {
+            SearchableSettingsGroup(search) {
+                val accountTitle = stringResource(R.string.account_integrations)
+                // What the row opens is the scrobbling screen, so the services it
+                // signs into are worth typing at this field even though none of
+                // them is named on the row itself.
+                row(accountTitle, "scrobbling", "last.fm", "listenbrainz") {
+                    SettingsRow(
+                        icon = Icons.Rounded.Person,
+                        title = accountTitle,
+                        subtitle = account?.email?.takeIf { it.isNotBlank() }
+                            ?: stringResource(if (signedIn) R.string.signed_in else R.string.not_signed_in),
+                        onClick = onAccountScrobbling,
+                    )
+                }
+                // Sits with the account rather than with Playback: a party is up to
+                // five signed-in people, and being signed in is the whole of what
+                // the row needs before it will do anything.
+                val listenTogetherTitle = stringResource(R.string.listen_together)
+                row(listenTogetherTitle, "jam", "party", "sync", "friends") {
+                    SettingsRow(
+                        icon = Icons.Rounded.Groups,
+                        title = listenTogetherTitle,
+                        subtitle = party.code?.let {
+                            stringResource(R.string.listen_together_in_party, it)
+                        } ?: stringResource(R.string.listen_together_subtitle),
+                        badge = party.members.size.takeIf { party.inParty && it > 1 }?.toString(),
+                        onClick = onListenTogether,
+                    )
+                }
+            }
+        }
+
+        if (searchQuery.isBlank() && activeCategory == null) {
+            // Group 1: Sound & Offline
+            SettingsGroup(topSpacing = 16.dp) {
                 SettingsRow(
-                    icon = Icons.Rounded.Groups,
-                    title = listenTogetherTitle,
-                    subtitle = party.code?.let {
-                        stringResource(R.string.listen_together_in_party, it)
-                    } ?: stringResource(R.string.listen_together_subtitle),
-                    badge = party.members.size.takeIf { party.inParty && it > 1 }?.toString(),
-                    onClick = onListenTogether,
+                    icon = Icons.Rounded.GraphicEq,
+                    title = stringResource(R.string.audio_quality),
+                    subtitle = "Streaming quality, audio sources, Dolby Atmos",
+                    onClick = { activeCategory = SettingsCategory.AUDIO_QUALITY },
+                )
+                RowDivider()
+                SettingsRow(
+                    icon = Icons.Rounded.Download,
+                    title = stringResource(R.string.downloads),
+                    subtitle = stringResource(R.string.download_quality_subtitle, downloadQuality.perTrack),
+                    onClick = { activeCategory = SettingsCategory.DOWNLOADS },
+                )
+                RowDivider()
+                SettingsRow(
+                    icon = Icons.Rounded.Waves,
+                    title = stringResource(R.string.playback),
+                    subtitle = "Bit-perfect, USB DAC, volume, crossfade",
+                    onClick = { activeCategory = SettingsCategory.PLAYBACK },
+                )
+            }
+
+            // Group 2: Interface & System
+            SettingsGroup(topSpacing = 16.dp) {
+                SettingsRow(
+                    icon = Icons.Rounded.Brightness4,
+                    title = stringResource(R.string.appearance),
+                    subtitle = "Theme, liquid glass, animated canvas, lyrics blur",
+                    onClick = { activeCategory = SettingsCategory.APPEARANCE },
+                )
+                RowDivider()
+                SettingsRow(
+                    icon = RaagaIcons.Performance,
+                    title = stringResource(R.string.performance),
+                    subtitle = if (highPerformanceMode) {
+                        stringResource(R.string.high_performance_active, selectedPerformanceRefreshRate)
+                    } else {
+                        stringResource(R.string.high_performance_subtitle)
+                    },
+                    onClick = { activeCategory = SettingsCategory.PERFORMANCE },
+                )
+                RowDivider()
+                SettingsRow(
+                    icon = Icons.Rounded.Folder,
+                    title = stringResource(R.string.local_music),
+                    subtitle = LocalMediaRepository.selectedFolderLabel(localMusicFolderUri)
+                        ?: stringResource(R.string.all_audio_folders),
+                    onClick = { activeCategory = SettingsCategory.LOCAL_MUSIC },
+                )
+                RowDivider()
+                SettingsRow(
+                    icon = Icons.Rounded.Storage,
+                    title = stringResource(R.string.storage),
+                    subtitle = stringResource(R.string.song_cache_limit_subtitle, formatCacheSize(cacheLimitMb)),
+                    onClick = { activeCategory = SettingsCategory.STORAGE },
+                )
+            }
+
+            // Group 3: Data & Preferences
+            SettingsGroup(topSpacing = 16.dp) {
+                SettingsRow(
+                    icon = Icons.Rounded.Sync,
+                    title = stringResource(R.string.your_data),
+                    subtitle = "Backup & restore, Raaga Replay stats",
+                    onClick = { activeCategory = SettingsCategory.YOUR_DATA },
+                )
+                if (remember { com.music.raaga.wear.WatchInstaller.available(context) }) {
+                    RowDivider()
+                    WearOsSettingsRow(onClick = onWearOs)
+                }
+                RowDivider()
+                SettingsRow(
+                    icon = Icons.Rounded.Tune,
+                    title = stringResource(R.string.miscellaneous),
+                    subtitle = "Swipe actions, lyrics sources, lock screen art",
+                    onClick = { activeCategory = SettingsCategory.MISCELLANEOUS },
+                )
+                RowDivider()
+                SettingsRow(
+                    icon = Icons.Rounded.Language,
+                    title = stringResource(R.string.language),
+                    subtitle = stringResource(languageDisplayNameRes(selectedLanguage)),
+                    onClick = { activeCategory = SettingsCategory.LANGUAGE },
+                )
+            }
+
+            // Group 4: Updates & Advanced
+            SettingsGroup(topSpacing = 16.dp) {
+                SettingsRow(
+                    icon = Icons.Rounded.SystemUpdate,
+                    title = stringResource(R.string.software_update),
+                    subtitle = when {
+                        checkingForUpdate -> stringResource(R.string.checking_for_updates)
+                        updateAvailable != null -> stringResource(R.string.update_available, updateAvailable.version)
+                        else -> "Version $version"
+                    },
+                    onClick = { activeCategory = SettingsCategory.SOFTWARE_UPDATE },
+                )
+                RowDivider()
+                SettingsRow(
+                    icon = Icons.Rounded.Extension,
+                    title = stringResource(R.string.advanced_options),
+                    subtitle = "Smart version alignment, nerd stats",
+                    onClick = { activeCategory = SettingsCategory.ADVANCED_OPTIONS },
                 )
             }
         }
@@ -490,8 +667,13 @@ fun SettingsScreen(
         // above lists that as the module's own row now. Lossless itself is no
         // longer a setting at all — see
         // [SourceResolver.requestForNow][com.music.raaga.data.sources.SourceResolver.requestForNow].
-        SearchableSettingsGroup(search, header = stringResource(R.string.audio_quality)) {
-            val sourceTitle = stringResource(R.string.source)
+        if (searchQuery.isNotBlank() || activeCategory == SettingsCategory.AUDIO_QUALITY) {
+            SearchableSettingsGroup(
+                search,
+                header = if (searchQuery.isNotBlank()) stringResource(R.string.audio_quality) else null,
+                topSpacing = 8.dp,
+            ) {
+                val sourceTitle = stringResource(R.string.source)
             val sourceSubtitle = stringResource(R.string.sources_subtitle)
             row(sourceTitle, sourceSubtitle, "addon", "lossless") {
                 SettingsRow(
@@ -630,14 +812,20 @@ fun SettingsScreen(
                 }
             }
         }
+    }
 
         // Its own group rather than rows bolted onto the two above, because a
         // download is not a third kind of connection. The ceilings answer "what
         // does this minute cost"; these answer "what am I keeping, and when may
         // it be fetched" — and those two questions only make sense read
         // together, which is what puts them side by side here.
-        SearchableSettingsGroup(search, header = stringResource(R.string.downloads)) {
-            val downloadQualityTitle = stringResource(R.string.download_quality)
+        if (searchQuery.isNotBlank() || activeCategory == SettingsCategory.DOWNLOADS) {
+            SearchableSettingsGroup(
+                search,
+                header = if (searchQuery.isNotBlank()) stringResource(R.string.downloads) else null,
+                topSpacing = 8.dp,
+            ) {
+                val downloadQualityTitle = stringResource(R.string.download_quality)
             row(downloadQualityTitle, "offline", "lossless") {
                 SettingsRow(
                     icon = Icons.Rounded.Download,
@@ -700,8 +888,14 @@ fun SettingsScreen(
                 )
             }
         }
+    }
 
-        SearchableSettingsGroup(search, header = stringResource(R.string.playback)) {
+    if (searchQuery.isNotBlank() || activeCategory == SettingsCategory.PLAYBACK) {
+        SearchableSettingsGroup(
+            search,
+            header = if (searchQuery.isNotBlank()) stringResource(R.string.playback) else null,
+            topSpacing = 8.dp,
+        ) {
             val preferMusicOnlyTitle = stringResource(R.string.prefer_music_only)
             row(preferMusicOnlyTitle, "video", "audio", "music video") {
                 SettingsRow(
@@ -983,8 +1177,14 @@ fun SettingsScreen(
                 )
             }
         }
+    }
 
-        SearchableSettingsGroup(search, header = stringResource(R.string.appearance)) {
+    if (searchQuery.isNotBlank() || activeCategory == SettingsCategory.APPEARANCE) {
+        SearchableSettingsGroup(
+            search,
+            header = if (searchQuery.isNotBlank()) stringResource(R.string.appearance) else null,
+            topSpacing = 8.dp,
+        ) {
             val themeTitle = stringResource(R.string.theme)
             row(themeTitle, "dark mode", "light mode") {
                 SettingsRow(icon = Icons.Rounded.Brightness4, title = themeTitle)
@@ -1325,8 +1525,14 @@ fun SettingsScreen(
                 }
             }
         }
+    }
 
-        SearchableSettingsGroup(search, header = stringResource(R.string.performance)) {
+    if (searchQuery.isNotBlank() || activeCategory == SettingsCategory.PERFORMANCE) {
+        SearchableSettingsGroup(
+            search,
+            header = if (searchQuery.isNotBlank()) stringResource(R.string.performance) else null,
+            topSpacing = 8.dp,
+        ) {
             val highPerformanceModeTitle = stringResource(R.string.high_performance_mode)
             row(highPerformanceModeTitle, "frame rate", "refresh rate", "hz", "battery", "smooth") {
                 SettingsRow(
@@ -1384,8 +1590,14 @@ fun SettingsScreen(
                 }
             }
         }
+    }
 
-        SearchableSettingsGroup(search, header = stringResource(R.string.local_music)) {
+    if (searchQuery.isNotBlank() || activeCategory == SettingsCategory.LOCAL_MUSIC) {
+        SearchableSettingsGroup(
+            search,
+            header = if (searchQuery.isNotBlank()) stringResource(R.string.local_music) else null,
+            topSpacing = 8.dp,
+        ) {
             val localMusicFolderTitle = stringResource(R.string.local_music_folder)
             row(localMusicFolderTitle, "folder", "offline", "files") {
                 SettingsRow(
@@ -1427,9 +1639,14 @@ fun SettingsScreen(
                 )
             }
         }
+    }
 
-        val cacheLimitMb = (cacheLimitBytes / (1024 * 1024)).toInt()
-        SearchableSettingsGroup(search, header = stringResource(R.string.storage)) {
+    if (searchQuery.isNotBlank() || activeCategory == SettingsCategory.STORAGE) {
+        SearchableSettingsGroup(
+            search,
+            header = if (searchQuery.isNotBlank()) stringResource(R.string.storage) else null,
+            topSpacing = 8.dp,
+        ) {
             val songCacheLimitTitle = stringResource(R.string.song_cache_limit)
             row(songCacheLimitTitle, "cache", "space") {
                 SliderRow(
@@ -1479,8 +1696,14 @@ fun SettingsScreen(
                 )
             }
         }
+    }
 
-        SearchableSettingsGroup(search, header = stringResource(R.string.your_data)) {
+    if (searchQuery.isNotBlank() || activeCategory == SettingsCategory.YOUR_DATA) {
+        SearchableSettingsGroup(
+            search,
+            header = if (searchQuery.isNotBlank()) stringResource(R.string.your_data) else null,
+            topSpacing = 8.dp,
+        ) {
             val replayTitle = stringResource(R.string.replay)
             row(replayTitle, "stats", "history", "wrapped") {
                 SettingsRow(
@@ -1532,19 +1755,25 @@ fun SettingsScreen(
                 )
             }
         }
+    }
 
-        // Wear OS watch app installer and manager
-        if (remember { com.music.raaga.wear.WatchInstaller.available(context) }) {
-            SearchableSettingsGroup(search) {
-                row(stringResource(R.string.wear_os_section), "watch", "wear os", "galaxy watch", "pixel watch", "install") {
-                    WearOsSettingsRow(onClick = onWearOs)
-                }
+    // Wear OS watch app installer and manager
+    if (searchQuery.isNotBlank() && remember { com.music.raaga.wear.WatchInstaller.available(context) }) {
+        SearchableSettingsGroup(search) {
+            row(stringResource(R.string.wear_os_section), "watch", "wear os", "galaxy watch", "pixel watch", "install") {
+                WearOsSettingsRow(onClick = onWearOs)
             }
         }
+    }
 
-        // No footer: it only restated the stop-on-close row's own subtitle,
-        // which sits four rows above it and says the same thing in fewer words.
-        SearchableSettingsGroup(search, header = stringResource(R.string.miscellaneous)) {
+    // No footer: it only restated the stop-on-close row's own subtitle,
+    // which sits four rows above it and says the same thing in fewer words.
+    if (searchQuery.isNotBlank() || activeCategory == SettingsCategory.MISCELLANEOUS) {
+        SearchableSettingsGroup(
+            search,
+            header = if (searchQuery.isNotBlank()) stringResource(R.string.miscellaneous) else null,
+            topSpacing = 8.dp,
+        ) {
             val playNextOnSwipeTitle = stringResource(R.string.play_next_on_swipe)
             row(playNextOnSwipeTitle, "swipe", "queue") {
                 SettingsRow(
@@ -1664,12 +1893,16 @@ fun SettingsScreen(
                 )
             }
         }
+    }
 
-        SearchableSettingsGroup(search, header = stringResource(R.string.language)) {
+    if (searchQuery.isNotBlank() || activeCategory == SettingsCategory.LANGUAGE) {
+        SearchableSettingsGroup(
+            search,
+            header = if (searchQuery.isNotBlank()) stringResource(R.string.language) else null,
+            topSpacing = 8.dp,
+        ) {
             val appLanguageTitle = stringResource(R.string.app_language)
             row(appLanguageTitle, "locale", "translate") {
-                val selectedLanguage = AppCompatDelegate.getApplicationLocales().get(0)?.language
-                    ?: Locale.getDefault().language
                 SettingsRow(
                     icon = Icons.Rounded.Language,
                     title = appLanguageTitle,
@@ -1678,8 +1911,14 @@ fun SettingsScreen(
                 )
             }
         }
+    }
 
-        SearchableSettingsGroup(search, header = stringResource(R.string.software_update)) {
+    if (searchQuery.isNotBlank() || activeCategory == SettingsCategory.SOFTWARE_UPDATE) {
+        SearchableSettingsGroup(
+            search,
+            header = if (searchQuery.isNotBlank()) stringResource(R.string.software_update) else null,
+            topSpacing = 8.dp,
+        ) {
             val checkForUpdatesTitle = stringResource(R.string.check_for_updates)
             row(checkForUpdatesTitle, "update", "ota", "version", "software", "download") {
                 SettingsRow(
@@ -1725,8 +1964,14 @@ fun SettingsScreen(
                 )
             }
         }
+    }
 
-        SearchableSettingsGroup(search, header = stringResource(R.string.advanced_options)) {
+    if (searchQuery.isNotBlank() || activeCategory == SettingsCategory.ADVANCED_OPTIONS) {
+        SearchableSettingsGroup(
+            search,
+            header = if (searchQuery.isNotBlank()) stringResource(R.string.advanced_options) else null,
+            topSpacing = 8.dp,
+        ) {
             val smartAlignmentTitle = stringResource(R.string.smart_version_alignment)
             row(smartAlignmentTitle, "alignment", "sync", "waveform", "video", "audio", "skit", "intro") {
                 SettingsRow(
@@ -1785,16 +2030,17 @@ fun SettingsScreen(
                 )
             }
         }
+    }
 
-        // Read after every group above has had its turn at the query, which is
-        // what makes this an accurate "nothing here" rather than a guess.
-        if (!search.anyMatch) {
-            MessageState(stringResource(R.string.settings_search_empty, searchQuery))
-        }
+    // Read after every group above has had its turn at the query, which is
+    // what makes this an accurate "nothing here" rather than a guess.
+    if (searchQuery.isNotBlank() && !search.anyMatch) {
+        MessageState(stringResource(R.string.settings_search_empty, searchQuery))
+    }
 
-        // The version line is the page's colophon, not a setting: it belongs to
-        // the whole list, so it goes when the list is narrowed to a few rows.
-        if (searchQuery.isBlank()) {
+    // The version line is the page's colophon, not a setting: it belongs to
+    // the whole list, so it goes when the list is narrowed to a few rows.
+    if (searchQuery.isBlank() && activeCategory == null) {
         Text(
             text = buildAnnotatedString {
                 append("raaga $version  ")
