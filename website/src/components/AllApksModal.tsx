@@ -48,6 +48,17 @@ export const AllApksModal: React.FC<AllApksModalProps> = ({ isOpen, onClose }) =
       requirements: RAAGAX_CONFIG.minAndroid,
       desc: "Single package that runs natively on all Android smartphones, tablets, TV boxes, and car head units.",
       icon: <Smartphone className="w-5 h-5 text-red-400" />
+    },
+    {
+      name: "Legacy In-Place Update APK",
+      recommended: false,
+      tag: "For Upgrading Previous Dev Builds",
+      arch: "universal (arm64, armeabi-v7a)",
+      size: "162 MB",
+      url: RAAGAX_CONFIG.devUniversalApkUrl,
+      requirements: "Android 8.0+ (com.dev.raaga)",
+      desc: "Updates existing installs from earlier pre-release builds in-place without creating a duplicate app icon.",
+      icon: <Layers className="w-5 h-5 text-indigo-400" />
     }
   ];
 

@@ -49,6 +49,7 @@ export interface ReleaseConfig {
   buildType: string;
   directApkUrl: string;
   apkDownloadUrl: string;
+  devUniversalApkUrl: string;
   releaseNotesUrl: string;
   githubRepoUrl: string;
   discordCommunityUrl: string;
@@ -85,6 +86,7 @@ export const RAAGAX_CONFIG: ReleaseConfig = {
   // Mobile APK configurations
   directApkUrl: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.9/Raaga-prod-arm64-v8a-release.apk",
   apkDownloadUrl: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.9/Raaga-prod-arm64-v8a-release.apk",
+  devUniversalApkUrl: "https://github.com/Astrionix/RaagaX/releases/download/v1.9.9/Raaga-dev-universal-debug.apk",
   releaseNotesUrl: "https://github.com/Astrionix/RaagaX/releases/tag/v1.9.9",
   githubRepoUrl: "https://github.com/Astrionix/RaagaX",
   discordCommunityUrl: "https://discord.gg/yGV2HqhSk",
