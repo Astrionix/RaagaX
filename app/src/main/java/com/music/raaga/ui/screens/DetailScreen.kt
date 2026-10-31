@@ -28,6 +28,17 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
@@ -157,16 +168,36 @@ private const val SONGS_PER_COLUMN = 4
 private const val ARTIST_ROW_MAX_ITEMS = 5
 
 /** The artist photo, very slightly taller than it is wide. */
+/** The artist photo, very slightly taller than it is wide. */
 private const val ARTIST_PHOTO_RATIO = 0.95f
 
-/** A release's sleeve, given a little more height than the artist photo. */
-private const val SLEEVE_RATIO = 0.92f
+/** The framed sleeve on a release page, as a fraction of the page width. */
+private const val SLEEVE_FRACTION = 0.76f
 
-/** The sleeve on a release page, as a fraction of the page width. */
-private const val SLEEVE_FRACTION = 0.80f
+/** ...and of its height, so a landscape window still shows the title under it. */
+private const val SLEEVE_MAX_HEIGHT = 0.5f
 
 private val SLEEVE_SHAPE = RoundedCornerShape(12.dp)
+private val SLEEVE_SHADOW = 18.dp
+
+/** Shuffle and Add to Library either side of the release page's Play pill. */
+private val RELEASE_SIDE_BUTTON = 50.dp
+private val RELEASE_ACTION_GAP = 14.dp
+
+/** Past this the Play pill stops growing, so a tablet doesn't get a bar. */
+private val RELEASE_ACTIONS_MAX_WIDTH = 420.dp
 private val PILL_SHAPE = RoundedCornerShape(12.dp)
+
+private const val LIGHT_FILL_ALPHA = 0.07f
+private const val TOP_RELEASE_EDGE_ALPHA = 0.10f
+
+/** The artist action row: a large Play flanked by two smaller glass circles. */
+private val ARTIST_PLAY_BUTTON = 70.dp
+
+/** A larger share of a smaller circle than the release headers' 0.44. */
+private const val ARTIST_PLAY_ICON_SCALE = 0.56f
+private val ARTIST_SIDE_BUTTON = 52.dp
+private val ARTIST_ACTION_GAP = 24.dp
 
 /** The title logo/signature's widest share of the page, and tallest share of the photo. */
 private const val ARTIST_LOGO_WIDTH = 0.82f
@@ -245,6 +276,8 @@ fun DetailScreen(
      * wherever it is seen rather than only from its own page.
      */
     onSectionItemLongPress: ((ShelfItem) -> Unit)? = null,
+    searching: Boolean = false,
+    onSearchingChange: (Boolean) -> Unit = {},
     /**
      * The header's overflow: everything this page can do to its whole track
      * list that isn't already one of the buttons beside it — downloading it
@@ -326,17 +359,13 @@ fun DetailScreen(
     // needs that scrolling can't give it. Off by default and reset with the
     // page: a filter left on an album that was closed and reopened would be a
     // page that appears to have lost most of its tracks.
-    var searching by rememberSaveable(page.browseId) { mutableStateOf(false) }
     var query by rememberSaveable(page.browseId) { mutableStateOf("") }
     // Whether the field still owes the keyboard an appearance. Held here rather
     // than in the field, which is a row in a lazy list: scrolled out of sight it
     // is disposed, and a field that asks for focus every time it is composed
     // would throw the keyboard back up each time it scrolled into view.
     var focusSearch by remember(page.browseId) { mutableStateOf(false) }
-    val closeSearch = {
-        searching = false
-        query = ""
-    }
+    val closeSearch = { onSearchingChange(false) }
     // Back closes the search first — this handler is registered after the one
     // that pops the page, so it is the one that answers while it's enabled.
     BackHandler(enabled = searching) { closeSearch() }
@@ -419,27 +448,29 @@ fun DetailScreen(
                 // Capping against the window's own height is what keeps the ratio's
                 // math honest once the width it's fed is no longer guaranteed to be
                 // the narrow one it was written for.
-                val artHeight = (maxWidth / if (isArtist) ARTIST_PHOTO_RATIO else SLEEVE_RATIO)
-                    .coerceAtMost(maxHeight * 0.6f)
+                val artHeight = (maxWidth / ARTIST_PHOTO_RATIO).coerceAtMost(maxHeight * 0.6f)
+                val sleeveSize = (maxWidth * SLEEVE_FRACTION).coerceAtMost(maxHeight * SLEEVE_MAX_HEIGHT)
 
-                PageBackground(
-                    page = page,
-                    effectiveThumbnailUrl = effectiveThumbnailUrl,
-                    isPlaylist = isPlaylist,
-                    palette = palette,
-                    canvas = canvas,
-                    artHeight = artHeight,
-                    listState = listState,
-                    hazeState = pageHaze,
-                    modifier = Modifier.matchParentSize(),
-                )
+                if (isArtist) {
+                    PageBackground(
+                        page = page,
+                        effectiveThumbnailUrl = effectiveThumbnailUrl,
+                        isPlaylist = isPlaylist,
+                        palette = palette,
+                        canvas = canvas,
+                        artHeight = artHeight,
+                        listState = listState,
+                        hazeState = pageHaze,
+                        modifier = Modifier.matchParentSize(),
+                    )
 
-                MergeBand(
-                    palette = palette,
-                    artHeight = artHeight,
-                    listState = listState,
-                    hazeState = pageHaze,
-                )
+                    MergeBand(
+                        palette = palette,
+                        artHeight = artHeight,
+                        listState = listState,
+                        hazeState = pageHaze,
+                    )
+                }
 
                 LazyColumn(
                     state = listState,
@@ -454,22 +485,13 @@ fun DetailScreen(
                 } else {
                     ReleaseHeader(
                         page = page,
+                        effectiveThumbnailUrl = effectiveThumbnailUrl,
                         palette = palette,
-                        artHeight = artHeight,
-                        trackCount = songs.size,
+                        sleeveSize = sleeveSize,
+                        canvas = canvas,
                         songs = songs,
                         onPlay = { onSongClick(songs, 0) },
                         onShuffle = { onShuffle(songs) },
-                        searching = searching,
-                        onSearch = {
-                            if (searching) {
-                                closeSearch()
-                            } else {
-                                searching = true
-                                focusSearch = true
-                            }
-                        },
-                        onMore = onMore,
                         onArtistClick = onArtistClick,
                         onToggleLibrary = onToggleLibrary,
                     )
@@ -503,14 +525,10 @@ fun DetailScreen(
             if (songs.isNotEmpty() && isArtist) {
                 item(key = "actions") {
                     ActionRow(
-                        palette = palette,
                         onPlay = { onSongClick(songs, 0) },
                         onShuffle = { onShuffle(songs) },
                         subscription = page.subscription?.takeIf { onToggleSubscription != null },
                         onToggleSubscription = onToggleSubscription,
-                        // Halved when an About section follows directly — see
-                        // [AboutSection]'s own top inset, which makes up the
-                        // rest of that shorter gap.
                         bottomSpace = if (cleanedDescription.isNullOrBlank()) 22.dp else 11.dp,
                     )
                 }
@@ -694,162 +712,143 @@ fun DetailScreen(
  * its place is a spacer of exactly the picture's height, which is what keeps
  * the two in step: the list reserves the room, the background fills it.
  */
+/**
+ * An album or playlist: its sleeve framed, rounded and shadowed below the top
+ * bar.
+ *
+ * Centred and standing clear of the bar rather than running up under it: a
+ * sleeve is a square object to be looked at, not a backdrop to title typography.
+ * Painted directly on the page, with no artwork layer behind the list.
+ */
 @Composable
 private fun ReleaseHeader(
     page: DetailPage,
+    effectiveThumbnailUrl: String?,
     palette: ArtworkPalette,
-    artHeight: Dp,
-    trackCount: Int,
+    sleeveSize: Dp,
+    canvas: CanvasArtwork?,
     songs: List<Song>,
     onPlay: () -> Unit,
     onShuffle: () -> Unit,
-    searching: Boolean,
-    onSearch: () -> Unit,
-    onMore: ((List<Song>) -> Unit)?,
     onArtistClick: (String, String) -> Unit,
     onToggleLibrary: (() -> Unit)?,
 ) {
-    val (credit, meta) = page.headerLines(trackCount)
-    // Every row on a release carries the same credit — see [pageCredit] — so
-    // the first one speaks for the whole page, the same source the rows'
-    // own long-press "Open artist" already reads from.
+    val (credit, meta) = page.headerLines(songs.size, songs.playtime())
     val artist = songs.firstOrNull()
 
-    // The outer Box just needs to be as tall as its content — we don't force
-    // an aspect ratio here so the action buttons can extend below the artwork.
-    Box(Modifier.fillMaxWidth()) {
-
-        Spacer(Modifier.fillMaxWidth().height(artHeight + HEADER_DROP))
-
-        // Text + action row stacked, pinned to the bottom of the Box.
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .padding(bottom = 14.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = topBarContentPadding(), bottom = 18.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(
+            Modifier
+                .size(sleeveSize)
+                .shadow(SLEEVE_SHADOW, SLEEVE_SHAPE)
+                .background(palette.elevated)
+                .thumbnailBorder(SLEEVE_SHAPE),
         ) {
+            AsyncImage(
+                model = effectiveThumbnailUrl?.artworkAt(HEADER_ART_PX),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.matchParentSize(),
+            )
+            canvas?.let { clip ->
+                CanvasArtworkPlayer(
+                    canvas = clip,
+                    isPlaying = true,
+                    modifier = Modifier.matchParentSize(),
+                )
+            }
+        }
+
+        Spacer(Modifier.height(20.dp))
+        Text(
+            text = page.title,
+            style = MaterialTheme.typography.headlineMedium,
+            color = palette.onBackground,
+            textAlign = TextAlign.Center,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = HEADER_GUTTER),
+        )
+        if (credit.isNotBlank()) {
+            Spacer(Modifier.height(2.dp))
             Text(
-                text = page.title,
-                style = MaterialTheme.typography.headlineMedium,
-                color = palette.onBackground,
+                text = credit,
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontWeight = FontWeight.Normal,
+                    fontSize = 19.sp,
+                ),
+                color = palette.onBackgroundVariant,
                 textAlign = TextAlign.Center,
-                maxLines = 2,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .padding(horizontal = HEADER_GUTTER)
+                    .let { m ->
+                        val id = artist?.artistId
+                        if (id == null) {
+                            m
+                        } else {
+                            m.clip(RoundedCornerShape(6.dp))
+                                .clickable { onArtistClick(id, artist.artist) }
+                        }
+                    },
+            )
+        }
+        if (meta.isNotBlank()) {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = meta,
+                style = MaterialTheme.typography.labelMedium,
+                color = palette.onBackgroundVariant,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(horizontal = HEADER_GUTTER),
             )
-            // Artist / credit line
-            if (credit.isNotBlank()) {
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    text = credit,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = palette.accent,
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier
-                        .padding(horizontal = HEADER_GUTTER)
-                        .let { m ->
-                            val id = artist?.artistId
-                            if (id == null) {
-                                m
-                            } else {
-                                m.clip(RoundedCornerShape(6.dp))
-                                    .clickable { onArtistClick(id, artist.artist) }
-                            }
-                        },
-                )
-            }
-            // Metadata (kind • year • count)
-            if (meta.isNotBlank()) {
-                Spacer(Modifier.height(5.dp))
-                Text(
-                    text = meta,
-                    style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.7.sp),
-                    color = palette.onBackgroundVariant,
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(horizontal = HEADER_GUTTER),
-                )
-            }
+        }
 
-            // Action buttons — live inside the header so there is zero gap
-            // between the cover zone and the first song row.
-            if (songs.isNotEmpty()) {
-                // Only where YouTube said the release can be saved and the
-                // caller is willing to take the write — see [onToggleLibrary].
-                val library = page.library?.takeIf { onToggleLibrary != null }
-                // All release actions are circles. On a 360dp screen a full
-                // five-control row comes down 4dp so it stays inside the shared
-                // header gutter instead of running off the edge.
-                val circles = listOfNotNull(library, onMore).size + 2 // + Shuffle, Search
-                val full = circles >= 4
-                val circleSize = if (full) 46.dp else 50.dp
-                Spacer(Modifier.height(14.dp))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = HEADER_GUTTER),
-                    horizontalArrangement = Arrangement.spacedBy(
-                        if (full) 8.dp else 10.dp,
-                        Alignment.CenterHorizontally,
-                    ),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    if (library != null) {
-                        CircleIconButton(
-                            // A tick, not a filled-in plus: the pair reads as
-                            // "not yet / done", which is what the state is.
-                            icon = if (library.saved) RaagaIcons.Check else RaagaIcons.Plus,
-                            contentDescription = if (library.saved) {
-                                stringResource(R.string.remove_from_library)
-                            } else {
-                                stringResource(R.string.add_to_library)
-                            },
-                            palette = palette,
-                            onClick = { onToggleLibrary?.invoke() },
-                            haptic = if (library.saved) Haptic.ToggleOff else Haptic.ToggleOn,
-                            size = circleSize,
-                        )
-                    }
+        if (songs.isNotEmpty()) {
+            val library = page.library?.takeIf { onToggleLibrary != null }
+            Spacer(Modifier.height(18.dp))
+            Row(
+                modifier = Modifier
+                    .widthIn(max = RELEASE_ACTIONS_MAX_WIDTH)
+                    .fillMaxWidth()
+                    .padding(horizontal = HEADER_GUTTER),
+                horizontalArrangement = Arrangement.spacedBy(RELEASE_ACTION_GAP),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                CircleIconButton(
+                    icon = RaagaIcons.Shuffle,
+                    contentDescription = stringResource(R.string.shuffle),
+                    onClick = onShuffle,
+                    haptic = Haptic.Resume,
+                    size = RELEASE_SIDE_BUTTON,
+                )
+                PlayPill(
+                    onClick = onPlay,
+                    size = RELEASE_SIDE_BUTTON,
+                    modifier = Modifier.weight(1f),
+                )
+                if (library != null) {
                     CircleIconButton(
-                        icon = RaagaIcons.Shuffle,
-                        contentDescription = stringResource(R.string.shuffle),
-                        palette = palette,
-                        onClick = onShuffle,
-                        haptic = Haptic.Resume,
-                        size = circleSize,
+                        icon = if (library.saved) RaagaIcons.Check else RaagaIcons.Plus,
+                        contentDescription = if (library.saved) {
+                            stringResource(R.string.remove_from_library)
+                        } else {
+                            stringResource(R.string.add_to_library)
+                        },
+                        onClick = { onToggleLibrary?.invoke() },
+                        haptic = if (library.saved) Haptic.ToggleOff else Haptic.ToggleOn,
+                        size = RELEASE_SIDE_BUTTON,
                     )
-                    PlayPill(
-                        onClick = onPlay,
-                        iconOnly = true,
-                        size = circleSize,
-                    )
-                    // Where the download circle used to be. Downloading a
-                    // release is a thing done once and then not thought about;
-                    // finding a track on a long playlist is a thing done while
-                    // reading the page, so it is the one that earns a button and
-                    // the download moved to the overflow beside it.
-                    CircleIconButton(
-                        icon = if (searching) Icons.Rounded.Close else RaagaIcons.Search,
-                        contentDescription = stringResource(
-                            if (searching) R.string.close_search else R.string.search_this_list,
-                        ),
-                        palette = palette,
-                        onClick = onSearch,
-                        size = circleSize,
-                    )
-                    onMore?.let { more ->
-                        CircleIconButton(
-                            icon = Icons.Rounded.MoreHoriz,
-                            contentDescription = stringResource(R.string.more),
-                            palette = palette,
-                            onClick = { more(songs) },
-                            size = circleSize,
-                        )
-                    }
+                } else {
+                    Spacer(Modifier.size(RELEASE_SIDE_BUTTON))
                 }
             }
         }
@@ -950,7 +949,7 @@ private fun DetailSearchField(
     }
 }
 
-private fun List<Song>.sortedForDetail(sort: SongSort): List<Song> = when (sort) {
+internal fun List<Song>.sortedForDetail(sort: SongSort): List<Song> = when (sort) {
     SongSort.DEFAULT -> this
     SongSort.TITLE_ASC -> sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title })
     SongSort.TITLE_DESC -> sortedWith(compareByDescending(String.CASE_INSENSITIVE_ORDER) { it.title })
@@ -1334,109 +1333,150 @@ private val MERGE_BAND = 320.dp
  */
 private val MERGE_BLUR = 100.dp
 
-/** Shuffle • Play • Download — the Apple Music action row. */
+/** The artist action row: Shuffle, Play circle, and Star / Follow. */
 @Composable
 private fun ActionRow(
-    palette: ArtworkPalette,
     onPlay: () -> Unit,
     onShuffle: () -> Unit,
     bottomSpace: Dp = 22.dp,
-    /** The artist header's subscribe state, or null where it isn't offered. */
     subscription: SubscriptionState? = null,
     onToggleSubscription: (() -> Unit)? = null,
+    playColor: Color? = null,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = HEADER_GUTTER),
-        horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
+        horizontalArrangement = Arrangement.spacedBy(ARTIST_ACTION_GAP, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Subscribing sits where saving does on a release — first circle, left
-        // of Play — and says the same thing with the same pair of icons.
+        CircleIconButton(
+            icon = RaagaIcons.Shuffle,
+            contentDescription = stringResource(R.string.shuffle),
+            onClick = onShuffle,
+            haptic = Haptic.Resume,
+            size = ARTIST_SIDE_BUTTON,
+        )
+
+        PlayCircle(
+            onClick = onPlay,
+            size = ARTIST_PLAY_BUTTON,
+            iconScale = ARTIST_PLAY_ICON_SCALE,
+            containerColor = playColor ?: Color.White,
+        )
+
         if (subscription != null) {
             CircleIconButton(
                 icon = if (subscription.subscribed) RaagaIcons.Check else RaagaIcons.Plus,
                 contentDescription = stringResource(
                     if (subscription.subscribed) R.string.unsubscribe else R.string.subscribe,
                 ),
-                palette = palette,
                 onClick = { onToggleSubscription?.invoke() },
                 haptic = if (subscription.subscribed) Haptic.ToggleOff else Haptic.ToggleOn,
+                size = ARTIST_SIDE_BUTTON,
             )
         }
-
-        PlayPill(
-            onClick = onPlay,
-        )
-
-        // Circular Shuffle button
-        CircleIconButton(
-            icon = RaagaIcons.Shuffle,
-            contentDescription = stringResource(R.string.shuffle),
-            palette = palette,
-            onClick = onShuffle,
-            haptic = Haptic.Resume,
-        )
     }
     Spacer(Modifier.height(bottomSpace))
 }
 
 /**
- * The prominent Play control that anchors the action row. Releases request its
- * icon-only circle; the artist retains the labeled pill. Both use a fixed white
- * surface with black content so the primary action survives every palette.
+ * The prominent Play pill on release pages: a white capsule with black Play
+ * icon and text.
  */
 @Composable
 private fun PlayPill(
     onClick: () -> Unit,
+    size: Dp,
     modifier: Modifier = Modifier,
-    horizontalPadding: Dp = 32.dp,
-    iconOnly: Boolean = false,
-    size: Dp = 50.dp,
 ) {
-    // Resume rather than a flat tap: this button starts a queue, and the rising
-    // pair says so.
     val haptics = rememberHaptics()
     Row(
         modifier = modifier
-            .then(if (iconOnly) Modifier.size(size) else Modifier.height(size))
-            .clip(CircleShape)
-            .background(Color.White)
+            .height(size)
+            .clip(PILL_SHAPE)
+            .background(Color.White, PILL_SHAPE)
             .clickable {
                 haptics.play(Haptic.Resume)
                 onClick()
-            }
-            .then(if (iconOnly) Modifier else Modifier.padding(horizontal = horizontalPadding)),
-        horizontalArrangement = Arrangement.Center,
+            },
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
     ) {
         Icon(
             imageVector = RaagaIcons.Play,
-            contentDescription = if (iconOnly) stringResource(R.string.play) else null,
+            contentDescription = null,
             tint = Color.Black,
-            modifier = Modifier.size(if (iconOnly) size * 0.44f else 18.dp),
+            modifier = Modifier.size(18.dp),
         )
-        if (!iconOnly) {
-            Spacer(Modifier.width(8.dp))
-            Text(
-                text = stringResource(R.string.play),
-                style = MaterialTheme.typography.titleMedium,
-                color = Color.Black,
-            )
-        }
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = stringResource(R.string.play),
+            style = MaterialTheme.typography.titleMedium,
+            color = Color.Black,
+            maxLines = 1,
+        )
     }
 }
 
 /**
- * Small circular icon-only button — used for Shuffle and Download flanking the
- * Play pill. Translucent glassy fill, accent-coloured icon.
+ * The artist page's Play: a filled circle with the triangle punched out of it,
+ * so the page shows through, as Apple Music does.
+ */
+@Composable
+private fun PlayCircle(
+    onClick: () -> Unit,
+    size: Dp,
+    iconScale: Float,
+    containerColor: Color,
+) {
+    val haptics = rememberHaptics()
+    val description = stringResource(R.string.play)
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(CircleShape)
+            .clickable {
+                haptics.play(Haptic.Resume)
+                onClick()
+            }
+            .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+            .drawWithContent {
+                drawCircle(containerColor)
+                val box = this.size.minDimension * iconScale
+                val unit = box / 24f
+                val origin = Offset((this.size.width - box) / 2f, (this.size.height - box) / 2f)
+                val triangle = androidx.compose.ui.graphics.Path().apply {
+                    moveTo(origin.x + 6.8f * unit, origin.y + 4.8f * unit)
+                    lineTo(origin.x + 19.2f * unit, origin.y + 12f * unit)
+                    lineTo(origin.x + 6.8f * unit, origin.y + 19.2f * unit)
+                    close()
+                }
+                drawPath(triangle, Color.Black, blendMode = BlendMode.Clear)
+                drawPath(
+                    triangle,
+                    Color.Black,
+                    style = Stroke(
+                        width = 2f * unit,
+                        cap = StrokeCap.Round,
+                        join = StrokeJoin.Round,
+                    ),
+                    blendMode = BlendMode.Clear,
+                )
+            }
+            .semantics { contentDescription = description },
+    )
+}
+
+/**
+ * Small circular icon-only button — Shuffle and its partner either side of
+ * Play, on both the release and the artist page. A light veil with a hairline
+ * edge.
  */
 @Composable
 private fun CircleIconButton(
     icon: ImageVector,
     contentDescription: String,
-    palette: ArtworkPalette,
     onClick: () -> Unit,
     haptic: Haptic = Haptic.Tap,
     size: Dp = 50.dp,
@@ -1445,10 +1485,9 @@ private fun CircleIconButton(
     Box(
         modifier = Modifier
             .size(size)
-            .lightweightLiquidGlass(
-                shape = CircleShape,
-                fallbackColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
-            )
+            .clip(CircleShape)
+            .background(Color.White.copy(alpha = LIGHT_FILL_ALPHA), CircleShape)
+            .border(1.dp, Color.White.copy(alpha = TOP_RELEASE_EDGE_ALPHA), CircleShape)
             .clickable {
                 haptics.play(haptic)
                 onClick()
@@ -1458,7 +1497,7 @@ private fun CircleIconButton(
         Icon(
             imageVector = icon,
             contentDescription = contentDescription,
-            tint = MaterialTheme.colorScheme.onSurface,
+            tint = Color.White,
             modifier = Modifier.size(size * 0.44f),
         )
     }
@@ -1832,16 +1871,11 @@ private fun ArtistShelfGridPage(
 }
 
 /**
- * Splits the one subtitle a browse row hands over — "Album • Travis Scott •
- * 2023", or sometimes just "Travis Scott" — into the credit line and the
- * metadata line the header shows separately.
- *
- * Everything is optional, because every caller supplies a different amount of
- * it: the player knows an album's artist but not its year, search knows both,
- * and a home card frequently knows neither.
+ * Splits the one subtitle a browse row hands over into the credit line and the
+ * metadata line.
  */
 @Composable
-private fun DetailPage.headerLines(trackCount: Int): Pair<String, String> {
+private fun DetailPage.headerLines(trackCount: Int, playtime: String? = null): Pair<String, String> {
     val parts = subtitle.split("•", "·").map { it.trim() }.filter { it.isNotEmpty() }
     val year = parts.lastOrNull { it.length == 4 && it.all(Char::isDigit) }
     val kind = parts.firstOrNull { it.lowercase(Locale.ROOT) in KIND_WORDS }
@@ -1852,8 +1886,19 @@ private fun DetailPage.headerLines(trackCount: Int): Pair<String, String> {
         trackCount.takeIf { it > 0 }?.let {
             pluralStringResource(R.plurals.track_count_plural, it, it)
         },
-    ).joinToString(" • ").uppercase(Locale.getDefault())
+        playtime,
+    ).joinToString(" · ")
     return credit to meta
+}
+
+@Composable
+private fun List<Song>.playtime(): String? {
+    val minutes = sumOf { it.durationText.toSeconds() } / 60
+    return when {
+        minutes <= 0 -> null
+        minutes < 60 -> stringResource(R.string.minutes_short, minutes)
+        else -> stringResource(R.string.hours_minutes_short, minutes / 60, minutes % 60)
+    }
 }
 
 /** Subtitle words that name what a page *is* rather than who made it. */

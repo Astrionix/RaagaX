@@ -160,7 +160,7 @@ fun topBarContentPadding(): Dp = topBarHeight() + TopBarContentGap
 @Composable
 fun FrostedTopBar(
     title: String,
-    scrolled: () -> Boolean,
+    scrolled: Boolean,
     modifier: Modifier = Modifier,
     transparentBackdrop: Boolean = false,
     artworkPageChrome: Boolean = false,
@@ -173,7 +173,7 @@ fun FrostedTopBar(
 ) {
     FrostedTopBar(
         title = title,
-        scrolled = scrolled(),
+        scrolled = { scrolled },
         modifier = modifier,
         transparentBackdrop = transparentBackdrop,
         artworkPageChrome = artworkPageChrome,
@@ -189,7 +189,7 @@ fun FrostedTopBar(
 @Composable
 fun FrostedTopBar(
     title: String,
-    scrolled: Boolean,
+    scrolled: () -> Boolean,
     modifier: Modifier = Modifier,
     /** Leaves the whole bar transparent so the page's own top gradient is the backdrop. */
     transparentBackdrop: Boolean = false,
@@ -209,7 +209,7 @@ fun FrostedTopBar(
     val useFloatingChrome = artworkPageChrome ||
         (LocalLiquidGlassEnabled.current && isGlassSupported())
     val titleAlpha by animateFloatAsState(
-        targetValue = if (scrolled || trailingTitle != null) 1f else 0f,
+        targetValue = if (scrolled() || trailingTitle != null) 1f else 0f,
         animationSpec = tween(220),
         label = "topBarTitleAlpha",
     )

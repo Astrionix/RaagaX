@@ -386,6 +386,8 @@ object AudioOutputStatus {
      * not when it doesn't. Written only by the sink the listener can hear — see
      * `PrecisionAudioSink.isAudible`.
      */
+    fun publishBitPerfect(active: Boolean, detail: String?) = publishOutputExactness(active, detail)
+
     fun publishOutputExactness(exact: Boolean, detail: String?) {
         current.value = current.value.copy(
             outputExact = exact,

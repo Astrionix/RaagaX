@@ -39,6 +39,14 @@ internal object AudioOutputPolicy {
         return advertisesPcmFloat
     }
 
+    /**
+     * Whether bit-perfect mode may open a PCM-float AudioTrack on this route.
+     */
+    fun allowsFloatForBitPerfect(
+        routeKind: AudioRouting.Kind,
+        advertisesPcmFloat: Boolean,
+    ): Boolean = routeKind != AudioRouting.Kind.PHONE && advertisesPcmFloat
+
     /** Samsung's vendor FLAC decoder emits invalid timestamps with PCM float. */
     fun isUnsafeFloatFlacDecoder(name: String): Boolean {
         val normalized = name.lowercase()

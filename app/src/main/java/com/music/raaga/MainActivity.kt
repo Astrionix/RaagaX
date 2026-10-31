@@ -64,6 +64,7 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Sort
 import androidx.compose.material.icons.rounded.Upgrade
@@ -243,6 +244,7 @@ import androidx.media3.common.Player
 import com.music.raaga.data.YtMusicRepository
 import com.music.raaga.ui.player.NowPlayingScreen
 import com.music.raaga.ui.screens.DetailScreen
+import com.music.raaga.ui.screens.sortedForDetail
 import com.music.raaga.ui.screens.ExploreScreen
 import com.music.raaga.ui.screens.LocalMusicScreen
 import com.music.raaga.ui.screens.HomeScreen
@@ -700,6 +702,8 @@ private fun RaagaApp(
     // has a cover and a track list, so it takes the bar every other release page
     // takes. Hence the folder question rather than the prefix.
     val isLocalDetail = detail?.browseId.isDeviceFolder()
+    val isReleaseDetail = detail != null && !isLocalDetail && detail.type != BrowseType.ARTIST
+    var detailSearching by rememberSaveable(detail?.browseId) { mutableStateOf(false) }
     // Not keyed on the browse id and not remembered here: each page's choice
     // lives in AppSettings keyed by that page — Spotify-style, one playlist's
     // order never imposes itself on another, and every page keeps its own
@@ -2512,6 +2516,11 @@ private fun RaagaApp(
         // one child it always had and changes nothing.
         Row(Modifier.fillMaxSize()) {
             Box(Modifier.weight(1f).fillMaxHeight()) {
+                val coveredByPlayer by remember {
+                    derivedStateOf {
+                        showNowPlaying && (playerSong != null || (activeRemoteDevice != null && remoteSong != null))
+                    }
+                }
                 AnimatedContent(
                     targetState = when {
                         showDiscord -> "discord"
@@ -2569,7 +2578,6 @@ private fun RaagaApp(
                     },
                     modifier = Modifier
                         .drawWithContent {
-                            val coveredByPlayer = showNowPlaying && (playerSong != null || (activeRemoteDevice != null && remoteSong != null))
                             if (!coveredByPlayer) drawContent()
                         }
                         .hazeSource(hazeState)
@@ -2966,6 +2974,8 @@ private fun RaagaApp(
                                 }
                             },
                             onSectionItemLongPress = onBrowseLongPress,
+                            searching = detailSearching && page.browseId == detail?.browseId,
+                            onSearchingChange = { detailSearching = it },
                             // The page's own tracks, so the sheet has them already and
                             // Play, Shuffle and Open are the buttons beside the one that
                             // opened it rather than rows on it. Download is the other
@@ -3299,18 +3309,20 @@ private fun RaagaApp(
                     trailingTitle = if (detail != null && detailActiveShelf != null) detail.title else null,
                     // Search has no large in-list header to hand the title back to —
                     // the field takes that space — so its bar title is always up.
-                    scrolled = when {
-                        showSettings || showAccountScrobbling || showSources || showListenTogether ||
-                            showWearOs || showEqualizer ||
-                            showDiscord || showHistory ||
-                            (libraryShowAll != null && detail == null) ||
-                            (detail != null && detailActiveShelf != null) ||
-                            selectedMoodGenre != null -> true
-                        // The page leads with its own large "Replay", so the bar
-                        // stays out of the way until that has been scrolled off.
-                        showReplay -> replayScrolled
-                        detail != null -> detailScrolled
-                        else -> scrolled || selectedTab == TAB_SEARCH
+                    scrolled = {
+                        when {
+                            showSettings || showAccountScrobbling || showSources || showListenTogether ||
+                                showWearOs || showEqualizer ||
+                                showDiscord || showHistory ||
+                                (libraryShowAll != null && detail == null) ||
+                                (detail != null && detailActiveShelf != null) ||
+                                selectedMoodGenre != null -> true
+                            // The page leads with its own large "Replay", so the bar
+                            // stays out of the way until that has been scrolled off.
+                            showReplay -> replayScrolled
+                            detail != null -> detailScrolled
+                            else -> scrolled || selectedTab == TAB_SEARCH
+                        }
                     },
                     refreshing = currentFeed != null && currentFeed in refreshing,
                     pullFraction = { currentPull?.distanceFraction ?: 0f },
@@ -3469,11 +3481,19 @@ private fun RaagaApp(
                             // list to reorder, and the device folders already
                             // carry this same control themselves (see
                             // `LocalSearchField`).
-                            if (detail != null && !isLocalDetail && detail.type != BrowseType.ARTIST) {
-                                // The menu itself is [FrostedSortMenu], composed
-                                // with the app's other frosted overlays further
-                                // down — in the main hierarchy, where the haze
-                                // can see the content it blurs.
+                            if (isReleaseDetail && detail != null) {
+                                val releaseSongs = (detail.songs as? UiState.Success)?.data.orEmpty()
+                                if (releaseSongs.isNotEmpty()) {
+                                    IconButton(onClick = { detailSearching = !detailSearching }) {
+                                        Icon(
+                                            if (detailSearching) Icons.Rounded.Close else RaagaIcons.Search,
+                                            contentDescription = stringResource(
+                                                if (detailSearching) R.string.close_search else R.string.search_this_list,
+                                            ),
+                                            tint = MaterialTheme.colorScheme.onSurface,
+                                        )
+                                    }
+                                }
                                 IconButton(onClick = { songSortMenuOpen = true }) {
                                     Icon(
                                         Icons.Rounded.Sort,
@@ -3481,22 +3501,46 @@ private fun RaagaApp(
                                         tint = MaterialTheme.colorScheme.onSurface,
                                     )
                                 }
+                                IconButton(
+                                    onClick = {
+                                        browseActions = BrowseTarget(
+                                            browseId = detail.browseId,
+                                            title = detail.title,
+                                            subtitle = detail.subtitle,
+                                            thumbnailUrl = detail.thumbnailUrl,
+                                            type = detail.type,
+                                            songs = releaseSongs.sortedForDetail(songSort).map { song ->
+                                                if (detail.type == BrowseType.ALBUM) {
+                                                    song.copy(albumName = song.albumName ?: detail.title)
+                                                } else {
+                                                    song
+                                                }
+                                            },
+                                            fromCard = false,
+                                            downloadId = downloadIdFor(detail.browseId),
+                                        )
+                                    },
+                                ) {
+                                    Icon(
+                                        Icons.Rounded.MoreHoriz,
+                                        contentDescription = stringResource(R.string.more),
+                                        tint = MaterialTheme.colorScheme.onSurface,
+                                    )
+                                }
                             }
-                            // Left of the account photo, and only there while
-                            // there is a batch to report on — see
-                            // [TopBarDownloadButton], which decides that for
-                            // itself rather than being told.
                             TopBarDownloadButton(onClick = { showDownloadManager = true })
-                            TopBarAccountButton(
-                                account = account,
-                                onClick = {
-                                    if (signedIn) {
-                                        viewModel.loadChannels()
-                                        showAccountSelector = true
-                                    } else showSettings = true
-                                },
-                                onSwipeProfile = { forward -> viewModel.stepProfile(forward) },
-                            )
+                            if (!isReleaseDetail) {
+                                TopBarAccountButton(
+                                    account = account,
+                                    onClick = {
+                                        if (signedIn) {
+                                            viewModel.loadChannels()
+                                            showAccountSelector = true
+                                        } else showSettings = true
+                                    },
+                                    onSwipeProfile = { forward -> viewModel.stepProfile(forward) },
+                                )
+                            }
                         }
                     },
                 )

@@ -753,7 +753,7 @@ private fun SongRowContent(
                 Icon(
                     Icons.Rounded.MoreVert,
                     contentDescription = stringResource(R.string.more),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = subtitleColor,
                     modifier = Modifier.size(20.dp),
                 )
             }

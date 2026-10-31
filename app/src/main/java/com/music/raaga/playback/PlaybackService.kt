@@ -35,6 +35,11 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
+import androidx.media3.decoder.ffmpeg.FfmpegAudioRenderer
+import androidx.media3.decoder.ffmpeg.FfmpegLibrary
+import androidx.media3.exoplayer.Renderer
+import androidx.media3.exoplayer.audio.AudioRendererEventListener
+import android.os.Handler
 import androidx.media3.exoplayer.DecoderReuseEvaluation
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
@@ -70,6 +75,12 @@ import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.guava.future
 import com.music.raaga.playback.audio.DspChain
 import com.music.raaga.playback.audio.PrecisionAudioSink
+import com.music.raaga.playback.audio.bitperfect.BitPerfectAudioSink
+import com.music.raaga.playback.audio.bitperfect.BitPerfectOutput
+import com.music.raaga.playback.audio.bitperfect.BitPerfectRoutingSink
+import com.music.raaga.playback.audio.bitperfect.DacVolume
+import com.music.raaga.playback.audio.bitperfect.usb.UsbDirectDevices
+import com.music.raaga.data.settings.BitPerfectMode
 import com.music.raaga.playback.audio.DirectAudioProbe
 import com.music.raaga.playback.audio.OutputNegotiator
 import com.music.raaga.playback.audio.PcmEncoding
@@ -4438,6 +4449,7 @@ class PlaybackService : MediaLibraryService() {
      * player.
      */
     private fun buildAuditionPlayer(meter: BandwidthMeter): ExoPlayer = ExoPlayer.Builder(this)
+        .setRenderersFactory(FfmpegFallbackRenderersFactory(this))
         .setMediaSourceFactory(requireNotNull(mediaSourceFactory))
         .setBandwidthMeter(meter)
         .setLoadControl(
@@ -5319,7 +5331,7 @@ class PlaybackService : MediaLibraryService() {
         spatial: SpatialAudioProcessor,
         equalizer: EqualizerProcessor,
         transition: TransitionFilterProcessor,
-    ) = object : DefaultRenderersFactory(this) {
+    ) = object : FfmpegFallbackRenderersFactory(this) {
         init {
             // Do not force PCM_FLOAT onto an OEM speaker mixer merely because
             // the preference asks for it. The selected route must advertise
@@ -5400,7 +5412,7 @@ class PlaybackService : MediaLibraryService() {
             // the whole session, while the transition filter belongs to
             // one handoff and has to have the last word on it.
             val dspChain = DspChain(spatial, equalizer, transition)
-            return PrecisionAudioSink(
+            val precision = PrecisionAudioSink(
                 delegate = defaultSink,
                 dspChain = dspChain,
                 enableFloatOutput = enableFloatOutput,
@@ -5412,6 +5424,7 @@ class PlaybackService : MediaLibraryService() {
                 // cannot publish "not exact" over the playing track's verdict.
                 isAudible = { transition === activeFilter },
             )
+            return BitPerfectRoutingSink(precision, BitPerfectAudioSink(BitPerfectOutput.forContext(context)))
         }
     }
 
@@ -5605,14 +5618,14 @@ class PlaybackService : MediaLibraryService() {
         return negotiation.output.encoding
     }
 
-    private fun requestOutputReconfiguration() {
+    private fun requestOutputReconfiguration(rebuild: Boolean = false) {
         outputReconfigureJob?.cancel()
         outputReconfigureJob = scope.launch {
             // Replacing two renderers during a blend would cut one half of it.
             // Wait for the short transition to settle, then swap the engine.
             while (crossfade?.isTransitioning() == true) delay(50)
             val requestedFloat = shouldEnableFloatOutput()
-            if (requestedFloat == configuredFloatOutput) {
+            if (!rebuild && requestedFloat == configuredFloatOutput) {
                 applyOutputRoute()
             } else {
                 rebuildPlayersForOutput(requestedFloat)
@@ -5764,6 +5777,48 @@ class PlaybackService : MediaLibraryService() {
         }
         scope.launch {
             AppSettings.usbDirectAudio.drop(1).collect { requestOutputReconfiguration() }
+        }
+        UsbDirectDevices.init(this)
+        BitPerfectOutput.watch(this)
+        scope.launch {
+            var available = false
+            DacVolume.level.collect { level ->
+                val now = level != null
+                (mediaSession?.player as? SessionPlayer)?.onDacVolumeChanged(routeChanged = now != available)
+                available = now
+            }
+        }
+        UsbDirectDevices.onChanged = {
+            BitPerfectOutput.refreshReady(this)
+            scope.launch {
+                if (AppSettings.bitPerfectMode.value == BitPerfectMode.USB_DIRECT) {
+                    UsbDirectDevices.requestPermission(this@PlaybackService)
+                    requestOutputReconfiguration(rebuild = true)
+                }
+            }
+        }
+        scope.launch {
+            AppSettings.bitPerfectMode.collect { mode ->
+                BitPerfectOutput.refreshReady(this@PlaybackService)
+                if (mode == BitPerfectMode.USB_DIRECT) UsbDirectDevices.requestPermission(this@PlaybackService)
+            }
+        }
+        scope.launch {
+            AppSettings.bitPerfectMode.drop(1).collect { requestOutputReconfiguration(rebuild = true) }
+        }
+        scope.launch {
+            AppSettings.usbAllowFixedVolume.drop(1).collect {
+                if (AppSettings.bitPerfectMode.value == BitPerfectMode.USB_DIRECT) {
+                    requestOutputReconfiguration(rebuild = true)
+                }
+            }
+        }
+        scope.launch {
+            AppSettings.convertForLimitedDac.drop(1).collect {
+                if (AppSettings.bitPerfectMode.value != BitPerfectMode.OFF) {
+                    requestOutputReconfiguration(rebuild = true)
+                }
+            }
         }
         scope.launch {
             AudioRouting.selectedId.drop(1).collect { requestOutputReconfiguration() }
@@ -6552,6 +6607,18 @@ class PlaybackService : MediaLibraryService() {
 
         init {
             activeSessionPlayer = this
+        }
+
+        private val dac: Boolean get() = DacVolume.level.value != null
+        private fun dacVolume(): Int = ((DacVolume.level.value ?: 0f) * 100f).toInt()
+
+        fun onDacVolumeChanged(routeChanged: Boolean) {
+            if (routeChanged) {
+                val commands = availableCommands
+                listeners.forEach { it.onAvailableCommandsChanged(commands) }
+                val events = androidx.media3.common.Player.Events(androidx.media3.common.FlagSet.Builder().add(androidx.media3.common.Player.EVENT_AVAILABLE_COMMANDS_CHANGED).build())
+                listeners.forEach { it.onEvents(this, events) }
+            }
         }
 
         override fun addListener(listener: Player.Listener) {
@@ -8271,3 +8338,75 @@ class PlaybackService : MediaLibraryService() {
         const val PARTY_QUEUE_ECHO_TIMEOUT_MS = 5_000L
     }
 }
+
+
+/**
+ * The stock renderers, plus FFmpeg after the MediaCodec one.
+ *
+ * FFmpeg comes last so it only gets a track no platform decoder takes: AC-4
+ * and Dolby Digital (Plus, Atmos) on phones without Dolby's own decoder. Atmos
+ * then plays as its 5.1 bed, folded down to stereo — the object layer needs
+ * Dolby's decoder, which is the only thing that can read it. Same sink as the
+ * MediaCodec renderer, so the DSP chain and the precision path see no
+ * difference between the two.
+ *
+ * ALAC goes to FFmpeg on every device, because MediaCodec is never offered it
+ * ([withoutPlatformAlac]). Samsung ships no ALAC codec, which is where FFmpeg
+ * was proved; Qualcomm vendor images ship `c2.qti.alac.sw.decoder`, which
+ * released itself on its first input buffer and misreports position on the tracks
+ * it does play. A codec that fails mid-playback is never retried on the next
+ * renderer — the track just falls to YouTube — so the only fix is not to start
+ * there. Nothing is given up: the vendor codec is software as well, and lossless
+ * decoders agree to the bit.
+ *
+ * Shared by the real players and the upgrade audition, which must be able to
+ * decode whatever it is auditioning or it can never prove it — and with the
+ * same decoder, or the proof is of something else.
+ */
+private open class FfmpegFallbackRenderersFactory(context: Context) : DefaultRenderersFactory(context) {
+    override fun buildAudioRenderers(
+        context: Context,
+        extensionRendererMode: Int,
+        mediaCodecSelector: MediaCodecSelector,
+        enableDecoderFallback: Boolean,
+        audioSink: AudioSink,
+        eventHandler: Handler,
+        eventListener: AudioRendererEventListener,
+        out: java.util.ArrayList<Renderer>,
+    ) {
+        super.buildAudioRenderers(
+            context,
+            extensionRendererMode,
+            withoutPlatformAlac(mediaCodecSelector),
+            enableDecoderFallback,
+            audioSink,
+            eventHandler,
+            eventListener,
+            out,
+        )
+        out.add(FfmpegAudioRenderer(eventHandler, eventListener, audioSink))
+    }
+}
+
+/**
+ * [selector] with no decoders for ALAC, so `MediaCodecAudioRenderer` reports
+ * it unsupported and the track selector hands it to FFmpeg — unless this
+ * build's FFmpeg cannot decode it (an ABI it was not built for), where a
+ * vendor codec is still better than none. Wraps rather than replaces, so a
+ * subclass's own selector (the FLAC one) keeps working underneath.
+ */
+private fun withoutPlatformAlac(selector: MediaCodecSelector) =
+    MediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunnelingDecoder ->
+        if (mimeType == MimeTypes.AUDIO_ALAC && ffmpegDecodesAlac) {
+            emptyList()
+        } else {
+            selector.getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunnelingDecoder)
+        }
+    }
+
+/**
+ * Asked once per process, and only when an ALAC track is first looked at: the
+ * native library then loads on the playback thread, as it did before, rather
+ * than on the main thread while a player is built.
+ */
+private val ffmpegDecodesAlac by lazy { FfmpegLibrary.supportsFormat(MimeTypes.AUDIO_ALAC) }

@@ -77,6 +77,7 @@ import androidx.compose.material.icons.rounded.SmartDisplay
 import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.SurroundSound
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.Usb
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material.icons.rounded.VolumeOff
@@ -155,6 +156,9 @@ import com.music.raaga.data.scrobbling.LastFM
 import com.music.raaga.data.listentogether.ListenTogether
 import com.music.raaga.data.settings.AppSettings
 import com.music.raaga.data.settings.OutputPcmMode
+import android.os.Build
+import com.music.raaga.data.settings.BitPerfectMode
+import com.music.raaga.playback.audio.bitperfect.BitPerfectOutput
 import com.music.raaga.playback.AudioOutputStatus
 import com.music.raaga.data.settings.AutomixPerformanceMode
 import com.music.raaga.R
@@ -211,6 +215,7 @@ fun SettingsScreen(
     val crossfade by AppSettings.crossfadeSeconds.collectAsStateWithLifecycle()
     val smartFade by AppSettings.smartFadeEnabled.collectAsStateWithLifecycle()
     val automixPerformance by AppSettings.automixPerformanceMode.collectAsStateWithLifecycle()
+    val bitPerfectMode by AppSettings.bitPerfectMode.collectAsStateWithLifecycle()
     val skipSilence by AppSettings.skipSilence.collectAsStateWithLifecycle()
     val dolbyAtmos by AppSettings.dolbyAtmos.collectAsStateWithLifecycle()
     val lockScreenArt by AppSettings.lockScreenArt.collectAsStateWithLifecycle()
@@ -304,6 +309,10 @@ fun SettingsScreen(
     var pickingDownloadQuality by remember { mutableStateOf(false) }
     var pickingAutoDownloadPlaylists by remember { mutableStateOf(false) }
     var pickingAutomixPerformance by remember { mutableStateOf(false) }
+    var showBitPerfectChoice by remember { mutableStateOf(false) }
+    var confirmingBitPerfectMode by remember { mutableStateOf<BitPerfectMode?>(null) }
+    var showFixedVolumeConfirm by remember { mutableStateOf(false) }
+
     // What the last export or import did, shown on the row that did it rather
     // than as a toast: a backup is the one action here whose outcome nobody can
     // check by looking at the app afterwards. Held per direction, or an import's
@@ -719,24 +728,58 @@ fun SettingsScreen(
                     badge = stringResource(R.string.connected).takeIf { outputStatus.isUsb },
                 )
             }
-            val usbDirectTitle = stringResource(R.string.usb_direct_audio)
-            row(usbDirectTitle, "usb", "dac", "bitperfect", "audiophile") {
-                SettingsSubRow(
-                    title = usbDirectTitle,
-                    subtitle = stringResource(R.string.usb_direct_audio_subtitle),
-                    checked = usbDirectAudio,
-                    onCheckedChange = AppSettings::setUsbDirectAudio,
-                    badge = "Bit-Perfect".takeIf { outputStatus.isUsb },
+            val bitPerfectTitle = stringResource(R.string.bit_perfect_output)
+            val bitPerfectMode by AppSettings.bitPerfectMode.collectAsStateWithLifecycle()
+            val bitPerfectStatus by BitPerfectOutput.status.collectAsStateWithLifecycle()
+            row(bitPerfectTitle, "usb", "dac", "exclusive", "hi-res", "bitperfect") {
+                SettingsRow(
+                    icon = Icons.Rounded.Usb,
+                    title = bitPerfectTitle,
+                    subtitleContent = {
+                        Column {
+                            Text(
+                                text = bitPerfectSubtitle(bitPerfectMode, bitPerfectStatus),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Text(
+                                text = bitPerfectMode.localizedLabel(),
+                                modifier = Modifier.padding(top = 2.dp),
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    },
+                    onClick = { showBitPerfectChoice = true },
                 )
             }
-            if (usbDirectAudio) {
-                row("Convert for Limited DAC", "usb", "dac", "convert", "downsample") {
+            if (bitPerfectMode != BitPerfectMode.OFF) {
+                val convertForLimitedDac by AppSettings.convertForLimitedDac.collectAsStateWithLifecycle()
+                row(stringResource(R.string.convert_for_limited_dac), "dac", "convert") {
                     SettingsSubRow(
-                        title = "Convert for Limited DAC",
-                        subtitle = "Convert high-res audio to the best format supported by limited USB DACs instead of rejecting playback",
+                        title = stringResource(R.string.convert_for_limited_dac),
+                        subtitle = stringResource(R.string.convert_for_limited_dac_subtitle),
                         checked = convertForLimitedDac,
                         onCheckedChange = AppSettings::setConvertForLimitedDac,
                     )
+                }
+                if (bitPerfectMode == BitPerfectMode.USB_DIRECT) {
+                    val usbAllowFixedVolume by AppSettings.usbAllowFixedVolume.collectAsStateWithLifecycle()
+                    row(stringResource(R.string.usb_allow_fixed_volume), "fixed", "volume") {
+                        SettingsSubRow(
+                            title = stringResource(R.string.usb_allow_fixed_volume),
+                            subtitle = stringResource(R.string.usb_allow_fixed_volume_subtitle),
+                            checked = usbAllowFixedVolume,
+                            onCheckedChange = { allowed ->
+                                if (allowed) {
+                                    showFixedVolumeConfirm = true
+                                } else {
+                                    AppSettings.setUsbAllowFixedVolume(false)
+                                }
+                            },
+                        )
+                    }
                 }
             }
             val loudnessTitle = stringResource(R.string.loudness_normalization)
@@ -757,6 +800,32 @@ fun SettingsScreen(
                     },
                     onClick = { AppSettings.setLoudnessNormalization(!loudnessNormalization) },
                 )
+            }
+            if (loudnessNormalization) {
+                val loudnessOffOnSpeakerTitle = stringResource(R.string.loudness_off_on_speaker)
+                val loudnessOffOnSpeaker by AppSettings.loudnessOffOnSpeaker.collectAsStateWithLifecycle()
+                row(loudnessOffOnSpeakerTitle, "speaker", "phone speaker") {
+                    SettingsSubRow(
+                        title = loudnessOffOnSpeakerTitle,
+                        subtitle = "Bypass normalization when playing through device speakers",
+                        checked = loudnessOffOnSpeaker,
+                        onCheckedChange = AppSettings::setLoudnessOffOnSpeaker,
+                    )
+                }
+                val loudnessTargetTitle = stringResource(R.string.loudness_target)
+                val loudnessTarget by AppSettings.loudnessTargetLufs.collectAsStateWithLifecycle()
+                row(loudnessTargetTitle, "target", "lufs", "gain") {
+                    SliderRow(
+                        icon = Icons.Rounded.Tune,
+                        title = loudnessTargetTitle,
+                        subtitle = stringResource(R.string.loudness_target_subtitle),
+                        value = stringResource(R.string.loudness_target_value, "%.1f".format(Locale.ROOT, loudnessTarget)),
+                        sliderValue = loudnessTarget,
+                        onSliderValue = { AppSettings.setLoudnessTargetLufs(it) },
+                        valueRange = AppSettings.MIN_LOUDNESS_TARGET_LUFS..AppSettings.MAX_LOUDNESS_TARGET_LUFS,
+                        steps = 27,
+                    )
+                }
             }
             // Automix decides its own length from each pair of tracks —
             // tempo, key, structure — so it replaces the manual slider rather
@@ -1786,6 +1855,71 @@ fun SettingsScreen(
                 },
             )
         }
+    }
+
+    if (showBitPerfectChoice) {
+        ModalBottomSheet(
+            onDismissRequest = { showBitPerfectChoice = false },
+            containerColor = MaterialTheme.colorScheme.background,
+        ) {
+            BitPerfectSheet(
+                selected = bitPerfectMode,
+                onSelect = { mode ->
+                    showBitPerfectChoice = false
+                    if (mode == BitPerfectMode.OFF) {
+                        AppSettings.setBitPerfectMode(mode)
+                    } else {
+                        confirmingBitPerfectMode = mode
+                    }
+                },
+            )
+        }
+    }
+
+    confirmingBitPerfectMode?.let { mode ->
+        AlertDialog(
+            onDismissRequest = { confirmingBitPerfectMode = null },
+            title = { Text(stringResource(R.string.bit_perfect_confirm_title)) },
+            text = { Text(stringResource(R.string.bit_perfect_confirm_message)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        AppSettings.setBitPerfectMode(mode)
+                        confirmingBitPerfectMode = null
+                    },
+                ) {
+                    Text(stringResource(R.string.enable))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmingBitPerfectMode = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
+    if (showFixedVolumeConfirm) {
+        AlertDialog(
+            onDismissRequest = { showFixedVolumeConfirm = false },
+            title = { Text(stringResource(R.string.usb_allow_fixed_volume_confirm_title)) },
+            text = { Text(stringResource(R.string.usb_allow_fixed_volume_confirm_message)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        AppSettings.setUsbAllowFixedVolume(true)
+                        showFixedVolumeConfirm = false
+                    },
+                ) {
+                    Text(stringResource(R.string.enable))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showFixedVolumeConfirm = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
     }
 
     if (pickingAutomixPerformance) {
@@ -2954,4 +3088,133 @@ internal fun SegmentedControl(
             }
         }
     }
+}
+
+
+@Composable
+private fun BitPerfectSheet(
+    selected: BitPerfectMode,
+    onSelect: (BitPerfectMode) -> Unit,
+) {
+    val haptics = LocalHapticFeedback.current
+    Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
+        Row(
+            modifier = Modifier.padding(start = 22.dp, end = 22.dp, bottom = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Usb,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.size(22.dp),
+            )
+            Spacer(Modifier.width(14.dp))
+            Column {
+                Text(
+                    text = stringResource(R.string.bit_perfect_output),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
+                Text(
+                    text = stringResource(R.string.bit_perfect_sheet_warning),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline)
+
+        BitPerfectMode.entries.forEach { mode ->
+            val chosen = mode == selected
+            val supported = mode.isSupported
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(enabled = supported) {
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onSelect(mode)
+                    }
+                    .alpha(if (supported) 1f else 0.45f)
+                    .padding(horizontal = 22.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = mode.localizedLabel(),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
+                    Text(
+                        text = mode.description(),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (chosen) {
+                    Spacer(Modifier.width(12.dp))
+                    Icon(
+                        Icons.Rounded.Check,
+                        contentDescription = stringResource(R.string.selected),
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+private val BitPerfectMode.isSupported: Boolean
+    get() = when (this) {
+        BitPerfectMode.OFF -> true
+        BitPerfectMode.USB_DIRECT -> true
+        BitPerfectMode.DAP_EXCLUSIVE -> Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1
+        BitPerfectMode.USB_ANDROID -> Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE
+    }
+
+@Composable
+private fun BitPerfectMode.localizedLabel(): String = stringResource(
+    when (this) {
+        BitPerfectMode.OFF -> R.string.off
+        BitPerfectMode.USB_DIRECT -> R.string.bit_perfect_mode_usb_direct
+        BitPerfectMode.DAP_EXCLUSIVE -> R.string.bit_perfect_mode_dap_exclusive
+        BitPerfectMode.USB_ANDROID -> R.string.bit_perfect_mode_usb_android
+    },
+)
+
+@Composable
+private fun BitPerfectMode.description(): String = when {
+    this == BitPerfectMode.DAP_EXCLUSIVE && !isSupported -> stringResource(R.string.bit_perfect_requires_android_8_1)
+    this == BitPerfectMode.USB_ANDROID && !isSupported -> stringResource(R.string.bit_perfect_requires_android_14)
+    else -> stringResource(
+        when (this) {
+            BitPerfectMode.OFF -> R.string.bit_perfect_mode_off_subtitle
+            BitPerfectMode.USB_DIRECT -> R.string.bit_perfect_mode_usb_direct_subtitle
+            BitPerfectMode.DAP_EXCLUSIVE -> R.string.bit_perfect_mode_dap_exclusive_subtitle
+            BitPerfectMode.USB_ANDROID -> R.string.bit_perfect_mode_usb_android_subtitle
+        },
+    )
+}
+
+@Composable
+private fun bitPerfectSubtitle(mode: BitPerfectMode, status: BitPerfectOutput.Status): String = when {
+    mode == BitPerfectMode.OFF || !mode.isSupported -> mode.description()
+    status.active && status.dacLimited -> stringResource(
+        R.string.bit_perfect_status_dac_limited,
+        status.deviceName.orEmpty(),
+        "%.1f".format(Locale.ROOT, status.sampleRateHz / 1000.0),
+        status.outputBits,
+    )
+    status.active && !status.exact -> stringResource(
+        R.string.bit_perfect_status_inexact,
+        status.deviceName.orEmpty(),
+    )
+    status.active -> stringResource(
+        R.string.bit_perfect_status_active,
+        status.deviceName.orEmpty(),
+        "%.1f".format(Locale.ROOT, status.sampleRateHz / 1000.0),
+        status.outputBits,
+    )
+    status.fallbackReason != null -> stringResource(R.string.bit_perfect_status_unavailable, status.fallbackReason.orEmpty())
+    else -> stringResource(R.string.bit_perfect_status_waiting)
 }

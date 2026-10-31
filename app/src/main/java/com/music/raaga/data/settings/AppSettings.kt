@@ -77,6 +77,23 @@ enum class AudioQuality(
  * PCM_FLOAT. Android may still route/resample it according to the selected
  * output device, which is why the player exposes the negotiated format.
  */
+/** Unprocessed output to an attached DAC. */
+enum class BitPerfectMode {
+    OFF,
+
+    /**
+     * Raaga's own USB Audio Class driver on libusb: any Android version,
+     * volume set on the DAC itself. Requires USB permission.
+     */
+    USB_DIRECT,
+
+    /** An AAudio exclusive stream to a built-in DAC, for digital audio players. */
+    DAP_EXCLUSIVE,
+
+    /** Android 14's bit-perfect mixer for a USB DAC. */
+    USB_ANDROID,
+}
+
 enum class OutputPcmMode(val label: String) {
     PCM_16("16-bit PCM"),
     FLOAT_32("32-bit float"),
@@ -341,6 +358,15 @@ object AppSettings {
      * chasing an untouched signal would do.
      */
     val loudnessNormalization = MutableStateFlow(true)
+    val loudnessTargetLufs = MutableStateFlow(DEFAULT_LOUDNESS_TARGET_LUFS)
+    val bitPerfectMode = MutableStateFlow(BitPerfectMode.OFF)
+
+    /**
+     * Lets direct USB play to a DAC with no volume control Raaga can set:
+     * full scale, with the DAC's own knob (if any) the only volume. Off unless
+     * the listener accepts a second warning.
+     */
+    val usbAllowFixedVolume = MutableStateFlow(false)
     /** Skip loudness normalization while the active output is the phone's own speaker. */
     val loudnessOffOnSpeaker = MutableStateFlow(true)
 
@@ -962,6 +988,12 @@ object AppSettings {
         usbDirectAudio.value = prefs.getBoolean(KEY_USB_DIRECT_AUDIO, true)
         convertForLimitedDac.value = prefs.getBoolean(KEY_CONVERT_FOR_LIMITED_DAC, true)
         loudnessNormalization.value = prefs.getBoolean(KEY_LOUDNESS_NORMALIZATION, true)
+        loudnessTargetLufs.value = prefs.getFloat(KEY_LOUDNESS_TARGET_LUFS, DEFAULT_LOUDNESS_TARGET_LUFS)
+            .coerceIn(MIN_LOUDNESS_TARGET_LUFS, MAX_LOUDNESS_TARGET_LUFS)
+        bitPerfectMode.value = runCatching {
+            BitPerfectMode.valueOf(prefs.getString(KEY_BIT_PERFECT_MODE, null) ?: BitPerfectMode.OFF.name)
+        }.getOrDefault(BitPerfectMode.OFF)
+        usbAllowFixedVolume.value = prefs.getBoolean(KEY_USB_ALLOW_FIXED_VOLUME, false)
         loudnessOffOnSpeaker.value = prefs.getBoolean(KEY_LOUDNESS_OFF_ON_SPEAKER, true)
         onboardingComplete.value = prefs.getBoolean(KEY_ONBOARDING_COMPLETE, false)
         hideStatusBarInPlayer.value = prefs.getBoolean(KEY_HIDE_STATUS_BAR_IN_PLAYER, false)
@@ -1762,6 +1794,27 @@ object AppSettings {
         prefs.edit().putBoolean(KEY_LOUDNESS_NORMALIZATION, value).apply()
     }
 
+    fun setLoudnessOffOnSpeaker(value: Boolean) {
+        loudnessOffOnSpeaker.value = value
+        prefs.edit().putBoolean(KEY_LOUDNESS_OFF_ON_SPEAKER, value).apply()
+    }
+
+    fun setLoudnessTargetLufs(value: Float) {
+        val clamped = value.coerceIn(MIN_LOUDNESS_TARGET_LUFS, MAX_LOUDNESS_TARGET_LUFS)
+        loudnessTargetLufs.value = clamped
+        prefs.edit().putFloat(KEY_LOUDNESS_TARGET_LUFS, clamped).apply()
+    }
+
+    fun setBitPerfectMode(value: BitPerfectMode) {
+        bitPerfectMode.value = value
+        prefs.edit().putString(KEY_BIT_PERFECT_MODE, value.name).apply()
+    }
+
+    fun setUsbAllowFixedVolume(value: Boolean) {
+        usbAllowFixedVolume.value = value
+        prefs.edit().putBoolean(KEY_USB_ALLOW_FIXED_VOLUME, value).apply()
+    }
+
     fun setExportDownloads(value: Boolean) {
         exportDownloads.value = value
         prefs.edit().putBoolean(KEY_EXPORT_DOWNLOADS, value).apply()
@@ -2202,7 +2255,14 @@ object AppSettings {
     private const val KEY_PREFER_USB_DAC = "prefer_usb_dac"
     private const val KEY_USB_DIRECT_AUDIO = "usb_direct_audio"
     private const val KEY_CONVERT_FOR_LIMITED_DAC = "convert_for_limited_dac"
+    const val DEFAULT_LOUDNESS_TARGET_LUFS = -14f
+    const val MIN_LOUDNESS_TARGET_LUFS = -23f
+    const val MAX_LOUDNESS_TARGET_LUFS = -9f
+
     private const val KEY_LOUDNESS_NORMALIZATION = "loudness_normalization"
+    private const val KEY_LOUDNESS_TARGET_LUFS = "loudness_target_lufs"
+    private const val KEY_BIT_PERFECT_MODE = "bit_perfect_mode"
+    private const val KEY_USB_ALLOW_FIXED_VOLUME = "usb_allow_fixed_volume"
     private const val KEY_LOUDNESS_OFF_ON_SPEAKER = "loudness_off_on_speaker"
     private const val KEY_ONBOARDING_COMPLETE = "onboarding_complete"
     private const val KEY_HIDE_STATUS_BAR_IN_PLAYER = "hide_status_bar_in_player"
