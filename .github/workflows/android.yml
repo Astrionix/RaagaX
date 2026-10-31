@@ -83,7 +83,7 @@ jobs:
       env:
         KEYSTORE_DATA: ${{ secrets.KEYSTORE_BASE64 }}
       run: |
-        ./gradlew assembleProdRelease --stacktrace --no-daemon
+        ./gradlew assembleProdRelease assembleDevDebug --stacktrace --no-daemon
 
     - name: Ensure all APKs are named Raaga
       run: |
@@ -113,6 +113,8 @@ jobs:
         files: |
           app/build/outputs/apk/prod/release/*arm64-v8a*.apk
           app/build/outputs/apk/prod/release/*universal*.apk
+          app/build/outputs/apk/dev/debug/*arm64-v8a*.apk
+          app/build/outputs/apk/dev/debug/*universal*.apk
           tv/build/outputs/apk/prod/release/*universal*.apk
         name: "Raaga ${{ github.ref_name }}"
         body: |
