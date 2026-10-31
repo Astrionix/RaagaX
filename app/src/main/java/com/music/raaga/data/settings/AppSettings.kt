@@ -686,6 +686,24 @@ object AppSettings {
     /** Empty means every MediaStore folder; otherwise this is a persisted SAF tree URI. */
     val localMusicFolderUri = MutableStateFlow("")
 
+    val DEFAULT_LIBRARY_CATEGORIES = listOf(
+        "PLAYLISTS",
+        "ARTISTS",
+        "ALBUMS",
+        "SONGS",
+        "MADE_FOR_YOU",
+        "DOWNLOADED",
+        "IMPORT_AND_SOURCES",
+        "REPLAY",
+    )
+    val libraryCategories = MutableStateFlow<List<String>>(DEFAULT_LIBRARY_CATEGORIES)
+    val hiddenLibraryCategories = MutableStateFlow<Set<String>>(emptySet())
+    val libraryPlaylistSort = MutableStateFlow("TYPE")
+    val libraryArtistSort = MutableStateFlow("NAME")
+    val libraryAlbumSort = MutableStateFlow("RECENTLY_ADDED")
+    val librarySongSort = MutableStateFlow("RECENTLY_ADDED")
+    val playlistFolderEntries = MutableStateFlow<List<String>>(emptyList())
+
     // ── WebDAV ────────────────────────────────────────────────────────────
 
     /**
@@ -750,6 +768,12 @@ object AppSettings {
 
     /** How many playlists [pinnedPlaylists] can hold at once. */
     const val MAX_PINNED_PLAYLISTS = 5
+
+    /** Browse ids or names of artists pinned to the top of the Artists screen. */
+    val pinnedArtists = MutableStateFlow<List<String>>(emptyList())
+
+    /** How many artists [pinnedArtists] can hold at once. */
+    const val MAX_PINNED_ARTISTS = 10
 
     /**
      * Local gallery image URIs the user has set as playlist covers, keyed by
@@ -1148,7 +1172,15 @@ object AppSettings {
             webdavPassword.value,
         )
         pinnedPlaylists.value = readPinnedPlaylists()
+        pinnedArtists.value = readPinnedArtists()
         playlistLocalCovers.value = readPlaylistLocalCovers()
+        libraryCategories.value = readLibraryCategories()
+        hiddenLibraryCategories.value = readHiddenLibraryCategories()
+        libraryPlaylistSort.value = prefs.getString(KEY_LIBRARY_PLAYLIST_SORT, "TYPE") ?: "TYPE"
+        libraryArtistSort.value = prefs.getString(KEY_LIBRARY_ARTIST_SORT, "NAME") ?: "NAME"
+        libraryAlbumSort.value = prefs.getString(KEY_LIBRARY_ALBUM_SORT, "RECENTLY_ADDED") ?: "RECENTLY_ADDED"
+        librarySongSort.value = prefs.getString(KEY_LIBRARY_SONG_SORT, "RECENTLY_ADDED") ?: "RECENTLY_ADDED"
+        playlistFolderEntries.value = readPlaylistFolderEntries()
         discordToken.value = authStore.discordToken.orEmpty()
         discordUsername.value = prefs.getString(KEY_DISCORD_USERNAME, "").orEmpty()
         discordName.value = prefs.getString(KEY_DISCORD_NAME, "").orEmpty()
@@ -2131,6 +2163,126 @@ object AppSettings {
     }
 
     /** Forgets the account: token and cached profile. */
+    private fun readLibraryCategories(): List<String> {
+        val stored = prefs.getString(KEY_LIBRARY_CATEGORIES, null) ?: return DEFAULT_LIBRARY_CATEGORIES
+        var list = stored.split(",").filter { it.isNotBlank() }.map { if (it == "GENRES") "REPLAY" else it }
+        if ("IMPORT_AND_SOURCES" !in list) {
+            val replayIdx = list.indexOf("REPLAY")
+            list = if (replayIdx >= 0) {
+                list.take(replayIdx) + "IMPORT_AND_SOURCES" + list.drop(replayIdx)
+            } else {
+                list + "IMPORT_AND_SOURCES"
+            }
+        }
+        return if (list.isEmpty()) DEFAULT_LIBRARY_CATEGORIES else list
+    }
+
+    private fun readHiddenLibraryCategories(): Set<String> {
+        val stored = prefs.getString(KEY_HIDDEN_LIBRARY_CATEGORIES, null) ?: return emptySet()
+        return stored.split(",").filter { it.isNotBlank() }.map { if (it == "GENRES") "REPLAY" else it }.toSet()
+    }
+
+    private fun readPlaylistFolderEntries(): List<String> {
+        val stored = prefs.getString(KEY_PLAYLIST_FOLDERS, null) ?: return emptyList()
+        return stored.split(";;;").filter { it.isNotBlank() }
+    }
+
+    fun setLibraryCategories(order: List<String>) {
+        libraryCategories.value = order
+        prefs.edit().putString(KEY_LIBRARY_CATEGORIES, order.joinToString(",")).apply()
+    }
+
+    fun toggleLibraryCategory(id: String, visible: Boolean) {
+        val current = hiddenLibraryCategories.value.toMutableSet()
+        if (visible) current.remove(id) else current.add(id)
+        hiddenLibraryCategories.value = current
+        prefs.edit().putString(KEY_HIDDEN_LIBRARY_CATEGORIES, current.joinToString(",")).apply()
+    }
+
+    fun setCategoryHidden(id: String, hidden: Boolean) {
+        toggleLibraryCategory(id, !hidden)
+    }
+
+    fun setLibraryPlaylistSort(sort: String) {
+        libraryPlaylistSort.value = sort
+        prefs.edit().putString(KEY_LIBRARY_PLAYLIST_SORT, sort).apply()
+    }
+
+    fun setLibraryArtistSort(sort: String) {
+        libraryArtistSort.value = sort
+        prefs.edit().putString(KEY_LIBRARY_ARTIST_SORT, sort).apply()
+    }
+
+    fun setLibraryAlbumSort(sort: String) {
+        libraryAlbumSort.value = sort
+        prefs.edit().putString(KEY_LIBRARY_ALBUM_SORT, sort).apply()
+    }
+
+    fun setLibrarySongSort(sort: String) {
+        librarySongSort.value = sort
+        prefs.edit().putString(KEY_LIBRARY_SONG_SORT, sort).apply()
+    }
+
+    fun savePlaylistFolder(id: String, name: String, playlistIds: List<String>) {
+        val entry = "$id:::$name:::${playlistIds.joinToString(",")}"
+        val updated = playlistFolderEntries.value.filterNot { it.startsWith("$id:::") } + entry
+        playlistFolderEntries.value = updated
+        prefs.edit().putString(KEY_PLAYLIST_FOLDERS, updated.joinToString(";;;")).apply()
+    }
+
+    fun deletePlaylistFolder(id: String) {
+        val updated = playlistFolderEntries.value.filterNot { it.startsWith("$id:::") }
+        playlistFolderEntries.value = updated
+        prefs.edit().putString(KEY_PLAYLIST_FOLDERS, updated.joinToString(";;;")).apply()
+    }
+
+    fun pinPlaylist(browseId: String) {
+        if (!isPlaylistPinned(browseId)) togglePinnedPlaylist(browseId)
+    }
+
+    fun unpinPlaylist(browseId: String) {
+        if (isPlaylistPinned(browseId)) togglePinnedPlaylist(browseId)
+    }
+
+    fun isArtistPinned(artistKey: String?): Boolean {
+        if (artistKey.isNullOrBlank()) return false
+        return pinnedArtists.value.contains(artistKey)
+    }
+
+    fun togglePinnedArtist(artistKey: String): Boolean {
+        val current = pinnedArtists.value
+        val existing = current.firstOrNull { it == artistKey }
+        val updated = when {
+            existing != null -> current - existing
+            current.size >= MAX_PINNED_ARTISTS -> return false
+            else -> current + artistKey
+        }
+        pinnedArtists.value = updated
+        prefs.edit().putString(KEY_PINNED_ARTISTS, updated.joinToString(",")).apply()
+        return existing == null
+    }
+
+    fun pinArtist(artistKey: String) {
+        if (!isArtistPinned(artistKey)) togglePinnedArtist(artistKey)
+    }
+
+    fun unpinArtist(artistKey: String) {
+        if (isArtistPinned(artistKey)) togglePinnedArtist(artistKey)
+    }
+
+    private fun readPinnedArtists(): List<String> {
+        val stored = prefs.getString(KEY_PINNED_ARTISTS, null) ?: return emptyList()
+        return stored.split(",").filter { it.isNotBlank() }
+    }
+
+    fun addPlaylistToFolder(folderName: String, playlistId: String) {
+        val existing = playlistFolderEntries.value.firstOrNull { it.contains(":::$folderName:::") }
+        val id = existing?.substringBefore(":::") ?: java.util.UUID.randomUUID().toString()
+        val currentPlaylists = existing?.substringAfterLast(":::")?.split(",")?.filter { it.isNotBlank() }.orEmpty()
+        val updated = if (playlistId.isNotBlank()) (currentPlaylists + playlistId).distinct() else currentPlaylists
+        savePlaylistFolder(id, folderName, updated)
+    }
+
     fun clearDiscordAccount() {
         setDiscordToken("")
         setDiscordAccount("", "", null)
@@ -2342,7 +2494,15 @@ object AppSettings {
     private const val KEY_SMB_BASE_PATH = "smb_base_path"
     private const val KEY_SMB_USERNAME = "smb_username"
     private const val KEY_PINNED_PLAYLISTS = "pinned_playlists"
+    private const val KEY_PINNED_ARTISTS = "pinned_artists"
     private const val KEY_PLAYLIST_LOCAL_COVERS = "playlist_local_covers"
+    private const val KEY_LIBRARY_CATEGORIES = "library_categories"
+    private const val KEY_HIDDEN_LIBRARY_CATEGORIES = "hidden_library_categories"
+    private const val KEY_LIBRARY_PLAYLIST_SORT = "library_playlist_sort"
+    private const val KEY_LIBRARY_ARTIST_SORT = "library_artist_sort"
+    private const val KEY_LIBRARY_ALBUM_SORT = "library_album_sort"
+    private const val KEY_LIBRARY_SONG_SORT = "library_song_sort"
+    private const val KEY_PLAYLIST_FOLDERS = "playlist_folders"
 
     private const val KEY_LASTFM_ENABLED = "lastfm_enabled"
     private const val KEY_LASTFM_USERNAME = "lastfm_username"

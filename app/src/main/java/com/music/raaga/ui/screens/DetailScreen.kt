@@ -451,22 +451,28 @@ fun DetailScreen(
                 val artHeight = (maxWidth / ARTIST_PHOTO_RATIO).coerceAtMost(maxHeight * 0.6f)
                 val sleeveSize = (maxWidth * SLEEVE_FRACTION).coerceAtMost(maxHeight * SLEEVE_MAX_HEIGHT)
 
-                if (isArtist) {
-                    PageBackground(
-                        page = page,
-                        effectiveThumbnailUrl = effectiveThumbnailUrl,
-                        isPlaylist = isPlaylist,
-                        palette = palette,
-                        canvas = canvas,
-                        artHeight = artHeight,
-                        listState = listState,
-                        hazeState = pageHaze,
-                        modifier = Modifier.matchParentSize(),
-                    )
+                val fullBleedArt by AppSettings.fullBleedArtwork.collectAsStateWithLifecycle()
+                val releaseArtHeight = (maxWidth / ARTIST_PHOTO_RATIO).coerceAtMost(maxHeight * 0.55f)
+                val effectiveArtHeight = if (isArtist) artHeight else releaseArtHeight
+                val hasFullBleed = isArtist || fullBleedArt
 
+                PageBackground(
+                    page = page,
+                    palette = palette,
+                    canvas = canvas,
+                    artHeight = effectiveArtHeight,
+                    listState = listState,
+                    hazeState = pageHaze,
+                    effectiveThumbnailUrl = effectiveThumbnailUrl,
+                    isPlaylist = isPlaylist,
+                    fullBleed = hasFullBleed,
+                    modifier = Modifier.matchParentSize(),
+                )
+
+                if (hasFullBleed) {
                     MergeBand(
                         palette = palette,
-                        artHeight = artHeight,
+                        artHeight = effectiveArtHeight,
                         listState = listState,
                         hazeState = pageHaze,
                     )
@@ -494,6 +500,8 @@ fun DetailScreen(
                         onShuffle = { onShuffle(songs) },
                         onArtistClick = onArtistClick,
                         onToggleLibrary = onToggleLibrary,
+                        fullBleed = hasFullBleed,
+                        artHeight = effectiveArtHeight,
                     )
                 }
             }
@@ -732,6 +740,8 @@ private fun ReleaseHeader(
     onShuffle: () -> Unit,
     onArtistClick: (String, String) -> Unit,
     onToggleLibrary: (() -> Unit)?,
+    fullBleed: Boolean = false,
+    artHeight: Dp = 0.dp,
 ) {
     val (credit, meta) = page.headerLines(songs.size, songs.playtime())
     val artist = songs.firstOrNull()
@@ -739,28 +749,32 @@ private fun ReleaseHeader(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = topBarContentPadding(), bottom = 18.dp),
+            .padding(top = if (fullBleed) 0.dp else topBarContentPadding(), bottom = 18.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(
-            Modifier
-                .size(sleeveSize)
-                .shadow(SLEEVE_SHADOW, SLEEVE_SHAPE)
-                .background(palette.elevated)
-                .thumbnailBorder(SLEEVE_SHAPE),
-        ) {
-            AsyncImage(
-                model = effectiveThumbnailUrl?.artworkAt(HEADER_ART_PX),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.matchParentSize(),
-            )
-            canvas?.let { clip ->
-                CanvasArtworkPlayer(
-                    canvas = clip,
-                    isPlaying = true,
+        if (fullBleed) {
+            Spacer(Modifier.fillMaxWidth().height(artHeight * 0.70f))
+        } else {
+            Box(
+                Modifier
+                    .size(sleeveSize)
+                    .shadow(SLEEVE_SHADOW, SLEEVE_SHAPE)
+                    .background(palette.elevated)
+                    .thumbnailBorder(SLEEVE_SHAPE),
+            ) {
+                AsyncImage(
+                    model = effectiveThumbnailUrl?.artworkAt(HEADER_ART_PX),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
                     modifier = Modifier.matchParentSize(),
                 )
+                canvas?.let { clip ->
+                    CanvasArtworkPlayer(
+                        canvas = clip,
+                        isPlaying = true,
+                        modifier = Modifier.matchParentSize(),
+                    )
+                }
             }
         }
 
@@ -1138,6 +1152,7 @@ private fun PageBackground(
     effectiveThumbnailUrl: String? = null,
     /** True when the page is a playlist — triggers centered-card art layout instead of full-bleed crop. */
     isPlaylist: Boolean = false,
+    fullBleed: Boolean = true,
 ) {
     Box(
         modifier
@@ -1146,15 +1161,16 @@ private fun PageBackground(
     ) {
         ArtworkWash(palette = palette, modifier = Modifier.matchParentSize())
 
-        val displayUrl = effectiveThumbnailUrl ?: page.thumbnailUrl
+        if (fullBleed) {
+            val displayUrl = effectiveThumbnailUrl ?: page.thumbnailUrl
 
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(artHeight)
-                .offset { IntOffset(0, listState.headerTop(artHeight.toPx()).roundToInt()) },
-        ) {
-            if (isPlaylist) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(artHeight)
+                    .offset { IntOffset(0, listState.headerTop(artHeight.toPx()).roundToInt()) },
+            ) {
+                if (isPlaylist && !fullBleed) {
                 // Playlist: centered artwork card with rounded corners + shadow,
                 // matching the expanded player's sleeve feel.
                 // The gradient backdrop (ArtworkWash above) provides the full-bleed
@@ -1218,6 +1234,7 @@ private fun PageBackground(
                         ),
                 )
             }
+        }
         }
     }
 }

@@ -1,5 +1,10 @@
 package com.music.raaga.ui.screens
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -29,56 +34,79 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.music.raaga.R
+import com.music.raaga.data.LibrarySongAggregator
 import com.music.raaga.data.YtMusicRepository
 import com.music.raaga.data.model.HomeShelf
-import com.music.raaga.R
 import com.music.raaga.data.model.LibraryPage
 import com.music.raaga.data.model.ShelfItem
+import com.music.raaga.data.model.Song
 import com.music.raaga.data.model.UiState
 import com.music.raaga.data.settings.AppSettings
 import com.music.raaga.data.settings.LibrarySort
 import com.music.raaga.download.Downloads
 import com.music.raaga.download.SavedCollection
-import com.music.raaga.ui.icons.RaagaIcons
 import com.music.raaga.ui.components.LIBRARY_GRID_SPACING
 import com.music.raaga.ui.components.MessageState
 import com.music.raaga.ui.components.PAGE_GUTTER
-import com.music.raaga.ui.components.PullToRefresh
-import com.music.raaga.ui.components.SHELF_CARD_WIDTH
-import com.music.raaga.ui.components.ShelfSkeleton
 import com.music.raaga.ui.components.libraryGrid
-import com.music.raaga.ui.components.librarySkeleton
+import com.music.raaga.ui.icons.RaagaIcons
 import com.music.raaga.ui.player.MeshGradientBackground
 import com.music.raaga.ui.player.rememberArtworkColors
 import com.music.raaga.ui.replay.ReplayCardRow
 import com.music.raaga.ui.replay.ReplayHeroCard
 import com.music.raaga.ui.replay.ReplayStoryPage
+import com.music.raaga.ui.screens.library.AlbumsSubScreen
+import com.music.raaga.ui.screens.library.ArtistsSubScreen
+import com.music.raaga.ui.screens.library.DownloadedSubScreen
+import com.music.raaga.ui.screens.library.ImportAndSourcesSubScreen
+import com.music.raaga.ui.screens.library.LibraryCategory
+import com.music.raaga.ui.screens.library.LibraryHub
+import com.music.raaga.ui.screens.library.MadeForYouSubScreen
+import com.music.raaga.ui.screens.library.NewPlaylistSheet
+import com.music.raaga.ui.screens.library.PlaylistsSubScreen
+import com.music.raaga.ui.screens.library.RecentlyAddedSubScreen
+import com.music.raaga.ui.screens.library.SongsSubScreen
 import java.util.Locale
 
+private data class ExtractedLibraryData(
+    val playlists: List<ShelfItem>,
+    val albums: List<ShelfItem>,
+    val artists: List<ShelfItem>,
+    val songs: List<Song>,
+    val recentlyAdded: List<ShelfItem>,
+)
+
 /**
- * The signed-in library: the saved collections, as shelves of cards.
+ * The Library tab, Apple Music style.
  *
- * Deliberately only the collections. This page used to end with two runs of
- * track rows — "Liked Music" and "Songs" — which are two overlapping answers
- * to the same question and read as one list that couldn't make up its mind: a
- * track that stopped being liked didn't leave the page, it moved down it, into
- * a section most people had taken for more of the same. Liked Music is a
- * playlist, and it is reached the way every other playlist here is, by opening
- * its card.
+ * Signed in, the page is a [LibraryHub]: a list of categories (Playlists,
+ * Artists, Albums, Songs, Downloaded, Made for You, Genres), a Recently Added
+ * grid and the Replay entry. Tapping a category crossfades into its own
+ * sub-screen; Back returns to the hub.
  *
- * The liked list is still fetched — it is what the rest of the app reads a
- * track's rating off (see MainViewModel's `likeStatuses`); it just isn't a
- * second place to browse it.
+ * Signed out, there is no account library to categorise, so the page is the
+ * on-device shelf (downloads, local files, WebDAV/SMB) plus a sign-in prompt.
+ *
+ * The liked list is still fetched — the rest of the app reads a track's rating
+ * off it (see MainViewModel's `likeStatuses`) — and it feeds the Songs
+ * sub-screen alongside the library songs.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -90,11 +118,7 @@ fun LibraryScreen(
     onShelfItemLongPress: (ShelfItem) -> Unit,
     onNewPlaylist: () -> Unit,
     onImportSpotifyPlaylist: () -> Unit = {},
-    /**
-     * A shelf's "Show all" — every shelf's row here stops at five cards (see
-     * [LibraryGridShelf]), so this is the only way to reach whatever didn't
-     * fit.
-     */
+    /** A shelf's "Show all" — every row stops at five cards, this reaches the rest. */
     onShowAll: (HomeShelf) -> Unit,
     /** Replay's headline cards. Each opens the detailed page at its own chart. */
     replayCards: List<ReplayHeroCard>,
@@ -109,35 +133,85 @@ fun LibraryScreen(
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues,
     /**
-     * The playlists downloaded whole, as cards behind the two device folders.
-     *
-     * They belong on that shelf because they are the same promise everything
-     * else on it makes — here, now, without a network. Nothing is truncated:
-     * the shelf is a row that scrolls, so "all of them" costs nothing.
-     *
-     * Downloaded *albums* are deliberately not here. An album stamps its name
-     * onto each of its tracks, so the Downloads folder's Albums tab groups it
-     * back up on its own and a card here would be a second door onto the same
-     * list. A playlist has no tag anything can derive it from — its tracks are
-     * off forty different releases — so this is the only place it can be reached
-     * without going through that folder.
+     * Playlists downloaded whole, as cards beside the device folders. Albums are
+     * deliberately not here: the Downloads folder's Albums tab already groups
+     * them from their tags.
      */
     downloadedPlaylists: List<SavedCollection> = emptyList(),
+    activeCategory: LibraryCategory? = null,
+    onNavigateCategory: ((LibraryCategory) -> Unit)? = null,
+    onBackCategory: (() -> Unit)? = null,
+    onSongClick: ((List<Song>, Int) -> Unit)? = null,
+    onSongLongPress: ((Song) -> Unit)? = null,
+    onOpenSettings: (() -> Unit)? = null,
+    onOpenAccount: (() -> Unit)? = null,
+    onEditWebDav: (() -> Unit)? = null,
+    onEditSmb: (() -> Unit)? = null,
+    historySongs: List<Song> = emptyList(),
+    onPlayQueue: ((List<Song>, String) -> Unit)? = null,
+    onStartRadio: ((Song) -> Unit)? = null,
 ) {
-    val pinnedPlaylists by AppSettings.pinnedPlaylists.collectAsStateWithLifecycle()
     val onDevice = stringResource(R.string.on_device)
-    PullToRefresh(
-        refreshing = refreshing,
-        onRefresh = onRefresh,
-        state = pullState,
-        modifier = modifier,
-    ) {
+    var internalCategory by rememberSaveable { mutableStateOf<LibraryCategory?>(null) }
+    val currentCategory = activeCategory ?: internalCategory
+    val navigateTo: (LibraryCategory) -> Unit = { cat ->
+        if (cat == LibraryCategory.REPLAY) {
+            onOpenReplay(ReplayStoryPage.INTRO)
+        } else if (onNavigateCategory != null) {
+            onNavigateCategory(cat)
+        } else {
+            internalCategory = cat
+        }
+    }
+    val goBack: () -> Unit = {
+        if (onBackCategory != null) onBackCategory()
+        else internalCategory = null
+    }
+
+    // Back leaves a sub-screen before it leaves the tab.
+    if (onBackCategory == null) {
+        BackHandler(enabled = currentCategory != null) {
+            goBack()
+        }
+    }
+
+    var showNewPlaylistSheet by remember { mutableStateOf(false) }
+
+    val extracted = remember(state) {
+        val page = (state as? UiState.Success)?.data
+        val shelves = page?.shelves.orEmpty()
+        val plList = shelves.firstOrNull { it.title.equals(PLAYLISTS, ignoreCase = true) }?.items.orEmpty()
+        val alList = shelves.firstOrNull { it.title.equals("Albums", ignoreCase = true) }?.items.orEmpty()
+        val arList = shelves.firstOrNull { it.title.equals("Artists", ignoreCase = true) }?.items.orEmpty() +
+            shelves.firstOrNull { it.title.equals("Subscriptions", ignoreCase = true) }?.items.orEmpty()
+        val sgList = (page?.librarySongs.orEmpty() + page?.likedSongs.orEmpty()).distinctBy { it.videoId }
+        ExtractedLibraryData(
+            playlists = plList,
+            albums = alList,
+            artists = arList.distinctBy { it.browseId ?: it.title },
+            songs = sgList,
+            recentlyAdded = (alList + plList).distinctBy { it.browseId ?: it.title },
+        )
+    }
+
+    val context = LocalContext.current
+    LaunchedEffect(extracted.songs, extracted.playlists, extracted.albums) {
+        if (extracted.songs.isNotEmpty() || extracted.playlists.isNotEmpty() || extracted.albums.isNotEmpty()) {
+            LibrarySongAggregator.syncAggregatedSongs(extracted.songs, extracted.playlists, extracted.albums)
+        }
+    }
+    LaunchedEffect(Unit) {
+        LibrarySongAggregator.syncOfflineSongs(context)
+    }
+
+    if (!signedIn || state is UiState.Error) {
+        // No account library to categorise: on-device shelf plus a prompt.
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxSize(),
+            modifier = modifier.fillMaxSize(),
             contentPadding = contentPadding,
         ) {
-            item {
+            item(key = "title") {
                 Text(
                     text = stringResource(R.string.library),
                     style = MaterialTheme.typography.displayLarge,
@@ -145,13 +219,8 @@ fun LibraryScreen(
                     modifier = Modifier.padding(horizontal = PAGE_GUTTER, vertical = 8.dp),
                 )
             }
-            // Drawn whether or not anything has been played: with nothing behind
-            // it the page still has to say the feature exists, or the only way
-            // to discover it is to have already used it.
             item(key = "replay") {
                 if (replayCards.isEmpty()) {
-                    // Keep Replay discoverable before there is enough listening
-                    // data to deal the personalised cards.
                     ReplayBanner(null) { onOpenReplay(ReplayStoryPage.INTRO) }
                 } else {
                     ReplayCardRow(
@@ -164,124 +233,176 @@ fun LibraryScreen(
                     )
                 }
             }
-            if (!signedIn) {
-                item(key = "shelf:$onDevice") {
-                    OnDeviceShelf(
-                        title = onDevice,
-                        downloadedPlaylists = downloadedPlaylists,
-                        onItemClick = onShelfItemClick,
-                        onItemLongPress = onShelfItemLongPress,
-                        onShowAll = onShowAll,
-                        onImportSpotifyPlaylist = onImportSpotifyPlaylist,
+            item(key = "shelf:$onDevice") {
+                OnDeviceShelf(
+                    title = onDevice,
+                    downloadedPlaylists = downloadedPlaylists,
+                    onItemClick = onShelfItemClick,
+                    onItemLongPress = onShelfItemLongPress,
+                    onShowAll = onShowAll,
+                    onImportSpotifyPlaylist = onImportSpotifyPlaylist,
+                )
+            }
+            item(key = "message") {
+                if (state is UiState.Error && signedIn) {
+                    MessageState(
+                        message = state.message,
+                        actionLabel = stringResource(R.string.retry),
+                        onAction = onRetry,
                     )
-                }
-                item {
+                } else {
                     MessageState(
                         message = stringResource(R.string.library_sign_in_description),
                         actionLabel = stringResource(R.string.sign_in),
                         onAction = onSignIn,
                     )
                 }
-                return@LazyColumn
-            }
-            when (state) {
-                is UiState.Loading -> {
-                    item(key = "skeleton:library:playlists") { ShelfSkeleton() }
-                    item(key = "shelf:$onDevice") {
-                        OnDeviceShelf(
-                            title = onDevice,
-                            downloadedPlaylists = downloadedPlaylists,
-                            onItemClick = onShelfItemClick,
-                            onItemLongPress = onShelfItemLongPress,
-                            onShowAll = onShowAll,
-                            onImportSpotifyPlaylist = onImportSpotifyPlaylist,
-                        )
-                    }
-                    librarySkeleton()
-                }
-                is UiState.Error -> {
-                    item(key = "shelf:$onDevice") {
-                        OnDeviceShelf(
-                            title = onDevice,
-                            downloadedPlaylists = downloadedPlaylists,
-                            onItemClick = onShelfItemClick,
-                            onItemLongPress = onShelfItemLongPress,
-                            onShowAll = onShowAll,
-                            onImportSpotifyPlaylist = onImportSpotifyPlaylist,
-                        )
-                    }
-                    item {
-                        MessageState(state.message, actionLabel = stringResource(R.string.retry), onAction = onRetry)
-                    }
-                }
-                is UiState.Success -> {
-                    val shelves = state.data.shelves
-                    val playlistShelf = shelves.firstOrNull { it.title == PLAYLISTS }
-                        ?: HomeShelf(PLAYLISTS, emptyList())
-                    val otherShelves = shelves.filter { it.title != PLAYLISTS }
-
-                    item(key = "shelf:$PLAYLISTS") {
-                        val pinnedFirst = playlistShelf.pinnedFirst(pinnedPlaylists)
-                        PlaylistShelf(
-                            shelf = pinnedFirst,
-                            onItemClick = onShelfItemClick,
-                            onItemLongPress = onShelfItemLongPress,
-                            onNewPlaylist = onNewPlaylist,
-                            onImportSpotifyPlaylist = onImportSpotifyPlaylist,
-                            onShowAll = { onShowAll(pinnedFirst) },
-                            pinnedPlaylists = pinnedPlaylists,
-                        )
-                    }
-
-                    item(key = "shelf:$onDevice") {
-                        OnDeviceShelf(
-                            title = onDevice,
-                            downloadedPlaylists = downloadedPlaylists,
-                            onItemClick = onShelfItemClick,
-                            onItemLongPress = onShelfItemLongPress,
-                            onShowAll = onShowAll,
-                            onImportSpotifyPlaylist = onImportSpotifyPlaylist,
-                        )
-                    }
-
-                    otherShelves.forEach { shelf ->
-                        item(key = "shelf:${shelf.title}") {
-                            LibraryGridShelf(
-                                shelf = shelf,
-                                onItemClick = onShelfItemClick,
-                                onItemLongPress = onShelfItemLongPress,
-                                onShowAll = { onShowAll(shelf) },
-                            )
-                        }
-                    }
-                }
             }
         }
+        return
+    }
+
+    AnimatedContent(
+        targetState = currentCategory,
+        label = "LibraryNavigation",
+        transitionSpec = { fadeIn() togetherWith fadeOut() },
+        modifier = modifier,
+    ) { category ->
+        when (category) {
+            null -> LibraryHub(
+                playlists = extracted.playlists,
+                recentlyAddedItems = extracted.recentlyAdded,
+                downloadedPlaylists = downloadedPlaylists,
+                onNavigateCategory = navigateTo,
+                onShelfItemClick = onShelfItemClick,
+                onNewPlaylist = { showNewPlaylistSheet = true },
+                onShowAllRecentlyAdded = {
+                    navigateTo(LibraryCategory.RECENTLY_ADDED)
+                },
+                onSongClick = { list, idx -> onSongClick?.invoke(list, idx) },
+                replayCards = replayCards,
+                onOpenReplay = onOpenReplay,
+                onOpenSettings = { onOpenSettings?.invoke() },
+                onOpenAccount = { onOpenAccount?.invoke() },
+                refreshing = refreshing,
+                onRefresh = {
+                    LibrarySongAggregator.syncAggregatedSongs(extracted.songs, extracted.playlists, extracted.albums, forceRefresh = true)
+                    LibrarySongAggregator.syncOfflineSongs(context, forceRefresh = true)
+                    onRefresh()
+                },
+                pullState = pullState,
+                listState = listState,
+                contentPadding = contentPadding,
+            )
+
+            LibraryCategory.PLAYLISTS -> PlaylistsSubScreen(
+                playlists = extracted.playlists,
+                onBack = goBack,
+                onPlaylistClick = onShelfItemClick,
+                onNewPlaylist = { showNewPlaylistSheet = true },
+                modifier = Modifier.padding(top = contentPadding.calculateTopPadding()),
+            )
+
+            LibraryCategory.ARTISTS -> ArtistsSubScreen(
+                artists = extracted.artists,
+                onBack = goBack,
+                onArtistClick = onShelfItemClick,
+                modifier = Modifier.padding(top = contentPadding.calculateTopPadding()),
+            )
+
+            LibraryCategory.ALBUMS -> AlbumsSubScreen(
+                albums = extracted.albums,
+                onBack = goBack,
+                onAlbumClick = onShelfItemClick,
+                modifier = Modifier.padding(top = contentPadding.calculateTopPadding()),
+            )
+
+            LibraryCategory.SONGS -> SongsSubScreen(
+                songs = extracted.songs,
+                playlists = extracted.playlists,
+                onBack = goBack,
+                onSongClick = { list, idx -> onSongClick?.invoke(list, idx) },
+                onSongLongPress = { song -> onSongLongPress?.invoke(song) },
+                onAddToQueue = { list ->
+                    if (onSongClick != null) onSongClick(list, 0)
+                },
+                modifier = Modifier.padding(top = contentPadding.calculateTopPadding()),
+            )
+
+            LibraryCategory.DOWNLOADED -> DownloadedSubScreen(
+                onBack = goBack,
+                onSongClick = { list, idx -> onSongClick?.invoke(list, idx) },
+                onAddToQueue = { list ->
+                    if (onSongClick != null) onSongClick(list, 0)
+                },
+                modifier = Modifier.padding(top = contentPadding.calculateTopPadding()),
+            )
+
+            LibraryCategory.MADE_FOR_YOU -> MadeForYouSubScreen(
+                playlists = extracted.playlists,
+                artists = extracted.artists,
+                songs = extracted.songs,
+                historySongs = historySongs,
+                onBack = goBack,
+                onPlayMix = onShelfItemClick,
+                onPlayQueue = { songs, title ->
+                    if (onPlayQueue != null) {
+                        onPlayQueue(songs, title)
+                    } else if (onSongClick != null) {
+                        onSongClick(songs, 0)
+                    }
+                },
+                onStartRadio = onStartRadio,
+                onOpenReplay = { onOpenReplay(ReplayStoryPage.INTRO) },
+                onArtistClick = onShelfItemClick,
+                modifier = Modifier.padding(top = contentPadding.calculateTopPadding()),
+            )
+
+            LibraryCategory.IMPORT_AND_SOURCES -> ImportAndSourcesSubScreen(
+                onBack = goBack,
+                onEditWebDav = { onEditWebDav?.invoke() },
+                onEditSmb = { onEditSmb?.invoke() },
+                onImportSpotifyPlaylist = onImportSpotifyPlaylist,
+                onOpenSettings = { onOpenSettings?.invoke() },
+                modifier = Modifier.padding(top = contentPadding.calculateTopPadding()),
+            )
+
+            LibraryCategory.RECENTLY_ADDED -> RecentlyAddedSubScreen(
+                onBack = goBack,
+                onSongClick = { list, idx -> onSongClick?.invoke(list, idx) },
+                onSongLongPress = { song -> onSongLongPress?.invoke(song) },
+                onAddToQueue = { list ->
+                    if (onSongClick != null) onSongClick(list, 0)
+                },
+                modifier = Modifier.padding(top = contentPadding.calculateTopPadding()),
+            )
+
+            LibraryCategory.REPLAY -> {
+                androidx.compose.runtime.LaunchedEffect(Unit) {
+                    onOpenReplay(ReplayStoryPage.INTRO)
+                    goBack()
+                }
+                Box(Modifier.fillMaxSize())
+            }
+        }
+    }
+
+    if (showNewPlaylistSheet) {
+        NewPlaylistSheet(
+            onDismiss = { showNewPlaylistSheet = false },
+            onCreate = { _, _, _ ->
+                showNewPlaylistSheet = false
+                onNewPlaylist()
+            },
+        )
     }
 }
 
 /**
- * The way in to Replay, at the top of the page.
- *
- * On the Library tab rather than a tab of its own because that is what Replay
- * is — a view of what is already yours, alongside the playlists and the
- * downloads. A fifth tab would give a page most people open a handful of times
- * a year the same standing as Search.
- *
- * ## Why it is painted the way the cards are
- *
- * The mesh is the same one the Replay cards and the player's backdrop run —
- * sampled from the artwork of the record the period was mostly spent on, and
- * drifting rather than settling (see [MeshGradientBackground]'s `continuous`).
- * A fixed brand gradient here looked like a promo banner, which is the one thing
- * this must not be: it advertises the user's own listening, so it should be lit
- * by the user's own listening, and it should not look like anything else on the
- * page. With nothing played yet the mesh falls back to its stock colours, which
- * is a perfectly good button and still not a red rectangle.
- *
- * A single wide strip rather than a shelf of cards: there is exactly one of it,
- * and a carousel with one item in it always reads as a carousel that failed to
- * load the rest.
+ * The way in to Replay when there is not yet enough listening data to deal the
+ * personalised cards. Painted with the same drifting mesh as the Replay cards
+ * and the player backdrop, so it reads as lit by the user's own listening
+ * rather than as a promo banner.
  */
 @Composable
 private fun ReplayBanner(card: ReplayHeroCard?, onClick: () -> Unit) {
@@ -293,30 +414,18 @@ private fun ReplayBanner(card: ReplayHeroCard?, onClick: () -> Unit) {
             .clip(RoundedCornerShape(18.dp))
             .clickable(onClick = onClick),
     ) {
-        // Behind the row and sized to it rather than given a height of its own,
-        // so the strip is as tall as its two lines of type and no taller.
         Box(Modifier.matchParentSize()) {
             MeshGradientBackground(
                 palette = palette,
                 trackKey = card?.artworkUrl ?: "replay",
-                // Continuous was previously true here, which caused an infinite
-                // while(isActive) phase.animateTo() loop driving a 28dp GPU blur
-                // at 120Hz even while the user scrolled the Library feed. Setting
-                // it false lets the blobs settle once on open/track-change — the
-                // visual result is indistinguishable at rest — and eliminates the
-                // constant frame invalidation that was causing 32-58ms frame spikes.
+                // Not continuous: an endless phase animation under a 28dp blur
+                // caused 32-58ms frame spikes while the Library feed scrolled.
                 continuous = false,
-                // A short wide strip: at the backdrop's own radius the four
-                // colours blur into one wash before they reach its ends.
                 blurRadius = 28.dp,
             )
         }
-        // The mesh carries a vertical scrim of its own, pitched for a full
-        // screen where it has hundreds of dp to fade across; over a strip this
-        // short it lands as a flat darkening of the whole thing. So this one is
-        // kept deliberately light and runs the other way — just enough under the
-        // words on the left, and almost nothing over the colour on the right,
-        // which is the half anyone actually sees as a gradient.
+        // Light horizontal scrim: just enough under the words on the left,
+        // almost nothing over the colour on the right.
         Box(
             Modifier
                 .matchParentSize()
@@ -343,8 +452,6 @@ private fun ReplayBanner(card: ReplayHeroCard?, onClick: () -> Unit) {
                     color = Color.White,
                 )
                 Text(
-                    // The numbers when there are any, because "5,231 minutes" is
-                    // a reason to tap and a description of the feature is not.
                     text = card?.let { "${it.value} ${it.label.lowercase(Locale.ROOT)} · ${it.detail}" }
                         ?: stringResource(R.string.replay_subtitle),
                     style = MaterialTheme.typography.bodyMedium,
@@ -453,14 +560,13 @@ private fun OnDeviceShelf(
 }
 
 /**
- * The one shelf on this page that can be written to: holding a card gets rename
- * and delete on top of the queue actions every other shelf's menu offers.
- *
- * Cards begin with pinned playlists followed by remaining playlists, and
- * conclude with the "+ New playlist" and "Import Spotify playlist" action cards.
+ * The one shelf that can be written to: holding a card gets rename and delete
+ * on top of the queue actions every other shelf's menu offers. Pinned
+ * playlists lead, and the row ends with "+ New playlist" and "Import Spotify
+ * playlist" action cards.
  */
 @Composable
-private fun PlaylistShelf(
+internal fun PlaylistShelf(
     shelf: HomeShelf,
     onItemClick: (ShelfItem) -> Unit,
     onItemLongPress: (ShelfItem) -> Unit,
@@ -500,14 +606,11 @@ private fun PlaylistShelf(
 private const val LIBRARY_ROW_MAX_ITEMS = 5
 
 /**
- * A Library shelf: a sideways-scrolling row of [SHELF_CARD_WIDTH] cards, the
- * same as every other shelf, but stopped at [LIBRARY_ROW_MAX_ITEMS] rather
- * than left to run the shelf's whole length — with a "Show all" beside the
- * title whenever there's more than that, opening the rest as a
- * vertically-scrolling grid instead. See [LibraryGridPage].
+ * A Library shelf: a sideways-scrolling row of cards stopped at
+ * [LIBRARY_ROW_MAX_ITEMS], with a "Show all" beside the title whenever there is
+ * more, opening the rest as a vertical grid (see [LibraryGridPage]).
  *
- * [leadingCards] ride at the front of the row, and [trailingCards] ride at the
- * tail of the row.
+ * [leadingCards] ride at the front of the row, [trailingCards] at the tail.
  */
 @Composable
 internal fun LibraryGridShelf(
@@ -565,13 +668,10 @@ fun LibraryGridPage(
     onNewPlaylist: (() -> Unit)? = null,
     onImportSpotifyPlaylist: (() -> Unit)? = null,
 ) {
-    // Re-read live rather than trusting [shelf] to already be sorted: this page
-    // is opened from a snapshot (see `libraryShowAll` in MainActivity), and a
-    // pin toggled from this page's own long-press menu must move the card
-    // immediately rather than waiting for the row underneath to be revisited.
+    // Re-read live: this page opens from a snapshot, and a pin toggled from its
+    // own long-press menu must move the card immediately.
     val pinnedPlaylists by AppSettings.pinnedPlaylists.collectAsStateWithLifecycle()
     val librarySort by AppSettings.librarySort.collectAsStateWithLifecycle()
-    // Pinned playlists always lead at the top, followed by sorted remainder
     val sortedShelf = shelf.pinnedAndSorted(pinnedPlaylists, librarySort)
     BoxWithConstraints(modifier.fillMaxSize()) {
         val grid = libraryGrid(maxWidth - PAGE_GUTTER * 2)
@@ -618,63 +718,51 @@ fun LibraryGridPage(
     }
 }
 
-/**
- * Moves whichever of this shelf's cards are in [pinned] to the front, in the
- * order they were pinned, leaving everything else in its existing order behind
- * them.
- */
+/** Moves the cards listed in [pinned] to the front, in pin order. */
 private fun HomeShelf.pinnedFirst(pinned: List<String>): HomeShelf {
     if (pinned.isEmpty()) return this
-    val pinnedItems = mutableListOf<ShelfItem>()
-    val seen = mutableSetOf<String>()
-    for (pinId in pinned) {
-        val rawPin = pinId.removePrefix("VL")
-        val match = items.firstOrNull { item ->
-            val bId = item.browseId ?: return@firstOrNull false
-            (bId == pinId || bId == rawPin || bId == "VL$rawPin") && bId !in seen
-        }
-        if (match != null && match.browseId != null) {
-            pinnedItems.add(match)
-            seen.add(match.browseId)
-        }
-    }
+    val (pinnedItems, seen) = collectPinned(pinned)
     if (pinnedItems.isEmpty()) return this
-    val remaining = items.filter { it.browseId !in seen }
-    return copy(items = pinnedItems + remaining)
+    return copy(items = pinnedItems + items.filter { it.browseId !in seen })
 }
 
 /**
- * Pinned playlists always remain first at the top of the grid, with the
- * remaining unpinned items sorted according to [sort].
+ * Pinned playlists always lead the grid; the unpinned remainder is sorted
+ * according to [sort].
  */
 private fun HomeShelf.pinnedAndSorted(pinned: List<String>, sort: LibrarySort): HomeShelf {
     if (title != PLAYLISTS) return sortedForLibrary(sort)
-    val pinnedItems = mutableListOf<ShelfItem>()
-    val seen = mutableSetOf<String>()
-    for (pinId in pinned) {
-        val rawPin = pinId.removePrefix("VL")
-        val match = items.firstOrNull { item ->
-            val bId = item.browseId ?: return@firstOrNull false
-            (bId == pinId || bId == rawPin || bId == "VL$rawPin") && bId !in seen
-        }
-        if (match != null && match.browseId != null) {
-            pinnedItems.add(match)
-            seen.add(match.browseId)
-        }
-    }
-    val unpinnedItems = items.filter { it.browseId !in seen }
+    val (pinnedItems, seen) = collectPinned(pinned)
+    val unpinned = items.filter { it.browseId !in seen }
     val sortedUnpinned = when (sort) {
-        LibrarySort.DEFAULT -> unpinnedItems
-        LibrarySort.TITLE_ASC -> unpinnedItems.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title })
-        LibrarySort.TITLE_DESC -> unpinnedItems.sortedWith(compareByDescending(String.CASE_INSENSITIVE_ORDER) { it.title })
+        LibrarySort.DEFAULT -> unpinned
+        LibrarySort.TITLE_ASC -> unpinned.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title })
+        LibrarySort.TITLE_DESC ->
+            unpinned.sortedWith(compareByDescending(String.CASE_INSENSITIVE_ORDER) { it.title })
     }
     return copy(items = pinnedItems + sortedUnpinned)
 }
 
-/**
- * A card's title is all a Library shelf carries, so [LibrarySort.DEFAULT] is
- * the only option that isn't alphabetical — everything else sorts on it.
- */
+/** Matches pinned ids (with or without the "VL" prefix) to this shelf's cards. */
+private fun HomeShelf.collectPinned(pinned: List<String>): Pair<List<ShelfItem>, Set<String>> {
+    val pinnedItems = mutableListOf<ShelfItem>()
+    val seen = mutableSetOf<String>()
+    for (pinId in pinned) {
+        val rawPin = pinId.removePrefix("VL")
+        val match = items.firstOrNull { item ->
+            val bId = item.browseId ?: return@firstOrNull false
+            (bId == pinId || bId == rawPin || bId == "VL$rawPin") && bId !in seen
+        }
+        val id = match?.browseId
+        if (match != null && id != null) {
+            pinnedItems.add(match)
+            seen.add(id)
+        }
+    }
+    return pinnedItems to seen
+}
+
+/** A card's title is all a Library shelf carries, so everything but DEFAULT sorts on it. */
 private fun HomeShelf.sortedForLibrary(sort: LibrarySort): HomeShelf = when (sort) {
     LibrarySort.DEFAULT -> this
     LibrarySort.TITLE_ASC -> copy(items = items.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title }))

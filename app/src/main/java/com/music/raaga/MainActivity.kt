@@ -297,6 +297,7 @@ class MainActivity : AppCompatActivity() {
         // Likewise for a link tapped or shared from another app — see [MusicLink].
         MusicLink.consume(intent)
         com.music.raaga.data.spotify.SpotifyAuthManager.consumeIntent(intent)
+        com.music.raaga.data.LibrarySongAggregator.syncOfflineSongs(this)
         if (AppSettings.shouldShowConnectAnnouncement()) {
             Toast.makeText(
                 applicationContext,
@@ -407,6 +408,7 @@ class MainActivity : AppCompatActivity() {
         JamInviteLink.consume(intent)
         MusicLink.consume(intent)
         com.music.raaga.data.spotify.SpotifyAuthManager.consumeIntent(intent)
+        com.music.raaga.data.LibrarySongAggregator.syncOfflineSongs(this)
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
