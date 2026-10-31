@@ -524,7 +524,7 @@ fun RaagaDesktopApp() {
     var availableUpdate by remember { mutableStateOf<DesktopUpdateChecker.UpdateInfo?>(null) }
     var manualCheckMessage by remember { mutableStateOf<String?>(null) }
     val updateDownloadState by DesktopUpdateChecker.downloadState.collectAsState()
-    LaunchedEffect(Unit) { availableUpdate = DesktopUpdateChecker.check() }
+    // LaunchedEffect(Unit) { availableUpdate = DesktopUpdateChecker.check() }
     availableUpdate?.let { update ->
         AlertDialog(
             onDismissRequest = {

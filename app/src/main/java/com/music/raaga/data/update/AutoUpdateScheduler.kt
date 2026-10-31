@@ -14,39 +14,11 @@ object AutoUpdateScheduler {
     private const val UNIQUE_WORK_NAME = "raaga_auto_update_work"
 
     /**
-     * Re-configures or cancels background periodic update checks based on user settings.
+     * Auto-update background worker scheduling is disabled.
+     * Cancels any previously scheduled background update work.
      */
     fun schedule(context: Context) {
-        val wifi = AppSettings.autoUpdateWifi.value
-        val cellular = AppSettings.autoUpdateCellular.value
-
         val workManager = WorkManager.getInstance(context)
-
-        if (!wifi && !cellular) {
-            workManager.cancelUniqueWork(UNIQUE_WORK_NAME)
-            return
-        }
-
-        val networkType = if (wifi && !cellular) NetworkType.UNMETERED else NetworkType.CONNECTED
-
-        val constraints = Constraints.Builder()
-            .setRequiredNetworkType(networkType)
-            .setRequiresBatteryNotLow(true)
-            .build()
-
-        val request = PeriodicWorkRequestBuilder<AppUpdateWorker>(
-            12L,
-            TimeUnit.HOURS,
-            2L,
-            TimeUnit.HOURS,
-        )
-            .setConstraints(constraints)
-            .build()
-
-        workManager.enqueueUniquePeriodicWork(
-            UNIQUE_WORK_NAME,
-            ExistingPeriodicWorkPolicy.UPDATE,
-            request,
-        )
+        workManager.cancelUniqueWork(UNIQUE_WORK_NAME)
     }
 }

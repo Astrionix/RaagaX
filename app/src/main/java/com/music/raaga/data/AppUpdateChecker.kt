@@ -144,6 +144,10 @@ object AppUpdateChecker {
             // TV builds must only match TV APKs; Phone builds must only match Phone APKs
             if (isTv && !lower.contains("tv")) return -1000
             if (!isTv && (lower.contains("tv") || lower.contains("wear"))) return -1000
+            // Dev and Prod have different applicationIds (com.dev.raaga vs com.music.raaga).
+            // Installing across flavors creates a duplicate app rather than updating in-place.
+            if (isDevFlavor && !lower.contains("dev")) return -1000
+            if (!isDevFlavor && lower.contains("dev")) return -1000
 
             var s = 0
             if (isDevFlavor && lower.contains("dev")) s += 100

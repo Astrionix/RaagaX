@@ -16,6 +16,11 @@ class AppUpdateWorker(
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
+        // Automatic background update checking and downloading is disabled.
+        return Result.success()
+    }
+
+    private suspend fun doWorkInternal(): Result {
         val wifiEnabled = AppSettings.autoUpdateWifi.value
         val cellularEnabled = AppSettings.autoUpdateCellular.value
 

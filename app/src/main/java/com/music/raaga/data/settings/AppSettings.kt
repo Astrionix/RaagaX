@@ -688,12 +688,12 @@ object AppSettings {
     val signatureApiEnabled = MutableStateFlow(true)
 
     /** Automatically check and download newer versions in the background. */
-    val autoUpdateWifi = MutableStateFlow(true)
-    val autoUpdateCellular = MutableStateFlow(true)
-    val autoUpdateEnabled = MutableStateFlow(true)
+    val autoUpdateWifi = MutableStateFlow(false)
+    val autoUpdateCellular = MutableStateFlow(false)
+    val autoUpdateEnabled = MutableStateFlow(false)
 
     /** When automatic updates are enabled, restrict background downloads to Wi-Fi. */
-    val autoUpdateWifiOnly = MutableStateFlow(true)
+    val autoUpdateWifiOnly = MutableStateFlow(false)
 
     // ── SMB ───────────────────────────────────────────────────────────────
 
@@ -974,15 +974,15 @@ object AppSettings {
                 autoUpdateWifi.value = false
                 autoUpdateCellular.value = false
             } else if (prefs.contains(KEY_AUTO_UPDATE_WIFI_ONLY) && prefs.getBoolean(KEY_AUTO_UPDATE_WIFI_ONLY, true)) {
-                autoUpdateWifi.value = true
+                autoUpdateWifi.value = false
                 autoUpdateCellular.value = false
             } else {
-                autoUpdateWifi.value = true
-                autoUpdateCellular.value = true
+                autoUpdateWifi.value = false
+                autoUpdateCellular.value = false
             }
         } else {
-            autoUpdateWifi.value = prefs.getBoolean(KEY_AUTO_UPDATE_WIFI, true)
-            autoUpdateCellular.value = prefs.getBoolean(KEY_AUTO_UPDATE_CELLULAR, true)
+            autoUpdateWifi.value = prefs.getBoolean(KEY_AUTO_UPDATE_WIFI, false)
+            autoUpdateCellular.value = prefs.getBoolean(KEY_AUTO_UPDATE_CELLULAR, false)
         }
         autoUpdateEnabled.value = autoUpdateWifi.value || autoUpdateCellular.value
         autoUpdateWifiOnly.value = autoUpdateWifi.value && !autoUpdateCellular.value
