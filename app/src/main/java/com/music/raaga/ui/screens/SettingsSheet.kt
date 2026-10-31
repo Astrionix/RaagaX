@@ -53,6 +53,7 @@ import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.FileDownload
 import androidx.compose.material.icons.rounded.FileUpload
 import androidx.compose.material.icons.rounded.FilterAlt
@@ -138,6 +139,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.SingletonImageLoader
 import coil3.compose.AsyncImage
@@ -735,22 +737,8 @@ fun SettingsScreen(
                 SettingsRow(
                     icon = Icons.Rounded.Usb,
                     title = bitPerfectTitle,
-                    subtitleContent = {
-                        Column {
-                            Text(
-                                text = bitPerfectSubtitle(bitPerfectMode, bitPerfectStatus),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            Text(
-                                text = bitPerfectMode.localizedLabel(),
-                                modifier = Modifier.padding(top = 2.dp),
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                        }
-                    },
+                    subtitle = bitPerfectSubtitle(bitPerfectMode, bitPerfectStatus),
+                    value = bitPerfectMode.localizedLabel(),
                     onClick = { showBitPerfectChoice = true },
                 )
             }
@@ -3097,26 +3085,31 @@ private fun BitPerfectSheet(
     onSelect: (BitPerfectMode) -> Unit,
 ) {
     val haptics = LocalHapticFeedback.current
-    Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 28.dp),
+    ) {
         Row(
-            modifier = Modifier.padding(start = 22.dp, end = 22.dp, bottom = 14.dp),
+            modifier = Modifier.padding(start = 22.dp, end = 22.dp, top = 8.dp, bottom = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
                 imageVector = Icons.Rounded.Usb,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.size(22.dp),
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(26.dp),
             )
             Spacer(Modifier.width(14.dp))
             Column {
                 Text(
                     text = stringResource(R.string.bit_perfect_output),
                     style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground,
                 )
                 Text(
-                    text = stringResource(R.string.bit_perfect_sheet_warning),
+                    text = "Bypass system mixer for untouched audio output",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -3124,9 +3117,16 @@ private fun BitPerfectSheet(
         }
         HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline)
 
-        BitPerfectMode.entries.forEach { mode ->
+        BitPerfectMode.entries.forEachIndexed { index, mode ->
             val chosen = mode == selected
             val supported = mode.isSupported
+            if (index > 0) {
+                HorizontalDivider(
+                    thickness = 0.5.dp,
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                    modifier = Modifier.padding(start = 22.dp),
+                )
+            }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -3134,7 +3134,7 @@ private fun BitPerfectSheet(
                         haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         onSelect(mode)
                     }
-                    .alpha(if (supported) 1f else 0.45f)
+                    .alpha(if (supported) 1f else 0.4f)
                     .padding(horizontal = 22.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -3142,16 +3142,18 @@ private fun BitPerfectSheet(
                     Text(
                         text = mode.localizedLabel(),
                         style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onBackground,
+                        fontWeight = if (chosen) FontWeight.SemiBold else FontWeight.Normal,
+                        color = if (chosen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground,
                     )
+                    Spacer(Modifier.height(2.dp))
                     Text(
                         text = mode.description(),
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 if (chosen) {
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(16.dp))
                     Icon(
                         Icons.Rounded.Check,
                         contentDescription = stringResource(R.string.selected),
@@ -3160,6 +3162,32 @@ private fun BitPerfectSheet(
                     )
                 }
             }
+        }
+
+        Spacer(Modifier.height(14.dp))
+
+        Row(
+            modifier = Modifier
+                .padding(horizontal = 22.dp)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                .padding(12.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Icon(
+                Icons.Rounded.Info,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp).padding(top = 1.dp),
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(
+                text = stringResource(R.string.bit_perfect_sheet_warning),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                lineHeight = 16.sp,
+            )
         }
     }
 }
