@@ -10,7 +10,9 @@ import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -93,6 +95,8 @@ import com.music.raaga.download.PlaylistSyncWorker
 import com.music.raaga.data.AppUpdateChecker
 import com.music.raaga.data.lyrics.translationLanguageName
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -130,6 +134,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.buildAnnotatedString
@@ -218,6 +223,23 @@ fun SettingsScreen(
     val smartFade by AppSettings.smartFadeEnabled.collectAsStateWithLifecycle()
     val automixPerformance by AppSettings.automixPerformanceMode.collectAsStateWithLifecycle()
     val bitPerfectMode by AppSettings.bitPerfectMode.collectAsStateWithLifecycle()
+    val bitPerfectStatus by BitPerfectOutput.status.collectAsStateWithLifecycle()
+    val bitPerfectReady by BitPerfectOutput.ready.collectAsStateWithLifecycle()
+    val playbackNerdStats by NerdStats.current.collectAsStateWithLifecycle()
+    val settingsContext = LocalContext.current
+    val dacInfo = remember(bitPerfectReady, bitPerfectStatus) {
+        BitPerfectOutput.getConnectedDacInfo(settingsContext)
+    }
+    val bitPerfectIsLossless = playbackNerdStats?.isLossless == true
+    val dacConnected = dacInfo.connected || bitPerfectReady
+    val bitPerfectUiState = remember(bitPerfectMode, dacConnected, bitPerfectStatus, bitPerfectIsLossless) {
+        BitPerfectOutput.computeUiState(
+            mode = bitPerfectMode,
+            dacConnected = dacConnected,
+            status = bitPerfectStatus,
+            isLossless = bitPerfectIsLossless,
+        )
+    }
     val skipSilence by AppSettings.skipSilence.collectAsStateWithLifecycle()
     val dolbyAtmos by AppSettings.dolbyAtmos.collectAsStateWithLifecycle()
     val lockScreenArt by AppSettings.lockScreenArt.collectAsStateWithLifecycle()
@@ -731,14 +753,34 @@ fun SettingsScreen(
                 )
             }
             val bitPerfectTitle = stringResource(R.string.bit_perfect_output)
-            val bitPerfectMode by AppSettings.bitPerfectMode.collectAsStateWithLifecycle()
-            val bitPerfectStatus by BitPerfectOutput.status.collectAsStateWithLifecycle()
-            row(bitPerfectTitle, "usb", "dac", "exclusive", "hi-res", "bitperfect") {
-                SettingsRow(
-                    icon = Icons.Rounded.Usb,
-                    title = bitPerfectTitle,
-                    subtitle = bitPerfectSubtitle(bitPerfectMode, bitPerfectStatus),
-                    value = bitPerfectMode.localizedLabel(),
+            val bitPerfectSubtitleText = when (bitPerfectUiState) {
+                BitPerfectOutput.UiState.WAITING -> stringResource(R.string.bit_perfect_state_waiting_desc)
+                BitPerfectOutput.UiState.ACTIVE -> stringResource(R.string.bit_perfect_state_active_desc)
+                BitPerfectOutput.UiState.UNSUPPORTED -> stringResource(R.string.bit_perfect_state_unsupported_desc)
+                BitPerfectOutput.UiState.DISCONNECTED -> stringResource(R.string.bit_perfect_state_disconnected_desc)
+            }
+            val bitPerfectSupportText = when (bitPerfectUiState) {
+                BitPerfectOutput.UiState.ACTIVE -> {
+                    val rateKhz = if (bitPerfectStatus.sampleRateHz > 0) "${bitPerfectStatus.sampleRateHz / 1000} kHz" else "192 kHz"
+                    val bits = if (bitPerfectStatus.outputBits > 0) "${bitPerfectStatus.outputBits}-bit" else "24-bit"
+                    val dacLabel = dacInfo.name ?: "USB DAC"
+                    "$dacLabel · $rateKhz · $bits"
+                }
+                BitPerfectOutput.UiState.WAITING -> {
+                    dacInfo.name ?: "USB DAC"
+                }
+                BitPerfectOutput.UiState.UNSUPPORTED -> {
+                    stringResource(R.string.bit_perfect_unsupported_desc)
+                }
+                BitPerfectOutput.UiState.DISCONNECTED -> {
+                    if (bitPerfectMode == BitPerfectMode.OFF) stringResource(R.string.off) else "USB DAC"
+                }
+            }
+            row(bitPerfectTitle, "usb", "dac", "exclusive", "hi-res", "bitperfect", divided = false) {
+                BitPerfectCard(
+                    uiState = bitPerfectUiState,
+                    subtitle = bitPerfectSubtitleText,
+                    supportText = bitPerfectSupportText,
                     onClick = { showBitPerfectChoice = true },
                 )
             }
@@ -1848,10 +1890,14 @@ fun SettingsScreen(
     if (showBitPerfectChoice) {
         ModalBottomSheet(
             onDismissRequest = { showBitPerfectChoice = false },
-            containerColor = MaterialTheme.colorScheme.background,
+            containerColor = Color(0xFF1A1A1C),
         ) {
             BitPerfectSheet(
                 selected = bitPerfectMode,
+                uiState = bitPerfectUiState,
+                dacInfo = dacInfo,
+                status = bitPerfectStatus,
+                nerdStats = playbackNerdStats,
                 onSelect = { mode ->
                     showBitPerfectChoice = false
                     if (mode == BitPerfectMode.OFF) {
@@ -3080,24 +3126,134 @@ internal fun SegmentedControl(
 
 
 @Composable
-private fun BitPerfectSheet(
-    selected: BitPerfectMode,
-    onSelect: (BitPerfectMode) -> Unit,
+private fun BitPerfectCard(
+    uiState: BitPerfectOutput.UiState,
+    subtitle: String,
+    supportText: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val haptics = LocalHapticFeedback.current
-    Column(
-        modifier = Modifier
+    val isActive = uiState == BitPerfectOutput.UiState.ACTIVE
+    val isUnsupported = uiState == BitPerfectOutput.UiState.UNSUPPORTED
+    val cobaltBlue = Color(0xFF287BFF)
+
+    val cardBorder = if (isActive) {
+        BorderStroke(1.5.dp, cobaltBlue.copy(alpha = 0.65f))
+    } else {
+        BorderStroke(1.dp, Color(0xFF2E2E32))
+    }
+
+    val iconTint = when {
+        isActive -> cobaltBlue
+        isUnsupported -> Color(0xFF6B6B6B)
+        else -> Color.White
+    }
+
+    val supportColor = when {
+        isActive -> cobaltBlue
+        isUnsupported -> Color(0xFF8E8E93)
+        else -> Color(0xFFA0A0A0)
+    }
+
+    Box(
+        modifier = modifier
             .fillMaxWidth()
-            .padding(bottom = 28.dp),
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color(0xFF222225))
+            .border(cardBorder, RoundedCornerShape(20.dp))
+            .clickable {
+                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onClick()
+            }
+            .padding(horizontal = 16.dp, vertical = 14.dp)
+            .heightIn(min = 72.dp),
     ) {
         Row(
-            modifier = Modifier.padding(start = 22.dp, end = 22.dp, top = 8.dp, bottom = 16.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
                 imageVector = Icons.Rounded.Usb,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
+                tint = iconTint,
+                modifier = Modifier.size(24.dp),
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Text(
+                    text = stringResource(R.string.bit_perfect_output),
+                    style = TextStyle(
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color.White,
+                    ),
+                )
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    text = subtitle,
+                    style = TextStyle(
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Normal,
+                        color = Color(0xFFB3B3B3),
+                    ),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    text = supportText,
+                    style = TextStyle(
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = supportColor,
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+            Icon(
+                imageVector = Icons.Rounded.ChevronRight,
+                contentDescription = null,
+                tint = Color(0xFF6B6B6B),
+                modifier = Modifier.size(20.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun BitPerfectSheet(
+    selected: BitPerfectMode,
+    uiState: BitPerfectOutput.UiState,
+    dacInfo: BitPerfectOutput.DacInfo,
+    status: BitPerfectOutput.Status,
+    nerdStats: NerdStats.Snapshot?,
+    onSelect: (BitPerfectMode) -> Unit,
+) {
+    val haptics = LocalHapticFeedback.current
+    val cobaltBlue = Color(0xFF287BFF)
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(bottom = 32.dp),
+    ) {
+        // Sheet Header
+        Row(
+            modifier = Modifier.padding(start = 22.dp, end = 22.dp, top = 8.dp, bottom = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Usb,
+                contentDescription = null,
+                tint = if (uiState == BitPerfectOutput.UiState.ACTIVE) cobaltBlue else MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(26.dp),
             )
             Spacer(Modifier.width(14.dp))
@@ -3109,86 +3265,339 @@ private fun BitPerfectSheet(
                     color = MaterialTheme.colorScheme.onBackground,
                 )
                 Text(
-                    text = "Bypass system mixer for untouched audio output",
+                    text = stringResource(R.string.bit_perfect_header_subtitle),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
-        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline)
 
-        BitPerfectMode.entries.forEachIndexed { index, mode ->
-            val chosen = mode == selected
-            val supported = mode.isSupported
-            if (index > 0) {
+        // DAC Info & Hardware Details Card
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 6.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF222225)),
+            border = BorderStroke(
+                1.dp,
+                if (uiState == BitPerfectOutput.UiState.ACTIVE) cobaltBlue.copy(alpha = 0.5f) else Color(0xFF2E2E32),
+            ),
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                // Status Header row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = stringResource(R.string.bit_perfect_status_badge),
+                        style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color(0xFFB3B3B3)),
+                    )
+                    // Status Pill
+                    val (badgeBg, badgeText, badgeColor) = when (uiState) {
+                        BitPerfectOutput.UiState.ACTIVE -> Triple(
+                            cobaltBlue.copy(alpha = 0.15f),
+                            stringResource(R.string.bit_perfect_state_active),
+                            cobaltBlue,
+                        )
+                        BitPerfectOutput.UiState.WAITING -> Triple(
+                            Color(0x22FFA000),
+                            stringResource(R.string.bit_perfect_state_waiting),
+                            Color(0xFFFFB74D),
+                        )
+                        BitPerfectOutput.UiState.UNSUPPORTED -> Triple(
+                            Color(0x22E53935),
+                            stringResource(R.string.bit_perfect_state_unsupported),
+                            Color(0xFFEF5350),
+                        )
+                        BitPerfectOutput.UiState.DISCONNECTED -> Triple(
+                            Color(0x228E8E93),
+                            stringResource(R.string.bit_perfect_state_disconnected),
+                            Color(0xFFB3B3B3),
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(badgeBg)
+                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                    ) {
+                        Text(
+                            text = badgeText,
+                            style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = badgeColor),
+                        )
+                    }
+                }
+
                 HorizontalDivider(
                     thickness = 0.5.dp,
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
-                    modifier = Modifier.padding(start = 22.dp),
+                    color = Color(0xFF2E2E32),
+                    modifier = Modifier.padding(vertical = 12.dp),
+                )
+
+                // Connected DAC Name
+                DetailRow(
+                    label = stringResource(R.string.bit_perfect_connected_dac),
+                    value = dacInfo.name ?: stringResource(R.string.bit_perfect_none_detected),
+                    highlight = dacInfo.name != null,
+                )
+
+                Spacer(Modifier.height(10.dp))
+
+                // Current sample rate
+                val currentRate = when {
+                    status.sampleRateHz > 0 -> "${status.sampleRateHz / 1000.0} kHz"
+                    nerdStats?.sampleRateHz != null && nerdStats.sampleRateHz > 0 -> "${nerdStats.sampleRateHz / 1000.0} kHz"
+                    else -> "—"
+                }
+                DetailRow(
+                    label = stringResource(R.string.bit_perfect_current_sample_rate),
+                    value = currentRate,
+                    highlight = uiState == BitPerfectOutput.UiState.ACTIVE,
+                )
+
+                Spacer(Modifier.height(10.dp))
+
+                // Bit depth
+                val currentBits = when {
+                    status.outputBits > 0 -> "${status.outputBits}-bit PCM"
+                    nerdStats?.bitDepth != null && nerdStats.bitDepth > 0 -> "${nerdStats.bitDepth}-bit"
+                    else -> "—"
+                }
+                DetailRow(
+                    label = stringResource(R.string.bit_perfect_bit_depth),
+                    value = currentBits,
+                    highlight = uiState == BitPerfectOutput.UiState.ACTIVE,
+                )
+
+                Spacer(Modifier.height(10.dp))
+
+                // Supported audio formats
+                val formatsText = if (dacInfo.supportedFormats.isNotEmpty()) {
+                    dacInfo.supportedFormats.joinToString(", ")
+                } else {
+                    "PCM 16-bit, 24-bit, 32-bit (up to 384 kHz)"
+                }
+                DetailRow(
+                    label = stringResource(R.string.bit_perfect_supported_formats),
+                    value = formatsText,
+                    highlight = false,
                 )
             }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(enabled = supported) {
-                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        onSelect(mode)
-                    }
-                    .alpha(if (supported) 1f else 0.4f)
-                    .padding(horizontal = 22.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        text = mode.localizedLabel(),
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = if (chosen) FontWeight.SemiBold else FontWeight.Normal,
-                        color = if (chosen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground,
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        // Explanation of Compatibility Card
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 4.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E22)),
+            border = BorderStroke(1.dp, Color(0xFF28282C)),
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Rounded.Info,
+                        contentDescription = null,
+                        tint = cobaltBlue,
+                        modifier = Modifier.size(18.dp),
                     )
-                    Spacer(Modifier.height(2.dp))
+                    Spacer(Modifier.width(8.dp))
                     Text(
-                        text = mode.description(),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        text = stringResource(R.string.bit_perfect_explanation_compatibility),
+                        style = TextStyle(
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White,
+                        ),
                     )
                 }
-                if (chosen) {
-                    Spacer(Modifier.width(16.dp))
-                    Icon(
-                        Icons.Rounded.Check,
-                        contentDescription = stringResource(R.string.selected),
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(22.dp),
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = stringResource(R.string.bit_perfect_compat_intro),
+                    style = TextStyle(fontSize = 12.sp, color = Color(0xFFB3B3B3), lineHeight = 16.sp),
+                )
+                Spacer(Modifier.height(8.dp))
+                CompatRequirement(number = "1", text = stringResource(R.string.bit_perfect_compat_1), satisfied = dacInfo.connected)
+                CompatRequirement(number = "2", text = stringResource(R.string.bit_perfect_compat_2), satisfied = nerdStats?.isLossless == true)
+                CompatRequirement(number = "3", text = stringResource(R.string.bit_perfect_compat_3), satisfied = status.exact && !status.dacLimited)
+                CompatRequirement(number = "4", text = stringResource(R.string.bit_perfect_compat_4), satisfied = status.active)
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        // Mode Selection Section
+        Text(
+            text = stringResource(R.string.bit_perfect_select_mode).uppercase(Locale.ROOT),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 22.dp, bottom = 8.dp),
+        )
+
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF222225)),
+            border = BorderStroke(1.dp, Color(0xFF2E2E32)),
+        ) {
+            BitPerfectMode.entries.forEachIndexed { index, mode ->
+                val chosen = mode == selected
+                val supported = mode.isSupported
+                if (index > 0) {
+                    HorizontalDivider(
+                        thickness = 0.5.dp,
+                        color = Color(0xFF2E2E32),
+                        modifier = Modifier.padding(start = 16.dp),
                     )
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = supported) {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onSelect(mode)
+                        }
+                        .alpha(if (supported) 1f else 0.4f)
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            text = mode.localizedLabel(),
+                            style = TextStyle(
+                                fontSize = 15.sp,
+                                fontWeight = if (chosen) FontWeight.SemiBold else FontWeight.Normal,
+                                color = if (chosen) cobaltBlue else Color.White,
+                            ),
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = mode.description(),
+                            style = TextStyle(fontSize = 12.sp, color = Color(0xFFB3B3B3)),
+                        )
+                    }
+                    if (chosen) {
+                        Spacer(Modifier.width(12.dp))
+                        Icon(
+                            Icons.Rounded.Check,
+                            contentDescription = stringResource(R.string.selected),
+                            tint = cobaltBlue,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
                 }
             }
         }
 
         Spacer(Modifier.height(14.dp))
 
+        // Safety Disclaimer Card
         Row(
             modifier = Modifier
-                .padding(horizontal = 22.dp)
+                .padding(horizontal = 20.dp)
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                .background(Color(0xFF1E1E22))
+                .border(1.dp, Color(0xFF28282C), RoundedCornerShape(12.dp))
                 .padding(12.dp),
             verticalAlignment = Alignment.Top,
         ) {
             Icon(
                 Icons.Rounded.Info,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(18.dp).padding(top = 1.dp),
+                tint = Color(0xFF8E8E93),
+                modifier = Modifier.size(16.dp).padding(top = 1.dp),
             )
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(8.dp))
             Text(
                 text = stringResource(R.string.bit_perfect_sheet_warning),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                lineHeight = 16.sp,
+                style = TextStyle(fontSize = 11.sp, color = Color(0xFF8E8E93), lineHeight = 15.sp),
             )
         }
+    }
+}
+
+@Composable
+private fun DetailRow(
+    label: String,
+    value: String,
+    highlight: Boolean = false,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            style = TextStyle(fontSize = 13.sp, color = Color(0xFF8E8E93)),
+        )
+        Spacer(Modifier.width(14.dp))
+        Text(
+            text = value,
+            style = TextStyle(
+                fontSize = 13.sp,
+                fontWeight = if (highlight) FontWeight.SemiBold else FontWeight.Medium,
+                color = if (highlight) Color(0xFF287BFF) else Color.White,
+                textAlign = TextAlign.End,
+            ),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
+        )
+    }
+}
+
+@Composable
+private fun CompatRequirement(
+    number: String,
+    text: String,
+    satisfied: Boolean,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(18.dp)
+                .clip(CircleShape)
+                .background(if (satisfied) Color(0xFF287BFF) else Color(0xFF2E2E32)),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (satisfied) {
+                Icon(
+                    Icons.Rounded.Check,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(12.dp),
+                )
+            } else {
+                Text(
+                    text = number,
+                    style = TextStyle(fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF8E8E93)),
+                )
+            }
+        }
+        Spacer(Modifier.width(10.dp))
+        Text(
+            text = text,
+            style = TextStyle(
+                fontSize = 12.sp,
+                fontWeight = if (satisfied) FontWeight.Medium else FontWeight.Normal,
+                color = if (satisfied) Color.White else Color(0xFF8E8E93),
+            ),
+        )
     }
 }
 

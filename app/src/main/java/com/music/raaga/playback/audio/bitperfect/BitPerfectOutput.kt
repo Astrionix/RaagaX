@@ -15,6 +15,7 @@ import android.os.Build
 import android.util.Log
 import com.music.raaga.data.settings.AppSettings
 import com.music.raaga.data.settings.BitPerfectMode
+import com.music.raaga.playback.audio.bitperfect.usb.UsbDescriptors
 import com.music.raaga.playback.audio.bitperfect.usb.UsbDirectDevices
 import com.music.raaga.playback.audio.bitperfect.usb.UsbDirectTransport
 import com.music.raaga.playback.audio.bitperfect.usb.UsbVolume
@@ -79,6 +80,120 @@ internal object BitPerfectOutput {
         /** Why the last attempt fell back to normal output, if it did. */
         val fallbackReason: String? = null,
     )
+
+    data class DacInfo(
+        val connected: Boolean = false,
+        val name: String? = null,
+        val vendorId: Int = 0,
+        val productId: Int = 0,
+        val supportedFormats: List<String> = emptyList(),
+    )
+
+    enum class UiState {
+        WAITING,
+        ACTIVE,
+        UNSUPPORTED,
+        DISCONNECTED,
+    }
+
+    fun getConnectedDacInfo(context: Context): DacInfo {
+        val usbManager = UsbDirectDevices.manager(context)
+        val usbDevice = usbManager?.let(UsbDirectDevices::audioDevice)
+        if (usbDevice != null) {
+            val prod = usbDevice.productName?.trim()
+            val mfr = usbDevice.manufacturerName?.trim()
+            val name = when {
+                !prod.isNullOrEmpty() && !mfr.isNullOrEmpty() && !prod.contains(mfr, ignoreCase = true) -> "$mfr $prod"
+                !prod.isNullOrEmpty() -> prod
+                !mfr.isNullOrEmpty() -> mfr
+                else -> "USB Audio Device"
+            }
+            val raw = usbManager.let { UsbDirectDevices.rawDescriptors(it, usbDevice) }
+            val parsed = raw?.let { runCatching { UsbDescriptors.parse(it) }.getOrNull() }
+            val formats = mutableListOf<String>()
+            if (parsed != null && parsed.alternates.isNotEmpty()) {
+                val maxRate = parsed.alternates.flatMap { it.rates }.maxOfOrNull { it.second } ?: 48000
+                val bits = parsed.alternates.map { it.bits }.filter { it > 0 }.distinct().sorted()
+                val bitsStr = if (bits.isNotEmpty()) bits.joinToString("/") { "$it-bit" } else "16/24-bit"
+                formats.add("PCM $bitsStr (up to ${maxRate / 1000} kHz)")
+            } else {
+                formats.add("PCM 16-bit, 24-bit, 32-bit (up to 384 kHz)")
+            }
+            return DacInfo(
+                connected = true,
+                name = name,
+                vendorId = usbDevice.vendorId,
+                productId = usbDevice.productId,
+                supportedFormats = formats,
+            )
+        }
+
+        if (Build.VERSION.SDK_INT >= 34) {
+            val audioManager = context.getSystemService(AudioManager::class.java)
+            val mixerDevice = audioManager?.let(MixerTransport::usbDevice)
+            if (mixerDevice != null) {
+                val name = mixerDevice.productName?.toString()?.trim().takeUnless { it.isNullOrBlank() } ?: "USB Audio Device"
+                val rates = mixerDevice.sampleRates
+                val rateStr = if (rates != null && rates.isNotEmpty()) "up to ${rates.maxOrNull()?.div(1000) ?: 192} kHz" else "up to 192 kHz"
+                return DacInfo(
+                    connected = true,
+                    name = name,
+                    vendorId = 0,
+                    productId = 0,
+                    supportedFormats = listOf("PCM 16-bit, 24-bit, 32-bit ($rateStr)"),
+                )
+            }
+        }
+
+        if (AppSettings.bitPerfectMode.value == BitPerfectMode.DAP_EXCLUSIVE) {
+            val audioManager = context.getSystemService(AudioManager::class.java)
+            val wired = audioManager?.getDevices(AudioManager.GET_DEVICES_OUTPUTS)?.any {
+                it.type == android.media.AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
+                    it.type == android.media.AudioDeviceInfo.TYPE_WIRED_HEADSET
+            } == true
+            if (wired) {
+                return DacInfo(
+                    connected = true,
+                    name = "Built-in DAP DAC",
+                    vendorId = 0,
+                    productId = 0,
+                    supportedFormats = listOf("PCM 16-bit, 24-bit, 32-bit (Native AAudio)"),
+                )
+            }
+        }
+
+        return DacInfo(
+            connected = false,
+            name = null,
+            vendorId = 0,
+            productId = 0,
+            supportedFormats = listOf("PCM 16-bit, 24-bit, 32-bit (Requires DAC)"),
+        )
+    }
+
+    fun computeUiState(
+        mode: BitPerfectMode,
+        dacConnected: Boolean,
+        status: Status,
+        isLossless: Boolean,
+    ): UiState {
+        if (mode == BitPerfectMode.OFF || !dacConnected) {
+            return UiState.DISCONNECTED
+        }
+        if (status.fallbackReason != null || (status.active && status.dacLimited && !status.exact)) {
+            return UiState.UNSUPPORTED
+        }
+        if (mode == BitPerfectMode.USB_ANDROID && Build.VERSION.SDK_INT < 34) {
+            return UiState.UNSUPPORTED
+        }
+        if (mode == BitPerfectMode.DAP_EXCLUSIVE && Build.VERSION.SDK_INT < 27) {
+            return UiState.UNSUPPORTED
+        }
+        if (status.active && isLossless && status.exact && !status.dacLimited) {
+            return UiState.ACTIVE
+        }
+        return UiState.WAITING
+    }
 
     private val _status = MutableStateFlow(Status())
     val status: StateFlow<Status> = _status.asStateFlow()
