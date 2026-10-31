@@ -9,6 +9,7 @@ import coil3.SingletonImageLoader
 import coil3.disk.DiskCache
 import coil3.disk.directory
 import coil3.memory.MemoryCache
+import coil3.request.allowHardware
 import coil3.request.crossfade
 import com.music.raaga.auth.AuthStore
 import com.music.raaga.data.canvas.CanvasCache
@@ -179,7 +180,13 @@ class RaagaApplication : Application(), SingletonImageLoader.Factory {
             // Covers arriving with a hard cut read as the list flickering as
             // it scrolls; a short fade reads as them developing.
             .crossfade(200)
+            .allowHardware(!emulatedGpu)
             .build()
+
+    private val emulatedGpu: Boolean by lazy {
+        listOf("/vendor/lib64", "/vendor/lib", "/system/lib64", "/system/lib")
+            .any { java.io.File("$it/egl/libEGL_emulation.so").exists() }
+    }
 
     private fun initLastfm() {
         val sessionKey = AppSettings.lastfmSessionKey.value
