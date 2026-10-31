@@ -297,7 +297,7 @@ class MainActivity : AppCompatActivity() {
         if (AppSettings.shouldShowConnectAnnouncement()) {
             Toast.makeText(
                 applicationContext,
-                "Connect to device was developed and windows app was developed visit from raaga.me and download",
+                "Notice: If you saw two app icons after updating, we apologize! Please keep your original app as it now updates properly in-place. Join our Discord for any help: discord.gg/yGV2HqhSk",
                 Toast.LENGTH_LONG
             ).show()
         }

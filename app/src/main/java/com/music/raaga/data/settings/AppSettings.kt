@@ -1160,7 +1160,7 @@ object AppSettings {
      * Shows one-time welcome announcement for the Connect & Windows app feature.
      */
     fun shouldShowConnectAnnouncement(): Boolean {
-        val key = "has_shown_connect_windows_announcement_195"
+        val key = "has_shown_duplicate_app_notice_v199"
         val shown = prefs.getBoolean(key, false)
         if (!shown) {
             prefs.edit().putBoolean(key, true).apply()
