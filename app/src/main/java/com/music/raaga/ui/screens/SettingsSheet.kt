@@ -211,6 +211,8 @@ enum class SettingsCategory(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
+    activeCategory: SettingsCategory? = null,
+    onActiveCategoryChange: (SettingsCategory?) -> Unit = {},
     /** The window's width, for the gates that depend on it. */
     windowWidth: Dp,
     signedIn: Boolean,
@@ -350,7 +352,6 @@ fun SettingsScreen(
     // Filters the rows below — see [SettingsSearch]. Blank shows everything,
     // exactly as if the field weren't there.
     var searchQuery by remember { mutableStateOf("") }
-    var activeCategory by rememberSaveable { mutableStateOf<SettingsCategory?>(null) }
     val cacheLimitMb = remember(cacheLimitBytes) { (cacheLimitBytes / (1024 * 1024)).toInt() }
     val selectedLanguage = remember {
         AppCompatDelegate.getApplicationLocales().get(0)?.language ?: Locale.getDefault().language
@@ -360,7 +361,7 @@ fun SettingsScreen(
         searchQuery = ""
     }
     BackHandler(enabled = searchQuery.isEmpty() && activeCategory != null) {
-        activeCategory = null
+        onActiveCategoryChange(null)
     }
 
     var picking by remember { mutableStateOf<QualityTarget?>(null) }
@@ -490,31 +491,6 @@ fun SettingsScreen(
                 placeholder = stringResource(R.string.settings_search_hint),
                 modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 4.dp),
             )
-        } else {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 6.dp, end = 20.dp, top = 8.dp, bottom = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(
-                    onClick = { activeCategory = null },
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                        contentDescription = stringResource(R.string.back),
-                        tint = MaterialTheme.colorScheme.onBackground,
-                    )
-                }
-                Spacer(Modifier.width(4.dp))
-                Text(
-                    text = stringResource(activeCategory!!.titleRes),
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
         }
 
         if (searchQuery.isNotBlank() || activeCategory == null) {
@@ -557,21 +533,21 @@ fun SettingsScreen(
                     icon = Icons.Rounded.GraphicEq,
                     title = stringResource(R.string.audio_quality),
                     subtitle = "Streaming quality, audio sources, Dolby Atmos",
-                    onClick = { activeCategory = SettingsCategory.AUDIO_QUALITY },
+                    onClick = { onActiveCategoryChange(SettingsCategory.AUDIO_QUALITY) },
                 )
                 RowDivider()
                 SettingsRow(
                     icon = Icons.Rounded.Download,
                     title = stringResource(R.string.downloads),
                     subtitle = stringResource(R.string.download_quality_subtitle, downloadQuality.perTrack),
-                    onClick = { activeCategory = SettingsCategory.DOWNLOADS },
+                    onClick = { onActiveCategoryChange(SettingsCategory.DOWNLOADS) },
                 )
                 RowDivider()
                 SettingsRow(
                     icon = Icons.Rounded.Waves,
                     title = stringResource(R.string.playback),
                     subtitle = "Bit-perfect, USB DAC, volume, crossfade",
-                    onClick = { activeCategory = SettingsCategory.PLAYBACK },
+                    onClick = { onActiveCategoryChange(SettingsCategory.PLAYBACK) },
                 )
             }
 
@@ -581,7 +557,7 @@ fun SettingsScreen(
                     icon = Icons.Rounded.Brightness4,
                     title = stringResource(R.string.appearance),
                     subtitle = "Theme, liquid glass, animated canvas, lyrics blur",
-                    onClick = { activeCategory = SettingsCategory.APPEARANCE },
+                    onClick = { onActiveCategoryChange(SettingsCategory.APPEARANCE) },
                 )
                 RowDivider()
                 SettingsRow(
@@ -592,7 +568,7 @@ fun SettingsScreen(
                     } else {
                         stringResource(R.string.high_performance_subtitle)
                     },
-                    onClick = { activeCategory = SettingsCategory.PERFORMANCE },
+                    onClick = { onActiveCategoryChange(SettingsCategory.PERFORMANCE) },
                 )
                 RowDivider()
                 SettingsRow(
@@ -600,14 +576,14 @@ fun SettingsScreen(
                     title = stringResource(R.string.local_music),
                     subtitle = LocalMediaRepository.selectedFolderLabel(localMusicFolderUri)
                         ?: stringResource(R.string.all_audio_folders),
-                    onClick = { activeCategory = SettingsCategory.LOCAL_MUSIC },
+                    onClick = { onActiveCategoryChange(SettingsCategory.LOCAL_MUSIC) },
                 )
                 RowDivider()
                 SettingsRow(
                     icon = Icons.Rounded.Storage,
                     title = stringResource(R.string.storage),
                     subtitle = stringResource(R.string.song_cache_limit_subtitle, formatCacheSize(cacheLimitMb)),
-                    onClick = { activeCategory = SettingsCategory.STORAGE },
+                    onClick = { onActiveCategoryChange(SettingsCategory.STORAGE) },
                 )
             }
 
@@ -617,7 +593,7 @@ fun SettingsScreen(
                     icon = Icons.Rounded.Sync,
                     title = stringResource(R.string.your_data),
                     subtitle = "Backup & restore, Raaga Replay stats",
-                    onClick = { activeCategory = SettingsCategory.YOUR_DATA },
+                    onClick = { onActiveCategoryChange(SettingsCategory.YOUR_DATA) },
                 )
                 if (remember { com.music.raaga.wear.WatchInstaller.available(context) }) {
                     RowDivider()
@@ -628,14 +604,14 @@ fun SettingsScreen(
                     icon = Icons.Rounded.Tune,
                     title = stringResource(R.string.miscellaneous),
                     subtitle = "Swipe actions, lyrics sources, lock screen art",
-                    onClick = { activeCategory = SettingsCategory.MISCELLANEOUS },
+                    onClick = { onActiveCategoryChange(SettingsCategory.MISCELLANEOUS) },
                 )
                 RowDivider()
                 SettingsRow(
                     icon = Icons.Rounded.Language,
                     title = stringResource(R.string.language),
                     subtitle = stringResource(languageDisplayNameRes(selectedLanguage)),
-                    onClick = { activeCategory = SettingsCategory.LANGUAGE },
+                    onClick = { onActiveCategoryChange(SettingsCategory.LANGUAGE) },
                 )
             }
 
@@ -649,14 +625,14 @@ fun SettingsScreen(
                         updateAvailable != null -> stringResource(R.string.update_available, updateAvailable.version)
                         else -> "Version $version"
                     },
-                    onClick = { activeCategory = SettingsCategory.SOFTWARE_UPDATE },
+                    onClick = { onActiveCategoryChange(SettingsCategory.SOFTWARE_UPDATE) },
                 )
                 RowDivider()
                 SettingsRow(
                     icon = Icons.Rounded.Extension,
                     title = stringResource(R.string.advanced_options),
                     subtitle = "Smart version alignment, nerd stats",
-                    onClick = { activeCategory = SettingsCategory.ADVANCED_OPTIONS },
+                    onClick = { onActiveCategoryChange(SettingsCategory.ADVANCED_OPTIONS) },
                 )
             }
         }
@@ -3405,7 +3381,7 @@ private fun BitPerfectCard(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .padding(horizontal = 16.dp, vertical = 6.dp)
             .clip(RoundedCornerShape(20.dp))
             .background(Color(0xFF222225))
             .border(cardBorder, RoundedCornerShape(20.dp))
@@ -3467,7 +3443,7 @@ private fun BitPerfectCard(
                 imageVector = Icons.Rounded.ChevronRight,
                 contentDescription = null,
                 tint = Color(0xFF6B6B6B),
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(24.dp),
             )
         }
     }

@@ -213,6 +213,7 @@ import com.music.raaga.ui.components.FloatingBottomBar
 import com.music.raaga.ui.components.GlassNavBar
 import com.music.raaga.ui.components.floatingtabbar.rememberFloatingTabBarScrollConnection
 import com.music.raaga.ui.components.FrostedTopBar
+import com.music.raaga.ui.screens.SettingsCategory
 import com.music.raaga.ui.components.LastfmLoginAlert
 import com.music.raaga.ui.components.LocalAppBackdrop
 import com.music.raaga.ui.components.LocalLiquidGlassEnabled
@@ -491,6 +492,7 @@ private fun RaagaApp(
      */
     var webSession by remember { mutableStateOf<WebSessionMode?>(null) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
+    var activeSettingsCategory by rememberSaveable { mutableStateOf<SettingsCategory?>(null) }
     // Replay: the page, the stories over it, and the share sheet over those.
     // Three states rather than one enum because they stack — the stories are
     // opened from the page and the share sheet from either, and closing one
@@ -2481,7 +2483,10 @@ private fun RaagaApp(
         // One back step out of Settings, or out of any tab but Home, lands on
         // Home rather than exiting — only Home itself hands back to the system,
         // which is what actually closes/minimizes the app.
-        BackHandler(enabled = showSettings && !showAccountScrobbling && !showSources && !showListenTogether && !showEqualizer) {
+        BackHandler(enabled = showSettings && activeSettingsCategory != null) {
+            activeSettingsCategory = null
+        }
+        BackHandler(enabled = showSettings && activeSettingsCategory == null && !showAccountScrobbling && !showSources && !showListenTogether && !showEqualizer) {
             showSettings = false
             // Only when Settings was the whole of what was on screen. Opened
             // over Replay or over a release page, closing it reveals that again
@@ -2752,6 +2757,8 @@ private fun RaagaApp(
                         EqualizerScreen(contentPadding = listPadding)
                     } else if (key == "settings") {
                         SettingsScreen(
+                            activeCategory = activeSettingsCategory,
+                            onActiveCategoryChange = { activeSettingsCategory = it },
                             windowWidth = windowWidth,
                             signedIn = signedIn,
                             account = account,
@@ -3294,6 +3301,7 @@ private fun RaagaApp(
                         showListenTogether -> stringResource(R.string.listen_together)
                         showWearOs -> stringResource(R.string.wear_os_page_title)
                         showEqualizer -> stringResource(R.string.equalizer)
+                        showSettings && activeSettingsCategory != null -> stringResource(activeSettingsCategory!!.titleRes)
                         showSettings -> stringResource(R.string.settings)
                         showReplay -> stringResource(R.string.replay)
                         detail != null && detailActiveShelf != null -> detailActiveShelf?.title.orEmpty()
@@ -3335,7 +3343,8 @@ private fun RaagaApp(
                         showListenTogether -> ({ showListenTogether = false })
                         showWearOs -> ({ showWearOs = false })
                         showEqualizer -> ({ showEqualizer = false })
-                        showSettings -> ({ showSettings = false })
+                        showSettings && activeSettingsCategory != null -> ({ activeSettingsCategory = null })
+                        showSettings -> ({ showSettings = false; activeSettingsCategory = null })
                         showReplay -> ({ showReplay = false })
                         detailActiveShelf != null -> ({ detailActiveShelf = null })
                         detail != null -> ({ viewModel.closeDetail(); Unit })
