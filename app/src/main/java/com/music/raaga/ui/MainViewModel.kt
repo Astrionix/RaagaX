@@ -1448,8 +1448,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      */
     private var libraryStale = false
 
+    fun onExploreShown() {
+        if (_explore.value is UiState.Loading) {
+            loadExplore()
+        }
+    }
+
     /** Call when the library tab becomes visible. */
     fun onLibraryShown() {
+        if (_library.value is UiState.Loading) {
+            if (_signedIn.value) {
+                loadLibrary()
+                loadAccount()
+                loadPlaylists()
+            }
+            return
+        }
         loadPlaylists()
         if (!libraryStale) return
         libraryStale = false
@@ -1460,13 +1474,29 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         startSearchPipeline()
         startSuggestPipeline()
         startTypeaheadMediaPipeline()
-        loadHome()
-        loadNewFeed()
-        loadExplore()
-        if (_signedIn.value) {
-            loadLibrary()
-            loadAccount()
-            loadPlaylists()
+        com.music.raaga.data.FeedCache.init(getApplication())
+        viewModelScope.launch {
+            com.music.raaga.data.FeedCache.getCachedHome()?.let { cached ->
+                if (_home.value !is UiState.Success && cached.isNotEmpty()) {
+                    _home.value = UiState.Success(cached)
+                }
+            }
+            com.music.raaga.data.FeedCache.getCachedExplore()?.let { cached ->
+                if (_explore.value !is UiState.Success && cached.isNotEmpty()) {
+                    _explore.value = UiState.Success(cached)
+                }
+            }
+        }
+        val initialTab = AppSettings.lastSelectedTab.value
+        when (initialTab) {
+            0 -> loadHome()
+            1 -> loadExplore()
+            2 -> if (_signedIn.value) {
+                loadLibrary()
+                loadAccount()
+                loadPlaylists()
+            }
+            else -> {}
         }
         viewModelScope.launch {
             // drop(1): the current value is just the count so far, not a play.
@@ -1515,6 +1545,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Call when the home tab becomes visible. */
     fun onHomeShown() {
+        if (_home.value is UiState.Loading) {
+            loadHome()
+            return
+        }
         if (!homeStale) return
         homeStale = false
         // A first load already in flight will pick the new play up by itself.
@@ -1640,6 +1674,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             onFailure = { UiState.Error(it.friendly()) },
         )
         _explore.value = state
+        if (state is UiState.Success) {
+            viewModelScope.launch { com.music.raaga.data.FeedCache.saveCachedExplore(state.data) }
+        }
         (state as? UiState.Success)?.data?.let(::loadMoodGenreArtwork)
     }
 
@@ -1775,13 +1812,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             // shelf. The dedicated history endpoint wins and replaces it.
             val replacing = shelves.map { it.title.lowercase(Locale.ROOT) }.toSet()
             homeSeenTitles.addAll(replacing)
-            _home.value = UiState.Success(shelves + existing.filterNot {
+            val updated = shelves + existing.filterNot {
                 it.title.lowercase(Locale.ROOT) in replacing
-            })
+            }
+            _home.value = UiState.Success(updated)
+            viewModelScope.launch { com.music.raaga.data.FeedCache.saveCachedHome(updated) }
             return
         }
         val added = shelves.filter { homeSeenTitles.add(it.title.lowercase(Locale.ROOT)) }
-        if (added.isNotEmpty()) _home.value = UiState.Success(existing + added)
+        if (added.isNotEmpty()) {
+            val updated = existing + added
+            _home.value = UiState.Success(updated)
+            viewModelScope.launch { com.music.raaga.data.FeedCache.saveCachedHome(updated) }
+        }
     }
 
     /** Refreshes the core feed without blanking the current Play page first. */
@@ -1792,7 +1835,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             homeContinuation = feed.continuation
             homeSeenTitles.clear()
             val shelves = feed.shelves.filter { homeSeenTitles.add(it.title.lowercase(Locale.ROOT)) }
-            if (shelves.isNotEmpty()) _home.value = UiState.Success(shelves)
+            if (shelves.isNotEmpty()) {
+                _home.value = UiState.Success(shelves)
+                viewModelScope.launch { com.music.raaga.data.FeedCache.saveCachedHome(shelves) }
+            }
         }
         recent?.await()?.onSuccess { shelf ->
             if (identity == listenerKey()) shelf?.let { publishHomeShelves(listOf(it), prepend = true) }

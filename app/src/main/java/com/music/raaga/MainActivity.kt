@@ -468,7 +468,12 @@ private fun RaagaApp(
     // rather than inside the bar because the page's scroll is what drives it,
     // and the page is a sibling of the bar rather than a child.
     val navBarScroll = rememberFloatingTabBarScrollConnection()
-    var selectedTab by rememberSaveable { mutableIntStateOf(TAB_LIBRARY) }
+    var selectedTab by rememberSaveable {
+        mutableIntStateOf(AppSettings.lastSelectedTab.value.coerceIn(TAB_HOME, TAB_SEARCH))
+    }
+    LaunchedEffect(selectedTab) {
+        AppSettings.setLastSelectedTab(selectedTab)
+    }
     /**
      * Whether the player's sheet is up. The player is always a full-screen
      * take-over raised over the page, on every window size — the library
@@ -954,6 +959,7 @@ private fun RaagaApp(
     // something is exactly when it needs re-fetching.
     LaunchedEffect(currentFeed) {
         if (currentFeed == MainViewModel.Feed.HOME) viewModel.onHomeShown()
+        if (currentFeed == MainViewModel.Feed.EXPLORE) viewModel.onExploreShown()
         // Likewise for Library: a playlist created or a song liked since it
         // was last fetched is a change to exactly this page.
         if (currentFeed == MainViewModel.Feed.LIBRARY) viewModel.onLibraryShown()
@@ -2490,17 +2496,13 @@ private fun RaagaApp(
         }
         BackHandler(enabled = showSettings && activeSettingsCategory == null && !showAccountScrobbling && !showSources && !showListenTogether && !showEqualizer) {
             showSettings = false
-            // Only when Settings was the whole of what was on screen. Opened
-            // over Replay or over a release page, closing it reveals that again
-            // rather than throwing both away.
-            if (detail == null && !showReplay) selectedTab = TAB_LIBRARY
         }
         BackHandler(
             enabled = detail == null && !showSettings && !showAccountScrobbling &&
                 !showSources && !showListenTogether && !showEqualizer && !showReplay && selectedMoodGenre == null &&
-                selectedTab != TAB_LIBRARY,
+                selectedTab == TAB_SEARCH && query.isNotEmpty(),
         ) {
-            selectedTab = TAB_LIBRARY
+            viewModel.onQueryChange("")
         }
         BackHandler(enabled = showUpdateDialog) { showUpdateDialog = false }
         BackHandler(enabled = showListenBrainzLogin) { showListenBrainzLogin = false }

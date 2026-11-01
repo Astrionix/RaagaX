@@ -82,58 +82,37 @@ class RaagaApplication : Application(), SingletonImageLoader.Factory {
             CoroutineScope(Dispatchers.IO).launch { Innertube.ensureSessionScope() }
         }
         AppSettings.init(this, authStore)
-        com.music.raaga.data.update.AutoUpdateScheduler.schedule(this)
-        // "Keep playlists updated" — schedule background sync if enabled.
-        if (AppSettings.keepPlaylistsUpdated.value) {
-            com.music.raaga.download.PlaylistSyncWorker.schedule(this)
-        }
-        com.music.raaga.data.connect.RaagaPairingStore.init(this)
-        // Restores a party this device is still a member of, so a process death
-        // mid-session is something the rest of the party never sees. The socket
-        // and the clock offset are not restored — both are re-established on
-        // the next connect, which is the only way to be sure they are current.
-        ListenTogether.init(this)
-        SearchHistory.init(this)
+        com.music.raaga.data.FeedCache.init(this)
         LastPlayed.init(this)
         LockScreenArt.install(this)
         com.music.raaga.playback.PartyPersonalQueueStash.init(this)
-        // Which tracks the listener has reverted to YouTube's own upload. Read
-        // by [Song.toMediaItem], so it has to be open before the restart
-        // snapshot below is turned back into queue items.
         OriginalVersion.init(this)
-        // What's already saved to Downloads, so the song menu can say so
-        // without a media-store query per row.
-        Downloads.init(this)
-        // The device's own listening record. Opened here rather than in
-        // PlaybackService because the Replay page reads it from the UI side and
-        // both live in this process — one owner, one directory.
-        ListeningStats.init(this)
-        // After AppSettings, whose switch decides whether half of it runs.
-        ArtistFacts.init(this)
-        // One cache directory can only be opened once per process, and
-        // PlaybackService shares this one — so it's opened here, not there.
-        AudioCache.init(this)
-        com.music.raaga.playback.audio.LosslessOutput.init(this)
-        // The offscreen WebView that mints a Spotify access token from the
-        // listener's own session cookie needs a Context, and nothing in the
-        // suspend call chain that reaches it (a track's canvas lookup) has
-        // one to hand — see SpotifyToken's doc for why.
-        SpotifyToken.init(this)
-        com.music.raaga.data.spotify.SpotifyAuthManager.init(this)
-        // A sideloaded update is just a new APK over the old one, so app data —
-        // including whatever the old build left in these caches — survives it
-        // untouched. Wipe both on the first launch of a higher versionCode so a
-        // format or key change between builds can't serve stale or mismatched
-        // bytes from a cache the new code didn't write.
-        if (AppSettings.consumeVersionUpdate(BuildConfig.VERSION_CODE)) {
-            AudioCache.clear()
-            SingletonImageLoader.get(this).let { loader ->
-                loader.memoryCache?.clear()
-                loader.diskCache?.clear()
+
+        // Non-critical background initializations off the main thread so first frame draws immediately
+        CoroutineScope(Dispatchers.IO).launch {
+            com.music.raaga.data.update.AutoUpdateScheduler.schedule(this@RaagaApplication)
+            if (AppSettings.keepPlaylistsUpdated.value) {
+                com.music.raaga.download.PlaylistSyncWorker.schedule(this@RaagaApplication)
             }
+            com.music.raaga.data.connect.RaagaPairingStore.init(this@RaagaApplication)
+            ListenTogether.init(this@RaagaApplication)
+            SearchHistory.init(this@RaagaApplication)
+            Downloads.init(this@RaagaApplication)
+            ListeningStats.init(this@RaagaApplication)
+            ArtistFacts.init(this@RaagaApplication)
+            AudioCache.init(this@RaagaApplication)
+            com.music.raaga.playback.audio.LosslessOutput.init(this@RaagaApplication)
+            SpotifyToken.init(this@RaagaApplication)
+            com.music.raaga.data.spotify.SpotifyAuthManager.init(this@RaagaApplication)
+            if (AppSettings.consumeVersionUpdate(BuildConfig.VERSION_CODE)) {
+                AudioCache.clear()
+                SingletonImageLoader.get(this@RaagaApplication).let { loader ->
+                    loader.memoryCache?.clear()
+                    loader.diskCache?.clear()
+                }
+            }
+            initLastfm()
         }
-        // Initialize LastFM with saved settings if available
-        initLastfm()
         // backgroundInit runs SourceRegistry/InnerTubeXResolver/CanvasCache on a
         // background thread. Previously .join() blocked the main thread here, delaying
         // the first frame by the duration of those opens (~300-700ms on cold start).
