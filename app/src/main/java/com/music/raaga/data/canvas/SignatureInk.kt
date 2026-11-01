@@ -24,8 +24,14 @@ object SignatureInkTransformation : Transformation() {
         val height = input.height
         if (width <= 0 || height <= 0) return input
 
+        val src = if (input.config == Bitmap.Config.HARDWARE) {
+            input.copy(Bitmap.Config.ARGB_8888, false)
+        } else {
+            input
+        } ?: return input
+
         val pixels = IntArray(width * height)
-        input.getPixels(pixels, 0, width, 0, 0, width, height)
+        src.getPixels(pixels, 0, width, 0, 0, width, height)
 
         var paper = 0
         for (pixel in pixels) {

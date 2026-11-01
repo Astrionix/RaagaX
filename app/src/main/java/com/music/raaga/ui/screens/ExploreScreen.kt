@@ -87,9 +87,13 @@ fun ExploreScreen(
                 is UiState.Error -> item {
                     MessageState(state.message, actionLabel = stringResource(R.string.retry), onAction = onRetry)
                 }
-                is UiState.Success -> state.data.forEach { section ->
+                is UiState.Success -> state.data.forEachIndexed { index, section ->
                     item(key = section.title) {
-                        MoodGenreGrid(section = section, onCategoryClick = onCategoryClick)
+                        MoodGenreGrid(
+                            section = section,
+                            onCategoryClick = onCategoryClick,
+                            showHeading = !isForYouHeading(section.title, index),
+                        )
                     }
                 }
             }
@@ -97,13 +101,36 @@ fun ExploreScreen(
     }
 }
 
+private fun isForYouHeading(title: String, index: Int): Boolean {
+    val trimmed = title.trim().lowercase()
+    if (trimmed == "for you" || trimmed.contains("for you")) return true
+    if (index == 0) {
+        return trimmed == "para ti" ||
+            trimmed == "para você" ||
+            trimmed == "für dich" ||
+            trimmed == "pour vous" ||
+            trimmed == "per te" ||
+            trimmed == "untuk anda" ||
+            trimmed == "dành cho bạn" ||
+            trimmed == "आपके लिए" ||
+            trimmed == "మీ కోసం" ||
+            trimmed == "для вас"
+    }
+    return false
+}
+
 @Composable
 internal fun MoodGenreGrid(
     section: MoodGenreSection,
     onCategoryClick: (MoodGenre) -> Unit,
+    showHeading: Boolean = true,
 ) {
     Column(Modifier.padding(bottom = 22.dp)) {
-        SectionHeader(section.title)
+        if (showHeading) {
+            SectionHeader(section.title)
+        } else {
+            Spacer(Modifier.height(8.dp))
+        }
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             val cardWidth = (maxWidth - PAGE_GUTTER * 2 - 12.dp) / 2
             Column(

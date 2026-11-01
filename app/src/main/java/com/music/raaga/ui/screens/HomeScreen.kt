@@ -88,6 +88,29 @@ import com.music.raaga.ui.player.MeshGradientBackground
 import com.music.raaga.ui.player.MeshPalette
 
 private const val RECENTS_TITLE = "Recents"
+
+private fun isRecentsShelf(title: String): Boolean {
+    val trimmed = title.trim()
+    return trimmed.equals(RECENTS_TITLE, ignoreCase = true) ||
+        trimmed.equals("Recently played", ignoreCase = true) ||
+        trimmed.equals("Gần đây", ignoreCase = true) ||
+        trimmed.equals("最近", ignoreCase = true)
+}
+
+private fun isMixedForYouShelf(title: String): Boolean {
+    val trimmed = title.trim()
+    return trimmed.equals("Mixed for you", ignoreCase = true) ||
+        trimmed.equals("Dành riêng cho bạn", ignoreCase = true) ||
+        trimmed.equals("ミックス", ignoreCase = true) ||
+        trimmed.contains("Mixed for you", ignoreCase = true)
+}
+
+internal fun orderHomeShelves(shelves: List<HomeShelf>): List<HomeShelf> {
+    val recents = shelves.filter { isRecentsShelf(it.title) }
+    val mixedForYou = shelves.filter { isMixedForYouShelf(it.title) }
+    val others = shelves.filterNot { isRecentsShelf(it.title) || isMixedForYouShelf(it.title) }
+    return recents + mixedForYou + others
+}
 private const val RECENT_TRACKS_PER_COLUMN = 4
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -103,7 +126,7 @@ fun HomeScreen(
     pullState: PullToRefreshState,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues,
-    title: String,
+    title: String = "",
     signedIn: Boolean = true,
     onSignIn: (() -> Unit)? = null,
     /**
@@ -131,13 +154,15 @@ fun HomeScreen(
             modifier = Modifier.fillMaxSize(),
             contentPadding = contentPadding,
         ) {
-            item(key = "home_title") {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.displayLarge,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    modifier = Modifier.padding(horizontal = PAGE_GUTTER, vertical = 8.dp),
-                )
+            if (title.isNotBlank()) {
+                item(key = "home_title") {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.displayLarge,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.padding(horizontal = PAGE_GUTTER, vertical = 8.dp),
+                    )
+                }
             }
             if (!signedIn && onSignIn != null) {
                 item(key = "home_signin_banner") {
@@ -167,7 +192,7 @@ fun HomeScreen(
                     // Recently Played lands, every real shelf must retain its
                     // compact-card layout instead of briefly becoming a hero.
                     itemsIndexedShelves(
-                        shelves = state.data,
+                        shelves = orderHomeShelves(state.data),
                         onItemClick = onItemClick,
                         onItemLongPress = onItemLongPress,
                         firstIsHero = !recentlyPlayedLoading,
@@ -226,7 +251,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.itemsIndexedShelves(
     val seenKeys = mutableSetOf<String>()
     shelves.forEachIndexed { index, shelf ->
         val baseKey = when {
-            shelf.title.equals(RECENTS_TITLE, ignoreCase = true) -> "recents_shelf"
+            isRecentsShelf(shelf.title) -> "recents_shelf"
             shelf.moreBrowseId != null -> shelf.moreBrowseId
             shelf.title.isNotBlank() -> "${shelf.title}_${shelf.subtitle}"
             else -> "shelf"
@@ -234,7 +259,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.itemsIndexedShelves(
         val shelfKey = if (seenKeys.add(baseKey)) baseKey else "${baseKey}_$index"
         item(key = shelfKey) {
             val openItem: (ShelfItem) -> Unit = { item -> onItemClick(item, shelf.title) }
-            if (index == 0 && shelf.title.equals(RECENTS_TITLE, ignoreCase = true)) {
+            if (index == 0 && isRecentsShelf(shelf.title)) {
                 RecentShelf(
                     shelf = shelf,
                     onItemClick = openItem,

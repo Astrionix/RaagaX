@@ -161,6 +161,7 @@ class RaagaApplication : Application(), SingletonImageLoader.Factory {
             // the header is attached per request instead. See WebDavCoilAuth.
             .components {
                 add(coil3.svg.SvgDecoder.Factory())
+                add(com.music.raaga.data.UserAgentInterceptor())
                 add(WebDavCoilAuth())
                 // Covers filed on the SMB share; anything else falls
                 // through to Coil's own fetchers. See SmbCoverFetcher.

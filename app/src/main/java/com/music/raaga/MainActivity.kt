@@ -3031,7 +3031,7 @@ private fun RaagaApp(
                         TAB_HOME -> HomeScreen(
                             state = homeState,
                             listState = homeListState,
-                            title = stringResource(R.string.listen_now),
+                            title = "",
                             signedIn = signedIn,
                             onSignIn = { webSession = WebSessionMode.SIGN_IN },
                             onItemClick = { item, shelfTitle ->

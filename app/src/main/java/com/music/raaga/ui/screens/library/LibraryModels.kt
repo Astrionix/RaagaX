@@ -29,7 +29,6 @@ enum class LibraryCategory(
     ARTISTS("ARTISTS", R.string.artists, Icons.Rounded.Mic),
     ALBUMS("ALBUMS", R.string.albums, Icons.Rounded.Album),
     SONGS("SONGS", R.string.songs, Icons.Rounded.MusicNote),
-    MADE_FOR_YOU("MADE_FOR_YOU", R.string.made_for_you, Icons.Rounded.Person),
     DOWNLOADED("DOWNLOADED", R.string.downloaded, Icons.Rounded.Download),
     IMPORT_AND_SOURCES("IMPORT_AND_SOURCES", R.string.import_and_sources, Icons.Rounded.Storage),
     REPLAY("REPLAY", R.string.replay, Icons.Rounded.Replay),
@@ -127,18 +126,7 @@ enum class SongSortOption(val id: String, @StringRes val labelRes: Int) {
     }
 }
 
-/**
- * Mix item for Made for You personalized mixes.
- */
-data class MadeForYouMix(
-    val id: String,
-    val title: String,
-    val subtitle: String,
-    val artworkUrl: String? = null,
-    val gradientColors: List<Color> = listOf(Color(0xFFE53935), Color(0xFF1E88E5)),
-    val playlistId: String? = null,
-    val shelfItem: ShelfItem? = null,
-)
+
 
 /**
  * Origin categories for newly added songs in the Library.

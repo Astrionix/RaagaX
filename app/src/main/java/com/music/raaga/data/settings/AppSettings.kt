@@ -691,7 +691,6 @@ object AppSettings {
         "ARTISTS",
         "ALBUMS",
         "SONGS",
-        "MADE_FOR_YOU",
         "DOWNLOADED",
         "IMPORT_AND_SOURCES",
         "REPLAY",
@@ -2165,7 +2164,7 @@ object AppSettings {
     /** Forgets the account: token and cached profile. */
     private fun readLibraryCategories(): List<String> {
         val stored = prefs.getString(KEY_LIBRARY_CATEGORIES, null) ?: return DEFAULT_LIBRARY_CATEGORIES
-        var list = stored.split(",").filter { it.isNotBlank() }.map { if (it == "GENRES") "REPLAY" else it }
+        var list = stored.split(",").filter { it.isNotBlank() && it != "MADE_FOR_YOU" }.map { if (it == "GENRES") "REPLAY" else it }
         if ("IMPORT_AND_SOURCES" !in list) {
             val replayIdx = list.indexOf("REPLAY")
             list = if (replayIdx >= 0) {
@@ -2179,7 +2178,7 @@ object AppSettings {
 
     private fun readHiddenLibraryCategories(): Set<String> {
         val stored = prefs.getString(KEY_HIDDEN_LIBRARY_CATEGORIES, null) ?: return emptySet()
-        return stored.split(",").filter { it.isNotBlank() }.map { if (it == "GENRES") "REPLAY" else it }.toSet()
+        return stored.split(",").filter { it.isNotBlank() && it != "MADE_FOR_YOU" }.map { if (it == "GENRES") "REPLAY" else it }.toSet()
     }
 
     private fun readPlaylistFolderEntries(): List<String> {

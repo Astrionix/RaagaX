@@ -75,8 +75,12 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.unit.Constraints
+import coil3.SingletonImageLoader
 import coil3.compose.AsyncImage
 import coil3.compose.AsyncImagePainter
+import coil3.network.NetworkHeaders
+import coil3.network.httpHeaders
+import coil3.request.allowHardware
 import coil3.compose.LocalPlatformContext
 import coil3.request.ImageRequest
 import coil3.request.transformations
@@ -337,7 +341,7 @@ fun DetailScreen(
         val backoff = listOf(0L, 3_000L, 10_000L)
         for ((index, wait) in backoff.withIndex()) {
             if (wait > 0) delay(wait)
-            val fetched = ArtistSignatureRepository.get(page.title, forceRefresh = index > 0)
+            val fetched = ArtistSignatureRepository.get(page.title.trim(), forceRefresh = index > 0)
             if (fetched != null) {
                 signature = fetched
                 return@LaunchedEffect
@@ -1024,6 +1028,12 @@ private fun ArtistHeader(
         val request = remember(imageUrl) {
             imageUrl?.let {
                 ImageRequest.Builder(context).data(it).apply {
+                    allowHardware(false)
+                    httpHeaders(
+                        NetworkHeaders.Builder()
+                            .set("User-Agent", "Mozilla/5.0 (Android; Mobile; rv:130.0) Gecko/130.0 Firefox/130.0")
+                            .build()
+                    )
                     if (isSvg) {
                         size(SVG_DECODE_WIDTH, (SVG_DECODE_WIDTH / aspect).roundToInt())
                     } else {
@@ -1034,6 +1044,19 @@ private fun ArtistHeader(
             }
         }
         val maxLogoHeight = artHeight * ARTIST_LOGO_MAX_HEIGHT * SIGNATURE_SCALE
+
+        LaunchedEffect(request) {
+            if (request == null) {
+                logoShown = false
+                return@LaunchedEffect
+            }
+            try {
+                val result = SingletonImageLoader.get(context).execute(request)
+                if (result is coil3.request.SuccessResult) {
+                    logoShown = true
+                }
+            } catch (_: Exception) {}
+        }
 
         AnimatedContent(
             targetState = logoShown && imageUrl != null,
@@ -1080,20 +1103,6 @@ private fun ArtistHeader(
                         .padding(start = HEADER_GUTTER, end = HEADER_GUTTER, top = 14.dp, bottom = 7.dp),
                 )
             }
-        }
-
-        if (request != null && !logoShown) {
-            // Invisible prefetcher to trigger AsyncImagePainter state
-            AsyncImage(
-                model = request,
-                contentDescription = null,
-                onState = { state ->
-                    if (state is AsyncImagePainter.State.Success) {
-                        logoShown = true
-                    }
-                },
-                modifier = Modifier.size(1.dp).graphicsLayer { alpha = 0f },
-            )
         }
     }
 }

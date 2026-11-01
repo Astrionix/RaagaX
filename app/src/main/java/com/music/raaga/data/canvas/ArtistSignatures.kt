@@ -49,10 +49,20 @@ object ArtistSignatureRepository {
 
         val customUrl = AppSettings.signatureApiUrl.value.trim().trimEnd('/')
         val endpoints = buildList {
-            if (customUrl.isNotBlank()) add(customUrl)
+            val isCustom = customUrl.isNotBlank() &&
+                customUrl != AppSettings.PRIMARY_SIGNATURE_API_URL &&
+                customUrl != AppSettings.SECONDARY_SIGNATURE_API_URL
+            if (isCustom) {
+                add(customUrl)
+            }
+            // Prioritize Workers.dev for instant ~200ms lookup, then fallback to Deplexo
+            for (builtin in AppSettings.BUILTIN_SIGNATURE_ENDPOINTS) {
+                if (builtin.contains("workers.dev") && !contains(builtin)) add(builtin)
+            }
             for (builtin in AppSettings.BUILTIN_SIGNATURE_ENDPOINTS) {
                 if (!contains(builtin)) add(builtin)
             }
+            if (customUrl.isNotBlank() && !contains(customUrl)) add(customUrl)
         }
 
         var result: ArtistSignature? = null
@@ -73,8 +83,14 @@ object ArtistSignatureRepository {
         if (cleanBase.isBlank()) return null
 
         val candidateUrls = when {
-            cleanBase.contains("deplexo.com") -> listOf("$cleanBase/v1/signatures?artist=$encodedArtist")
-            cleanBase.contains("workers.dev") -> listOf("$cleanBase/v1/artist/$encodedArtist/signatures")
+            cleanBase.contains("deplexo.com") -> listOf(
+                "$cleanBase/v1/signatures?artist=$encodedArtist",
+                "$cleanBase/v1/artist/$encodedArtist/signatures",
+            )
+            cleanBase.contains("workers.dev") -> listOf(
+                "$cleanBase/v1/artist/$encodedArtist/signatures",
+                "$cleanBase/v1/signatures?artist=$encodedArtist",
+            )
             else -> listOf(
                 "$cleanBase/v1/signatures?artist=$encodedArtist",
                 "$cleanBase/v1/artist/$encodedArtist/signatures",
@@ -197,7 +213,12 @@ object ArtistSignatureRepository {
     }
 
     private fun fetch(url: String): String? {
-        val request = Request.Builder().url(url).get().build()
+        val request = Request.Builder()
+            .url(url)
+            .header("User-Agent", "Mozilla/5.0 (Android; Mobile; rv:130.0) Gecko/130.0 Firefox/130.0")
+            .header("Accept", "application/json")
+            .get()
+            .build()
         Http.client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) return null
             return response.body.string()

@@ -1018,7 +1018,7 @@
     <string name="wired_headphones">Wired headphones</string>
     <string name="usb_audio">USB audio</string>
     <string name="hdmi_output">HDMI</string>
-    <string name="personal_phone">%1$s’s Phone</string>
+    <string name="personal_phone">%1$s\'s Phone</string>
     <string name="this_phone">This phone</string>
 
     
@@ -1084,7 +1084,7 @@
     <string name="listen_together_creating">Creating…</string>
     <string name="listen_together_joining">Joining…</string>
     <string name="listen_together_full">This party is full</string>
-    <string name="listen_together_join_question">Join %1$s’s party?</string>
+    <string name="listen_together_join_question">Join %1$s\'s party?</string>
     <string name="listen_together_join_question_unnamed">Join this party?</string>
     <string name="listen_together_not_now">Not now</string>
     <string name="listen_together_preview_footer">People in the party will see your name and profile picture.</string>
@@ -1101,7 +1101,7 @@
     <string name="listen_together_reconnecting">Reconnecting…</string>
     <string name="listen_together_syncing_clock">Measuring the clock…</string>
     <string name="listen_together_in_sync">In sync · %1$d ms round trip</string>
-    <string name="listen_together_jam">%1$s’s Jam</string>
+    <string name="listen_together_jam">%1$s\'s Jam</string>
     <string name="listen_together_jam_unnamed">Listening together</string>
     <string name="listen_together_open">Listen together</string>
     <string name="listen_together_open_count">Listening together · %1$d</string>
@@ -1467,15 +1467,6 @@
     <string name="app_icon_pixel_glass" translatable="false">Pixel Glass</string>
     <string name="app_icon_pixel_glass_clear" translatable="false">Pixel Glass Clear</string>
     <string name="app_icon_pixel_glass_clear_dark" translatable="false">Pixel Glass Clear Dark</string>
-    <string name="app_icon_neon_silver" translatable="false">Neon Silver</string>
-    <string name="app_icon_neon_cyan" translatable="false">Neon Cyan</string>
-    <string name="app_icon_neon_violet" translatable="false">Neon Violet</string>
-    <string name="app_icon_samsung_neon_silver" translatable="false">Samsung Neon Silver</string>
-    <string name="app_icon_samsung_neon_cyan" translatable="false">Samsung Neon Cyan</string>
-    <string name="app_icon_samsung_neon_violet" translatable="false">Samsung Neon Violet</string>
-    <string name="app_icon_pixel_neon_silver" translatable="false">Pixel Neon Silver</string>
-    <string name="app_icon_pixel_neon_cyan" translatable="false">Pixel Neon Cyan</string>
-    <string name="app_icon_pixel_neon_violet" translatable="false">Pixel Neon Violet</string>
     <string name="app_icon_pixel_glass_dark" translatable="false">Pixel Glass Dark</string>
     <string name="app_icon_samsung_glass" translatable="false">Samsung Glass</string>
     <string name="app_icon_samsung_glass_clear" translatable="false">Samsung Glass Clear</string>

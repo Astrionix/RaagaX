@@ -78,7 +78,6 @@ import com.music.raaga.ui.screens.library.DownloadedSubScreen
 import com.music.raaga.ui.screens.library.ImportAndSourcesSubScreen
 import com.music.raaga.ui.screens.library.LibraryCategory
 import com.music.raaga.ui.screens.library.LibraryHub
-import com.music.raaga.ui.screens.library.MadeForYouSubScreen
 import com.music.raaga.ui.screens.library.NewPlaylistSheet
 import com.music.raaga.ui.screens.library.PlaylistsSubScreen
 import com.music.raaga.ui.screens.library.RecentlyAddedSubScreen
@@ -338,25 +337,7 @@ fun LibraryScreen(
                 modifier = Modifier.padding(top = contentPadding.calculateTopPadding()),
             )
 
-            LibraryCategory.MADE_FOR_YOU -> MadeForYouSubScreen(
-                playlists = extracted.playlists,
-                artists = extracted.artists,
-                songs = extracted.songs,
-                historySongs = historySongs,
-                onBack = goBack,
-                onPlayMix = onShelfItemClick,
-                onPlayQueue = { songs, title ->
-                    if (onPlayQueue != null) {
-                        onPlayQueue(songs, title)
-                    } else if (onSongClick != null) {
-                        onSongClick(songs, 0)
-                    }
-                },
-                onStartRadio = onStartRadio,
-                onOpenReplay = { onOpenReplay(ReplayStoryPage.INTRO) },
-                onArtistClick = onShelfItemClick,
-                modifier = Modifier.padding(top = contentPadding.calculateTopPadding()),
-            )
+
 
             LibraryCategory.IMPORT_AND_SOURCES -> ImportAndSourcesSubScreen(
                 onBack = goBack,

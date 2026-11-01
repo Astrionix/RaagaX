@@ -76,6 +76,7 @@ import androidx.compose.material.icons.rounded.MotionPhotosOff
 import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PlaylistPlay
+import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.SignalCellularAlt
 import androidx.compose.material.icons.rounded.SmartDisplay
 import androidx.compose.material.icons.rounded.Storage
@@ -633,6 +634,19 @@ fun SettingsScreen(
                     title = stringResource(R.string.advanced_options),
                     subtitle = "Smart version alignment, nerd stats",
                     onClick = { onActiveCategoryChange(SettingsCategory.ADVANCED_OPTIONS) },
+                )
+                RowDivider()
+                SettingsRow(
+                    icon = Icons.Rounded.Public,
+                    title = "Website",
+                    subtitle = "raaga.me",
+                    onClick = {
+                        try {
+                            context.startActivity(
+                                Intent(Intent.ACTION_VIEW, Uri.parse("https://raaga.me"))
+                            )
+                        } catch (_: Exception) {}
+                    },
                 )
             }
         }
@@ -2026,15 +2040,11 @@ fun SettingsScreen(
                         textDecoration = TextDecoration.Underline,
                     ),
                 )
-                withLink(LinkAnnotation.Url("https://github.com/raaga-music/raaga", linkStyles)) {
-                    append("GitHub")
-                }
-                append("  ")
                 withLink(LinkAnnotation.Url("https://discord.gg/yGV2HqhSk", linkStyles)) {
                     append("Discord")
                 }
                 append("  ")
-                withLink(LinkAnnotation.Url("https://raaga.app/", linkStyles)) {
+                withLink(LinkAnnotation.Url("https://raaga.me", linkStyles)) {
                     append("Website")
                 }
                 append("\n~YouTube Music & Listen Together Backend")
