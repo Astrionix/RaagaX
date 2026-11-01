@@ -25,21 +25,19 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Devices
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.music.raaga.data.connect.AndroidConnect
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -133,9 +131,9 @@ fun GlassNavBar(
         selectedTabKey = selectedIndex,
         scrollConnection = scrollConnection,
         modifier = modifier
-            .navigationBarsPadding()
-            .padding(horizontal = PAGE_GUTTER)
-            .padding(bottom = 2.dp)
+            .windowInsetsPadding(floatingBarInsets)
+            .padding(horizontal = NAV_BAR_GUTTER)
+            .padding(bottom = NAV_BAR_LIFT)
             .fillMaxWidth(),
         tabBarContentModifier = glassSurface,
         inlineAccessory = song?.let { current ->
@@ -179,7 +177,7 @@ fun GlassNavBar(
         colors = FloatingTabBarDefaults.colors(
             backgroundColor = Color.Transparent,
             accessoryBackgroundColor = Color.Transparent,
-            indicatorColor = RaagaRed.copy(alpha = 0.16f),
+            indicatorColor = glassIndicatorColor(),
         ),
         // Flat, because the glass is not. Every surface here already draws its
         // own [Shadow.Default] as part of the backdrop pass, and the library's
@@ -192,7 +190,7 @@ fun GlassNavBar(
         ),
         // Expanded, this is meant to be the plain [FloatingBottomBar] with a
         // different material — same outer width, same pill inset, same tab
-        // padding, same 25dp glyph — so the two bars measure identically and the
+        // padding, same glyph — so the two bars measure identically and the
         // toggle changes the surface rather than the layout. The horizontal tab
         // padding is gone with it: the tabs divide the pill by weight now, the
         // way the plain bar's do, so a per-tab horizontal padding would only
@@ -200,29 +198,38 @@ fun GlassNavBar(
         sizes = FloatingTabBarDefaults.sizes(
             tabBarContentPadding = PaddingValues(PILL_INSET),
             tabExpandedContentPadding = PaddingValues(vertical = TAB_VERTICAL_PADDING),
+            // Collapsed, Apple's row is narrower and more spaced: 48pt circles
+            // 28pt in from the screen's sides, 14pt apart, centred on the line
+            // the expanded bar's middle runs along.
+            inlineComponentSpacing = INLINE_SPACING,
+            inlineBarPadding = PaddingValues(
+                start = INLINE_GUTTER - NAV_BAR_GUTTER,
+                end = INLINE_GUTTER - NAV_BAR_GUTTER,
+                bottom = INLINE_LIFT,
+            ),
         ),
-        // Held so the tab structure is not recreated on every tab switch.
-        // The selection state is read dynamically inside the tab lambdas.
-        contentKey = remember(tabs, contentColor) {
-            listOf(tabs, contentColor)
+        // Held too: this is declared `Any?`, so a fresh list every pass is a
+        // changed argument by identity and defeats skipping on its own.
+        contentKey = remember(selectedIndex, tabs, contentColor) {
+            listOf(selectedIndex, tabs, contentColor)
         },
     ) {
         tabs.forEachIndexed { index, tab ->
+            val isSelected = index == selectedIndex
+            val tint = if (isSelected) selectedColor else unselectedColor
             val onClick = {
-                if (index != selectedIndex) haptics.play(Haptic.Select)
+                if (!isSelected) haptics.play(Haptic.Select)
                 currentOnTabSelected(index)
             }
             if (index == standaloneIndex) {
                 standaloneTab(
                     key = index,
                     icon = {
-                        val isSelected = index == selectedIndex
-                        val iconTint = if (isSelected) Color.White else Color.White.copy(alpha = 0.70f)
                         Icon(
                             imageVector = tab.icon,
                             contentDescription = tab.label,
-                            tint = iconTint,
-                            modifier = Modifier.size(25.dp),
+                            tint = tint,
+                            modifier = Modifier.size(TAB_ICON_SIZE),
                         )
                     },
                     onClick = onClick,
@@ -231,24 +238,18 @@ fun GlassNavBar(
                 tab(
                     key = index,
                     icon = {
-                        val isSelected = index == selectedIndex
-                        val iconTint = if (isSelected) Color.White else Color.White.copy(alpha = 0.70f)
                         Icon(
                             imageVector = tab.icon,
                             contentDescription = tab.label,
-                            tint = iconTint,
-                            modifier = Modifier.size(25.dp),
+                            tint = tint,
+                            modifier = Modifier.size(TAB_ICON_SIZE),
                         )
                     },
                     title = {
-                        val isSelected = index == selectedIndex
-                        val labelTint = if (isSelected) RaagaRed else Color.White.copy(alpha = 0.70f)
                         Text(
                             text = tab.label,
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                            ),
-                            color = labelTint,
+                            style = tabLabelStyle(),
+                            color = tint,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             // The library's Tab stacks the glyph and the label
@@ -264,15 +265,14 @@ fun GlassNavBar(
     }
 }
 
-private val RaagaRed = Color(0xFFE53935)
-
 /**
  * The now playing controls docked into [GlassNavBar] as its accessory.
  *
  * Two densities of the same row rather than two components, so the shared
  * element carrying it between the bar's states has one thing to interpolate:
- * [isInline] narrows the artwork, drops the artist line and drops the skip
- * button, which is what makes it fit the collapsed row's height.
+ * [isInline] drops the skip button and draws the play button smaller. The
+ * artwork and the type are the same at both, as they are in Apple's accessory,
+ * which only changes width between its two placements.
  *
  * The content is [MiniPlayer]'s — same artwork, same transport, same haptics —
  * and not Echo's, which reaches into a player connection this app doesn't have.
@@ -297,111 +297,102 @@ private fun GlassNowPlaying(
     val haptics = rememberHaptics()
     val pressSource = remember { MutableInteractionSource() }
     val isPressed by pressSource.collectIsPressedAsState()
-    val pressScale = animateFloatAsState(
+    val pressScale by animateFloatAsState(
         targetValue = if (isPressed) 1.04f else 1f,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "accessoryPressScale",
     )
 
-    val artSize = if (isInline) 32.dp else 40.dp
+    val titleStyle = MaterialTheme.typography.titleMedium.copy(
+        fontSize = ACCESSORY_TITLE_SIZE,
+        fontWeight = ACCESSORY_TITLE_WEIGHT,
+        letterSpacing = ACCESSORY_TITLE_TRACKING,
+    )
+    val artistStyle = MaterialTheme.typography.bodyMedium.copy(
+        fontSize = ACCESSORY_ARTIST_SIZE,
+        letterSpacing = ACCESSORY_ARTIST_TRACKING,
+    )
     val glyphSlot = if (isInline) 32.dp else 40.dp
-    val glyphSize = if (isInline) 24.dp else 32.dp
+    val glyphSize = if (isInline) 24.dp else EXPANDED_GLYPH_SIZE
 
     Box(
         // Inline, the accessory is stretched to the row's height by the tab bar
         // (`fillMaxHeight` on a row measured at IntrinsicSize.Max), and this row
-        // is shorter than that — the tab pill beside it, with a 25dp glyph in
+        // is shorter than that — the tab pill beside it, with a 28dp glyph in
         // 10dp of padding, is the tallest thing in the row and sets the height.
         // A Box defaults to TopStart, so the artwork and the transport sat a
         // couple of dp above the pill's centre line. Expanded the Box wraps its
         // content, so centring is a no-op there.
         contentAlignment = Alignment.Center,
         modifier = Modifier
+            .miniPlayerTrackSwipe(
+                onNext = {
+                    haptics.play(Haptic.SkipNext)
+                    onNext()
+                },
+                onPrevious = {
+                    haptics.play(Haptic.SkipPrevious)
+                    onPrevious()
+                },
+                locked = controlsLocked,
+                onBlocked = onBlockedControl,
+            )
             .graphicsLayer {
-                scaleX = pressScale.value
-                scaleY = pressScale.value
+                scaleX = pressScale
+                scaleY = pressScale
             }
-            .then(modifier),
+            .then(modifier)
+            .clickable(
+                interactionSource = pressSource,
+                indication = null,
+                onClick = onExpand,
+            ),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(
-                    interactionSource = pressSource,
-                    indication = null,
-                    onClick = onExpand,
-                )
-                .miniPlayerTrackSwipe(
-                    onNext = {
-                        haptics.play(Haptic.SkipNext)
-                        onNext()
-                    },
-                    onPrevious = {
-                        haptics.play(Haptic.SkipPrevious)
-                        onPrevious()
-                    },
-                    locked = controlsLocked,
-                    onBlocked = onBlockedControl,
-                )
                 .padding(
-                    horizontal = if (isInline) 8.dp else 12.dp,
-                    vertical = if (isInline) 4.dp else 8.dp,
+                    start = 16.dp,
+                    end = if (isInline) 8.dp else 12.dp,
+                    top = 4.dp,
+                    bottom = 4.dp,
                 ),
         ) {
-            AsyncImage(
-                model = rememberRemoteArtworkUrl(song)?.artworkAt(ROW_ART_PX),
-                contentDescription = null,
+            Box(
                 modifier = Modifier
-                    .size(artSize)
-                    .clip(RoundedCornerShape(if (isInline) 6.dp else 8.dp))
+                    .size(width = ACCESSORY_ART_SIZE, height = ACCESSORY_ART_SIZE)
+                    .clip(RoundedCornerShape(ACCESSORY_ART_CORNER))
                     .background(MaterialTheme.colorScheme.surfaceVariant),
-            )
-            Spacer(Modifier.width(if (isInline) 8.dp else 10.dp))
-            if (isInline) {
-                Text(
-                    text = song.title,
-                    // The same size the expanded row sets it in. Collapsing the
-                    // bar drops the artist line and the skip button, not the
-                    // title's weight in the row — a title that shrank as well
-                    // would read as a different component rather than the same
-                    // one folded up, and the shared element carrying it between
-                    // the two states has one less thing to interpolate.
-                    //
-                    // It costs nothing in height: the row is stretched to the
-                    // tab pill's 45dp either way, and titleMedium's line box
-                    // still clears the 32dp artwork beside it.
-                    style = MaterialTheme.typography.titleMedium,
+            ) {
+                AsyncImage(
+                    model = rememberRemoteArtworkUrl(song)?.artworkAt(ROW_ART_PX),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.size(ACCESSORY_ART_SIZE),
+                )
+            }
+            Spacer(Modifier.width(if (isInline) 8.dp else 9.dp))
+            Column(Modifier.weight(1f)) {
+                ExplicitSongTitle(
+                    song = song,
+                    style = titleStyle,
                     color = contentColor,
-                    // The inline row shares its width with the tab pill and the
-                    // Search circle, so most titles will not fit at this size.
-                    // Cut with an ellipsis rather than wrapped or scaled.
+                )
+                Text(
+                    text = song.artist,
+                    style = artistStyle,
+                    color = contentColor.copy(alpha = 0.7f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
                 )
-            } else {
-                Column(Modifier.weight(1f)) {
-                    ExplicitSongTitle(
-                        song = song,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = contentColor,
-                    )
-                    Text(
-                        text = song.artist,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = contentColor.copy(alpha = 0.7f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
             }
             if (isLoading) {
                 Box(Modifier.size(glyphSlot), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(
                         color = contentColor,
                         strokeWidth = 2.dp,
-                        modifier = Modifier.size(if (isInline) 18.dp else 22.dp),
+                        modifier = Modifier.size(if (isInline) 18.dp else 20.dp),
                     )
                 }
             } else {
@@ -424,7 +415,8 @@ private fun GlassNowPlaying(
             // tab pill and the Search circle, and the title is what has to
             // survive that, not a second transport button.
             if (!isInline) {
-                Spacer(Modifier.width(8.dp))
+                // Glyph centres 44dp apart, as Apple's are.
+                Spacer(Modifier.width(4.dp))
                 IconButton(
                     onClick = {
                         haptics.play(Haptic.SkipNext)
@@ -444,3 +436,39 @@ private fun GlassNowPlaying(
         }
     }
 }
+
+/** The collapsed row's margin at either side of the screen, and its items' spacing. */
+private val INLINE_GUTTER = 28.dp
+private val INLINE_SPACING = 14.dp
+
+/**
+ * Half the difference between the expanded tab row, 62dp, and the collapsed
+ * one, 48 — a 28dp glyph in 10dp of padding — so the one folds onto the
+ * other's centre line.
+ */
+private val INLINE_LIFT = 7.dp
+
+/**
+ * The accessory's type, measured off Apple's, collapsed and expanded alike:
+ * 13pt over 12pt, set looser than the scale's 16 and 14 as SF Pro Text spaces
+ * these sizes — the title less so than measured, tuned by eye on device: in
+ * Semibold +0.4 read loose and the cut's own spacing tight.
+ */
+private val ACCESSORY_TITLE_SIZE = 13.sp
+
+/**
+ * W700, which in this app's family draws the Semibold cut (see SFProDisplay):
+ * Apple's accessory sets its title in Semibold, and the scale's W600 — the
+ * Medium cut — read thin at 13sp.
+ */
+private val ACCESSORY_TITLE_WEIGHT = FontWeight.W700
+private val ACCESSORY_TITLE_TRACKING = 0.15.sp
+private val ACCESSORY_ARTIST_SIZE = 12.sp
+private val ACCESSORY_ARTIST_TRACKING = 0.35.sp
+
+/** The accessory's artwork, about Apple's 30pt at both densities, and its corner. */
+private val ACCESSORY_ART_SIZE = 30.4.dp
+private val ACCESSORY_ART_CORNER = 5.7.dp
+
+/** The expanded play glyph: its triangle about Apple's 15pt tall. */
+private val EXPANDED_GLYPH_SIZE = 29.dp

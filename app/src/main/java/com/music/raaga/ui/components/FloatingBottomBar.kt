@@ -1,4 +1,4 @@
-package com.music.raaga.ui.components
+﻿package com.music.raaga.ui.components
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.AnimationSpec
@@ -18,7 +18,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -38,17 +41,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.music.raaga.data.settings.AppSettings
 import com.music.raaga.ui.haptics.Haptic
@@ -67,43 +70,81 @@ data class BottomTab(
 /**
  * The gap between the pill's glass edge and the tabs inside it.
  *
- * Tighter than the 8 it was, which shows up as a selection indicator reaching
- * closer to the edge on all four sides rather than floating in the middle of a
- * wide margin.
+ * Apple's selection sits about 4pt in from its tab bar's edge, measured off
+ * the WWDC Liquid Glass frames; it was 8 here, then 6.
  *
  * Shared with [GlassNavBar], which is meant to measure the same as this bar
  * rather than merely near it.
  */
-internal val PILL_INSET = 6.dp
+internal val PILL_INSET = 4.dp
+
+/**
+ * The tab bar's margin at either side of the screen: Apple's is 19pt, wider
+ * than the page's own [BAR_GUTTER].
+ */
+internal val NAV_BAR_GUTTER = 19.dp
+
+/**
+ * How far above [floatingBarInsets] the bar sits: on a gesture inset of 15dp
+ * this puts its foot 21dp off the screen's edge, where Apple's is.
+ */
+internal val NAV_BAR_LIFT = 6.dp
+
+/**
+ * How far the floating bars stand off the bottom edge: the system navigation
+ * bar's inset, but never less than a gesture bar's.
+ *
+ * With the gesture hint (or the navigation bar itself) switched off that inset
+ * is zero, and the tab bar dropped onto the screen's very edge. It keeps the
+ * height it has with the hint showing instead. Three-button navigation is
+ * taller than the floor, so it still wins there.
+ */
+internal val floatingBarInsets: WindowInsets
+    @Composable get() = WindowInsets.navigationBars.union(WindowInsets(bottom = GESTURE_BAR_FLOOR))
+
+/** A gesture bar's inset ΓÇö 45px at the test phone's 3x density. */
+private val GESTURE_BAR_FLOOR = 15.dp
 
 /**
  * Each tab's own vertical padding, and the counterweight to [PILL_INSET].
  *
- * The pill has no height of its own — it is whatever its contents come to — so
+ * The pill has no height of its own ΓÇö it is whatever its contents come to ΓÇö so
  * taking 2dp off the inset above would have shortened the whole bar by 4. The
  * same 2dp is added back here instead, which leaves the bar's outer height
  * exactly where it was and moves the boundary rather than the bar. The two
  * numbers are a pair: change one and the bar's height moves unless the other
  * moves against it.
  */
-internal val TAB_VERTICAL_PADDING = 9.dp
+internal val TAB_VERTICAL_PADDING = 6.5.dp
 
 /** The gap between a tab's glyph and its label, in both bars. */
-internal val TAB_ICON_LABEL_GAP = 2.dp
+internal val TAB_ICON_LABEL_GAP = 1.dp
+
+/**
+ * A tab's glyph box. Apple's glyphs stand 21 to 24pt in a bar 61pt tall, a
+ * larger share of it than these had at 25dp in 70; at 28 they come out at
+ * Apple's sizes, and with the padding above the bar is 62dp.
+ */
+internal val TAB_ICON_SIZE = 28.dp
+
+/** A tab's label: Apple's 10pt, letter-spaced as SF Pro Text sets it. */
+@Composable
+internal fun tabLabelStyle(): TextStyle =
+    MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, letterSpacing = 0.5.sp)
 
 /**
  * The spring the selection indicator and the tab glyphs both travel on.
  *
  * Damping 0.72 rather than the 0.5 it was: half-damped overshoots two or three
  * times, and a run of diminishing bounces is what makes a control read as a
- * spring rather than as a material. This settles on the second approach — one
- * soft pass beyond the mark and done — which is the difference between bouncy
+ * spring rather than as a material. This settles on the second approach ΓÇö one
+ * soft pass beyond the mark and done ΓÇö which is the difference between bouncy
  * and alive.
  *
  * Stiffness 320 puts the whole movement at roughly a third of a second, quick
  * enough that the tap and the arrival feel like one event.
  */
-internal val GlassSpring = spring<Float>(dampingRatio = 0.80f, stiffness = 600f)
+internal val GlassSpring = spring<Float>(dampingRatio = 0.72f, stiffness = 320f)
 
 /**
  * How far the indicator elongates along its travel, at full stride.
@@ -112,7 +153,7 @@ internal val GlassSpring = spring<Float>(dampingRatio = 0.80f, stiffness = 600f)
  * shape crossing a gap under its own momentum does not stay the shape it was:
  * it draws out along the direction it is going and gathers itself back at the
  * end. Driven off how far there is still to go, so it is widest in the middle
- * of the trip and exactly itself once it arrives — no state to keep, and it
+ * of the trip and exactly itself once it arrives ΓÇö no state to keep, and it
  * falls out of a drag for free, since dragging is nothing but a long way still
  * to go.
  *
@@ -125,7 +166,7 @@ internal const val STRETCH = 0.16f
  * How much of the stretch is taken back out of the indicator's height.
  *
  * Half, not all. Conserving area exactly is what a drop of water does, and it
- * is too much here — the indicator sits behind a glyph that is not deforming
+ * is too much here ΓÇö the indicator sits behind a glyph that is not deforming
  * with it, and a full counter-squash reads as the pill being crushed rather
  * than drawn. Half keeps the sense of something with a volume to redistribute
  * while leaving the glyph its ground.
@@ -147,7 +188,7 @@ fun FloatingBottomBar(
     val useGlass = LocalLiquidGlassEnabled.current && isGlassSupported()
     val reduceAnimation by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
     // The glass settle is exactly the motion "reduce animation" promises to
-    // drop — snapping both the indicator's travel and the glyph's pop to
+    // drop ΓÇö snapping both the indicator's travel and the glyph's pop to
     // their target leaves the tap itself instant rather than eased.
     val glassSpec: AnimationSpec<Float> = if (reduceAnimation) snap() else GlassSpring
 
@@ -170,25 +211,46 @@ fun FloatingBottomBar(
         (rowSize.width + gapPx) / n
     } else 0f
 
+    // The drag below runs in one coroutine for the life of the bar, so it
+    // reads everything that can change under it through these. Read plainly,
+    // each would stay what it was on the first touch.
+    val currentTabStepPx by rememberUpdatedState(tabStepPx)
+    val currentLastIndex by rememberUpdatedState(tabs.lastIndex)
+    val currentOnTabSelected by rememberUpdatedState(onTabSelected)
+
     val pillTargetPx = if (tabStepPx > 0f) {
         selectedIndex * tabStepPx + dragOffset
     } else 0f
 
-    val animatedPillOffset = animateFloatAsState(
+    val animatedPillOffset by animateFloatAsState(
         targetValue = pillTargetPx,
         animationSpec = glassSpec,
         label = "pillOffset",
     )
 
+    // How much of a tab's stride is still ahead of the indicator: 0 at rest,
+    // toward 1 in the middle of a move or under a drag that has run away from
+    // it. The stretch below is a function of this and nothing else, which is
+    // what keeps it honest ΓÇö the shape can only be deformed while it is
+    // actually behind where it is going.
+    val lag = if (tabStepPx > 0f) {
+        (abs(pillTargetPx - animatedPillOffset) / tabStepPx).coerceIn(0f, 1f)
+    } else {
+        0f
+    }
+
     var lastHapticTab by remember { mutableIntStateOf(selectedIndex) }
 
-    LaunchedEffect(selectedIndex) { dragOffset = 0f }
+    LaunchedEffect(selectedIndex) {
+        dragOffset = 0f
+        lastHapticTab = selectedIndex
+    }
 
     Box(
         modifier = modifier
-            .navigationBarsPadding()
-            .padding(horizontal = PAGE_GUTTER)
-            .padding(bottom = 2.dp)
+            .windowInsetsPadding(floatingBarInsets)
+            .padding(horizontal = NAV_BAR_GUTTER)
+            .padding(bottom = NAV_BAR_LIFT)
             .fillMaxWidth()
             .clip(pillShape)
             .then(
@@ -212,24 +274,17 @@ fun FloatingBottomBar(
                     .width(with(density) { tabWidthPx.toDp() })
                     .height(with(density) { rowSize.height.toDp() })
                     .graphicsLayer {
-                        val currentOffset = animatedPillOffset.value
-                        val lag = if (tabStepPx > 0f) {
-                            (abs(pillTargetPx - currentOffset) / tabStepPx).coerceIn(0f, 1f)
-                        } else {
-                            0f
-                        }
-                        translationX = currentOffset
+                        translationX = animatedPillOffset
+                        // Around its own centre, so the indicator draws out
+                        // both ways rather than growing a tail off one edge ΓÇö
+                        // a leading edge that ran ahead of the glyph it is
+                        // meant to be behind would read as two things moving,
+                        // not one thing stretching.
                         scaleX = 1f + lag * STRETCH
                         scaleY = 1f - lag * STRETCH * SQUASH
                     }
                     .clip(pillShape)
-                    .background(CapsuleGlassBrush)
-                    .background(RaagaRedWash)
-                    .border(
-                        width = 0.75.dp,
-                        brush = CapsuleBorderBrush,
-                        shape = pillShape,
-                    ),
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)),
             )
         }
 
@@ -238,40 +293,39 @@ fun FloatingBottomBar(
                 .fillMaxWidth()
                 .onSizeChanged { rowSize = it }
                 .pointerInput(Unit) {
+                    // Every drag measures from the tab selected when it starts.
+                    // A stale index here measured them all from the tab the bar
+                    // first opened on: a drag right of it still landed, while
+                    // one to the left clamped back onto it and read as no change.
                     var totalDrag = 0f
+                    var dragStartIndex = currentSelectedIndex
                     detectHorizontalDragGestures(
-                        onDragStart = { totalDrag = 0f },
+                        onDragStart = {
+                            totalDrag = 0f
+                            dragStartIndex = currentSelectedIndex
+                        },
                         onDragCancel = { dragOffset = 0f },
                         onDragEnd = {
-                            if (tabStepPx > 0f) {
-                                val ratio = totalDrag / tabStepPx
-                                val shift = when {
-                                    ratio > 0.35f -> kotlin.math.max(1, ratio.roundToInt())
-                                    ratio < -0.35f -> kotlin.math.min(-1, ratio.roundToInt())
-                                    else -> 0
-                                }
-                                val newIndex = (currentSelectedIndex + shift).coerceIn(0, tabs.lastIndex)
+                            val step = currentTabStepPx
+                            if (step > 0f) {
+                                val absoluteIndexFloat = (dragStartIndex + totalDrag / step)
+                                    .coerceIn(0f, currentLastIndex.toFloat())
+                                val newIndex = absoluteIndexFloat.roundToInt()
                                 if (newIndex != currentSelectedIndex) {
-                                    onTabSelected(newIndex)
+                                    currentOnTabSelected(newIndex)
                                 }
                             }
                             dragOffset = 0f
                         },
                         onHorizontalDrag = { _, delta ->
+                            val step = currentTabStepPx
+                            if (step <= 0f) return@detectHorizontalDragGestures
                             totalDrag += delta
-                            val rawPx = when {
-                                totalDrag > 0 && currentSelectedIndex == tabs.lastIndex ->
-                                    totalDrag * 0.25f
-                                totalDrag < 0 && currentSelectedIndex == 0 ->
-                                    totalDrag * 0.25f
-                                else -> totalDrag
-                            }
-                            dragOffset = rawPx
+                            val absoluteIndexFloat = (dragStartIndex + totalDrag / step)
+                                .coerceIn(0f, currentLastIndex.toFloat())
+                            dragOffset = absoluteIndexFloat * step - currentSelectedIndex * step
 
-                            val approxTab =
-                                (currentSelectedIndex + dragOffset / tabStepPx)
-                                    .coerceIn(0f, tabs.lastIndex.toFloat())
-                                    .roundToInt()
+                            val approxTab = absoluteIndexFloat.roundToInt()
                             if (approxTab != lastHapticTab) {
                                 haptics.play(Haptic.Tick)
                                 lastHapticTab = approxTab
@@ -282,11 +336,20 @@ fun FloatingBottomBar(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            // A real glass pill samples whatever artwork is behind it, not the
+            // theme's surface color, so a fixed onSurfaceVariant gray can lose
+            // contrast against it. Glass mode reads luminance off the surface
+            // color instead and picks pure black or white, same as the tint
+            // Echo's floating nav bar uses for its own liquid glass.
+            val glassTint = glassContentColor()
+            val adaptiveTint = if (useGlass) glassTint else null
             tabs.forEachIndexed { index, tab ->
                 BottomBarItem(
                     tab = tab,
                     selected = index == selectedIndex,
                     glassSpec = glassSpec,
+                    selectedTint = adaptiveTint,
+                    unselectedTint = adaptiveTint?.copy(alpha = 0.65f),
                     onClick = { onTabSelected(index) },
                     modifier = Modifier.weight(1f),
                 )
@@ -295,23 +358,6 @@ fun FloatingBottomBar(
     }
 }
 
-private val RaagaRed = Color(0xFFE53935)
-private val RaagaRedWash = RaagaRed.copy(alpha = 0.16f)
-
-private val CapsuleGlassBrush = Brush.verticalGradient(
-    colors = listOf(
-        Color.White.copy(alpha = 0.12f),
-        Color.White.copy(alpha = 0.05f),
-    ),
-)
-
-private val CapsuleBorderBrush = Brush.verticalGradient(
-    colors = listOf(
-        Color.White.copy(alpha = 0.32f),
-        Color.White.copy(alpha = 0.08f),
-    ),
-)
-
 @Composable
 private fun BottomBarItem(
     tab: BottomTab,
@@ -319,28 +365,26 @@ private fun BottomBarItem(
     glassSpec: AnimationSpec<Float>,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Overrides the theme's primary/onSurfaceVariant tint ΓÇö see the glass branch above. */
+    selectedTint: Color? = null,
+    unselectedTint: Color? = null,
 ) {
     // The same spring the indicator rides, so the glyph arriving and the glass
     // arriving are one movement rather than two that nearly agree.
-    val scale = animateFloatAsState(
+    val scale by animateFloatAsState(
         targetValue = if (selected) 1.08f else 1f,
         animationSpec = glassSpec,
         label = "tabScale",
     )
     val haptics = rememberHaptics()
-
-    // Visually prominent active icon (pure white), soft neutral grey/white for inactive (70% opacity)
-    val iconTint by animateColorAsState(
-        targetValue = if (selected) Color.White else Color.White.copy(alpha = 0.70f),
-        animationSpec = tween(180),
-        label = "tabIconTint",
-    )
-
-    // Distinct Raaga red accent for active label, soft neutral for inactive
-    val labelTint by animateColorAsState(
-        targetValue = if (selected) RaagaRed else Color.White.copy(alpha = 0.70f),
-        animationSpec = tween(180),
-        label = "tabLabelTint",
+    val tint by animateColorAsState(
+        targetValue = if (selected) {
+            selectedTint ?: MaterialTheme.colorScheme.primary
+        } else {
+            unselectedTint ?: MaterialTheme.colorScheme.onSurfaceVariant
+        },
+        animationSpec = tween(200),
+        label = "tabTint",
     )
 
     Column(
@@ -359,21 +403,19 @@ private fun BottomBarItem(
         Icon(
             imageVector = tab.icon,
             contentDescription = tab.label,
-            tint = iconTint,
+            tint = tint,
             modifier = Modifier
-                .size(24.dp)
+                .size(TAB_ICON_SIZE)
                 .graphicsLayer {
-                    scaleX = scale.value
-                    scaleY = scale.value
+                    scaleX = scale
+                    scaleY = scale
                 },
         )
         Spacer(Modifier.height(TAB_ICON_LABEL_GAP))
         Text(
             text = tab.label,
-            style = MaterialTheme.typography.labelSmall.copy(
-                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-            ),
-            color = labelTint,
+            style = tabLabelStyle(),
+            color = tint,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
