@@ -50,12 +50,14 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Indication
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -93,6 +95,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlurEffect
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Shape
@@ -214,7 +217,7 @@ fun FloatingTabBar(
     SharedTransitionLayout(modifier = modifier) {
         AnimatedContent(
             targetState = scrollConnection.isInline,
-            transitionSpec = { fadeIn() togetherWith fadeOut() },
+            transitionSpec = { fadeIn(tween(160)) togetherWith fadeOut(tween(160)) },
             contentAlignment = Alignment.BottomCenter
         ) { isInline ->
             if (isInline) {
@@ -768,16 +771,11 @@ private fun SharedTransitionScope.ExpandedTabs(
     } else {
         0f
     }
-    val animatedIndicatorOffset by animateFloatAsState(
+    val animatedIndicatorOffset = animateFloatAsState(
         targetValue = indicatorTargetPx,
         animationSpec = selectionSpec,
         label = "glassPillOffset"
     )
-    val lag = if (tabStepPx > 0f) {
-        (abs(indicatorTargetPx - animatedIndicatorOffset) / tabStepPx).coerceIn(0f, 1f)
-    } else {
-        0f
-    }
 
     LaunchedEffect(selectedTabKey) {
         dragOffset = 0f
@@ -802,7 +800,6 @@ private fun SharedTransitionScope.ExpandedTabs(
             .clip(shapes.tabBarShape)
             .then(tabBarContentModifier())
             .padding(sizes.tabBarContentPadding)
-            .animateContentSize()
     ) {
         if (selectedTabIndex >= 0 && tabWidthPx > 0f) {
             Box(
@@ -810,12 +807,24 @@ private fun SharedTransitionScope.ExpandedTabs(
                     .width(with(density) { tabWidthPx.toDp() })
                     .height(with(density) { rowSize.height.toDp() })
                     .graphicsLayer {
-                        translationX = animatedIndicatorOffset
+                        val currentOffset = animatedIndicatorOffset.value
+                        val lag = if (tabStepPx > 0f) {
+                            (abs(indicatorTargetPx - currentOffset) / tabStepPx).coerceIn(0f, 1f)
+                        } else {
+                            0f
+                        }
+                        translationX = currentOffset
                         scaleX = 1f + lag * STRETCH
                         scaleY = 1f - lag * STRETCH * SQUASH
                     }
                     .clip(shapes.tabShape)
+                    .background(IndicatorGlassBrush, shapes.tabShape)
                     .background(colors.indicatorColor, shapes.tabShape)
+                    .border(
+                        width = 0.75.dp,
+                        brush = IndicatorBorderBrush,
+                        shape = shapes.tabShape,
+                    )
             )
         }
 
@@ -869,7 +878,7 @@ private fun SharedTransitionScope.ExpandedTabs(
         ) {
             scope.tabs.forEach { tab ->
                 val isSelected = tab.key == selectedTabKey
-                val iconScale by animateFloatAsState(
+                val iconScale = animateFloatAsState(
                     targetValue = if (isSelected) 1.08f else 1f,
                     animationSpec = selectionSpec,
                     label = "glassTabScale"
@@ -889,8 +898,8 @@ private fun SharedTransitionScope.ExpandedTabs(
                                     animatedVisibilityScope = animatedVisibilityScope
                                 )
                             }).graphicsLayer {
-                                scaleX = iconScale
-                                scaleY = iconScale
+                                scaleX = iconScale.value
+                                scaleY = iconScale.value
                             }
                         ) {
                             tab.icon()
@@ -1265,3 +1274,17 @@ object FloatingTabBarDefaults {
         expandedElevation = expandedElevation,
     )
 }
+
+private val IndicatorGlassBrush = Brush.verticalGradient(
+    colors = listOf(
+        Color.White.copy(alpha = 0.12f),
+        Color.White.copy(alpha = 0.05f),
+    ),
+)
+
+private val IndicatorBorderBrush = Brush.verticalGradient(
+    colors = listOf(
+        Color.White.copy(alpha = 0.30f),
+        Color.White.copy(alpha = 0.08f),
+    ),
+)

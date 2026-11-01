@@ -179,7 +179,7 @@ fun GlassNavBar(
         colors = FloatingTabBarDefaults.colors(
             backgroundColor = Color.Transparent,
             accessoryBackgroundColor = Color.Transparent,
-            indicatorColor = glassIndicatorColor().copy(alpha = 0.5f),
+            indicatorColor = RaagaRed.copy(alpha = 0.16f),
         ),
         // Flat, because the glass is not. Every surface here already draws its
         // own [Shadow.Default] as part of the backdrop pass, and the library's
@@ -201,27 +201,27 @@ fun GlassNavBar(
             tabBarContentPadding = PaddingValues(PILL_INSET),
             tabExpandedContentPadding = PaddingValues(vertical = TAB_VERTICAL_PADDING),
         ),
-        // Held too: this is declared `Any?`, so a fresh list every pass is a
-        // changed argument by identity and defeats skipping on its own.
-        contentKey = remember(selectedIndex, tabs, contentColor) {
-            listOf(selectedIndex, tabs, contentColor)
+        // Held so the tab structure is not recreated on every tab switch.
+        // The selection state is read dynamically inside the tab lambdas.
+        contentKey = remember(tabs, contentColor) {
+            listOf(tabs, contentColor)
         },
     ) {
         tabs.forEachIndexed { index, tab ->
-            val isSelected = index == selectedIndex
-            val tint = if (isSelected) selectedColor else unselectedColor
             val onClick = {
-                if (!isSelected) haptics.play(Haptic.Select)
+                if (index != selectedIndex) haptics.play(Haptic.Select)
                 currentOnTabSelected(index)
             }
             if (index == standaloneIndex) {
                 standaloneTab(
                     key = index,
                     icon = {
+                        val isSelected = index == selectedIndex
+                        val iconTint = if (isSelected) Color.White else Color.White.copy(alpha = 0.70f)
                         Icon(
                             imageVector = tab.icon,
                             contentDescription = tab.label,
-                            tint = tint,
+                            tint = iconTint,
                             modifier = Modifier.size(25.dp),
                         )
                     },
@@ -231,18 +231,24 @@ fun GlassNavBar(
                 tab(
                     key = index,
                     icon = {
+                        val isSelected = index == selectedIndex
+                        val iconTint = if (isSelected) Color.White else Color.White.copy(alpha = 0.70f)
                         Icon(
                             imageVector = tab.icon,
                             contentDescription = tab.label,
-                            tint = tint,
+                            tint = iconTint,
                             modifier = Modifier.size(25.dp),
                         )
                     },
                     title = {
+                        val isSelected = index == selectedIndex
+                        val labelTint = if (isSelected) RaagaRed else Color.White.copy(alpha = 0.70f)
                         Text(
                             text = tab.label,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = tint,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                            ),
+                            color = labelTint,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             // The library's Tab stacks the glyph and the label
@@ -257,6 +263,8 @@ fun GlassNavBar(
         }
     }
 }
+
+private val RaagaRed = Color(0xFFE53935)
 
 /**
  * The now playing controls docked into [GlassNavBar] as its accessory.
@@ -289,7 +297,7 @@ private fun GlassNowPlaying(
     val haptics = rememberHaptics()
     val pressSource = remember { MutableInteractionSource() }
     val isPressed by pressSource.collectIsPressedAsState()
-    val pressScale by animateFloatAsState(
+    val pressScale = animateFloatAsState(
         targetValue = if (isPressed) 1.04f else 1f,
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
         label = "accessoryPressScale",
@@ -310,8 +318,8 @@ private fun GlassNowPlaying(
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .graphicsLayer {
-                scaleX = pressScale
-                scaleY = pressScale
+                scaleX = pressScale.value
+                scaleY = pressScale.value
             }
             .then(modifier),
     ) {
