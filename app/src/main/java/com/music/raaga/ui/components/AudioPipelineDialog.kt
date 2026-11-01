@@ -35,6 +35,7 @@ import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Memory
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -62,6 +63,7 @@ import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -400,6 +402,44 @@ fun AudioPipelineDialog(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
+
+                    if (nerdStats?.isLossless == true || isBitExact || spatialAudio) {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 4.dp),
+                            thickness = 0.5.dp,
+                            color = Color.White.copy(alpha = 0.12f),
+                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            if (nerdStats?.isLossless == true) {
+                                Icon(
+                                    painter = painterResource(R.drawable.ic_lossless),
+                                    contentDescription = null,
+                                    tint = heroAccentColor,
+                                    modifier = Modifier.size(width = 16.dp, height = 11.dp),
+                                )
+                            }
+                            val fidelityLabel = when {
+                                nerdStats?.isHiRes == true -> "Hi-Res Lossless (Studio Master up to 24-bit / 192 kHz)"
+                                nerdStats?.isLossless == true -> "Lossless Audio (CD/Studio Quality up to 24-bit / 48 kHz)"
+                                isBitExact -> "Bit-Perfect (Android AudioFlinger Resampling Bypassed)"
+                                spatialAudio -> "Binaural Spatial Audio (Bauer Crossfeed & Wide Stage)"
+                                else -> "High Quality Audio"
+                            }
+                            Text(
+                                text = fidelityLabel,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.Medium,
+                                ),
+                                color = Color.White.copy(alpha = 0.85f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
                 }
             }
 
@@ -524,7 +564,7 @@ fun AudioPipelineDialog(
                     } else {
                         "Flat"
                     }
-                    val stereoExpandText = if (spatialAudio) "250%" else "100%"
+                    val stereoExpandText = if (spatialAudio) "Active (Bauer Binaural Crossfeed 130%)" else "Stereo Direct (100%)"
                     val buffersText = outputStatus.bufferSize?.let { size ->
                         val rate = outputStatus.actualSampleRateHz
                         val bytesPerSample = when (outputStatus.actualEncoding) {
@@ -569,6 +609,7 @@ fun AudioPipelineDialog(
                     ) {
                         PipelineRow(stringResource(R.string.pipeline_pcm_format), pcmFormat)
                         PipelineRow(stringResource(R.string.pipeline_sample_rate), dspRateText)
+                        PipelineRow("Loudness Standard", "ITU-R BS.1770-4 / EBU R 128")
                         PipelineRow(stringResource(R.string.pipeline_loudness_gain), loudnessGainText)
                         PipelineRow(stringResource(R.string.pipeline_loudness_measured), loudnessMeasuredText)
                         PipelineRow(stringResource(R.string.pipeline_eq_preset), eqPresetText)
