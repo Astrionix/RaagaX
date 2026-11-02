@@ -14,6 +14,8 @@ import com.music.raaga.data.AppUpdateChecker
 import com.music.raaga.data.LocalMediaRepository
 import com.music.raaga.data.LikeState
 import com.music.raaga.data.YtMusicRepository
+import com.music.raaga.data.LibrarySongAggregator
+import com.music.raaga.ui.screens.library.AdditionSourceType
 import com.music.raaga.data.lyrics.EmbeddedLyrics
 import com.music.raaga.data.lyrics.LyricLine
 import com.music.raaga.data.lyrics.LyricsRepository
@@ -610,6 +612,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     val unliked = previous == LikeStatus.LIKE &&
                         status == LikeStatus.INDIFFERENT
                     if (unliked) forgetFromLibrary(videoId)
+                    if (status == LikeStatus.LIKE) {
+                        val knownSong = LibrarySongAggregator.aggregatedSongs.value.firstOrNull { it.videoId == videoId }
+                            ?: _detailStack.value.firstNotNullOfOrNull { page ->
+                                (page.songs as? UiState.Success)?.data?.firstOrNull { it.videoId == videoId }
+                            }
+                        if (knownSong != null) {
+                            LibrarySongAggregator.recordRecentlyAdded(
+                                song = knownSong,
+                                sourceType = AdditionSourceType.SONG,
+                                sourceTitle = "Liked Music",
+                            )
+                        }
+                    }
                 },
                 onFailure = {
                     LikeState.set(videoId, previous)
@@ -716,6 +731,32 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             if (YtMusicRepository.setSaved(current.playlistId, target).isSuccess) {
                 // The Library tab's Albums/Playlists shelf is now out of date.
                 libraryStale = true
+                if (target) {
+                    val page = _detailStack.value.firstOrNull { it.browseId == browseId }
+                    val songs = (page?.songs as? UiState.Success)?.data.orEmpty()
+                    if (songs.isNotEmpty()) {
+                        LibrarySongAggregator.recordRecentlyAddedBatch(
+                            songs = songs,
+                            sourceType = AdditionSourceType.ALBUM,
+                            sourceId = browseId,
+                            sourceTitle = page?.title,
+                        )
+                    } else if (page != null) {
+                        LibrarySongAggregator.recordRecentlyAdded(
+                            song = Song(
+                                videoId = "album_seed_${browseId}",
+                                title = page.title,
+                                artist = page.subtitle.orEmpty(),
+                                thumbnailUrl = page.thumbnailUrl,
+                                albumId = browseId,
+                                albumName = page.title,
+                            ),
+                            sourceType = AdditionSourceType.ALBUM,
+                            sourceId = browseId,
+                            sourceTitle = page.title,
+                        )
+                    }
+                }
             } else {
                 setSavedOnPage(browseId, current.saved)
             }
@@ -922,6 +963,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     // into it for the same reason [addSuggestedSong] does.
                     appendToOpenPlaylist(playlist.browseId, song, added[song.videoId])
                     autoDownloadIfEnabled(song, playlist.title)
+                    LibrarySongAggregator.recordRecentlyAdded(
+                        song = song,
+                        sourceType = AdditionSourceType.PLAYLIST,
+                        sourceId = playlist.browseId,
+                        sourceTitle = playlist.title,
+                    )
                     onResult(false)
                 },
                 onFailure = {},
@@ -966,6 +1013,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 libraryStale = true
                 appendToOpenPlaylist(playlist.browseId, song, added[song.videoId])
                 autoDownloadIfEnabled(song, playlist.title)
+                LibrarySongAggregator.recordRecentlyAdded(
+                    song = song,
+                    sourceType = AdditionSourceType.PLAYLIST,
+                    sourceId = playlist.browseId,
+                    sourceTitle = playlist.title,
+                )
                 AddOutcome.ADDED
             },
             onFailure = { AddOutcome.FAILED },
@@ -1021,7 +1074,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             ),
                         ) + items.filterNot { it.browseId == created.browseId }
                     }
-                    song?.let { autoDownloadIfEnabled(it, name) }
+                    song?.let {
+                        autoDownloadIfEnabled(it, name)
+                        LibrarySongAggregator.recordRecentlyAdded(
+                            song = it,
+                            sourceType = AdditionSourceType.PLAYLIST,
+                            sourceId = "VL$playlistId",
+                            sourceTitle = name,
+                        )
+                    }
                 },
                 onFailure = {},
             )
@@ -1256,6 +1317,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         ?: _playlists.value.firstOrNull { it.browseId == browseId }?.title
                         ?: "Playlist"
                     autoDownloadIfEnabled(song, playlistTitle)
+                    LibrarySongAggregator.recordRecentlyAdded(
+                        song = song,
+                        sourceType = AdditionSourceType.PLAYLIST,
+                        sourceId = browseId,
+                        sourceTitle = playlistTitle,
+                    )
                 },
                 onFailure = {},
             )

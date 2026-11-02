@@ -122,6 +122,9 @@ class EqualizerProcessor : BaseAudioProcessor() {
     val isEnabled: Boolean
         get() = target !== Tuning.OFF
 
+    val currentPreamp: Float
+        get() = currentPreampDb
+
     /**
      * Configures the Float32 DSP engine for [sampleRate] and [channelCount].
      */

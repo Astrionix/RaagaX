@@ -236,7 +236,7 @@ object ListenTogether {
                 // connection is not in trouble — the server's own heartbeat and
                 // the ping below are what say whether it is.
                 readTimeout(0, TimeUnit.MILLISECONDS)
-                connectTimeout(15, TimeUnit.SECONDS)
+                connectTimeout(45, TimeUnit.SECONDS)
                 pingInterval(20, TimeUnit.SECONDS)
                 retryOnConnectionFailure(true)
             }
@@ -1222,16 +1222,33 @@ object ListenTogether {
 
     fun seek(positionMs: Long) = control("seek") { put("positionMs", positionMs) }
 
-    fun next() = control("next") {}
+    const val TRACK_CHANGE_LOCK_MS = 3_000L
+    private var lastTrackChangeAtMs = 0L
 
-    fun previous() = control("previous") {}
+    fun canChangeTrack(): Boolean =
+        (System.currentTimeMillis() - lastTrackChangeAtMs) >= TRACK_CHANGE_LOCK_MS
 
-    fun setTrack(track: PartyTrack, positionMs: Long = 0, isPlaying: Boolean = true) =
+    fun next() {
+        if (!canChangeTrack()) return
+        lastTrackChangeAtMs = System.currentTimeMillis()
+        control("next") {}
+    }
+
+    fun previous() {
+        if (!canChangeTrack()) return
+        lastTrackChangeAtMs = System.currentTimeMillis()
+        control("previous") {}
+    }
+
+    fun setTrack(track: PartyTrack, positionMs: Long = 0, isPlaying: Boolean = true) {
+        if (!canChangeTrack()) return
+        lastTrackChangeAtMs = System.currentTimeMillis()
         control("setTrack") {
             put("track", json.encodeToJsonElement(PartyTrack.serializer(), track))
             put("positionMs", positionMs)
             put("isPlaying", isPlaying)
         }
+    }
 
     fun setQueue(queue: List<PartyTrack>, index: Int) = control("setQueue") {
         put("queue", json.encodeToJsonElement(kotlinx.serialization.builtins.ListSerializer(PartyTrack.serializer()), queue))

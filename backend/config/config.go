@@ -79,7 +79,7 @@ func IsAllowedOrigin(origin string) bool {
 var (
 	MaxMembers           = getInt("JAM_MAX_MEMBERS", 5)
 	StateHeartbeatMs     = getInt("JAM_STATE_HEARTBEAT_MS", 5000)
-	PlayLeadMs           = getInt("JAM_PLAY_LEAD_MS", 350)
+	PlayLeadMs           = getInt("JAM_PLAY_LEAD_MS", 850)
 	DisconnectGraceMs    = int64(getInt("JAM_DISCONNECT_GRACE_MS", 45000))
 	EmptyPartyTTLMs      = int64(getInt("JAM_EMPTY_PARTY_TTL_MS", 120000))
 	PartyMaxAgeMs        = int64(getInt("JAM_PARTY_MAX_AGE_MS", 12*60*60*1000))

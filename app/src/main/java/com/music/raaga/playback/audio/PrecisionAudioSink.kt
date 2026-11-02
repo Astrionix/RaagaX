@@ -344,6 +344,13 @@ class PrecisionAudioSink(
             // Process normalized Float32 samples through custom DSP chain
             dspChain.process(audioBlock)
 
+            // Audit live PCM peak, RMS, dBFS and clipping detection
+            AudioDiagnostics.analyzeBlock(
+                samples = audioBlock.samples,
+                frameCount = decodedFrames,
+                channelCount = channelCount,
+            )
+
             // Encode processed samples to target PCM output buffer (Float32 or PCM16)
             outputByteBuffer.clear()
             PcmBoundary.encode(

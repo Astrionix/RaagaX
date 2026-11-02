@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Album
+import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.MoreHoriz
@@ -67,6 +68,8 @@ import com.music.raaga.data.YtMusicRepository
 import com.music.raaga.data.model.HomeShelf
 import com.music.raaga.data.model.ShelfItem
 import com.music.raaga.data.model.Song
+import com.music.raaga.data.model.CARD_ART_PX
+import com.music.raaga.data.model.artworkAt
 import com.music.raaga.data.settings.AppSettings
 import com.music.raaga.download.SavedCollection
 import com.music.raaga.ui.components.PullToRefresh
@@ -103,12 +106,11 @@ fun LibraryHub(
     val savedCategories by AppSettings.libraryCategories.collectAsStateWithLifecycle()
     val hiddenCategories by AppSettings.hiddenLibraryCategories.collectAsStateWithLifecycle()
 
-    // Recently Added Section (Song-Only smart collection)
+    // Recently Added Section (Dynamic Albums & Singles smart collection, 8-10 slots)
     val recentTracks by LibrarySongAggregator.recentlyAddedTracks.collectAsState()
-    val topRecentTracks = remember(recentTracks) {
-        recentTracks.distinctBy { it.song.localUri ?: it.song.videoId }.take(6)
+    val topRecentItems = remember(recentTracks) {
+        recentTracks.toRecentlyAddedItems(maxItems = 10)
     }
-    val topSongs = remember(topRecentTracks) { topRecentTracks.map { it.song } }
 
     // Map pinned ids to ShelfItem
     val pinnedCollections = remember(pinnedPlaylistIds, playlists) {
@@ -342,7 +344,7 @@ fun LibraryHub(
             }
 
             // Recently Added Section (Song-Only smart collection)
-            if (topRecentTracks.isNotEmpty() && !isEditingPins && !isEditingCategories) {
+            if (topRecentItems.isNotEmpty() && !isEditingPins && !isEditingCategories) {
                 item(key = "recently_added_header") {
                     Row(
                         modifier = Modifier
@@ -359,15 +361,15 @@ fun LibraryHub(
                         TextButton(onClick = onShowAllRecentlyAdded) {
                             Text(
                                 text = stringResource(R.string.show_all),
-                                color = RaagaAccentRed,
+                                color = RaagaCobaltBlue,
                                 fontWeight = FontWeight.SemiBold,
                             )
                         }
                     }
                 }
 
-                // Song cards for newly added songs (2-column card grid, matching Apple Music)
-                topRecentTracks.chunked(2).forEachIndexed { rowIndex, rowTracks ->
+                // Cards for newly added albums and songs (2-column card grid, 8-10 slots, matching Apple Music)
+                topRecentItems.chunked(2).forEachIndexed { rowIndex, rowItems ->
                     item(key = "hub_recent_cards_row_$rowIndex") {
                         Row(
                             modifier = Modifier
@@ -375,15 +377,48 @@ fun LibraryHub(
                                 .padding(horizontal = 20.dp, vertical = 6.dp),
                             horizontalArrangement = Arrangement.spacedBy(16.dp),
                         ) {
-                            rowTracks.forEach { trackItem ->
-                                val song = trackItem.song
-                                val songIndex = topSongs.indexOf(song).coerceAtLeast(0)
+                            rowItems.forEach { item ->
                                 Column(
                                     modifier = Modifier
                                         .weight(1f)
                                         .clip(RoundedCornerShape(12.dp))
                                         .clickable {
-                                            onSongClick?.invoke(topSongs, songIndex)
+                                            when (item) {
+                                                is RecentlyAddedItem.Album -> {
+                                                    if (!item.albumBrowseId.isNullOrBlank()) {
+                                                        onShelfItemClick(
+                                                            ShelfItem(
+                                                                title = item.title,
+                                                                subtitle = item.subtitle,
+                                                                thumbnailUrl = item.artworkUrl,
+                                                                videoId = null,
+                                                                browseId = item.albumBrowseId,
+                                                            )
+                                                        )
+                                                    } else {
+                                                        val playable = item.songs.ifEmpty { listOf(item.representativeSong) }
+                                                        onSongClick?.invoke(playable, 0)
+                                                    }
+                                                }
+                                                is RecentlyAddedItem.Playlist -> {
+                                                    onShelfItemClick(
+                                                        ShelfItem(
+                                                            title = item.title,
+                                                            subtitle = item.subtitle,
+                                                            thumbnailUrl = item.artworkUrl,
+                                                            videoId = null,
+                                                            browseId = item.playlistBrowseId,
+                                                        )
+                                                    )
+                                                }
+                                                is RecentlyAddedItem.SingleSong -> {
+                                                    val allSingles = topRecentItems
+                                                        .filterIsInstance<RecentlyAddedItem.SingleSong>()
+                                                        .map { it.song }
+                                                    val songIndex = allSingles.indexOf(item.song).coerceAtLeast(0)
+                                                    onSongClick?.invoke(allSingles.ifEmpty { listOf(item.song) }, songIndex)
+                                                }
+                                            }
                                         },
                                 ) {
                                     Box(
@@ -394,16 +429,20 @@ fun LibraryHub(
                                             .background(AmoledCardBackground),
                                         contentAlignment = Alignment.Center,
                                     ) {
-                                        if (!song.thumbnailUrl.isNullOrBlank()) {
+                                        if (!item.artworkUrl.isNullOrBlank()) {
                                             AsyncImage(
-                                                model = song.thumbnailUrl,
+                                                model = item.artworkUrl.artworkAt(CARD_ART_PX),
                                                 contentDescription = null,
                                                 contentScale = ContentScale.Crop,
                                                 modifier = Modifier.matchParentSize(),
                                             )
                                         } else {
                                             Icon(
-                                                imageVector = Icons.Rounded.MusicNote,
+                                                imageVector = when (item) {
+                                                    is RecentlyAddedItem.Album -> Icons.Rounded.Album
+                                                    is RecentlyAddedItem.Playlist -> Icons.AutoMirrored.Rounded.QueueMusic
+                                                    is RecentlyAddedItem.SingleSong -> Icons.Rounded.MusicNote
+                                                },
                                                 contentDescription = null,
                                                 tint = TextSecondaryGrey,
                                                 modifier = Modifier.size(48.dp),
@@ -412,19 +451,19 @@ fun LibraryHub(
                                     }
                                     Spacer(Modifier.height(8.dp))
                                     Text(
-                                        text = song.title,
+                                        text = item.title,
                                         style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
                                         color = Color.White,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
                                     )
-                                    val sourceByline = when {
-                                        !trackItem.sourceTitle.isNullOrBlank() -> "${song.artist} • ${trackItem.sourceTitle}"
-                                        !song.albumName.isNullOrBlank() -> "${song.artist} • ${song.albumName}"
-                                        else -> song.artist
+                                    val byline = when (item) {
+                                        is RecentlyAddedItem.Album -> if (item.artist.isNotBlank()) "Album • ${item.artist}" else "Album"
+                                        is RecentlyAddedItem.Playlist -> item.subtitle
+                                        is RecentlyAddedItem.SingleSong -> item.subtitle
                                     }
                                     Text(
-                                        text = sourceByline,
+                                        text = byline,
                                         style = MaterialTheme.typography.bodySmall,
                                         color = TextSecondaryGrey,
                                         maxLines = 1,
@@ -432,7 +471,7 @@ fun LibraryHub(
                                     )
                                 }
                             }
-                            if (rowTracks.size == 1) {
+                            if (rowItems.size == 1) {
                                 Spacer(Modifier.weight(1f))
                             }
                         }

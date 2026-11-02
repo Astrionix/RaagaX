@@ -101,6 +101,7 @@ type PlaybackState struct {
 	StartedBy     *string  `json:"startedBy"`
 	StartedByName *string  `json:"startedByName"`
 	AutoplayEnabled bool   `json:"autoplayEnabled"`
+	LastTrackChangeAtMs int64 `json:"lastTrackChangeAtMs"`
 }
 
 func NewPlaybackState() *PlaybackState {
@@ -220,6 +221,7 @@ func (p *PlaybackState) SetTrack(
 
 	p.StartedBy = memberId
 	p.StartedByName = memberName
+	p.LastTrackChangeAtMs = clock.NowMs()
 	p.touch(memberId)
 }
 

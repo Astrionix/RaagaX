@@ -27,6 +27,8 @@ services:
         value: "5"
       - key: JAM_STATE_HEARTBEAT_MS
         value: "5000"
+      - key: JAM_PLAY_LEAD_MS
+        value: "850"
       - key: JAM_MAX_UPCOMING_QUEUE
         value: "25"
       - key: JAM_MAX_PARTIES

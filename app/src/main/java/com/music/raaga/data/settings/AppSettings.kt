@@ -369,6 +369,12 @@ object AppSettings {
     val usbAllowFixedVolume = MutableStateFlow(false)
     /** Skip loudness normalization while the active output is the phone's own speaker. */
     val loudnessOffOnSpeaker = MutableStateFlow(true)
+    /**
+     * Bypasses broadcasting ACTION_OPEN_AUDIO_EFFECT_CONTROL_SESSION when connected to a USB DAC,
+     * preventing OEM sound enhancers (Xiaomi HyperOS Dolby Atmos, Samsung SoundAlive, Dirac) from
+     * attaching aggressive volume levelers, compressors, and artificial loudness boosts.
+     */
+    val bypassSystemEffectsOnUsb = MutableStateFlow(true)
 
     /**
      * Whether a source offering a Dolby Atmos rendition is allowed to serve it.
@@ -1019,6 +1025,7 @@ object AppSettings {
         }.getOrDefault(BitPerfectMode.OFF)
         usbAllowFixedVolume.value = prefs.getBoolean(KEY_USB_ALLOW_FIXED_VOLUME, false)
         loudnessOffOnSpeaker.value = prefs.getBoolean(KEY_LOUDNESS_OFF_ON_SPEAKER, true)
+        bypassSystemEffectsOnUsb.value = prefs.getBoolean(KEY_BYPASS_SYSTEM_EFFECTS_ON_USB, true)
         onboardingComplete.value = prefs.getBoolean(KEY_ONBOARDING_COMPLETE, false)
         hideStatusBarInPlayer.value = prefs.getBoolean(KEY_HIDE_STATUS_BAR_IN_PLAYER, false)
         showQueueHistory.value = prefs.getBoolean(KEY_SHOW_QUEUE_HISTORY, false)
@@ -1838,6 +1845,11 @@ object AppSettings {
         prefs.edit().putBoolean(KEY_LOUDNESS_OFF_ON_SPEAKER, value).apply()
     }
 
+    fun setBypassSystemEffectsOnUsb(value: Boolean) {
+        bypassSystemEffectsOnUsb.value = value
+        prefs.edit().putBoolean(KEY_BYPASS_SYSTEM_EFFECTS_ON_USB, value).apply()
+    }
+
     fun setLoudnessTargetLufs(value: Float) {
         val clamped = value.coerceIn(MIN_LOUDNESS_TARGET_LUFS, MAX_LOUDNESS_TARGET_LUFS)
         loudnessTargetLufs.value = clamped
@@ -2415,6 +2427,7 @@ object AppSettings {
     private const val KEY_USB_DIRECT_AUDIO = "usb_direct_audio"
     private const val KEY_CONVERT_FOR_LIMITED_DAC = "convert_for_limited_dac"
     const val DEFAULT_LOUDNESS_TARGET_LUFS = -14f
+    const val APPLE_SOUND_CHECK_TARGET_LUFS = -16f
     const val MIN_LOUDNESS_TARGET_LUFS = -23f
     const val MAX_LOUDNESS_TARGET_LUFS = -9f
 
@@ -2423,6 +2436,7 @@ object AppSettings {
     private const val KEY_BIT_PERFECT_MODE = "bit_perfect_mode"
     private const val KEY_USB_ALLOW_FIXED_VOLUME = "usb_allow_fixed_volume"
     private const val KEY_LOUDNESS_OFF_ON_SPEAKER = "loudness_off_on_speaker"
+    private const val KEY_BYPASS_SYSTEM_EFFECTS_ON_USB = "bypass_system_effects_on_usb"
     private const val KEY_ONBOARDING_COMPLETE = "onboarding_complete"
     private const val KEY_HIDE_STATUS_BAR_IN_PLAYER = "hide_status_bar_in_player"
     private const val KEY_SHOW_QUEUE_HISTORY = "show_queue_history"

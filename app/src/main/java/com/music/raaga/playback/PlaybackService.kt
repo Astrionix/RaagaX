@@ -1,5 +1,7 @@
 package com.music.raaga.playback
 
+import com.music.raaga.playback.audio.AudioDiagnostics
+
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
@@ -605,6 +607,8 @@ class PlaybackService : MediaLibraryService() {
 
     private var activeFilter: TransitionFilterProcessor = transitionFilterA
     private var spareFilter: TransitionFilterProcessor = transitionFilterB
+    private var activeDspChain: DspChain? = null
+    private var spareDspChain: DspChain? = null
 
     /** Automix's DSP analyzer — see [com.music.raaga.playback.smart.TrackAnalyzer]. */
     private val trackAnalyzer = com.music.raaga.playback.smart.TrackAnalyzer(this, AudioCache)
@@ -2270,6 +2274,9 @@ class PlaybackService : MediaLibraryService() {
         val heldFilter = activeFilter
         activeFilter = spareFilter
         spareFilter = heldFilter
+        val heldDsp = activeDspChain
+        activeDspChain = spareDspChain
+        spareDspChain = heldDsp
 
         incoming.addListener(playbackListener)
         incoming.addAnalyticsListener(formatListener)
@@ -2735,6 +2742,21 @@ class PlaybackService : MediaLibraryService() {
      * the first decoded buffer reaches the output device.
      */
     private fun updateAudioEffectSession(activePlayer: ExoPlayer) {
+        val activeDevice = resolveActiveOutputDevice()
+        val routeKind = resolveActiveRouteKind(activeDevice)
+        val isUsb = routeKind == AudioRouting.Kind.USB
+        val bypassOnUsb = AppSettings.bypassSystemEffectsOnUsb.value
+        val bitPerfect = AppSettings.bitPerfectMode.value != com.music.raaga.data.settings.BitPerfectMode.OFF
+
+        // Audio Purity: When connected to USB DAC, bypass ACTION_OPEN_AUDIO_EFFECT_CONTROL_SESSION
+        // so that OEM dynamic volume levelers and multi-band limiters (e.g. Xiaomi HyperOS Dolby Atmos)
+        // do not hijack the DAC and cause extreme loudness or harsh compression.
+        if ((isUsb && bypassOnUsb) || bitPerfect) {
+            closeAudioEffectSession()
+            updateDiagnostics()
+            return
+        }
+
         val sessionId = activePlayer.audioSessionId
         val shouldAdvertise = activePlayer.playWhenReady &&
             (activePlayer.playbackState == Player.STATE_BUFFERING ||
@@ -2842,6 +2864,15 @@ class PlaybackService : MediaLibraryService() {
         // is precisely what carries the applied gain across the swap.
         setupLoudnessEnhancer(mediaItem?.mediaId)
         scheduleLoudnessRetry(mediaItem?.mediaId)
+
+        // Prime software Float32 LoudnessProcessor with track ID and target LUFS
+        val targetLufs = AppSettings.loudnessTargetLufs.value
+        activeDspChain?.let { chain ->
+            chain.loudness.targetLufs = targetLufs
+            chain.loudness.enabled = AppSettings.loudnessNormalization.value
+            chain.loudness.prime(mediaItem?.mediaId ?: "", null)
+        }
+        updateDiagnostics()
 
         // Keep a real, bounded history in the player rather than merely hiding
         // old rows in Compose. MediaController mirrors the playlist across the
@@ -3589,6 +3620,10 @@ class PlaybackService : MediaLibraryService() {
     private fun skipPastUnplayable(mediaId: String, reason: String) {
         val exoPlayer = player ?: return
         if (exoPlayer.currentMediaItem?.mediaId != mediaId) return
+        if (ListenTogether.state.value.inParty) {
+            TrackLog.w("Raaga", "in party: refusing local skipPastUnplayable for $mediaId ($reason)", about = mediaId)
+            return
+        }
         if (!exoPlayer.hasNextMediaItem()) {
             TrackLog.w("Raaga", "$reason — and nothing after it in the queue", about = mediaId)
             return
@@ -4621,7 +4656,7 @@ class PlaybackService : MediaLibraryService() {
         // that loses is handed to [QualityUpgrade] rather than dropped, and
         // handing over the search that just cost three attempts would only
         // schedule a fourth.
-        if (StreamChoice.substitutesRefused(videoId)) {
+        if (StreamChoice.substitutesRefused(videoId) || ListenTogether.state.value.inParty) {
             return Resolved.YouTube(StreamResolver.resolve(videoId))
         }
         NerdStats.onLosslessRaceStart(videoId)
@@ -5412,6 +5447,11 @@ class PlaybackService : MediaLibraryService() {
             // the whole session, while the transition filter belongs to
             // one handoff and has to have the last word on it.
             val dspChain = DspChain(spatial, equalizer, transition)
+            if (activeDspChain == null) {
+                activeDspChain = dspChain
+            } else {
+                spareDspChain = dspChain
+            }
             val precision = PrecisionAudioSink(
                 delegate = defaultSink,
                 dspChain = dspChain,
@@ -5948,7 +5988,18 @@ class PlaybackService : MediaLibraryService() {
      */
     private fun setupLoudnessEnhancer(mediaId: String?) {
         val exoPlayer = player ?: return
+        val activeDevice = resolveActiveOutputDevice()
+        val routeKind = resolveActiveRouteKind(activeDevice)
+        val isUsb = routeKind == AudioRouting.Kind.USB
         val enhancer = ensureLoudnessEnhancer(exoPlayer.audioSessionId) ?: return
+
+        // On USB DAC, disable hardware LoudnessEnhancer to preserve bit-clean uncompressed audio dynamics
+        if (isUsb) {
+            enhancer.enabled = false
+            AudioOutputStatus.publishLoudness(gainDb = null, lufs = null)
+            updateDiagnostics()
+            return
+        }
         val enabled = AppSettings.loudnessNormalization.value
         val id = mediaId?.takeIf { it.isNotBlank() }
         val loudnessDb = id?.let(StreamResolver::loudnessDbFor)
@@ -8022,6 +8073,36 @@ class PlaybackService : MediaLibraryService() {
                     .build(),
             )
             .build()
+
+    private fun updateDiagnostics() {
+        val activeDevice = resolveActiveOutputDevice()
+        val routeKind = resolveActiveRouteKind(activeDevice)
+        val isUsb = routeKind == AudioRouting.Kind.USB
+        val exoPlayer = player
+        val format = currentAudioInputFormat
+        val outStatus = AudioOutputStatus.current.value
+
+        AudioDiagnostics.updatePipelineStatus(
+            playerVolume = exoPlayer?.volume ?: 1.0f,
+            routeKind = routeKind,
+            isUsbDac = isUsb,
+            dacProductName = activeDevice?.productName?.toString() ?: if (isUsb) "USB DAC" else "Internal Audio",
+            sourceCodec = format?.sampleMimeType ?: "Opus",
+            sourceSampleRate = format?.sampleRate ?: 44100,
+            sourceBitDepth = if (format?.pcmEncoding == androidx.media3.common.C.ENCODING_PCM_FLOAT) "32-bit Float" else "16-bit PCM",
+            outputEncoding = if (outStatus.actualEncoding == android.media.AudioFormat.ENCODING_PCM_FLOAT) "PCM_FLOAT" else "PCM_16BIT",
+            outputSampleRate = outStatus.actualSampleRateHz ?: 48000,
+            spatialAudioActive = activeDspChain?.spatial?.enabled == true,
+            equalizerActive = activeDspChain?.equalizer?.isEnabled == true,
+            equalizerPreampDb = activeDspChain?.equalizer?.currentPreamp ?: 0f,
+            hardwareLoudnessEnhancerActive = loudnessEnhancer?.enabled == true,
+            systemEffectsBroadcastActive = advertisedAudioEffectSessionId != androidx.media3.common.C.AUDIO_SESSION_ID_UNSET,
+            loudnessProcessorActive = activeDspChain?.loudness?.enabled == true,
+            loudnessTargetLufs = AppSettings.loudnessTargetLufs.value,
+            loudnessAppliedGainDb = activeDspChain?.loudness?.snapshot?.appliedGainDb ?: 0f,
+            loudnessMeasuredLufs = activeDspChain?.loudness?.snapshot?.measuredLufs,
+        )
+    }
 
     private companion object {
         const val MEDIA_ROOT_ID = "root"

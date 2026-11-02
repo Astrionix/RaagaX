@@ -140,7 +140,7 @@ class OutputNegotiatorTest {
     }
 
     @Test
-    fun viableDirectUsbUsesDirectUsbTransportAndFloatEncoding() {
+    fun viableDirectUsbUsesDirectUsbTransportAndBitPerfect24BitEncoding() {
         val uac2Probe = DirectUsbProbeResult(
             isViable = true,
             productName = "HiFi UAC2 DAC",
@@ -171,7 +171,7 @@ class OutputNegotiatorTest {
         )
 
         assertEquals(TransportType.DIRECT_USB, result.output.transport)
-        assertEquals(PcmEncoding.PCM_FLOAT, result.output.encoding)
+        assertEquals(PcmEncoding.PCM_24BIT_PACKED, result.output.encoding)
         assertEquals(FallbackReason.NONE, result.output.fallbackReason)
     }
 

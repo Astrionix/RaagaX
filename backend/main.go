@@ -879,26 +879,48 @@ func handleSocketFrame(p *party.Party, member *party.Member, sc *hub.SafeConn, f
 			return
 		}
 
+		p.Lock()
 		playbackSeqBefore := p.Playback.Seq
 		queueBefore := p.Playback.QueueSeq
 		action, _ := frame["action"].(string)
 		success, errCode, errMsg := applyControl(p, member, action, frame)
+		var qFrame, sFrame, mFrame, actFrame map[string]interface{}
+		broadcastQueue := false
+		broadcastState := false
+		broadcastMembers := false
 		if success {
 			p.Touch()
 			// If queue changed, broadcast queue first
 			if p.Playback.QueueSeq != queueBefore {
-				hubInst.Broadcast(p.Code, queueFrame(p), "")
+				broadcastQueue = true
+				qFrame = queueFrame(p)
 			}
 			// Only broadcast state if playback state actually changed, or if not a pure setQueue
 			if p.Playback.Seq != playbackSeqBefore || action != protocol.ActionSetQueue {
-				hubInst.Broadcast(p.Code, stateFrame(p), "")
+				broadcastState = true
+				sFrame = stateFrame(p)
 			}
 			if action == protocol.ActionKick ||
 				action == protocol.ActionSetMaxMembers ||
 				action == protocol.ActionSetHostOnlyControl {
-				hubInst.Broadcast(p.Code, membersFrame(p), "")
+				broadcastMembers = true
+				mFrame = membersFrame(p)
 			}
-			hubInst.Broadcast(p.Code, activityFrame(member, action, frame), "")
+			actFrame = activityFrame(member, action, frame)
+		}
+		p.Unlock()
+
+		if success {
+			if broadcastQueue {
+				hubInst.Broadcast(p.Code, qFrame, "")
+			}
+			if broadcastState {
+				hubInst.Broadcast(p.Code, sFrame, "")
+			}
+			if broadcastMembers {
+				hubInst.Broadcast(p.Code, mFrame, "")
+			}
+			hubInst.Broadcast(p.Code, actFrame, "")
 		} else if errCode != "" {
 			_ = sc.WriteJSON(map[string]interface{}{
 				"type":    protocol.FrameError,
@@ -941,6 +963,9 @@ func applyControl(p *party.Party, member *party.Member, action string, frame map
 		return true, "", ""
 
 	case protocol.ActionSetTrack:
+		if clock.NowMs()-p.Playback.LastTrackChangeAtMs < 3000 {
+			return false, "track_change_locked", "Track change locked for 3s to prevent duplicate skip"
+		}
 		trackMap, _ := frame["track"].(map[string]interface{})
 		t := party.TrackFromWire(trackMap)
 		if t == nil {
@@ -963,6 +988,9 @@ func applyControl(p *party.Party, member *party.Member, action string, frame map
 		return true, "", ""
 
 	case protocol.ActionSetQueue:
+		if !member.IsHost {
+			return false, "host_only", "Only the host can replace the entire party queue."
+		}
 		itemsRaw, _ := frame["queue"].([]interface{})
 		var tracks []*party.Track
 		for _, item := range itemsRaw {
@@ -1023,6 +1051,9 @@ func applyControl(p *party.Party, member *party.Member, action string, frame map
 		return true, "", ""
 
 	case protocol.ActionQueueClear:
+		if !member.IsHost {
+			return false, "host_only", "Only the host can clear the entire party queue."
+		}
 		if !p.Playback.ClearUpcoming(&member.MemberId) {
 			return false, "no_upcoming", "No upcoming tracks to clear"
 		}
@@ -1044,12 +1075,18 @@ func applyControl(p *party.Party, member *party.Member, action string, frame map
 		return true, "", ""
 
 	case protocol.ActionNext:
+		if clock.NowMs()-p.Playback.LastTrackChangeAtMs < 3000 {
+			return false, "track_change_locked", "Track change locked for 3s to prevent duplicate skip"
+		}
 		if !p.Playback.Step(&member.MemberId, 1, &member.DisplayName) {
 			return false, "end_of_queue", "Already at the end of the queue."
 		}
 		return true, "", ""
 
 	case protocol.ActionPrevious:
+		if clock.NowMs()-p.Playback.LastTrackChangeAtMs < 3000 {
+			return false, "track_change_locked", "Track change locked for 3s to prevent duplicate skip"
+		}
 		if !p.Playback.Step(&member.MemberId, -1, &member.DisplayName) {
 			return false, "start_of_queue", "Already at the beginning of the queue."
 		}

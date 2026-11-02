@@ -143,7 +143,46 @@ object JamVotingManager {
         }
     }
 
+    // Democratic Skip Voting
+    private val _skipVotes = MutableStateFlow<Set<String>>(emptySet())
+    val skipVotes: StateFlow<Set<String>> = _skipVotes.asStateFlow()
+
+    fun toggleSkipVote(userId: String) {
+        val currentVotes = _skipVotes.value
+        val updated = if (currentVotes.contains(userId)) {
+            currentVotes - userId
+        } else {
+            currentVotes + userId
+        }
+        _skipVotes.value = updated
+        evaluateSkipThreshold()
+    }
+
+    fun hasVotedToSkip(userId: String): Boolean = _skipVotes.value.contains(userId)
+
+    fun skipVotesNeeded(): Int {
+        val state = ListenTogether.state.value
+        val connectedMembers = state.members.filter { it.connected }
+        val memberCount = connectedMembers.size.coerceAtLeast(1)
+        return (memberCount / 2) + 1
+    }
+
+    private fun evaluateSkipThreshold() {
+        val state = ListenTogether.state.value
+        if (!state.inParty) return
+        val needed = skipVotesNeeded()
+        if (_skipVotes.value.size >= needed) {
+            _skipVotes.value = emptySet()
+            ListenTogether.next()
+        }
+    }
+
+    fun onTrackChanged() {
+        _skipVotes.value = emptySet()
+    }
+
     fun reset() {
         _votes.value = emptyMap()
+        _skipVotes.value = emptySet()
     }
 }

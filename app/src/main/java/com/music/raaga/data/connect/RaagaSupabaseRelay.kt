@@ -123,34 +123,31 @@ class RaagaSupabaseRelay(
         if (!pairCode.isNullOrBlank()) {
             set.add("raaga_pair_$pairCode")
         }
-        val account = accountIdProvider()?.trim()
-        if (!account.isNullOrBlank()) {
-            set.add("raaga_acc_" + sha256Hex(account).take(16))
-        }
         val sync = syncKeyProvider()?.trim()
         if (!sync.isNullOrBlank()) {
             set.add("raaga_sync_" + sha256Hex(sync).take(16))
         }
-        if (set.isEmpty()) {
-            set.add("raaga_cloud_public")
+        val account = accountIdProvider()?.trim()
+        if (!account.isNullOrBlank()) {
+            set.add("raaga_acc_" + sha256Hex(account).take(16))
         }
         return set
     }
 
-    fun computeCurrentChannel(): String {
+    fun computeCurrentChannel(): String? {
         val pairCode = temporaryPairCode
         if (!pairCode.isNullOrBlank()) {
             return "raaga_pair_$pairCode"
-        }
-        val account = accountIdProvider()?.trim()
-        if (!account.isNullOrBlank()) {
-            return "raaga_acc_" + sha256Hex(account).take(16)
         }
         val sync = syncKeyProvider()?.trim()
         if (!sync.isNullOrBlank()) {
             return "raaga_sync_" + sha256Hex(sync).take(16)
         }
-        return "raaga_cloud_public"
+        val account = accountIdProvider()?.trim()
+        if (!account.isNullOrBlank()) {
+            return "raaga_acc_" + sha256Hex(account).take(16)
+        }
+        return null
     }
 
     private fun sha256Hex(input: String): String {

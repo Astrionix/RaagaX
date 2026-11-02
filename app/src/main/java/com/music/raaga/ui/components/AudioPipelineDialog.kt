@@ -163,6 +163,8 @@ fun AudioPipelineDialog(
     val eqPreset by AppSettings.equalizerPreset.collectAsStateWithLifecycle()
     val spatialAudio by AppSettings.spatialAudio.collectAsStateWithLifecycle()
     val loudnessNormalization by AppSettings.loudnessNormalization.collectAsStateWithLifecycle()
+    val diagSnapshot by com.music.raaga.playback.audio.AudioDiagnostics.snapshot.collectAsStateWithLifecycle()
+    val bypassOnUsb by AppSettings.bypassSystemEffectsOnUsb.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
     val density = LocalDensity.current
@@ -612,6 +614,15 @@ fun AudioPipelineDialog(
                         PipelineRow("Loudness Standard", "ITU-R BS.1770-4 / EBU R 128")
                         PipelineRow(stringResource(R.string.pipeline_loudness_gain), loudnessGainText)
                         PipelineRow(stringResource(R.string.pipeline_loudness_measured), loudnessMeasuredText)
+                        val peakDb = diagSnapshot.pcmMetrics.peakDbfs
+                        val peakVal = if (peakDb > -90f) {
+                            String.format(Locale.US, "%.1f dBFS (%s)", peakDb, if (diagSnapshot.pcmMetrics.isClipping) "Clipping" else "Clean")
+                        } else {
+                            "Idle"
+                        }
+                        val rmsDb = diagSnapshot.pcmMetrics.rmsDbfs
+                        val rmsVal = if (rmsDb > -90f) String.format(Locale.US, "%.1f dBFS", rmsDb) else "Idle"
+                        PipelineRow("PCM Peak / RMS", "$peakVal / $rmsVal")
                         PipelineRow(stringResource(R.string.pipeline_eq_preset), eqPresetText)
                         PipelineRow(stringResource(R.string.pipeline_stereo_expand), stereoExpandText)
                         PipelineRow(stringResource(R.string.pipeline_buffers), buffersText)
@@ -672,6 +683,10 @@ fun AudioPipelineDialog(
                         }
                         PipelineRow("Direct", directStatusText)
                         PipelineRow("AudioTrack", audioTrackText)
+                        PipelineRow("ExoPlayer Volume", String.format(Locale.US, "%.2f (Unity)", diagSnapshot.playerVolume))
+                        if (outputStatus.isUsb || outputStatus.routeKind == com.music.raaga.playback.AudioRouting.Kind.USB) {
+                            PipelineRow("USB DAC Purity", if (bypassOnUsb) "Bit-Clean (OEM Effects Bypassed)" else "Standard (OEM Effects Active)")
+                        }
 
                         val mixerText = when {
                             outputStatus.transportType == com.music.raaga.playback.audio.TransportType.DIRECT_USB ->

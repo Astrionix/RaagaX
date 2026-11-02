@@ -674,6 +674,7 @@ class PartySync(
             lastAnchorMs = target.anchorMs
             lastPositionMs = target.positionMs
             lastTrackId = track.videoId
+            com.music.raaga.data.listentogether.JamVotingManager.onTrackChanged()
             lastIsPlaying = target.isPlaying
 
             if (isPlaybackAnchorChanged && abs(drift) > ALIGN_TOLERANCE_MS) {
@@ -955,13 +956,24 @@ class PartySync(
                 ListenTogether.queueMove(singleMove.fromIndex, singleMove.toIndex, singleMove.videoId)
                 queueControls++
             } else {
-                val countToTake = clampedIds.size
-                val queue = (0 until countToTake)
-                    .map { localItems[it].toSong() }
-                    .filterNot(Song::isDeviceFile)
-                    .map { it.toPartyTrack(0L) }
-                ListenTogether.setQueue(queue, trackIndex)
-                queueControls++
+                val singleRemoval = if (partyIds.size == clampedIds.size + 1 && trackIndex >= 0 && trackIndex < clampedIds.size && partyIds[trackIndex] == clampedIds[trackIndex]) {
+                    detectSingleRemoval(partyIds, clampedIds)
+                } else {
+                    null
+                }
+
+                if (singleRemoval != null) {
+                    ListenTogether.queueRemove(singleRemoval)
+                    queueControls++
+                } else if (party.you?.isHost == true) {
+                    val countToTake = clampedIds.size
+                    val queue = (0 until countToTake)
+                        .map { localItems[it].toSong() }
+                        .filterNot(Song::isDeviceFile)
+                        .map { it.toPartyTrack(0L) }
+                    ListenTogether.setQueue(queue, trackIndex)
+                    queueControls++
+                }
             }
         }
 
@@ -1320,6 +1332,22 @@ internal fun detectSingleMove(
                     videoId = item,
                 )
             }
+        }
+    }
+    return null
+}
+
+/**
+ * Detects whether [newList] can be explained by removing exactly one item from [oldList].
+ * If so, returns that item's id.
+ * Returns null if the lists cannot be explained by a single removal.
+ */
+internal fun detectSingleRemoval(oldList: List<String>, newList: List<String>): String? {
+    if (oldList.size != newList.size + 1 || oldList.isEmpty()) return null
+    for (i in oldList.indices) {
+        val simulated = oldList.toMutableList().apply { removeAt(i) }
+        if (simulated == newList) {
+            return oldList[i]
         }
     }
     return null

@@ -132,11 +132,11 @@ enum class SongSortOption(val id: String, @StringRes val labelRes: Int) {
  * Origin categories for newly added songs in the Library.
  */
 enum class AdditionSourceType(val label: String) {
-    ALL("All Songs"),
+    ALL("All"),
     ALBUM("Albums"),
     PLAYLIST("Playlists"),
-    IMPORT("Imports"),
     SONG("Songs"),
+    IMPORT("Imports");
 }
 
 /**
@@ -177,3 +177,238 @@ fun getRelativeDateHeader(epochSeconds: Long): String {
     }
 }
 
+/**
+ * Polymorphic item representing an Album, Playlist or Standalone Single in the Recently Added section.
+ */
+sealed class RecentlyAddedItem {
+    abstract val key: String
+    abstract val title: String
+    abstract val subtitle: String
+    abstract val artworkUrl: String?
+    abstract val addedAtEpochSeconds: Long
+    abstract val isAlbum: Boolean
+
+    data class Album(
+        override val key: String,
+        override val title: String,
+        override val subtitle: String,
+        override val artworkUrl: String?,
+        override val addedAtEpochSeconds: Long,
+        val albumBrowseId: String?,
+        val artist: String,
+        val representativeSong: Song,
+        val songs: List<Song> = emptyList(),
+    ) : RecentlyAddedItem() {
+        override val isAlbum: Boolean = true
+    }
+
+    data class Playlist(
+        override val key: String,
+        override val title: String,
+        override val subtitle: String,
+        override val artworkUrl: String?,
+        override val addedAtEpochSeconds: Long,
+        val playlistBrowseId: String,
+        val representativeSong: Song? = null,
+        val songs: List<Song> = emptyList(),
+    ) : RecentlyAddedItem() {
+        override val isAlbum: Boolean = false
+    }
+
+    data class SingleSong(
+        override val key: String,
+        override val title: String,
+        override val subtitle: String,
+        override val artworkUrl: String?,
+        override val addedAtEpochSeconds: Long,
+        val song: Song,
+    ) : RecentlyAddedItem() {
+        override val isAlbum: Boolean = false
+    }
+}
+
+val RecentlyAddedItem.playableSongs: List<Song>
+    get() = when (this) {
+        is RecentlyAddedItem.Album -> songs.ifEmpty { listOf(representativeSong) }
+        is RecentlyAddedItem.Playlist -> songs.ifEmpty { listOfNotNull(representativeSong) }
+        is RecentlyAddedItem.SingleSong -> listOf(song)
+    }
+
+/**
+ * Converts a stream of [RecentlyAddedTrack] into aggregated, deduplicated [RecentlyAddedItem]s (Albums, Playlists, Singles).
+ * - Tracks belonging to an album are grouped under a single Album card.
+ * - Tracks added to a playlist or library with an album tag display as the Album.
+ * - User playlists display as Playlist cards under the Playlists filter.
+ * - Single tracks without album/playlist groupings appear as SingleSong cards.
+ * - Caps at [maxItems] (default 10) to fill the 8-10 slots grid.
+ */
+fun List<RecentlyAddedTrack>.toRecentlyAddedItems(
+    maxItems: Int = 10,
+    filterCategory: AdditionSourceType = AdditionSourceType.ALL,
+): List<RecentlyAddedItem> {
+    val items = mutableListOf<RecentlyAddedItem>()
+    val albumMap = mutableMapOf<String, RecentlyAddedItem.Album>()
+    val playlistMap = mutableMapOf<String, RecentlyAddedItem.Playlist>()
+    val seenKeys = mutableSetOf<String>()
+
+    for (track in this) {
+        val song = track.song
+        val isExplicitAlbum = track.sourceType == AdditionSourceType.ALBUM
+        val isExplicitPlaylist = track.sourceType == AdditionSourceType.PLAYLIST
+        val hasAlbumName = !song.albumName.isNullOrBlank()
+        val hasAlbumId = !song.albumId.isNullOrBlank()
+
+        when (filterCategory) {
+            AdditionSourceType.ALBUM -> {
+                if (isExplicitAlbum || hasAlbumName || hasAlbumId) {
+                    processAlbumTrack(track, song, isExplicitAlbum, maxItems, seenKeys, albumMap, items)
+                }
+            }
+            AdditionSourceType.PLAYLIST -> {
+                if (isExplicitPlaylist && !track.sourceId.isNullOrBlank()) {
+                    processPlaylistTrack(track, song, maxItems, seenKeys, playlistMap, items)
+                }
+            }
+            AdditionSourceType.SONG -> {
+                val songKey = "song:${song.localUri ?: song.videoId}"
+                if (!seenKeys.contains(songKey)) {
+                    if (items.size >= maxItems) continue
+                    seenKeys.add(songKey)
+                    items.add(
+                        RecentlyAddedItem.SingleSong(
+                            key = songKey,
+                            title = song.title,
+                            subtitle = song.artist,
+                            artworkUrl = song.thumbnailUrl,
+                            addedAtEpochSeconds = track.addedAtEpochSeconds,
+                            song = song,
+                        )
+                    )
+                }
+            }
+            AdditionSourceType.ALL, AdditionSourceType.IMPORT -> {
+                if (isExplicitAlbum || hasAlbumName || hasAlbumId) {
+                    processAlbumTrack(track, song, isExplicitAlbum, maxItems, seenKeys, albumMap, items)
+                } else if (isExplicitPlaylist && !track.sourceId.isNullOrBlank()) {
+                    processPlaylistTrack(track, song, maxItems, seenKeys, playlistMap, items)
+                } else {
+                    val songKey = "song:${song.localUri ?: song.videoId}"
+                    if (!seenKeys.contains(songKey)) {
+                        if (items.size >= maxItems) continue
+                        seenKeys.add(songKey)
+                        items.add(
+                            RecentlyAddedItem.SingleSong(
+                                key = songKey,
+                                title = song.title,
+                                subtitle = song.artist,
+                                artworkUrl = song.thumbnailUrl,
+                                addedAtEpochSeconds = track.addedAtEpochSeconds,
+                                song = song,
+                            )
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    return items
+}
+
+private fun processAlbumTrack(
+    track: RecentlyAddedTrack,
+    song: Song,
+    isExplicitAlbum: Boolean,
+    maxItems: Int,
+    seenKeys: MutableSet<String>,
+    albumMap: MutableMap<String, RecentlyAddedItem.Album>,
+    items: MutableList<RecentlyAddedItem>,
+) {
+    val albumTitle = song.albumName?.takeIf { it.isNotBlank() }
+        ?: (if (isExplicitAlbum) track.sourceTitle else null)
+        ?: song.title
+    val albumBrowseId = song.albumId?.takeIf { it.isNotBlank() }
+        ?: (if (isExplicitAlbum) track.sourceId else null)
+
+    val albumKey = if (!albumBrowseId.isNullOrBlank()) {
+        "album:id:$albumBrowseId"
+    } else {
+        "album:name:${song.artist.trim().lowercase()}:${albumTitle.trim().lowercase()}"
+    }
+
+    if (seenKeys.contains(albumKey)) {
+        albumMap[albumKey]?.let { existing ->
+            if (existing.songs.none { it.videoId == song.videoId }) {
+                val updated = existing.copy(songs = existing.songs + song)
+                albumMap[albumKey] = updated
+                val idx = items.indexOfFirst { it.key == albumKey }
+                if (idx >= 0) {
+                    items[idx] = updated
+                }
+            }
+        }
+    } else {
+        if (items.size < maxItems) {
+            seenKeys.add(albumKey)
+            val albumItem = RecentlyAddedItem.Album(
+                key = albumKey,
+                title = albumTitle,
+                subtitle = song.artist,
+                artworkUrl = song.thumbnailUrl,
+                addedAtEpochSeconds = track.addedAtEpochSeconds,
+                albumBrowseId = albumBrowseId,
+                artist = song.artist,
+                representativeSong = song,
+                songs = listOf(song),
+            )
+            albumMap[albumKey] = albumItem
+            items.add(albumItem)
+        }
+    }
+}
+
+private fun processPlaylistTrack(
+    track: RecentlyAddedTrack,
+    song: Song,
+    maxItems: Int,
+    seenKeys: MutableSet<String>,
+    playlistMap: MutableMap<String, RecentlyAddedItem.Playlist>,
+    items: MutableList<RecentlyAddedItem>,
+) {
+    val plId = track.sourceId ?: return
+    val plKey = "playlist:id:$plId"
+    val plTitle = track.sourceTitle ?: "Playlist"
+
+    if (seenKeys.contains(plKey)) {
+        playlistMap[plKey]?.let { existing ->
+            if (existing.songs.none { it.videoId == song.videoId }) {
+                val updatedSongs = existing.songs + song
+                val updated = existing.copy(
+                    songs = updatedSongs,
+                    subtitle = "Playlist • ${updatedSongs.size} songs",
+                )
+                playlistMap[plKey] = updated
+                val idx = items.indexOfFirst { it.key == plKey }
+                if (idx >= 0) {
+                    items[idx] = updated
+                }
+            }
+        }
+    } else {
+        if (items.size < maxItems) {
+            seenKeys.add(plKey)
+            val plItem = RecentlyAddedItem.Playlist(
+                key = plKey,
+                title = plTitle,
+                subtitle = "Playlist • 1 song",
+                artworkUrl = song.thumbnailUrl,
+                addedAtEpochSeconds = track.addedAtEpochSeconds,
+                playlistBrowseId = plId,
+                representativeSong = song,
+                songs = listOf(song),
+            )
+            playlistMap[plKey] = plItem
+            items.add(plItem)
+        }
+    }
+}

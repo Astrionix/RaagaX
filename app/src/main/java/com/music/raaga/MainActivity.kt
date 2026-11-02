@@ -177,6 +177,7 @@ import com.music.raaga.playback.loadAutoplayTracks
 import com.music.raaga.playback.playSongs
 import com.music.raaga.playback.toMediaItem
 import com.music.raaga.playback.toSong
+import com.music.raaga.playback.toPartyTrack
 import com.music.raaga.playback.toDirectYouTubeMediaItem
 import com.music.raaga.playback.rememberDebouncedLoading
 import com.music.raaga.playback.toggleAutoplay
@@ -1651,26 +1652,30 @@ private fun RaagaApp(
                     } else {
                         songs
                     }
-                    val timeline = player.queue.takeIf { q -> q.size == c.mediaItemCount }
-                        ?: (0 until c.mediaItemCount).map { idx -> c.getMediaItemAt(idx).toSong() }
-                    val at = QueueCoordinator.findUserQueueInsertionIndex(
-                        timeline = timeline,
-                        currentIndex = c.currentMediaItemIndex,
-                        isNext = next,
-                    )
-                    val current = c.currentMediaItem?.toSong()
-                    c.addMediaItems(
-                        at,
-                        toAdd.map {
-                            it.copy(
-                                radioName = current?.radioName,
-                                playbackSource = current?.playbackSource ?: queueLabel,
-                                playbackSourceType = current?.playbackSourceType
-                                    ?: PlaybackSourceType.QUEUE,
-                                playbackSourceId = current?.playbackSourceId,
-                            ).asQueueEntry(QueueTier.USER_QUEUE).toMediaItem()
-                        },
-                    )
+                    if (ListenTogether.state.value.inParty) {
+                        ListenTogether.queueAdd(toAdd.map { it.toPartyTrack(0L) }, playNext = next)
+                    } else {
+                        val timeline = player.queue.takeIf { q -> q.size == c.mediaItemCount }
+                            ?: (0 until c.mediaItemCount).map { idx -> c.getMediaItemAt(idx).toSong() }
+                        val at = QueueCoordinator.findUserQueueInsertionIndex(
+                            timeline = timeline,
+                            currentIndex = c.currentMediaItemIndex,
+                            isNext = next,
+                        )
+                        val current = c.currentMediaItem?.toSong()
+                        c.addMediaItems(
+                            at,
+                            toAdd.map {
+                                it.copy(
+                                    radioName = current?.radioName,
+                                    playbackSource = current?.playbackSource ?: queueLabel,
+                                    playbackSourceType = current?.playbackSourceType
+                                        ?: PlaybackSourceType.QUEUE,
+                                    playbackSourceId = current?.playbackSourceId,
+                                ).asQueueEntry(QueueTier.USER_QUEUE).toMediaItem()
+                            },
+                        )
+                    }
                     val message = context.resources.getQuantityString(
                         if (next) R.plurals.songs_will_play_next else R.plurals.songs_added_to_queue,
                         toAdd.size,
@@ -2436,9 +2441,17 @@ private fun RaagaApp(
                 showListenTogether = true
             },
             onClearQueue = {
-                // Keep what's playing and context/autoplay; drop user-queued tracks.
-                controller?.let { c ->
-                    QueueCoordinator.clearUserQueue(c)
+                val party = ListenTogether.state.value
+                if (party.inParty && party.you?.isHost != true) {
+                    showQueueNotice(context.getString(R.string.listen_together_host_only_notice))
+                    return@NowPlayingScreen
+                }
+                if (party.inParty) {
+                    ListenTogether.queueClear()
+                } else {
+                    controller?.let { c ->
+                        QueueCoordinator.clearUserQueue(c)
+                    }
                 }
             },
             onPlayFrom = { songs, index, label ->
@@ -3230,6 +3243,10 @@ private fun RaagaApp(
                             state = libraryState,
                             listState = libraryListState,
                             onShelfItemClick = onLibraryItemClick,
+                            onSongClick = play,
+                            onSongLongPress = { songActions = it },
+                            onAddToQueue = { queueSongs(it, false) },
+                            onPlayNext = playSongsNext,
                             // Every shelf here has a menu behind it now — the account's
                             // own playlists get rename and delete on top of what a saved
                             // album or a Liked Music card gets. Holding an artist still

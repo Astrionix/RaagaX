@@ -107,6 +107,28 @@ object LibrarySongAggregator {
                         )
                     }
 
+                    // 2.5. Seed initial saved albums immediately so Album cards show up on frame 1
+                    albums.forEachIndexed { index, al ->
+                        val id = al.browseId ?: return@forEachIndexed
+                        val addedTime = now - (index * 3600L) - 30L
+                        recentList.add(
+                            RecentlyAddedTrack(
+                                song = Song(
+                                    videoId = "album_seed_${id}",
+                                    title = al.title,
+                                    artist = al.subtitle.orEmpty(),
+                                    thumbnailUrl = al.thumbnailUrl,
+                                    albumId = id,
+                                    albumName = al.title,
+                                ),
+                                addedAtEpochSeconds = addedTime,
+                                sourceType = AdditionSourceType.ALBUM,
+                                sourceId = id,
+                                sourceTitle = al.title,
+                            )
+                        )
+                    }
+
                     // Immediate publish of initial library songs if cache was empty
                     if (map.isNotEmpty() && _aggregatedSongs.value.isEmpty()) {
                         _aggregatedSongs.value = map.values.toList()
@@ -176,13 +198,18 @@ object LibrarySongAggregator {
 
                         albumResults.forEachIndexed { itemIndex, (al, tracks) ->
                             val alAddedTime = now - ((chunkIndex * 4 + itemIndex + 1) * 14400L)
+                            recentList.removeAll { it.song.videoId == "album_seed_${al.browseId}" }
                             tracks.forEach { track ->
                                 if (!map.containsKey(track.videoId)) {
                                     map[track.videoId] = track
                                 }
+                                val enriched = track.copy(
+                                    albumName = track.albumName?.takeIf { it.isNotBlank() } ?: al.title,
+                                    albumId = track.albumId?.takeIf { it.isNotBlank() } ?: al.browseId,
+                                )
                                 recentList.add(
                                     RecentlyAddedTrack(
-                                        song = track,
+                                        song = enriched,
                                         addedAtEpochSeconds = alAddedTime,
                                         sourceType = AdditionSourceType.ALBUM,
                                         sourceId = al.browseId,
@@ -291,5 +318,104 @@ object LibrarySongAggregator {
             (song.localUri != null && it.song.localUri == song.localUri) ||
                 (song.videoId.isNotEmpty() && it.song.videoId == song.videoId)
         }
+    }
+
+    /**
+     * Dynamically records a single newly added song/album into Recently Added in real-time.
+     * Updates [recentlyAddedTracks] and [aggregatedSongs] immediately so UI recomposes instantly.
+     */
+    fun recordRecentlyAdded(
+        song: Song,
+        sourceType: AdditionSourceType = AdditionSourceType.PLAYLIST,
+        sourceId: String? = null,
+        sourceTitle: String? = null,
+    ) {
+        val now = System.currentTimeMillis() / 1000L
+        val track = RecentlyAddedTrack(
+            song = song,
+            addedAtEpochSeconds = now,
+            sourceType = sourceType,
+            sourceId = sourceId,
+            sourceTitle = sourceTitle,
+        )
+        // Add to aggregated songs cache if not already present
+        if (song.videoId.isNotEmpty() && !song.videoId.startsWith("album_seed_")) {
+            val currentAggregated = _aggregatedSongs.value.toMutableList()
+            if (currentAggregated.none { it.videoId == song.videoId }) {
+                currentAggregated.add(0, song)
+                _aggregatedSongs.value = currentAggregated
+            }
+        }
+        if (sourceType == AdditionSourceType.PLAYLIST && song.videoId.isNotEmpty()) {
+            _playlistSongIds.value = _playlistSongIds.value + song.videoId
+        }
+        // Update recently added list
+        val currentRecent = _recentlyAddedTracks.value.toMutableList()
+        currentRecent.removeAll {
+            (song.localUri != null && it.song.localUri == song.localUri) ||
+                (song.videoId.isNotEmpty() && it.song.videoId == song.videoId)
+        }
+        currentRecent.add(0, track)
+        _recentlyAddedTracks.value = currentRecent
+    }
+
+    /**
+     * Dynamically records a batch of songs (e.g. from an album or playlist) into Recently Added in real-time.
+     */
+    /**
+     * Removes specified songs from the active library aggregation and recently added stream
+     * WITHOUT deleting downloaded audio files from physical disk.
+     */
+    fun removeFromLibrary(songsToRemove: List<Song>) {
+        if (songsToRemove.isEmpty()) return
+        val removeIds = songsToRemove.map { it.localUri ?: it.videoId }.toSet()
+        _aggregatedSongs.value = _aggregatedSongs.value.filterNot { (it.localUri ?: it.videoId) in removeIds }
+        _recentlyAddedTracks.value = _recentlyAddedTracks.value.filterNot { (it.song.localUri ?: it.song.videoId) in removeIds }
+        _playlistSongIds.value = _playlistSongIds.value - songsToRemove.map { it.videoId }.toSet()
+    }
+
+    fun recordRecentlyAddedBatch(
+        songs: List<Song>,
+        sourceType: AdditionSourceType = AdditionSourceType.ALBUM,
+        sourceId: String? = null,
+        sourceTitle: String? = null,
+    ) {
+        if (songs.isEmpty()) return
+        val now = System.currentTimeMillis() / 1000L
+        val newTracks = songs.mapIndexed { idx, song ->
+            val enriched = if (sourceType == AdditionSourceType.ALBUM) {
+                song.copy(
+                    albumName = song.albumName?.takeIf { it.isNotBlank() } ?: sourceTitle,
+                    albumId = song.albumId?.takeIf { it.isNotBlank() } ?: sourceId,
+                )
+            } else {
+                song
+            }
+            RecentlyAddedTrack(
+                song = enriched,
+                addedAtEpochSeconds = now - idx,
+                sourceType = sourceType,
+                sourceId = sourceId,
+                sourceTitle = sourceTitle,
+            )
+        }
+        val currentAggregated = _aggregatedSongs.value.toMutableList()
+        val existingMap = currentAggregated.associateBy { it.videoId }.toMutableMap()
+        songs.forEach { song ->
+            if (song.videoId.isNotEmpty() && !song.videoId.startsWith("album_seed_") && !existingMap.containsKey(song.videoId)) {
+                existingMap[song.videoId] = song
+                currentAggregated.add(0, song)
+            }
+        }
+        _aggregatedSongs.value = currentAggregated
+
+        val currentRecent = _recentlyAddedTracks.value.toMutableList()
+        val newIds = songs.map { it.localUri ?: it.videoId }.toSet()
+        currentRecent.removeAll { (it.song.localUri ?: it.song.videoId) in newIds }
+        if (sourceId != null) {
+            currentRecent.removeAll { it.song.videoId == "album_seed_${sourceId}" }
+        }
+        currentRecent.addAll(0, newTracks)
+        _recentlyAddedTracks.value = currentRecent
     }
 }
