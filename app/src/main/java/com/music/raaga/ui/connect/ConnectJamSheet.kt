@@ -62,6 +62,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
+import com.music.raaga.ui.theme.settingsSwitchColors
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -967,9 +968,7 @@ private fun JamTabContent(
                                 haptics.play(Haptic.Select)
                                 JamVotingManager.setGuestControlAllowed(it)
                             },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = MaterialTheme.colorScheme.primary,
-                            ),
+                            colors = settingsSwitchColors(),
                         )
                     }
                 }
@@ -1033,10 +1032,8 @@ private fun JamTabContent(
                     .background(Color.Red.copy(alpha = 0.15f))
                     .clickable {
                         haptics.play(Haptic.Tap)
-                        coroutineScope.launch {
-                            ListenTogether.leaveParty()
-                            onDismiss()
-                        }
+                        ListenTogether.leavePartyAsync()
+                        onDismiss()
                     }
                     .padding(vertical = 12.dp),
                 contentAlignment = Alignment.Center,

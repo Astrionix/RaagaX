@@ -31,6 +31,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
+import com.music.raaga.ui.theme.settingsSwitchColors
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -266,10 +267,7 @@ fun DiscordScreen(
                         checked = rpcEnabled && connected,
                         onCheckedChange = AppSettings::setDiscordRpcEnabled,
                         enabled = connected,
-                        colors = SwitchDefaults.colors(
-                            checkedTrackColor = MaterialTheme.colorScheme.primary,
-                            checkedBorderColor = MaterialTheme.colorScheme.primary,
-                        ),
+                        colors = settingsSwitchColors(),
                     )
                 },
                 onClick = { AppSettings.setDiscordRpcEnabled(!rpcEnabled) },
@@ -285,10 +283,7 @@ fun DiscordScreen(
                         checked = useDetails,
                         onCheckedChange = AppSettings::setDiscordUseDetails,
                         enabled = connected && rpcEnabled,
-                        colors = SwitchDefaults.colors(
-                            checkedTrackColor = MaterialTheme.colorScheme.primary,
-                            checkedBorderColor = MaterialTheme.colorScheme.primary,
-                        ),
+                        colors = settingsSwitchColors(),
                     )
                 },
                 onClick = { AppSettings.setDiscordUseDetails(!useDetails) },
@@ -304,10 +299,7 @@ fun DiscordScreen(
                         checked = showAudioQuality,
                         onCheckedChange = AppSettings::setDiscordShowAudioQuality,
                         enabled = connected && rpcEnabled,
-                        colors = SwitchDefaults.colors(
-                            checkedTrackColor = MaterialTheme.colorScheme.primary,
-                            checkedBorderColor = MaterialTheme.colorScheme.primary,
-                        ),
+                        colors = settingsSwitchColors(),
                     )
                 },
                 onClick = { AppSettings.setDiscordShowAudioQuality(!showAudioQuality) },
@@ -323,10 +315,7 @@ fun DiscordScreen(
                         checked = advancedMode,
                         onCheckedChange = AppSettings::setDiscordAdvancedMode,
                         enabled = connected && rpcEnabled,
-                        colors = SwitchDefaults.colors(
-                            checkedTrackColor = MaterialTheme.colorScheme.primary,
-                            checkedBorderColor = MaterialTheme.colorScheme.primary,
-                        ),
+                        colors = settingsSwitchColors(),
                     )
                 },
                 onClick = { AppSettings.setDiscordAdvancedMode(!advancedMode) },
@@ -370,10 +359,7 @@ fun DiscordScreen(
                             Switch(
                                 checked = button1Visible,
                                 onCheckedChange = AppSettings::setDiscordButton1Visible,
-                                colors = SwitchDefaults.colors(
-                                    checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                    checkedBorderColor = MaterialTheme.colorScheme.primary,
-                                ),
+                                colors = settingsSwitchColors(),
                             )
                         },
                         onClick = { onOpenDialog(DiscordDialog.BUTTON_1) },
@@ -387,10 +373,7 @@ fun DiscordScreen(
                             Switch(
                                 checked = button2Visible,
                                 onCheckedChange = AppSettings::setDiscordButton2Visible,
-                                colors = SwitchDefaults.colors(
-                                    checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                    checkedBorderColor = MaterialTheme.colorScheme.primary,
-                                ),
+                                colors = settingsSwitchColors(),
                             )
                         },
                         onClick = { onOpenDialog(DiscordDialog.BUTTON_2) },

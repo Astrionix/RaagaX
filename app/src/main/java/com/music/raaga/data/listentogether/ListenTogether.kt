@@ -33,6 +33,7 @@ import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.websocket.Frame
+import io.ktor.websocket.close
 import io.ktor.websocket.readText
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -196,6 +197,8 @@ object ListenTogether {
         val inParty: Boolean get() = code != null
         val isFull: Boolean get() = members.size >= maxMembers
 
+        val isHost: Boolean get() = you?.isHost == true
+
         /**
          * Whether this device may not drive the music.
          *
@@ -209,7 +212,7 @@ object ListenTogether {
          * listener mid-party. Everything reading it has to follow.
          */
         val controlsLocked: Boolean
-            get() = inParty && hostOnlyControl && you?.isHost != true
+            get() = inParty && hostOnlyControl && !isHost
     }
 
     /** A refusal from the server, carrying the machine-readable half. */
@@ -368,6 +371,7 @@ object ListenTogether {
 
     private val _customServer = MutableStateFlow("")
     val customServerUrl: StateFlow<String> = _customServer.asStateFlow()
+    fun configuredCustomServer(): String = _customServer.value
 
     /**
      * The default party server this build ships pointed at, from `LISTEN_TOGETHER_SERVER`
@@ -393,7 +397,7 @@ object ListenTogether {
                 }
             }
         }
-    }.ifEmpty { listOf("https://raagax.onrender.com") }
+    }.ifEmpty { listOf("https://raagax-qdfh.onrender.com", "https://raagax-y8jx.onrender.com") }
 
     val defaultServer: String = defaultServers.first()
 
@@ -513,6 +517,14 @@ object ListenTogether {
         if (connectionLive) return true
         if (!inParty && metered == true) return true
         return false
+    }
+
+    internal fun setStateForTest(newState: State) {
+        _state.value = newState
+    }
+
+    internal fun resetClockForTest() {
+        clock.reset()
     }
 
     private fun startHealthMonitor() {
@@ -731,7 +743,14 @@ object ListenTogether {
         prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val rawSaved = prefs.getString(KEY_SERVER, null)?.trim().orEmpty()
         val normalizedSaved = when (val res = parseAndNormalizeServerUrl(rawSaved)) {
-            is ServerUrlValidationResult.Valid -> res.normalizedUrl
+            is ServerUrlValidationResult.Valid -> {
+                if (res.normalizedUrl.equals("https://raagax.onrender.com", ignoreCase = true)) {
+                    prefs.edit().remove(KEY_SERVER).apply()
+                    ""
+                } else {
+                    res.normalizedUrl
+                }
+            }
             is ServerUrlValidationResult.Invalid -> ""
         }
         _customServer.value = normalizedSaved
@@ -792,6 +811,10 @@ object ListenTogether {
         scope.launch {
             runCatching {
                 http.post("$serverBase/api/parties/$code/leave") {
+                    timeout {
+                        connectTimeoutMillis = 4000L
+                        requestTimeoutMillis = 5000L
+                    }
                     header("Authorization", "Bearer $held")
                 }
             }.onFailure { failure ->
@@ -908,12 +931,36 @@ object ListenTogether {
     private suspend fun doCreateOnServer(serverBase: String, nickname: String, maxMembers: Int): String {
         val who = identity(nickname) ?: throw PartyException("not_signed_in", "Sign in to listen together.")
         if (serverBase.isBlank()) throw PartyException("no_server", "Set the party server address first.")
-        val membership = post(
-            "$serverBase/api/parties",
-            JoinRequest(
-                who.userId, who.deviceId, who.name, who.avatar, maxMembers,
-                autoplayEnabled = AppSettings.autoplay.value,
-            ),
+        logDiagnostic(
+            phase = "http_create_request",
+            message = "Sending HTTP create request",
+            server = serverBase,
+        )
+        val membership = try {
+            post(
+                "$serverBase/api/parties",
+                JoinRequest(
+                    who.userId, who.deviceId, who.name, who.avatar, maxMembers,
+                    autoplayEnabled = AppSettings.autoplay.value,
+                ),
+            )
+        } catch (e: Throwable) {
+            val status = (e as? PartyException)?.statusCode
+            val errCode = (e as? PartyException)?.code ?: e.javaClass.simpleName
+            logDiagnostic(
+                phase = "http_create_failed",
+                message = "HTTP create request failed: ${e.message}",
+                statusCode = status,
+                errorCode = errCode,
+                server = serverBase,
+                throwable = e,
+            )
+            throw e
+        }
+        logDiagnostic(
+            phase = "http_create_success",
+            message = "HTTP create succeeded for code ${membership.code}",
+            server = serverBase,
         )
 
         withContext(NonCancellable) {
@@ -1003,7 +1050,16 @@ object ListenTogether {
 
         val failure = lastFailure ?: IllegalStateException("Could not enter party")
         Log.w(TAG, "could not enter a party: ${redact(failure.message)}")
-        _state.update { it.copy(error = failure.displayMessage()) }
+        val displayMsg = failure.displayMessage()
+        _state.update { it.copy(error = displayMsg) }
+        logDiagnostic(
+            phase = "join_party_failed",
+            message = "Failed to join party $cleaned: $displayMsg",
+            statusCode = (failure as? PartyException)?.statusCode,
+            errorCode = (failure as? PartyException)?.code ?: failure.javaClass.simpleName,
+            server = activePartyServerBase ?: effectiveIdleServerBase(),
+            throwable = failure,
+        )
         Result.failure(failure)
     }
 
@@ -1015,9 +1071,33 @@ object ListenTogether {
             throw PartyException("bad_code", "A party code is six letters or digits.")
         }
         refuseIfRecentlyKicked(cleaned)
-        val membership = post(
-            "$serverBase/api/parties/$cleaned/join",
-            JoinRequest(who.userId, who.deviceId, who.name, who.avatar),
+        logDiagnostic(
+            phase = "http_join_request",
+            message = "Sending HTTP join request for party $cleaned",
+            server = serverBase,
+        )
+        val membership = try {
+            post(
+                "$serverBase/api/parties/$cleaned/join",
+                JoinRequest(who.userId, who.deviceId, who.name, who.avatar),
+            )
+        } catch (e: Throwable) {
+            val status = (e as? PartyException)?.statusCode
+            val errCode = (e as? PartyException)?.code ?: e.javaClass.simpleName
+            logDiagnostic(
+                phase = "http_join_failed",
+                message = "HTTP join request failed: ${e.message}",
+                statusCode = status,
+                errorCode = errCode,
+                server = serverBase,
+                throwable = e,
+            )
+            throw e
+        }
+        logDiagnostic(
+            phase = "http_join_success",
+            message = "HTTP join succeeded for party $cleaned",
+            server = serverBase,
         )
 
         withContext(NonCancellable) {
@@ -1120,15 +1200,38 @@ object ListenTogether {
             val oldCode = _state.value.code
             val oldToken = token
 
-            // Step 1: Join Target First while old party stays connected & playing
-            val targetJoinResult = runCatching {
-                post(
-                    "$targetBase/api/parties/$cleanedTargetCode/join",
-                    JoinRequest(who.userId, who.deviceId, who.name, who.avatar),
-                )
+            val candidates = buildList {
+                if (targetBase.isNotBlank()) add(targetBase)
+                if (_customServer.value.isBlank()) {
+                    for (srv in defaultServers) {
+                        val c = resolveHttpBase(srv)
+                        if (c.isNotBlank() && !contains(c)) add(c)
+                    }
+                }
             }
 
-            val membership = targetJoinResult.getOrElse { failure ->
+            // Step 1: Join Target First while old party stays connected & playing
+            var foundMembership: PartyMembership? = null
+            var targetBaseUsed = targetBase
+            var lastJoinFailure: Throwable? = null
+
+            for (candBase in candidates) {
+                val targetJoinResult = runCatching {
+                    post(
+                        "$candBase/api/parties/$cleanedTargetCode/join",
+                        JoinRequest(who.userId, who.deviceId, who.name, who.avatar),
+                    )
+                }
+                if (targetJoinResult.isSuccess) {
+                    foundMembership = targetJoinResult.getOrThrow()
+                    targetBaseUsed = candBase
+                    break
+                }
+                lastJoinFailure = targetJoinResult.exceptionOrNull()
+            }
+
+            val membership = foundMembership ?: run {
+                val failure = lastJoinFailure ?: IllegalStateException("Failed to join party")
                 Log.w(TAG, "failed to join target party: ${redact(failure.message)}")
                 val errorMsg = failure.displayMessage()
                 return@withContext if (oldCode != null) {
@@ -1142,7 +1245,7 @@ object ListenTogether {
             withContext(NonCancellable) {
                 // Asynchronously release old party slot on old server
                 if (!oldCode.isNullOrBlank() && !oldToken.isNullOrBlank() &&
-                    (oldServerBase != targetBase || !oldCode.equals(membership.code, ignoreCase = true))
+                    (oldServerBase != targetBaseUsed || !oldCode.equals(membership.code, ignoreCase = true))
                 ) {
                     releaseStaleSlotOnServer(oldServerBase, oldCode, oldToken)
                 }
@@ -1153,7 +1256,7 @@ object ListenTogether {
                 session = null
 
                 // Commit active party server authority
-                activePartyServerBase = targetBase
+                activePartyServerBase = targetBaseUsed
 
                 // Commit new server URL setting
                 setCustomServerUrl(normTarget)
@@ -1185,7 +1288,7 @@ object ListenTogether {
 
     /** Give up this device's slot. The party carries on without it. */
     suspend fun leaveParty() = switchMutex.withLock {
-        withContext(Dispatchers.IO) {
+        withContext(NonCancellable + Dispatchers.IO) {
             val code = _state.value.code
             val held = token
             val currentServer = activePartyServerBase ?: resolveHttpBase(effectiveIdleServerBase())
@@ -1207,6 +1310,14 @@ object ListenTogether {
                 releaseStaleSlotOnServer(currentServer, code, held)
             }
         }
+    }
+
+    /**
+     * Non-blocking departure launched on ListenTogether's application scope.
+     * Safe to call from any composable without cancellation on unmount.
+     */
+    fun leavePartyAsync() {
+        scope.launch { leaveParty() }
     }
 
     // ------------------------------------------------------------ controls --
@@ -1380,29 +1491,101 @@ object ListenTogether {
      */
     private suspend fun runSocketLoop() {
         var backoffMs = 1_000L
+        var hadWelcome = false
         while (currentScopeActive()) {
             val code = _state.value.code ?: return
             val held = token ?: return
+            val serverIdent = activePartyServerBase ?: effectiveIdleServerBase()
+            var welcomeReceived = false
+            var welcomeWatchdog: Job? = null
             try {
                 _state.update { it.copy(connection = Connection.CONNECTING) }
+                logDiagnostic(
+                    phase = "ws_connecting",
+                    message = "Connecting to party websocket",
+                    server = serverIdent,
+                )
+                val encodedToken = runCatching { java.net.URLEncoder.encode(held, "UTF-8") }.getOrDefault(held)
                 http.webSocket(
-                    urlString = "${wsBase()}/ws/parties/$code",
+                    urlString = "${wsBase()}/ws/parties/$code?token=$encodedToken",
                     request = { header("Authorization", "Bearer $held") },
                 ) {
                     session = this
                     backoffMs = 1_000L
-                    _state.update { it.copy(connection = Connection.LIVE, error = null) }
+                    logDiagnostic(
+                        phase = "ws_connected_waiting_welcome",
+                        message = "WebSocket connected, awaiting welcome frame",
+                        server = serverIdent,
+                    )
+                    val socketScope = this
+                    welcomeWatchdog = launch {
+                        delay(6_000L)
+                        if (!welcomeReceived) {
+                            logDiagnostic(
+                                phase = "ws_no_welcome",
+                                message = "WebSocket connected but no welcome frame received within timeout",
+                                errorCode = "no_welcome_frame",
+                                server = serverIdent,
+                            )
+                            _state.update { it.copy(error = "WebSocket connected but no welcome frame.") }
+                            socketScope.close()
+                        }
+                    }
                     launch { pingLoop() }
                     launch { reportLoop() }
                     for (frame in incoming) {
-                        if (frame is Frame.Text) onFrame(frame.readText())
+                        if (frame is Frame.Text) {
+                            val text = frame.readText()
+                            if (!welcomeReceived && text.contains("\"welcome\"")) {
+                                welcomeReceived = true
+                                hadWelcome = true
+                                welcomeWatchdog?.cancel()
+                                logDiagnostic(
+                                    phase = "ws_welcome_received",
+                                    message = "Received welcome frame, party live",
+                                    server = serverIdent,
+                                )
+                                _state.update { it.copy(connection = Connection.LIVE, error = null) }
+                            }
+                            onFrame(text)
+                        }
                     }
+                    welcomeWatchdog?.cancel()
                 }
             } catch (cancelled: CancellationException) {
+                welcomeWatchdog?.cancel()
                 throw cancelled
             } catch (failure: Exception) {
+                welcomeWatchdog?.cancel()
+                val errorMsg = failure.message.orEmpty()
+                val isAuthFail = errorMsg.contains("401") || errorMsg.contains("Unauthorized", ignoreCase = true)
+                val isHandshakeFail = !hadWelcome && !welcomeReceived && (
+                    failure is io.ktor.client.plugins.websocket.WebSocketException ||
+                    failure.javaClass.name.contains("Upgrade", ignoreCase = true) ||
+                    failure.javaClass.name.contains("Handshake", ignoreCase = true) ||
+                    failure is java.io.IOException
+                )
+                val (diagPhase, diagErr, userMsg) = when {
+                    isAuthFail -> Triple("ws_auth_failed", "unauthorized", "WebSocket authorization failed.")
+                    isHandshakeFail -> Triple("ws_handshake_failed", "handshake_failed", "WebSocket handshake failed.")
+                    hadWelcome -> Triple("ws_disconnected", "socket_closed", "Socket disconnected after joining.")
+                    else -> Triple("ws_error", "connection_error", "HTTP join failed.")
+                }
+                logDiagnostic(
+                    phase = diagPhase,
+                    message = "WebSocket failed: ${sanitizeLogString(errorMsg)}",
+                    errorCode = diagErr,
+                    server = serverIdent,
+                    throwable = failure,
+                )
                 Log.w(TAG, "party socket dropped: ${redact(failure.message)}")
+                _state.update { current ->
+                    if (current.error == null || current.error == UNREACHABLE || current.error == "HTTP join failed.") {
+                        current.copy(error = userMsg)
+                    } else current
+                }
             } finally {
+                welcomeWatchdog?.cancel()
                 session = null
             }
             if (!currentScopeActive()) return
@@ -1583,8 +1766,21 @@ object ListenTogether {
             "error" -> {
                 val reason = frame["error"]?.jsonPrimitive?.content
                 val message = frame["message"]?.jsonPrimitive?.content
+                val serverIdent = activePartyServerBase ?: effectiveIdleServerBase()
+                val userError = when (reason) {
+                    "bad_token" -> "WebSocket authorization failed."
+                    "no_such_party" -> "Room code not found."
+                    "party_full" -> "Room full."
+                    else -> message ?: "HTTP join failed."
+                }
+                logDiagnostic(
+                    phase = "ws_frame_error",
+                    message = "Server reported error: $reason ${redact(message)}",
+                    errorCode = reason,
+                    server = serverIdent,
+                )
                 Log.w(TAG, "party server refused a frame: $reason ${redact(message)}")
-                _state.update { it.copy(error = message) }
+                _state.update { it.copy(error = userError) }
                 // These two are terminal, and the reconnect loop cannot learn
                 // that on its own — it would keep dialling a party that no
                 // longer knows this device for as long as the app is open. The
@@ -1755,34 +1951,57 @@ object ListenTogether {
         }
         return runCatching {
             refuseIfRecentlyKicked(cleaned)
-            val base = if (server != null) {
-                resolveHttpBase(server)
+            val candidates = if (server != null) {
+                listOf(resolveHttpBase(server))
             } else {
-                val local = LocalJamDiscovery.findLocalJam(cleaned, waitTimeoutMs = 800L, context = appContext)
-                local?.httpBase ?: resolveHttpBase(effectiveIdleServerBase())
-            }
-            if (base.isBlank()) throw PartyException("no_server", "Set the party server address first.")
-            val response = http.get("$base/api/parties/$cleaned/preview")
-            if (!response.status.isSuccess()) {
-                val problem = response.toPartyException()
-                // A server that predates this endpoint is not the same answer
-                // as a code that does not exist, and the two arrive as the same
-                // status. What tells them apart is the body: the handler's own
-                // 404 is JSON with a code in it, while a route the router has
-                // never heard of is answered by the router, in plain text, so
-                // nothing parses and the code falls back to the status.
-                //
-                // Worth the paragraph because the invite in somebody's hand may
-                // point at any server at all — an older deploy, or a copy they
-                // run themselves — and a party that cannot be *looked at* is a
-                // party that cannot be joined. Without a face to show, the
-                // confirmation is still a confirmation.
-                if (problem.statusCode in listOf(404, 426) || problem.code in listOf("http_404", "http_426")) {
-                    return@runCatching PartyPreview(code = cleaned)
+                buildList {
+                    val local = LocalJamDiscovery.findLocalJam(cleaned, waitTimeoutMs = 800L, context = appContext)
+                    if (local != null && local.httpBase.isNotBlank()) {
+                        add(local.httpBase)
+                    }
+                    val primary = resolveHttpBase(effectiveIdleServerBase())
+                    if (primary.isNotBlank() && !contains(primary)) add(primary)
+                    for (srv in defaultServers) {
+                        val c = resolveHttpBase(srv)
+                        if (c.isNotBlank() && !contains(c)) add(c)
+                    }
                 }
-                throw problem
             }
-            response.body<PartyPreview>()
+
+            if (candidates.isEmpty()) throw PartyException("no_server", "Set the party server address first.")
+
+            var lastFailure: Throwable? = null
+            for (base in candidates) {
+                try {
+                    val response = http.get("$base/api/parties/$cleaned/preview") {
+                        timeout {
+                            connectTimeoutMillis = 4000L
+                            requestTimeoutMillis = 5000L
+                        }
+                    }
+                    if (response.status.isSuccess()) {
+                        val preview = response.body<PartyPreview>()
+                        return@runCatching preview.copy(serverUrl = base)
+                    }
+                    val problem = response.toPartyException()
+                    // If party does not exist on this server, check next candidate in the pool
+                    if (problem.statusCode == 404 || problem.code in listOf("http_404", "no_such_party")) {
+                        lastFailure = problem
+                        continue
+                    }
+                    // For legacy servers that predate the preview endpoint (404/426 on router itself)
+                    if (candidates.size == 1 && (problem.statusCode in listOf(404, 426) || problem.code in listOf("http_404", "http_426"))) {
+                        return@runCatching PartyPreview(code = cleaned, serverUrl = base)
+                    }
+                    lastFailure = problem
+                } catch (e: Exception) {
+                    lastFailure = e
+                    Log.w(TAG, "previewParty probe failed on $base: ${e.message}")
+                }
+            }
+
+            val finalFailure = lastFailure ?: PartyException("no_such_party", "Party not found")
+            throw finalFailure
         }.onFailure {
             Log.w(TAG, "could not look up a party: ${redact(it.message)}")
         }
@@ -1790,6 +2009,10 @@ object ListenTogether {
 
     private suspend fun post(url: String, body: JoinRequest): PartyMembership {
         val response = http.post(url) {
+            timeout {
+                connectTimeoutMillis = 6000L
+                requestTimeoutMillis = 8000L
+            }
             contentType(ContentType.Application.Json)
             setBody(body)
         }
@@ -1826,18 +2049,47 @@ object ListenTogether {
         return parsed.copy(you = resolvedYou, party = resolvedParty)
     }
 
+    internal fun logDiagnostic(
+        phase: String,
+        message: String,
+        statusCode: Int? = null,
+        errorCode: String? = null,
+        server: String? = null,
+        throwable: Throwable? = null,
+    ) {
+        val serverId = redact(server?.ifBlank { null } ?: activePartyServerBase ?: effectiveIdleServerBase())
+        val statusStr = if (statusCode != null) " status=$statusCode" else ""
+        val errStr = if (!errorCode.isNullOrBlank()) " error=$errorCode" else ""
+        val srvStr = if (serverId.isNotBlank()) " server=$serverId" else ""
+        val sanitizedMsg = sanitizeLogString(message)
+        Log.i(TAG, "[ListenTogether] phase=$phase$statusStr$errStr$srvStr msg=\"$sanitizedMsg\"")
+        if (throwable != null) {
+            val sanitizedEx = sanitizeLogString(throwable.message.orEmpty())
+            Log.w(TAG, "[ListenTogether] phase=$phase exception=${throwable.javaClass.simpleName}: $sanitizedEx")
+        }
+    }
+
+    private fun sanitizeLogString(str: String): String {
+        if (str.isEmpty()) return str
+        return redact(str)
+            .replace(Regex("""Bearer\s+[A-Za-z0-9_\-\.]+""", RegexOption.IGNORE_CASE), "Bearer [REDACTED]")
+            .replace(Regex("""token=[A-Za-z0-9_\-\.]+""", RegexOption.IGNORE_CASE), "token=[REDACTED]")
+    }
+
     private suspend fun HttpResponse.toPartyException(): PartyException {
         val body = runCatching { bodyAsText() }.getOrDefault("")
         val parsed = runCatching { json.decodeFromString(ApiError.serializer(), body) }.getOrNull()
+        val errCode = parsed?.code.orEmpty().ifBlank { "http_${status.value}" }
+        val errMsg = when {
+            status.value == 404 || errCode == "no_such_party" -> "Room code not found."
+            status.value == 409 || errCode == "party_full" -> "Room full."
+            status.value == 401 || errCode in listOf("unauthorized", "bad_token") -> "WebSocket authorization failed."
+            parsed?.message?.isNotBlank() == true -> parsed.message
+            else -> "HTTP join failed."
+        }
         return PartyException(
-            code = parsed?.code.orEmpty().ifBlank { "http_${status.value}" },
-            message = parsed?.message?.takeIf { it.isNotBlank() }
-                ?: when (status.value) {
-                    404 -> "Party room not found. If this is a Local Jam, make sure both devices are on the same Wi-Fi or Hotspot."
-                    409 -> "This party room is already full."
-                    422 -> "This account can't be used to jam."
-                    else -> "The party server said ${status.value}."
-                },
+            code = errCode,
+            message = errMsg,
             statusCode = status.value,
         )
     }
@@ -1878,8 +2130,15 @@ object ListenTogether {
      * What the listener is told when the transport fails.
      */
     private fun Throwable.displayMessage(): String = when (this) {
-        is PartyException -> message ?: UNREACHABLE
-        else -> UNREACHABLE
+        is PartyException -> message ?: "HTTP join failed."
+        is java.net.UnknownHostException,
+        is java.net.ConnectException,
+        is java.net.NoRouteToHostException,
+        is java.net.SocketTimeoutException,
+        is io.ktor.client.plugins.HttpRequestTimeoutException,
+        is io.ktor.client.network.sockets.SocketTimeoutException,
+        is io.ktor.client.network.sockets.ConnectTimeoutException -> "HTTP join failed."
+        else -> message?.takeIf { it.isNotBlank() && !it.contains("Exception") } ?: "HTTP join failed."
     }
 
     private fun wsBase(): String {

@@ -1107,6 +1107,13 @@ object InnertubeParser {
         )
         text = text.replace(ccRegex, "").trim()
 
+        // 4. Normalize multiple horizontal whitespace characters (spaces/tabs) to a single space
+        text = text.replace(Regex("[ \\t]+"), " ")
+
+        // 5. Clean up spaces around newlines and collapse excessive blank lines to at most 2 newlines
+        text = text.replace(Regex(" ?\\r?\\n ?"), "\n")
+        text = text.replace(Regex("\\n{3,}"), "\n\n")
+
         return text.takeIf { it.isNotBlank() }
     }
 

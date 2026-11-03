@@ -2,6 +2,7 @@ package com.music.raaga.ui.screens.library
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -31,6 +32,9 @@ import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.DropdownMenu
@@ -97,6 +101,8 @@ fun LibraryHub(
     listState: LazyListState,
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
+    signedIn: Boolean = true,
+    onSignIn: () -> Unit = {},
 ) {
     var isEditingPins by remember { mutableStateOf(false) }
     var isEditingCategories by remember { mutableStateOf(false) }
@@ -479,6 +485,59 @@ fun LibraryHub(
                 }
             }
 
+            if (!signedIn) {
+                item(key = "hub_sign_in_card") {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 12.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color(0xFF1C1C1E))
+                            .border(0.75.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(16.dp))
+                            .padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(
+                            text = stringResource(R.string.library_sign_in_description),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.White.copy(alpha = 0.85f),
+                            textAlign = TextAlign.Center,
+                        )
+                        Spacer(Modifier.height(14.dp))
+                        Button(
+                            onClick = onSignIn,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = RaagaCobaltBlue,
+                                contentColor = Color.White,
+                            ),
+                            shape = CircleShape,
+                            modifier = Modifier.height(44.dp),
+                        ) {
+                            Text(
+                                text = stringResource(R.string.sign_in),
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                            )
+                        }
+                    }
+                }
+            }
+            if (topRecentItems.isEmpty() && !isEditingPins && !isEditingCategories && signedIn) {
+                item(key = "hub_recent_empty") {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 24.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = stringResource(R.string.library_empty),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondaryGrey,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                }
+            }
             item {
                 Spacer(Modifier.height(100.dp))
             }

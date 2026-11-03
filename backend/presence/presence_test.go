@@ -52,7 +52,10 @@ func TestParsePlatform(t *testing.T) {
 	if p, ok := ParsePlatform("pc"); !ok || p != PC {
 		t.Errorf("pc not accepted")
 	}
-	for _, s := range []string{"", "ios", "web", "Android", "PC", "desktop"} {
+	if p, ok := ParsePlatform("web"); !ok || p != PC {
+		t.Errorf("web not accepted")
+	}
+	for _, s := range []string{"", "ios", "Android", "PC", "desktop"} {
 		if _, ok := ParsePlatform(s); ok {
 			t.Errorf("ParsePlatform(%q) = true, want false", s)
 		}

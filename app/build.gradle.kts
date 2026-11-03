@@ -49,13 +49,13 @@ val lastfmSecret: String = (
 val listenTogetherServer: String = (
     localProps.getProperty("LISTEN_TOGETHER_SERVER")
         ?: System.getenv("LISTEN_TOGETHER_SERVER")
-        ?: "https://raagax.onrender.com"
+        ?: "https://raagax-qdfh.onrender.com"
     ).trim().trimEnd('/')
 
 val listenTogetherBackupServers: String = (
     localProps.getProperty("LISTEN_TOGETHER_BACKUP_SERVERS")
         ?: System.getenv("LISTEN_TOGETHER_BACKUP_SERVERS")
-        ?: "https://raagax-qdfh.onrender.com,https://raagax-y8jx.onrender.com"
+        ?: "https://raagax-y8jx.onrender.com"
     ).trim()
 
 val supabaseUrl: String = (

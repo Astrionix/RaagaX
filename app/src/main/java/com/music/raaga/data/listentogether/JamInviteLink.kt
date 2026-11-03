@@ -50,7 +50,10 @@ object JamInviteLink {
     /**
      * Parses an incoming invite:
      * 1. raaga://party/<CODE>?server=<SERVER>
-     * 2. https://raaga.app/invite/<CODE>?server=<SERVER>
+     * 2. https://<HOST>/invite/<CODE>?server=<SERVER>
+     * 3. Full message or clipboard containing an invite URL or "party code <CODE>"
+     * 4. Direct "CODE@IP" or "CODE@IP:PORT" format
+     * 5. Plain 6-character code
      */
     fun parseInvite(value: String?): ParsedJamInvite? {
         val raw = value?.trim().orEmpty()
@@ -66,28 +69,100 @@ object JamInviteLink {
             }
         }
 
-        val uri = runCatching { URI(value ?: return null) }.getOrNull() ?: return cleanCode(raw)?.let { ParsedJamInvite(it) }
-        val scheme = uri.scheme?.lowercase() ?: return cleanCode(raw)?.let { ParsedJamInvite(it) }
-        val host = uri.host?.lowercase() ?: return cleanCode(raw)?.let { ParsedJamInvite(it) }
+        // If the text contains multiple words or lines (e.g. shared message), extract URL or code
+        if (raw.contains('\n') || raw.contains(' ')) {
+            val urlCandidate = EXTRACT_URL_REGEX.find(raw)?.value
+            if (urlCandidate != null) {
+                val parsed = parseSingleUri(urlCandidate)
+                if (parsed != null) return parsed
+            }
+            val codeMatch = EXTRACT_CODE_REGEX.find(raw)?.groupValues?.getOrNull(1)
+            val candidate = codeMatch?.let { cleanCode(it) }
+            if (candidate != null) {
+                return ParsedJamInvite(code = candidate, serverUrl = null)
+            }
+            return null
+        }
+
+        return parseSingleUri(raw)
+    }
+
+    private fun parseSingleUri(raw: String): ParsedJamInvite? {
+        val isExplicitUrl = raw.startsWith("http://", ignoreCase = true) ||
+            raw.startsWith("https://", ignoreCase = true) ||
+            raw.startsWith("raaga://", ignoreCase = true)
+
+        val uri = runCatching { URI(raw) }.getOrNull()
+        if (uri == null || uri.scheme.isNullOrBlank()) {
+            return if (!isExplicitUrl) cleanCode(raw)?.let { ParsedJamInvite(it) } else null
+        }
+
+        val scheme = uri.scheme?.lowercase() ?: return if (!isExplicitUrl) cleanCode(raw)?.let { ParsedJamInvite(it) } else null
+        val host = uri.host?.lowercase().orEmpty()
         val query = uri.rawQuery
-        val server = extractQueryParam(query, "server")?.let { sanitizeServerUrl(it) }
+        val explicitServer = extractQueryParam(query, "server")?.let { sanitizeServerUrl(it) }
 
         // 1. Custom scheme: raaga://party/<CODE> or raaga://party?code=<CODE>
         if (scheme == CUSTOM_SCHEME && host == CUSTOM_HOST) {
             val pathPart = uri.path.orEmpty().trim('/').takeIf { it.isNotBlank() }
             val candidate = pathPart ?: extractQueryParam(query, "code") ?: return null
             val code = cleanCode(candidate) ?: return null
-            return ParsedJamInvite(code = code, serverUrl = server)
+            return ParsedJamInvite(code = code, serverUrl = explicitServer)
         }
 
-        // 2. Official web domain: https://web.raaga.me/invite/<CODE> or https://raaga.app/invite/<CODE>
-        if (scheme == "https" && (host == HOST || host == "web.raaga.me" || host == "raaga.me")) {
-            val match = INVITE_PATH.matchEntire(uri.path.orEmpty()) ?: return null
-            val code = match.groupValues[1].uppercase()
-            return ParsedJamInvite(code = code, serverUrl = server)
+        // 2. HTTP / HTTPS web invite: /invite/<CODE>
+        if (isSchemeAllowedForHost(scheme, host)) {
+            val match = INVITE_PATH.matchEntire(uri.path.orEmpty())
+            if (match != null && isAllowedHost(host, explicitServer != null)) {
+                val code = match.groupValues[1].uppercase()
+                val isStaticWebFrontend = host == HOST || host == "web.raaga.me" || host == "raaga.me"
+                val serverUrl = explicitServer ?: if (!isStaticWebFrontend) {
+                    val portPart = if (uri.port != -1 && !(scheme == "http" && uri.port == 80) && !(scheme == "https" && uri.port == 443)) {
+                        ":${uri.port}"
+                    } else ""
+                    "$scheme://$host$portPart"
+                } else null
+
+                return ParsedJamInvite(code = code, serverUrl = serverUrl)
+            }
         }
 
-        return null
+        return if (!isExplicitUrl) cleanCode(raw)?.let { ParsedJamInvite(it) } else null
+    }
+
+    private fun isSchemeAllowedForHost(scheme: String, host: String): Boolean {
+        if (scheme == "https") return true
+        if (scheme == "http" && isLocalHost(host)) return true
+        return false
+    }
+
+    private fun isAllowedHost(host: String, hasExplicitServerParam: Boolean): Boolean {
+        if (host.isBlank()) return false
+        if (host == HOST || host == "web.raaga.me" || host == "raaga.me") return true
+        if (host.endsWith(".onrender.com") || host == "onrender.com") return true
+        if (isLocalHost(host)) return true
+        if (hasExplicitServerParam) return true
+        for (server in ListenTogether.defaultServers) {
+            val sUri = runCatching { URI(server) }.getOrNull()
+            if (sUri?.host?.equals(host, ignoreCase = true) == true) return true
+        }
+        val custom = ListenTogether.configuredCustomServer()
+        if (custom.isNotBlank()) {
+            val cUri = runCatching { URI(custom) }.getOrNull()
+            if (cUri?.host?.equals(host, ignoreCase = true) == true) return true
+        }
+        return false
+    }
+
+    private fun isLocalHost(host: String): Boolean {
+        val h = host.lowercase()
+        return h == "localhost" ||
+            h == "127.0.0.1" ||
+            h == "0.0.0.0" ||
+            h == "::1" ||
+            h.startsWith("192.168.") ||
+            h.startsWith("10.") ||
+            Regex("""^172\.(1[6-9]|2[0-9]|3[0-1])\.""").containsMatchIn(h)
     }
 
     fun url(code: String, customServer: String? = null): String {
@@ -138,5 +213,6 @@ object JamInviteLink {
     }
 
     private val INVITE_PATH = Regex("""/invite/([A-Za-z0-9]{${ListenTogether.CODE_LENGTH}})""")
+    private val EXTRACT_URL_REGEX = Regex("""(?i)\b(?:https?://[^\s]+|raaga://[^\s]+)""")
+    private val EXTRACT_CODE_REGEX = Regex("""(?i)(?:party\s+code\s*[:—\-]?\s*|code\s*[:—\-]?\s*)\b([A-Za-z0-9]{${ListenTogether.CODE_LENGTH}})\b""")
 }
-

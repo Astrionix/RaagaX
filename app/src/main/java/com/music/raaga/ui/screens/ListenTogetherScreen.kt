@@ -51,6 +51,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
+import com.music.raaga.ui.theme.settingsSwitchColors
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -227,7 +228,7 @@ fun ListenTogetherScreen(
         failure = null
         scope.launch {
             ListenTogether.previewParty(previewCode, previewServer)
-                .onSuccess { sheet = PartySheet.Confirm(it, previewServer) }
+                .onSuccess { preview -> sheet = PartySheet.Confirm(preview, preview.serverUrl ?: previewServer) }
                 .onFailure { failure = it.message }
             busy = false
         }
@@ -383,9 +384,15 @@ fun ListenTogetherScreen(
                 PartySheet.JoinCode -> JoinPartySheet(
                     code = codeInput,
                     onCodeChange = { typed ->
-                        codeInput = typed.filter(Char::isLetterOrDigit)
-                            .uppercase()
-                            .take(ListenTogether.CODE_LENGTH)
+                        val parsed = JamInviteLink.parseInvite(typed)
+                        if (parsed != null && (typed.contains('/') || typed.contains('@') || typed.length > ListenTogether.CODE_LENGTH)) {
+                            codeInput = parsed.code
+                            openPartyPreview(parsed.code, parsed.serverUrl)
+                        } else {
+                            codeInput = typed.filter(Char::isLetterOrDigit)
+                                .uppercase()
+                                .take(ListenTogether.CODE_LENGTH)
+                        }
                         // Typing is the retry. Keeping "no party with that
                         // code" on screen while the code is being corrected
                         // makes it read as a verdict on what is there now.
@@ -515,7 +522,7 @@ fun ListenTogetherScreen(
                 onCopy = { clipboard.setText(AnnotatedString(state.code.orEmpty())) },
                 onShare = { sheet = PartySheet.Invite },
                 onShareLink = shareInvite,
-                onLeave = { scope.launch { ListenTogether.leaveParty() } },
+                onLeave = ListenTogether::leavePartyAsync,
                 onSetCapacity = ListenTogether::setMaxMembers,
                 onSetHostOnlyControl = ListenTogether::setHostOnlyControl,
                 onKick = ListenTogether::kick,
@@ -913,10 +920,7 @@ private fun InAParty(
                     Switch(
                         checked = state.hostOnlyControl,
                         onCheckedChange = onSetHostOnlyControl,
-                        colors = SwitchDefaults.colors(
-                            checkedTrackColor = MaterialTheme.colorScheme.primary,
-                            checkedBorderColor = MaterialTheme.colorScheme.primary,
-                        ),
+                        colors = settingsSwitchColors(),
                     )
                 },
                 onClick = { onSetHostOnlyControl(!state.hostOnlyControl) },

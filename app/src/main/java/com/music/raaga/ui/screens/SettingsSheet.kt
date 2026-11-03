@@ -148,6 +148,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.music.raaga.ui.theme.settingsSwitchColors
 import coil3.SingletonImageLoader
 import coil3.compose.AsyncImage
 import com.music.raaga.ui.components.isGlassSupported
@@ -604,7 +605,7 @@ fun SettingsScreen(
                 SettingsRow(
                     icon = Icons.Rounded.Tune,
                     title = stringResource(R.string.miscellaneous),
-                    subtitle = "Swipe actions, lyrics sources, lock screen art",
+                    subtitle = "Swipe actions, lyrics sources",
                     onClick = { onActiveCategoryChange(SettingsCategory.MISCELLANEOUS) },
                 )
                 RowDivider()
@@ -721,84 +722,80 @@ fun SettingsScreen(
                             checked = dolbyAtmos && dolbyAtmosSupported,
                             onCheckedChange = AppSettings::setDolbyAtmos,
                             enabled = dolbyAtmosSupported,
-                            colors = SwitchDefaults.colors(
-                                checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                checkedBorderColor = MaterialTheme.colorScheme.primary,
-                            ),
+                            colors = settingsSwitchColors(),
                         )
                     },
                     onClick = { AppSettings.setDolbyAtmos(!dolbyAtmos) },
                 )
             }
-            val lockScreenArtTitle = stringResource(R.string.lock_screen_art)
-            row(lockScreenArtTitle, "lock", "wallpaper", "cover") {
-                SettingsRow(
-                    icon = Icons.Rounded.Image,
-                    title = lockScreenArtTitle,
-                    subtitle = stringResource(R.string.lock_screen_art_subtitle),
-                    trailing = {
-                        Switch(
-                            checked = lockScreenArt,
-                            onCheckedChange = AppSettings::setLockScreenArt,
-                            colors = SwitchDefaults.colors(
-                                checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                checkedBorderColor = MaterialTheme.colorScheme.primary,
-                            ),
-                        )
-                    },
-                    onClick = { AppSettings.setLockScreenArt(!lockScreenArt) },
-                )
-            }
-            if (lockScreenArt) {
-                val positionTitle = stringResource(R.string.lock_screen_art_position)
-                row(positionTitle, "lock", "cover", "position") {
-                    SliderRow(
-                        icon = Icons.Rounded.Image,
-                        title = positionTitle,
-                        subtitle = stringResource(R.string.lock_screen_art_position_subtitle),
-                        value = "$lockScreenArtTop%",
-                        sliderValue = lockScreenArtTop.toFloat(),
-                        onSliderValue = {
-                            AppSettings.setLockScreenArtTop(it.roundToInt())
-                            com.music.raaga.playback.LockScreenArt.relayout(appContext)
-                        },
-                        valueRange = 5f..75f,
-                        steps = 0,
-                    )
-                }
-                val originalTitle = stringResource(R.string.lock_screen_art_original)
-                var hasOriginal by androidx.compose.runtime.remember {
-                    androidx.compose.runtime.mutableStateOf(
-                        com.music.raaga.playback.LockScreenArt.hasOriginal(appContext),
-                    )
-                }
-                val pickOriginal = androidx.activity.compose.rememberLauncherForActivityResult(
-                    androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia(),
-                ) { uri ->
-                    if (uri != null) {
-                        com.music.raaga.playback.LockScreenArt.saveOriginalAsync(appContext, uri) {
-                            hasOriginal = it
-                        }
-                    }
-                }
-                row(originalTitle, "restore", "wallpaper", "original") {
+            if (SHOW_LOCK_SCREEN_ART_FEATURE) {
+                val lockScreenArtTitle = stringResource(R.string.lock_screen_art)
+                row(lockScreenArtTitle, "lock", "wallpaper", "cover") {
                     SettingsRow(
                         icon = Icons.Rounded.Image,
-                        title = originalTitle,
-                        subtitle = stringResource(R.string.lock_screen_art_original_subtitle),
-                        value = stringResource(
-                            if (hasOriginal) R.string.lock_screen_art_original_saved
-                            else R.string.lock_screen_art_original_not_set,
-                        ),
-                        onClick = {
-                            pickOriginal.launch(
-                                androidx.activity.result.PickVisualMediaRequest(
-                                    androidx.activity.result.contract.ActivityResultContracts
-                                        .PickVisualMedia.ImageOnly,
-                                ),
+                        title = lockScreenArtTitle,
+                        subtitle = stringResource(R.string.lock_screen_art_subtitle),
+                        trailing = {
+                            Switch(
+                                checked = lockScreenArt,
+                                onCheckedChange = AppSettings::setLockScreenArt,
+                                colors = settingsSwitchColors(),
                             )
                         },
+                        onClick = { AppSettings.setLockScreenArt(!lockScreenArt) },
                     )
+                }
+                if (lockScreenArt) {
+                    val positionTitle = stringResource(R.string.lock_screen_art_position)
+                    row(positionTitle, "lock", "cover", "position") {
+                        SliderRow(
+                            icon = Icons.Rounded.Image,
+                            title = positionTitle,
+                            subtitle = stringResource(R.string.lock_screen_art_position_subtitle),
+                            value = "$lockScreenArtTop%",
+                            sliderValue = lockScreenArtTop.toFloat(),
+                            onSliderValue = {
+                                AppSettings.setLockScreenArtTop(it.roundToInt())
+                                com.music.raaga.playback.LockScreenArt.relayout(appContext)
+                            },
+                            valueRange = 5f..75f,
+                            steps = 0,
+                        )
+                    }
+                    val originalTitle = stringResource(R.string.lock_screen_art_original)
+                    var hasOriginal by androidx.compose.runtime.remember {
+                        androidx.compose.runtime.mutableStateOf(
+                            com.music.raaga.playback.LockScreenArt.hasOriginal(appContext),
+                        )
+                    }
+                    val pickOriginal = androidx.activity.compose.rememberLauncherForActivityResult(
+                        androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia(),
+                    ) { uri ->
+                        if (uri != null) {
+                            com.music.raaga.playback.LockScreenArt.saveOriginalAsync(appContext, uri) {
+                                hasOriginal = it
+                            }
+                        }
+                    }
+                    row(originalTitle, "restore", "wallpaper", "original") {
+                        SettingsRow(
+                            icon = Icons.Rounded.Image,
+                            title = originalTitle,
+                            subtitle = stringResource(R.string.lock_screen_art_original_subtitle),
+                            value = stringResource(
+                                if (hasOriginal) R.string.lock_screen_art_original_saved
+                                else R.string.lock_screen_art_original_not_set,
+                            ),
+                            onClick = {
+                                pickOriginal.launch(
+                                    androidx.activity.result.PickVisualMediaRequest(
+                                        androidx.activity.result.contract.ActivityResultContracts
+                                            .PickVisualMedia.ImageOnly,
+                                    ),
+                                )
+                            },
+                        )
+                    }
                 }
             }
         }
@@ -869,10 +866,7 @@ fun SettingsScreen(
                                 if (enabled) PlaylistSyncWorker.schedule(context)
                                 else PlaylistSyncWorker.cancel(context)
                             },
-                            colors = SwitchDefaults.colors(
-                                checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                checkedBorderColor = MaterialTheme.colorScheme.primary,
-                            ),
+                            colors = settingsSwitchColors(),
                         )
                     },
                 )
@@ -896,10 +890,7 @@ fun SettingsScreen(
                         Switch(
                             checked = preferMusicOnly,
                             onCheckedChange = AppSettings::setPreferMusicOnly,
-                            colors = SwitchDefaults.colors(
-                                checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                checkedBorderColor = MaterialTheme.colorScheme.primary,
-                            ),
+                            colors = settingsSwitchColors(),
                         )
                     },
                     onClick = { AppSettings.setPreferMusicOnly(!preferMusicOnly) },
@@ -1006,10 +997,7 @@ fun SettingsScreen(
                         Switch(
                             checked = loudnessNormalization,
                             onCheckedChange = AppSettings::setLoudnessNormalization,
-                            colors = SwitchDefaults.colors(
-                                checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                checkedBorderColor = MaterialTheme.colorScheme.primary,
-                            ),
+                            colors = settingsSwitchColors(),
                         )
                     },
                     onClick = { AppSettings.setLoudnessNormalization(!loudnessNormalization) },
@@ -1073,10 +1061,7 @@ fun SettingsScreen(
                         Switch(
                             checked = smartFade,
                             onCheckedChange = AppSettings::setSmartFadeEnabled,
-                            colors = SwitchDefaults.colors(
-                                checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                checkedBorderColor = MaterialTheme.colorScheme.primary,
-                            ),
+                            colors = settingsSwitchColors(),
                         )
                     },
                     onClick = { AppSettings.setSmartFadeEnabled(!smartFade) },
@@ -1113,10 +1098,7 @@ fun SettingsScreen(
                         Switch(
                             checked = skipSilence,
                             onCheckedChange = AppSettings::setSkipSilence,
-                            colors = SwitchDefaults.colors(
-                                checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                checkedBorderColor = MaterialTheme.colorScheme.primary,
-                            ),
+                            colors = settingsSwitchColors(),
                         )
                     },
                     onClick = { AppSettings.setSkipSilence(!skipSilence) },
@@ -1144,10 +1126,7 @@ fun SettingsScreen(
                         Switch(
                             checked = spatialAudio,
                             onCheckedChange = AppSettings::setSpatialAudio,
-                            colors = SwitchDefaults.colors(
-                                checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                checkedBorderColor = MaterialTheme.colorScheme.primary,
-                            ),
+                            colors = settingsSwitchColors(),
                         )
                     },
                     onClick = { AppSettings.setSpatialAudio(!spatialAudio) },
@@ -1257,10 +1236,7 @@ fun SettingsScreen(
                         Switch(
                             checked = reduceAnimation,
                             onCheckedChange = AppSettings::setReduceAnimation,
-                            colors = SwitchDefaults.colors(
-                                checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                checkedBorderColor = MaterialTheme.colorScheme.primary,
-                            ),
+                            colors = settingsSwitchColors(),
                         )
                     },
                     onClick = { AppSettings.setReduceAnimation(!reduceAnimation) },
@@ -1276,10 +1252,7 @@ fun SettingsScreen(
                         Switch(
                             checked = reduceDynamicBlur,
                             onCheckedChange = AppSettings::setReduceDynamicBlur,
-                            colors = SwitchDefaults.colors(
-                                checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                checkedBorderColor = MaterialTheme.colorScheme.primary,
-                            ),
+                            colors = settingsSwitchColors(),
                         )
                     },
                     onClick = { AppSettings.setReduceDynamicBlur(!reduceDynamicBlur) },
@@ -1303,10 +1276,7 @@ fun SettingsScreen(
                             checked = liquidGlass,
                             onCheckedChange = AppSettings::setLiquidGlass,
                             enabled = liquidGlassSupported,
-                            colors = SwitchDefaults.colors(
-                                checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                checkedBorderColor = MaterialTheme.colorScheme.primary,
-                            ),
+                            colors = settingsSwitchColors(),
                         )
                     },
                     onClick = { AppSettings.setLiquidGlass(!liquidGlass) },
@@ -1327,10 +1297,7 @@ fun SettingsScreen(
                             Switch(
                                 checked = fullBleedArtwork,
                                 onCheckedChange = AppSettings::setFullBleedArtwork,
-                                colors = SwitchDefaults.colors(
-                                    checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                    checkedBorderColor = MaterialTheme.colorScheme.primary,
-                                ),
+                                colors = settingsSwitchColors(),
                             )
                         },
                         onClick = { AppSettings.setFullBleedArtwork(!fullBleedArtwork) },
@@ -1347,10 +1314,7 @@ fun SettingsScreen(
                         Switch(
                             checked = legacyMeshGradient,
                             onCheckedChange = AppSettings::setLegacyMeshGradient,
-                            colors = SwitchDefaults.colors(
-                                checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                checkedBorderColor = MaterialTheme.colorScheme.primary,
-                            ),
+                            colors = settingsSwitchColors(),
                         )
                     },
                     onClick = { AppSettings.setLegacyMeshGradient(!legacyMeshGradient) },
@@ -1369,10 +1333,7 @@ fun SettingsScreen(
                         Switch(
                             checked = animatedCanvas,
                             onCheckedChange = AppSettings::setAnimatedCanvas,
-                            colors = SwitchDefaults.colors(
-                                checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                checkedBorderColor = MaterialTheme.colorScheme.primary,
-                            ),
+                            colors = settingsSwitchColors(),
                         )
                     },
                     onClick = { AppSettings.setAnimatedCanvas(!animatedCanvas) },
@@ -1435,6 +1396,7 @@ fun SettingsScreen(
                         Switch(
                             checked = signatureApiEnabled,
                             onCheckedChange = AppSettings::setSignatureApiEnabled,
+                            colors = settingsSwitchColors(),
                         )
                     },
                 )
@@ -1451,10 +1413,7 @@ fun SettingsScreen(
                         Switch(
                             checked = syncedLyrics,
                             onCheckedChange = AppSettings::setSyncedLyrics,
-                            colors = SwitchDefaults.colors(
-                                checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                checkedBorderColor = MaterialTheme.colorScheme.primary,
-                            ),
+                            colors = settingsSwitchColors(),
                         )
                     },
                     onClick = { AppSettings.setSyncedLyrics(!syncedLyrics) },
@@ -1474,10 +1433,7 @@ fun SettingsScreen(
                             Switch(
                                 checked = lyricsBlur,
                                 onCheckedChange = AppSettings::setLyricsBlur,
-                                colors = SwitchDefaults.colors(
-                                    checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                    checkedBorderColor = MaterialTheme.colorScheme.primary,
-                                ),
+                                colors = settingsSwitchColors(),
                             )
                         },
                         onClick = { AppSettings.setLyricsBlur(!lyricsBlur) },
@@ -1543,10 +1499,7 @@ fun SettingsScreen(
                                     AppSettings.setHighPerformanceMode(false)
                                 }
                             },
-                            colors = SwitchDefaults.colors(
-                                checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                checkedBorderColor = MaterialTheme.colorScheme.primary,
-                            ),
+                            colors = settingsSwitchColors(),
                         )
                     },
                     onClick = {
@@ -1619,10 +1572,7 @@ fun SettingsScreen(
                         Switch(
                             checked = filterNonMusicAudio,
                             onCheckedChange = AppSettings::setFilterNonMusicAudio,
-                            colors = SwitchDefaults.colors(
-                                checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                checkedBorderColor = MaterialTheme.colorScheme.primary,
-                            ),
+                            colors = settingsSwitchColors(),
                         )
                     },
                     onClick = { AppSettings.setFilterNonMusicAudio(!filterNonMusicAudio) },
@@ -1717,10 +1667,7 @@ fun SettingsScreen(
                         Switch(
                             checked = replayGenres,
                             onCheckedChange = AppSettings::setReplayGenres,
-                            colors = SwitchDefaults.colors(
-                                checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                checkedBorderColor = MaterialTheme.colorScheme.primary,
-                            ),
+                            colors = settingsSwitchColors(),
                         )
                     },
                     onClick = { AppSettings.setReplayGenres(!replayGenres) },
@@ -1778,10 +1725,7 @@ fun SettingsScreen(
                         Switch(
                             checked = swipeToPlayNext,
                             onCheckedChange = AppSettings::setSwipeToPlayNext,
-                            colors = SwitchDefaults.colors(
-                                checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                checkedBorderColor = MaterialTheme.colorScheme.primary,
-                            ),
+                            colors = settingsSwitchColors(),
                         )
                     },
                     onClick = { AppSettings.setSwipeToPlayNext(!swipeToPlayNext) },
@@ -1797,10 +1741,7 @@ fun SettingsScreen(
                         Switch(
                             checked = useStarFavorite,
                             onCheckedChange = AppSettings::setUseStarFavorite,
-                            colors = SwitchDefaults.colors(
-                                checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                checkedBorderColor = MaterialTheme.colorScheme.primary,
-                            ),
+                            colors = settingsSwitchColors(),
                         )
                     },
                     onClick = { AppSettings.setUseStarFavorite(!useStarFavorite) },
@@ -1816,10 +1757,7 @@ fun SettingsScreen(
                         Switch(
                             checked = dontRepeatSuggestions,
                             onCheckedChange = AppSettings::setDontRepeatSuggestions,
-                            colors = SwitchDefaults.colors(
-                                checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                checkedBorderColor = MaterialTheme.colorScheme.primary,
-                            ),
+                            colors = settingsSwitchColors(),
                         )
                     },
                     onClick = { AppSettings.setDontRepeatSuggestions(!dontRepeatSuggestions) },
@@ -1835,10 +1773,7 @@ fun SettingsScreen(
                         Switch(
                             checked = stopOnTaskRemoved,
                             onCheckedChange = AppSettings::setStopOnTaskRemoved,
-                            colors = SwitchDefaults.colors(
-                                checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                checkedBorderColor = MaterialTheme.colorScheme.primary,
-                            ),
+                            colors = settingsSwitchColors(),
                         )
                     },
                     onClick = { AppSettings.setStopOnTaskRemoved(!stopOnTaskRemoved) },
@@ -1854,10 +1789,7 @@ fun SettingsScreen(
                         Switch(
                             checked = hideVolumeBar,
                             onCheckedChange = AppSettings::setHideVolumeBar,
-                            colors = SwitchDefaults.colors(
-                                checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                checkedBorderColor = MaterialTheme.colorScheme.primary,
-                            ),
+                            colors = settingsSwitchColors(),
                         )
                     },
                     onClick = { AppSettings.setHideVolumeBar(!hideVolumeBar) },
@@ -1873,10 +1805,7 @@ fun SettingsScreen(
                         Switch(
                             checked = hideSongStatus,
                             onCheckedChange = AppSettings::setHideSongStatus,
-                            colors = SwitchDefaults.colors(
-                                checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                checkedBorderColor = MaterialTheme.colorScheme.primary,
-                            ),
+                            colors = settingsSwitchColors(),
                         )
                     },
                     onClick = { AppSettings.setHideSongStatus(!hideSongStatus) },
@@ -1972,10 +1901,7 @@ fun SettingsScreen(
                         Switch(
                             checked = smartVersionAlignment,
                             onCheckedChange = AppSettings::setSmartVersionAlignment,
-                            colors = SwitchDefaults.colors(
-                                checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                checkedBorderColor = MaterialTheme.colorScheme.primary,
-                            ),
+                            colors = settingsSwitchColors(),
                         )
                     },
                     onClick = { AppSettings.setSmartVersionAlignment(!smartVersionAlignment) },
@@ -1991,10 +1917,7 @@ fun SettingsScreen(
                         Switch(
                             checked = nerdStats,
                             onCheckedChange = AppSettings::setShowNerdStats,
-                            colors = SwitchDefaults.colors(
-                                checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                checkedBorderColor = MaterialTheme.colorScheme.primary,
-                            ),
+                            colors = settingsSwitchColors(),
                         )
                     },
                     onClick = { AppSettings.setShowNerdStats(!nerdStats) },
@@ -2010,10 +1933,7 @@ fun SettingsScreen(
                         Switch(
                             checked = listenTogetherButton,
                             onCheckedChange = AppSettings::setShowListenTogetherButton,
-                            colors = SwitchDefaults.colors(
-                                checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                checkedBorderColor = MaterialTheme.colorScheme.primary,
-                            ),
+                            colors = settingsSwitchColors(),
                         )
                     },
                     onClick = { AppSettings.setShowListenTogetherButton(!listenTogetherButton) },
@@ -2482,6 +2402,9 @@ internal fun openEqualizer(context: Context, sessionId: Int) {
 
 /** Above this, the cache limit slider's subtitle warns rather than reassures. */
 private const val CACHE_WARNING_MB = 2048
+
+/** Album art on lock screen feature toggle - code kept intact but disabled from app UI. */
+private const val SHOW_LOCK_SCREEN_ART_FEATURE = false
 
 /** "512 MB", "2 GB", "2.5 GB" — whichever reads more naturally at that size. */
 private fun formatCacheSize(mb: Int): String {
@@ -3166,10 +3089,7 @@ internal fun SettingsSubRow(
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(
-                checkedTrackColor = MaterialTheme.colorScheme.primary,
-                checkedBorderColor = MaterialTheme.colorScheme.primary,
-            ),
+            colors = settingsSwitchColors(),
         )
     }
 }

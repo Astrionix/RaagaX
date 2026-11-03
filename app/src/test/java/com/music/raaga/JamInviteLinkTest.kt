@@ -108,6 +108,35 @@ class JamInviteLinkTest {
     }
 
     @Test
+    fun `parses render cloud server invites and extracts origin serverUrl`() {
+        val invite1 = JamInviteLink.parseInvite("https://raagax-y8jx.onrender.com/invite/ABC123")
+        assertEquals("ABC123", invite1?.code)
+        assertEquals("https://raagax-y8jx.onrender.com", invite1?.serverUrl)
+
+        val invite2 = JamInviteLink.parseInvite("https://raagax.onrender.com/invite/XYZ999")
+        assertEquals("XYZ999", invite2?.code)
+        assertEquals("https://raagax.onrender.com", invite2?.serverUrl)
+    }
+
+    @Test
+    fun `parses shared message with full text from WhatsApp or clipboard`() {
+        val text1 = "Join my Jam session on Raaga: https://raagax-y8jx.onrender.com/invite/ABC123"
+        val invite1 = JamInviteLink.parseInvite(text1)
+        assertEquals("ABC123", invite1?.code)
+        assertEquals("https://raagax-y8jx.onrender.com", invite1?.serverUrl)
+
+        val text2 = "https://raagax.onrender.com/invite/PARTY7\n\nListen with me on Raaga — party code PARTY7"
+        val invite2 = JamInviteLink.parseInvite(text2)
+        assertEquals("PARTY7", invite2?.code)
+        assertEquals("https://raagax.onrender.com", invite2?.serverUrl)
+
+        val text3 = "Listen with me on Raaga — party code ABC999"
+        val invite3 = JamInviteLink.parseInvite(text3)
+        assertEquals("ABC999", invite3?.code)
+        assertNull(invite3?.serverUrl)
+    }
+
+    @Test
     fun `switch party result sealed hierarchy holds expected properties`() {
         val success: com.music.raaga.data.listentogether.ListenTogether.SwitchPartyResult =
             com.music.raaga.data.listentogether.ListenTogether.SwitchPartyResult.Success("ABC123")

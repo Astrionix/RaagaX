@@ -210,6 +210,9 @@ func parseBearerToken(r *http.Request) string {
 			}
 		}
 	}
+	if tok := r.URL.Query().Get("token"); tok != "" {
+		return strings.TrimSpace(tok)
+	}
 	return ""
 }
 
@@ -302,7 +305,7 @@ func handleCreateParty(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleJoinParty(w http.ResponseWriter, r *http.Request) {
-	code := r.PathValue("code")
+	code := codes.Normalise(r.PathValue("code"))
 	var req protocol.JoinRequest
 	if !decodeJSONBody(w, r, &req) {
 		return
@@ -338,6 +341,7 @@ func handleJoinParty(w http.ResponseWriter, r *http.Request) {
 	token := m.Token
 	pCode := p.Code
 	p.Unlock()
+	store.Save(p)
 
 	jsonResponse(w, http.StatusOK, map[string]interface{}{
 		"code":  pCode,
@@ -360,7 +364,7 @@ func handleJoinParty(w http.ResponseWriter, r *http.Request) {
 // Not rate-limited beyond the service-wide limits: it takes no locks it does
 // not release, allocates a short slice, and creates nothing.
 func handlePreviewParty(w http.ResponseWriter, r *http.Request) {
-	code := r.PathValue("code")
+	code := codes.Normalise(r.PathValue("code"))
 	p, err := store.Get(code)
 	if err != nil {
 		if pe, ok := err.(*party.PartyError); ok {
@@ -408,7 +412,7 @@ func handlePreviewParty(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleGetParty(w http.ResponseWriter, r *http.Request) {
-	code := r.PathValue("code")
+	code := codes.Normalise(r.PathValue("code"))
 	token := parseBearerToken(r)
 	if token == "" {
 		jsonError(w, http.StatusUnauthorized, "unauthorized", "Missing bearer token.")
@@ -443,7 +447,7 @@ func handleGetParty(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleLeaveParty(w http.ResponseWriter, r *http.Request) {
-	code := r.PathValue("code")
+	code := codes.Normalise(r.PathValue("code"))
 	token := parseBearerToken(r)
 	if token == "" {
 		jsonError(w, http.StatusUnauthorized, "unauthorized", "Missing bearer token.")
@@ -476,6 +480,7 @@ func handleLeaveParty(w http.ResponseWriter, r *http.Request) {
 	p.Remove(memberId)
 	membersFrame := membersFrame(p)
 	p.Unlock()
+	store.Save(p)
 
 	// Notify room and drop leaving member socket
 	hubInst.Send(p.Code, memberId, map[string]interface{}{
@@ -756,7 +761,7 @@ func handleInviteLanding(w http.ResponseWriter, r *http.Request) {
 // WebSocket Handler
 
 func handleWebSocket(w http.ResponseWriter, r *http.Request) {
-	code := r.PathValue("code")
+	code := codes.Normalise(r.PathValue("code"))
 	token := parseBearerToken(r)
 	if token == "" {
 		http.Error(w, "missing token", http.StatusUnauthorized)
@@ -836,8 +841,8 @@ func handleSocketFrame(p *party.Party, member *party.Member, sc *hub.SafeConn, f
 	}
 
 	p.Lock()
-	defer p.Unlock()
 	if !p.SpendFrameBudget(member) {
+		p.Unlock()
 		_ = sc.WriteJSON(map[string]interface{}{
 			"type": protocol.FrameError, "error": "rate_limited", "message": "Too many messages at once.",
 		})
@@ -848,17 +853,23 @@ func handleSocketFrame(p *party.Party, member *party.Member, sc *hub.SafeConn, f
 
 	switch kind {
 	case protocol.FramePing:
+		clientMs := frame["clientMs"]
+		p.Unlock()
 		_ = sc.WriteJSON(map[string]interface{}{
 			"type":     protocol.FramePong,
-			"clientMs": frame["clientMs"],
+			"clientMs": clientMs,
 			"serverMs": clock.NowMs(),
 		})
 
 	case protocol.FrameSync:
-		_ = sc.WriteJSON(stateFrame(p))
+		sf := stateFrame(p)
+		p.Unlock()
+		_ = sc.WriteJSON(sf)
 
 	case protocol.FrameSyncQueue:
-		_ = sc.WriteJSON(queueFrame(p))
+		qf := queueFrame(p)
+		p.Unlock()
+		_ = sc.WriteJSON(qf)
 
 	case protocol.FrameReport:
 		// Playhead position report from client for monitoring
@@ -868,9 +879,11 @@ func handleSocketFrame(p *party.Party, member *party.Member, sc *hub.SafeConn, f
 				log.Printf("party %s: %s drifted %dms", p.Code, member.DisplayName, drift)
 			}
 		}
+		p.Unlock()
 
 	case protocol.FrameControl:
 		if !p.SpendControlBudget(member) {
+			p.Unlock()
 			_ = sc.WriteJSON(map[string]interface{}{
 				"type":    protocol.FrameError,
 				"error":   "rate_limited",
@@ -879,7 +892,6 @@ func handleSocketFrame(p *party.Party, member *party.Member, sc *hub.SafeConn, f
 			return
 		}
 
-		p.Lock()
 		playbackSeqBefore := p.Playback.Seq
 		queueBefore := p.Playback.QueueSeq
 		action, _ := frame["action"].(string)
@@ -908,19 +920,21 @@ func handleSocketFrame(p *party.Party, member *party.Member, sc *hub.SafeConn, f
 			}
 			actFrame = activityFrame(member, action, frame)
 		}
+		partyCode := p.Code
 		p.Unlock()
 
 		if success {
+			store.Save(p)
 			if broadcastQueue {
-				hubInst.Broadcast(p.Code, qFrame, "")
+				hubInst.Broadcast(partyCode, qFrame, "")
 			}
 			if broadcastState {
-				hubInst.Broadcast(p.Code, sFrame, "")
+				hubInst.Broadcast(partyCode, sFrame, "")
 			}
 			if broadcastMembers {
-				hubInst.Broadcast(p.Code, mFrame, "")
+				hubInst.Broadcast(partyCode, mFrame, "")
 			}
-			hubInst.Broadcast(p.Code, actFrame, "")
+			hubInst.Broadcast(partyCode, actFrame, "")
 		} else if errCode != "" {
 			_ = sc.WriteJSON(map[string]interface{}{
 				"type":    protocol.FrameError,
@@ -928,6 +942,8 @@ func handleSocketFrame(p *party.Party, member *party.Member, sc *hub.SafeConn, f
 				"message": errMsg,
 			})
 		}
+	default:
+		p.Unlock()
 	}
 }
 

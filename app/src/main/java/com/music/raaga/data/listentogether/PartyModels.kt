@@ -2,6 +2,7 @@ package com.music.raaga.data.listentogether
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 
 /**
  * The party server's wire format, one-for-one.
@@ -143,6 +144,7 @@ data class PartyPreview(
     val maxMembers: Int = 5,
     val isFull: Boolean = false,
     val members: List<PartyPreviewMember> = emptyList(),
+    @Transient val serverUrl: String? = null,
 )
 
 @Serializable

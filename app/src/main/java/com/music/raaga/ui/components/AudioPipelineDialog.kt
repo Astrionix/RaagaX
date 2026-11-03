@@ -1,30 +1,37 @@
 package com.music.raaga.ui.components
 
 import android.media.AudioFormat
-import android.provider.Settings
-import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutLinearInEasing
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -43,7 +50,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -55,70 +61,47 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.LayoutCoordinates
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.music.raaga.R
-import com.music.raaga.ui.utils.containSheetGestures
 import com.music.raaga.data.NerdStats
 import com.music.raaga.data.settings.AppSettings
 import com.music.raaga.playback.AudioOutputStatus
+import com.music.raaga.playback.audio.AudioDiagnostics
+import com.music.raaga.playback.audio.TransportType
+import com.music.raaga.ui.screens.library.RaagaCobaltBlue
+import com.music.raaga.ui.utils.containSheetGestures
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import dev.chrisbanes.haze.materials.HazeMaterials
-import kotlinx.coroutines.isActive
 import java.util.Locale
-import kotlin.math.abs
-import kotlin.math.max
-import kotlin.math.min
+import kotlin.math.roundToInt
 
-private val PIPELINE_CARD_SHAPE = RoundedCornerShape(ALERT_CORNER)
-private val PIPELINE_SCRIM_COLOR = Color.Black.copy(alpha = 0.4f)
-private val PIPELINE_WIDTH = 320.dp
-private val PIPELINE_CONTENT_MAX_HEIGHT = 420.dp
-private val PIPELINE_ICON_TINT = Color.White.copy(alpha = 0.6f)
+private val SHEET_CORNER = 26.dp
+private val SHEET_MAX_WIDTH = 560.dp
+private val SHEET_BG_COLOR = Color(0xFF141416)
+private val SUMMARY_BG_COLOR = Color(0xFF1C1C1E)
+private val TEXT_MUTED = Color(0xFF8E8E93)
+private val PIPELINE_SCRIM_COLOR = Color.Black.copy(alpha = 0.55f)
 
 /**
  * Whether decoded samples are reaching the output unaltered, and what is
  * altering them when they aren't.
- *
- * Worth stating outright rather than leaving to be inferred from the rows
- * above it, because it is the one claim in this dialog a listener might act
- * on, and because the app otherwise breaks bit-exactness whenever the
- * equaliser or spatial audio is switched on without saying so anywhere.
- *
- * There are two independent ways to lose it, and the ordering names the
- * *first* one in the signal chain, which is also the first thing someone
- * would change to get it back:
- *
- * 1. A DSP stage is running. Every one of these is a filter or a gain, and
- *    none of them can run and leave the output bit-exact.
- * 2. The output encoding cannot carry the source — a 24-bit stream on a route
- *    that will not open a float track, or 32-bit integer PCM, which no route
- *    can carry. [outputExact] is the sink's own verdict on that; see
- *    `PrecisionAudioSink.publishOutputExactness`.
- *
- * This used to be gated behind a Bit-perfect mode that turned the DSP stages
- * off for you. The mode is gone — with every stage already idle the samples
- * were bit-exact without it, so the toggle mostly duplicated the Output
- * precision preference — but the readout is not, because "is it exact right
- * now" is worth answering whether or not there is a switch that forces it.
  */
 private fun bitExactVerdict(
     outputExact: Boolean,
@@ -135,17 +118,10 @@ private fun bitExactVerdict(
 }
 
 /**
- * Full audio playback pipeline inspection surface, opened from the "Audio Pipeline"
- * row at the bottom of [com.music.raaga.ui.player.AudioOutputSheet].
+ * Compact & Minimal Audio Pipeline diagnostics bottom sheet.
  *
  * Displays live, authoritative details for each stage in the audio pipeline:
  * Track Info -> Decoder -> Resampler -> DSP -> Output Device.
- *
- * Same frosted card shape as [LyricsSourcesDialog] and [UpdateAvailableDialog] —
- * header with a title and subtitle, hairline-separated groups, a full-width
- * closing action — fixed to this player's own dark palette rather than the
- * theme-adaptive one those settings dialogs use, since everything else on this
- * screen is drawn in [Color.White] alphas regardless of the app's light/dark theme.
  */
 @OptIn(ExperimentalHazeMaterialsApi::class)
 @Composable
@@ -163,71 +139,64 @@ fun AudioPipelineDialog(
     val eqPreset by AppSettings.equalizerPreset.collectAsStateWithLifecycle()
     val spatialAudio by AppSettings.spatialAudio.collectAsStateWithLifecycle()
     val loudnessNormalization by AppSettings.loudnessNormalization.collectAsStateWithLifecycle()
-    val diagSnapshot by com.music.raaga.playback.audio.AudioDiagnostics.snapshot.collectAsStateWithLifecycle()
+    val diagSnapshot by AudioDiagnostics.snapshot.collectAsStateWithLifecycle()
     val bypassOnUsb by AppSettings.bypassSystemEffectsOnUsb.collectAsStateWithLifecycle()
 
-    val context = LocalContext.current
+    val configuration = LocalConfiguration.current
     val density = LocalDensity.current
-    val isReducedMotion = remember(context) {
-        try {
-            val resolver = context.contentResolver
-            val animScale = Settings.Global.getFloat(
-                resolver,
-                Settings.Global.ANIMATOR_DURATION_SCALE,
-                1.0f,
-            )
-            animScale == 0f
-        } catch (_: Exception) {
-            false
+    val maxSheetHeight = (configuration.screenHeightDp.dp * 0.88f).coerceIn(400.dp, 720.dp)
+
+    // Bottom sheet slide animation state
+    var shown by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { shown = true }
+
+    // Gesture physics: Drag down to dismiss
+    var dragOffset by remember { mutableFloatStateOf(0f) }
+    val animatedDragOffset by animateFloatAsState(
+        targetValue = dragOffset,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "audioPipelineSheetDrag",
+    )
+
+    val dismissThresholdPx = with(density) { 110.dp.toPx() }
+    val dismissOnRelease: (Float) -> Unit = { velocityY ->
+        if (velocityY > 750f || dragOffset > dismissThresholdPx) {
+            onDismiss()
+        } else {
+            dragOffset = 0f
         }
     }
 
-    val isSignalActive = isPlaying && !isReducedMotion
+    val nestedScrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (dragOffset > 0f && available.y < 0f) {
+                    val consumed = available.y.coerceAtLeast(-dragOffset)
+                    dragOffset += consumed
+                    return Offset(0f, consumed)
+                }
+                return Offset.Zero
+            }
 
-    val flowAlpha by animateFloatAsState(
-        targetValue = if (isSignalActive) 1f else 0f,
-        animationSpec = tween(
-            durationMillis = if (isSignalActive) 450 else 320,
-            easing = if (isSignalActive) LinearOutSlowInEasing else FastOutLinearInEasing,
-        ),
-        label = "pipelineFlowAlpha",
-    )
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                if (source == NestedScrollSource.UserInput && available.y > 0f) {
+                    dragOffset += available.y
+                    return Offset(0f, available.y)
+                }
+                return Offset.Zero
+            }
 
-    var pulseProgress by remember { mutableFloatStateOf(0f) }
-
-    LaunchedEffect(isSignalActive) {
-        if (!isSignalActive) {
-            pulseProgress = 0f
-            return@LaunchedEffect
-        }
-        pulseProgress = 0f
-        val anim = Animatable(0f)
-        while (isActive) {
-            anim.snapTo(0f)
-            anim.animateTo(
-                targetValue = 1f,
-                animationSpec = tween(
-                    durationMillis = 2400,
-                    easing = LinearEasing,
-                ),
-            ) {
-                pulseProgress = value
+            override suspend fun onPreFling(available: Velocity): Velocity {
+                if (dragOffset > 0f) {
+                    dismissOnRelease(available.y)
+                    return available
+                }
+                return Velocity.Zero
             }
         }
     }
 
-    var columnCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
-    val stageCenters = remember { mutableStateMapOf<Int, Offset>() }
-    val interactionRadiusPx = with(density) { 24.dp.toPx() }
-
-    val stageActivation: (Int) -> Float = { idx ->
-        calculateStageActivation(idx, pulseProgress, flowAlpha, stageCenters, interactionRadiusPx)
-    }
-    val onStageIconPositioned: (Int, Offset) -> Unit = { idx, center ->
-        // Reported on every layout pass; only a real move should redraw.
-        if (stageCenters[idx] != center) stageCenters[idx] = center
-    }
-
+    // Outer full-screen scrim container
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -238,129 +207,143 @@ fun AudioPipelineDialog(
                 interactionSource = remember { MutableInteractionSource() },
                 onClick = onDismiss,
             ),
-        contentAlignment = Alignment.Center,
+        contentAlignment = Alignment.BottomCenter,
     ) {
-        Column(
-            modifier = Modifier
-                .width(PIPELINE_WIDTH)
-                .clip(PIPELINE_CARD_SHAPE)
-                .then(
-                    if (reduceDynamicBlur) {
-                        Modifier.background(Color(0xFF121212))
-                    } else {
-                        Modifier
-                            .optimizedHazeEffect(
-                                state = hazeState,
-                                style = HazeMaterials.regular(Color(0xFF141414)),
-                            )
-                            .background(Color(0xFF121212).copy(alpha = 0.9f))
-                    }
-                )
-                // Swallows the tap before it reaches the scrim behind, so
-                // touching the card itself never dismisses it.
-                .clickable(
-                    indication = null,
-                    interactionSource = remember { MutableInteractionSource() },
-                    onClick = {},
+        AnimatedVisibility(
+            visible = shown,
+            enter = slideInVertically(
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    stiffness = Spring.StiffnessMediumLow,
                 ),
+            ) { it },
+            exit = slideOutVertically(
+                animationSpec = tween(
+                    durationMillis = 180,
+                    easing = FastOutLinearInEasing,
+                ),
+            ) { it },
         ) {
             Column(
                 modifier = Modifier
+                    .widthIn(max = SHEET_MAX_WIDTH)
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 19.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
+                    .heightIn(max = maxSheetHeight)
+                    .offset { IntOffset(0, animatedDragOffset.roundToInt()) }
+                    .clip(RoundedCornerShape(topStart = SHEET_CORNER, topEnd = SHEET_CORNER))
+                    .then(
+                        if (reduceDynamicBlur) {
+                            Modifier.background(SHEET_BG_COLOR)
+                        } else {
+                            Modifier
+                                .optimizedHazeEffect(
+                                    state = hazeState,
+                                    style = HazeMaterials.regular(SHEET_BG_COLOR),
+                                )
+                                .background(SHEET_BG_COLOR.copy(alpha = 0.96f))
+                        }
+                    )
+                    .border(
+                        width = 0.75.dp,
+                        brush = Brush.verticalGradient(
+                            listOf(
+                                Color.White.copy(alpha = 0.16f),
+                                Color.White.copy(alpha = 0.04f),
+                                Color.Transparent,
+                            ),
+                        ),
+                        shape = RoundedCornerShape(topStart = SHEET_CORNER, topEnd = SHEET_CORNER),
+                    )
+                    .nestedScroll(nestedScrollConnection)
+                    .pointerInput(Unit) {
+                        val velocityTracker = VelocityTracker()
+                        detectVerticalDragGestures(
+                            onDragStart = { velocityTracker.resetTracking() },
+                            onDragEnd = {
+                                val velocityY = velocityTracker.calculateVelocity().y
+                                dismissOnRelease(velocityY)
+                            },
+                            onDragCancel = { dragOffset = 0f },
+                        ) { change, delta ->
+                            velocityTracker.addPosition(change.uptimeMillis, change.position)
+                            if (delta > 0 || dragOffset > 0) {
+                                dragOffset = (dragOffset + delta).coerceAtLeast(0f)
+                            }
+                        }
+                    }
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() },
+                        onClick = {}, // Prevent tap through
+                    ),
             ) {
-                Text(
-                    text = stringResource(R.string.audio_pipeline),
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.W600,
-                    ),
-                    color = Color.White,
-                    textAlign = TextAlign.Center,
-                )
-                Text(
-                    text = stringResource(R.string.audio_pipeline_subtitle),
-                    modifier = Modifier.padding(top = 4.dp),
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontSize = 13.sp,
-                        lineHeight = 17.sp,
-                    ),
-                    color = Color.White.copy(alpha = 0.7f),
-                    textAlign = TextAlign.Center,
-                )
-
-                // Poweramp-Style Signal Path Hero Card
-                val dspActive = (loudnessNormalization && outputStatus.loudnessGainDb != null) || eqEnabled || spatialAudio
-                val isDirectUsb = outputStatus.transportType == com.music.raaga.playback.audio.TransportType.DIRECT_USB || outputStatus.isUsb
-                val isDirectTrack = outputStatus.directPlaybackActual
-                val inRate = nerdStats?.sampleRateHz ?: 44100
-                val outRate = outputStatus.actualSampleRateHz ?: inRate
-                val isBitExact = outputStatus.outputExact && !dspActive && (inRate == outRate)
-                val isHiRes = (nerdStats?.isHiRes == true) || (outRate > 48000)
-
-                val (heroBadgeText, heroAccentColor) = when {
-                    isBitExact && isDirectUsb -> Pair("BIT-PERFECT DIRECT USB", Color(0xFF10B981))
-                    isBitExact && isDirectTrack -> Pair("BIT-PERFECT DIRECT", Color(0xFF10B981))
-                    isBitExact -> Pair("BIT-PERFECT DIRECT", Color(0xFF10B981))
-                    isHiRes && (isDirectTrack || isDirectUsb) && !dspActive -> Pair("HI-RES DIRECT", Color(0xFF06B6D4))
-                    dspActive -> Pair("DSP ACTIVE", Color(0xFFF59E0B))
-                    inRate != outRate -> Pair("RESAMPLED (${inRate}Hz → ${outRate}Hz)", Color(0xFF818CF8))
-                    else -> Pair("DIRECT PLAYBACK", Color(0xFF06B6D4))
-                }
-
-                Spacer(Modifier.height(14.dp))
-                Column(
+                // Drag handle
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(Color.White.copy(alpha = 0.06f))
-                        .border(0.75.dp, heroAccentColor.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
-                        .padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                        .padding(top = 10.dp, bottom = 8.dp),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    Row(
+                    Box(
+                        modifier = Modifier
+                            .size(width = 36.dp, height = 4.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.25f)),
+                    )
+                }
+
+                // Scrollable content area
+                Column(
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 20.dp),
+                ) {
+                    // Header (Center-aligned)
+                    Text(
+                        text = stringResource(R.string.audio_pipeline),
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        ),
+                        color = Color.White,
+                        textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(7.dp)
-                                    .clip(CircleShape)
-                                    .background(heroAccentColor),
-                            )
-                            Text(
-                                text = heroBadgeText,
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = FontWeight.Black,
-                                    letterSpacing = 1.1.sp,
-                                    fontSize = 10.5.sp,
-                                ),
-                                color = heroAccentColor,
-                            )
-                        }
-                        val routeTag = when {
-                            isDirectUsb -> "USB DAC"
-                            outputStatus.routeKind == com.music.raaga.playback.AudioRouting.Kind.BLUETOOTH -> "Bluetooth"
-                            outputStatus.routeKind == com.music.raaga.playback.AudioRouting.Kind.WIRED -> "Headphones"
-                            else -> "Speaker"
-                        }
-                        Text(
-                            text = routeTag,
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                            color = Color.White.copy(alpha = 0.5f),
-                        )
+                    )
+                    Text(
+                        text = stringResource(R.string.audio_pipeline_subtitle),
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontSize = 14.sp,
+                        ),
+                        color = TEXT_MUTED,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 2.dp, bottom = 14.dp),
+                    )
+
+                    // Pipeline Summary Data Calculations
+                    val dspActive = (loudnessNormalization && outputStatus.loudnessGainDb != null) || eqEnabled || spatialAudio
+                    val isDirectUsb = outputStatus.transportType == TransportType.DIRECT_USB || outputStatus.isUsb
+                    val isDirectTrack = outputStatus.directPlaybackActual
+                    val inRate = nerdStats?.sampleRateHz ?: 44100
+                    val outRate = outputStatus.actualSampleRateHz ?: inRate
+                    val isBitExact = outputStatus.outputExact && !dspActive && (inRate == outRate)
+                    val isHiRes = (nerdStats?.isHiRes == true) || (outRate > 48000)
+
+                    val routeTag = when {
+                        isDirectUsb -> "USB DAC"
+                        outputStatus.routeKind == com.music.raaga.playback.AudioRouting.Kind.BLUETOOTH -> "Bluetooth"
+                        outputStatus.routeKind == com.music.raaga.playback.AudioRouting.Kind.WIRED -> "Headphones"
+                        else -> "Speaker"
                     }
 
-                    // Source -> Output Flow Summary
                     val srcCodec = NerdStats.codecLabel(nerdStats?.mimeType) ?: nerdStats?.mimeType ?: "PCM"
-                    val srcDepth = nerdStats?.bitDepth?.let { "$it-bit" } ?: nerdStats?.claimed?.bitDepth?.let { "$it-bit" } ?: "16-bit"
-                    val srcRate = nerdStats?.sampleRateHz?.let { "%.1fkHz".format(Locale.ROOT, it / 1000f) } ?: "44.1kHz"
+                    val srcDepth = nerdStats?.bitDepth?.let { "$it-bit" }
+                        ?: nerdStats?.claimed?.bitDepth?.let { "$it-bit" }
+                        ?: "16-bit"
+                    val srcRate = nerdStats?.sampleRateHz?.let { "%.1f kHz".format(Locale.ROOT, it / 1000f) } ?: "44.1 kHz"
                     val srcSummary = "$srcCodec $srcDepth / $srcRate"
 
                     val dstDepth = when (outputStatus.actualEncoding) {
@@ -369,103 +352,27 @@ fun AudioPipelineDialog(
                         AudioFormat.ENCODING_PCM_32BIT -> "32-bit"
                         else -> "16-bit"
                     }
-                    val dstRate = (outputStatus.actualSampleRateHz ?: inRate).let { "%.1fkHz".format(Locale.ROOT, it / 1000f) }
+                    val dstRate = (outputStatus.actualSampleRateHz ?: inRate).let { "%.1f kHz".format(Locale.ROOT, it / 1000f) }
                     val dstSummary = "DAC $dstDepth / $dstRate"
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Text(
-                            text = srcSummary,
-                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-                            color = Color.White.copy(alpha = 0.85f),
-                        )
-                        Text(
-                            text = "➔",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = heroAccentColor.copy(alpha = 0.8f),
-                        )
-                        Text(
-                            text = dstSummary,
-                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
-                            color = Color.White,
-                        )
-                    }
-
-                    // Hardware DAC / Endpoint Label
                     val devLabel = outputStatus.directUsbProbe?.productName
-                        ?: outputStatus.deviceName.ifBlank { "System default" }
-                    Text(
-                        text = devLabel,
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                        color = Color.White.copy(alpha = 0.6f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                        ?: outputStatus.deviceName.ifBlank { null }
+
+                    // Compact Signal Summary Container
+                    CompactSignalSummary(
+                        dspActive = dspActive,
+                        isBitExact = isBitExact,
+                        isDirectUsb = isDirectUsb,
+                        isDirectTrack = isDirectTrack,
+                        isHiRes = isHiRes,
+                        routeTag = routeTag,
+                        srcSummary = srcSummary,
+                        dstSummary = dstSummary,
+                        devLabel = devLabel,
                     )
 
-                    if (nerdStats?.isLossless == true || isBitExact || spatialAudio) {
-                        HorizontalDivider(
-                            modifier = Modifier.padding(vertical = 4.dp),
-                            thickness = 0.5.dp,
-                            color = Color.White.copy(alpha = 0.12f),
-                        )
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            if (nerdStats?.isLossless == true) {
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_lossless),
-                                    contentDescription = null,
-                                    tint = heroAccentColor,
-                                    modifier = Modifier.size(width = 16.dp, height = 11.dp),
-                                )
-                            }
-                            val fidelityLabel = when {
-                                nerdStats?.isHiRes == true -> "Hi-Res Lossless (Studio Master up to 24-bit / 192 kHz)"
-                                nerdStats?.isLossless == true -> "Lossless Audio (CD/Studio Quality up to 24-bit / 48 kHz)"
-                                isBitExact -> "Bit-Perfect (Android AudioFlinger Resampling Bypassed)"
-                                spatialAudio -> "Binaural Spatial Audio (Bauer Crossfeed & Wide Stage)"
-                                else -> "High Quality Audio"
-                            }
-                            Text(
-                                text = fidelityLabel,
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontSize = 10.5.sp,
-                                    fontWeight = FontWeight.Medium,
-                                ),
-                                color = Color.White.copy(alpha = 0.85f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                    }
-                }
-            }
+                    Spacer(Modifier.height(18.dp))
 
-            Box(
-                modifier = Modifier
-                    .heightIn(max = PIPELINE_CONTENT_MAX_HEIGHT)
-                    .verticalScroll(rememberScrollState()),
-            ) {
-                // The signal flow redraws every frame while playing. On its own
-                // layer, each frame re-records just these lines rather than every
-                // stage row and the frosted card they sit on.
-                Spacer(
-                    Modifier
-                        .matchParentSize()
-                        .graphicsLayer {}
-                        .drawBehind {
-                            drawSignalFlow(stageCenters, flowAlpha, pulseProgress, interactionRadiusPx)
-                        },
-                )
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .onGloballyPositioned { columnCoordinates = it },
-                ) {
                     // 1. Track Info Stage
                     val sourceName = nerdStats?.sourceName ?: "—"
                     val format = NerdStats.codecLabel(nerdStats?.mimeType) ?: nerdStats?.mimeType ?: "—"
@@ -483,90 +390,101 @@ fun AudioPipelineDialog(
                         else -> "${nerdStats?.channels} (Surround)"
                     }
 
-                    PipelineRule()
-                    PipelineSection(
-                        stageIndex = 0,
+                    PipelineStage(
                         icon = Icons.AutoMirrored.Rounded.InsertDriveFile,
                         title = stringResource(R.string.pipeline_track_info),
-                        columnCoordinates = columnCoordinates,
-                        stageActivationProvider = stageActivation,
-                        onStageIconPositioned = onStageIconPositioned,
+                        isFirst = true,
+                        isLast = false,
+                        isPlaying = isPlaying,
                     ) {
-                        PipelineRow(stringResource(R.string.pipeline_source), sourceName)
-                        PipelineRow(stringResource(R.string.pipeline_format), format)
-                        PipelineRow(stringResource(R.string.pipeline_bit_depth), bitDepth)
-                        PipelineRow(stringResource(R.string.pipeline_sample_rate), sampleRate)
-                        PipelineRow(stringResource(R.string.pipeline_bitrate), bitrate)
-                        PipelineRow(stringResource(R.string.pipeline_channels), channels)
+                        PipelinePropertyRow(stringResource(R.string.pipeline_source), sourceName)
+                        PipelinePropertyRow(stringResource(R.string.pipeline_format), format)
+                        PipelinePropertyRow(stringResource(R.string.pipeline_bit_depth), bitDepth)
+                        PipelinePropertyRow(stringResource(R.string.pipeline_sample_rate), sampleRate)
+                        PipelinePropertyRow(stringResource(R.string.pipeline_bitrate), bitrate)
+                        PipelinePropertyRow(stringResource(R.string.pipeline_channels), channels)
                     }
 
                     // 2. Decoder Stage
                     val decoderName = outputStatus.decoderName ?: "—"
+                    val decoderFormat = outputStatus.decoderOutputEncoding
+                        ?: (nerdStats?.bitDepth?.let { "PCM $it-bit" } ?: "PCM 16-bit")
 
-                    PipelineRule()
-                    PipelineSection(
-                        stageIndex = 1,
+                    PipelineStage(
                         icon = Icons.Rounded.Memory,
                         title = stringResource(R.string.pipeline_decoder),
-                        columnCoordinates = columnCoordinates,
-                        stageActivationProvider = stageActivation,
-                        onStageIconPositioned = onStageIconPositioned,
+                        isFirst = false,
+                        isLast = false,
+                        isPlaying = isPlaying,
                     ) {
-                        PipelineRow(stringResource(R.string.pipeline_decoder_name), decoderName)
-                        outputStatus.decoderOutputEncoding?.let {
-                            PipelineRow(stringResource(R.string.pipeline_format), it)
-                        }
+                        PipelinePropertyRow(stringResource(R.string.pipeline_decoder_name), decoderName)
+                        PipelinePropertyRow(stringResource(R.string.pipeline_format), decoderFormat)
                     }
 
                     // 3. Resampler Stage
-                    val inRate = nerdStats?.sampleRateHz
-                    val outRate = outputStatus.actualSampleRateHz ?: inRate
-                    val isPassthrough = inRate != null && outRate != null && inRate == outRate
-                    val ioRateText = if (inRate != null && outRate != null) {
-                        "$inRate Hz → $outRate Hz"
-                    } else if (inRate != null) {
-                        "$inRate Hz → —"
-                    } else if (outRate != null) {
-                        "— → $outRate Hz"
+                    val rawInRate = nerdStats?.sampleRateHz
+                    val rawOutRate = outputStatus.actualSampleRateHz ?: rawInRate
+                    val isPassthrough = rawInRate != null && rawOutRate != null && rawInRate == rawOutRate
+                    val ioRateText = if (rawInRate != null && rawOutRate != null) {
+                        "$rawInRate Hz → $rawOutRate Hz"
+                    } else if (rawInRate != null) {
+                        "$rawInRate Hz → —"
+                    } else if (rawOutRate != null) {
+                        "— → $rawOutRate Hz"
                     } else {
                         "—"
                     }
                     val resamplerType = when {
-                        inRate == null && outRate == null -> "—"
+                        rawInRate == null && rawOutRate == null -> "—"
                         isPassthrough -> "None"
-                        else -> "Resampler"
+                        else -> "System Resampler"
                     }
+                    val cutoffText = if (isPassthrough) "None (Passthrough)" else "Nyquist (Optimal)"
                     val qualityText = when {
-                        inRate == null && outRate == null -> "—"
+                        rawInRate == null && rawOutRate == null -> "—"
                         isPassthrough -> "Passthrough"
                         else -> "Resampled"
                     }
 
-                    PipelineRule()
-                    PipelineSection(
-                        stageIndex = 2,
+                    PipelineStage(
                         icon = Icons.Rounded.Tune,
                         title = stringResource(R.string.pipeline_resampler),
-                        columnCoordinates = columnCoordinates,
-                        stageActivationProvider = stageActivation,
-                        onStageIconPositioned = onStageIconPositioned,
+                        isFirst = false,
+                        isLast = false,
+                        isPlaying = isPlaying,
                     ) {
-                        PipelineRow(stringResource(R.string.pipeline_io_rate), ioRateText)
-                        PipelineRow(stringResource(R.string.pipeline_type), resamplerType)
-                        PipelineRow(stringResource(R.string.pipeline_cutoff), "—")
-                        PipelineRow(stringResource(R.string.pipeline_quality), qualityText)
+                        PipelinePropertyRow(stringResource(R.string.pipeline_io_rate), ioRateText)
+                        PipelinePropertyRow(stringResource(R.string.pipeline_type), resamplerType)
+                        PipelinePropertyRow(stringResource(R.string.pipeline_cutoff), cutoffText)
+                        PipelinePropertyRow(stringResource(R.string.pipeline_quality), qualityText)
                     }
 
                     // 4. DSP Stage
                     val pcmFormat = outputStatus.dspFormat
-                    val dspRate = outputStatus.actualSampleRateHz ?: nerdStats?.sampleRateHz
-                    val dspRateText = if (dspRate != null) "$dspRate Hz" else "—"
-                    val eqPresetText = if (eqEnabled) {
-                        eqPreset.name.lowercase().replace('_', ' ').replaceFirstChar { it.uppercase() }
-                    } else {
-                        "Flat"
+                    val activeEffectsList = mutableListOf<String>()
+                    if (eqEnabled) {
+                        val presetName = eqPreset.name.lowercase().replace('_', ' ').replaceFirstChar { it.uppercase() }
+                        activeEffectsList.add("Equalizer ($presetName)")
                     }
-                    val stereoExpandText = if (spatialAudio) "Active (Bauer Binaural Crossfeed 130%)" else "Stereo Direct (100%)"
+                    if (spatialAudio) {
+                        activeEffectsList.add("Bauer Spatial Audio")
+                    }
+                    if (loudnessNormalization && outputStatus.loudnessGainDb != null) {
+                        val gainText = "%+.1f dB".format(Locale.ROOT, outputStatus.loudnessGainDb)
+                        activeEffectsList.add("Loudness ($gainText)")
+                    }
+                    val activeEffectsText = if (activeEffectsList.isEmpty()) "None (Direct Pass)" else activeEffectsList.joinToString(", ")
+
+                    val peakDb = diagSnapshot.pcmMetrics.peakDbfs
+                    val peakVal = if (peakDb > -90f) {
+                        String.format(Locale.US, "%.1f dBFS (%s)", peakDb, if (diagSnapshot.pcmMetrics.isClipping) "Clipping" else "Clean")
+                    } else {
+                        "Idle"
+                    }
+                    val rmsDb = diagSnapshot.pcmMetrics.rmsDbfs
+                    val rmsVal = if (rmsDb > -90f) String.format(Locale.US, "%.1f dBFS", rmsDb) else "Idle"
+                    val pcmMetricsText = "$peakVal / $rmsVal"
+
                     val buffersText = outputStatus.bufferSize?.let { size ->
                         val rate = outputStatus.actualSampleRateHz
                         val bytesPerSample = when (outputStatus.actualEncoding) {
@@ -585,512 +503,432 @@ fun AudioPipelineDialog(
                         }
                     } ?: "—"
 
-                    // Loudness reads before the rest of the DSP stage because
-                    // that is the order the samples meet them in — see
-                    // [DspChain] on why the level correction goes first.
-                    val loudnessGainText = when {
-                        !loudnessNormalization -> stringResource(R.string.off)
-                        outputStatus.loudnessGainDb == null -> "—"
-                        else -> stringResource(
-                            R.string.loudness_gain_db,
-                            "%+.1f".format(Locale.ROOT, outputStatus.loudnessGainDb),
-                        )
-                    }
-                    val loudnessMeasuredText = outputStatus.loudnessLufs?.let {
-                        stringResource(R.string.loudness_lufs, "%+.1f".format(Locale.ROOT, it))
-                    } ?: "—"
-
-                    PipelineRule()
-                    PipelineSection(
-                        stageIndex = 3,
+                    PipelineStage(
                         icon = Icons.Rounded.GraphicEq,
                         title = stringResource(R.string.pipeline_dsp),
-                        columnCoordinates = columnCoordinates,
-                        stageActivationProvider = stageActivation,
-                        onStageIconPositioned = onStageIconPositioned,
+                        isFirst = false,
+                        isLast = false,
+                        isPlaying = isPlaying,
                     ) {
-                        PipelineRow(stringResource(R.string.pipeline_pcm_format), pcmFormat)
-                        PipelineRow(stringResource(R.string.pipeline_sample_rate), dspRateText)
-                        PipelineRow("Loudness Standard", "ITU-R BS.1770-4 / EBU R 128")
-                        PipelineRow(stringResource(R.string.pipeline_loudness_gain), loudnessGainText)
-                        PipelineRow(stringResource(R.string.pipeline_loudness_measured), loudnessMeasuredText)
-                        val peakDb = diagSnapshot.pcmMetrics.peakDbfs
-                        val peakVal = if (peakDb > -90f) {
-                            String.format(Locale.US, "%.1f dBFS (%s)", peakDb, if (diagSnapshot.pcmMetrics.isClipping) "Clipping" else "Clean")
-                        } else {
-                            "Idle"
-                        }
-                        val rmsDb = diagSnapshot.pcmMetrics.rmsDbfs
-                        val rmsVal = if (rmsDb > -90f) String.format(Locale.US, "%.1f dBFS", rmsDb) else "Idle"
-                        PipelineRow("PCM Peak / RMS", "$peakVal / $rmsVal")
-                        PipelineRow(stringResource(R.string.pipeline_eq_preset), eqPresetText)
-                        PipelineRow(stringResource(R.string.pipeline_stereo_expand), stereoExpandText)
-                        PipelineRow(stringResource(R.string.pipeline_buffers), buffersText)
-                        PipelineRow(stringResource(R.string.pipeline_output_api), outputStatus.sink.ifBlank { "AAudio" })
-                        // The verdict, rather than the settings. Names whichever
-                        // stage is altering samples — or, when none is, whether
-                        // the route can carry the decoder's own encoding —
-                        // instead of leaving the reader to infer it from four
-                        // rows above.
-                        PipelineRow(
-                            stringResource(R.string.pipeline_bit_exact),
-                            bitExactVerdict(
-                                outputExact = outputStatus.outputExact,
-                                outputExactDetail = outputStatus.outputExactDetail,
-                                loudnessActive = loudnessNormalization && outputStatus.loudnessGainDb != null,
-                                eqActive = eqEnabled,
-                                spatialActive = spatialAudio,
-                            ),
-                        )
+                        PipelinePropertyRow(stringResource(R.string.pipeline_pcm_format), pcmFormat)
+                        PipelinePropertyRow("Active Effects", activeEffectsText)
+                        PipelinePropertyRow("PCM Peak / RMS", pcmMetricsText)
+                        PipelinePropertyRow(stringResource(R.string.pipeline_buffers), buffersText)
+                        PipelinePropertyRow(stringResource(R.string.pipeline_output_api), outputStatus.sink.ifBlank { "AAudio" })
                     }
 
                     // 5. Output Device Stage
                     val deviceName = outputStatus.deviceName.ifBlank { "System default" }
                     val audioTrackEncoding = when (outputStatus.actualEncoding) {
-                        AudioFormat.ENCODING_PCM_FLOAT -> "Float32"
-                        AudioFormat.ENCODING_PCM_24BIT_PACKED -> "PCM24"
-                        AudioFormat.ENCODING_PCM_32BIT -> "PCM32"
-                        AudioFormat.ENCODING_PCM_16BIT -> "PCM16"
-                        else -> "Float32"
+                        AudioFormat.ENCODING_PCM_FLOAT -> "Float 32-bit"
+                        AudioFormat.ENCODING_PCM_24BIT_PACKED -> "PCM 24-bit"
+                        AudioFormat.ENCODING_PCM_32BIT -> "PCM 32-bit"
+                        AudioFormat.ENCODING_PCM_16BIT -> "PCM 16-bit"
+                        else -> "Float 32-bit"
                     }
                     val audioTrackRate = outputStatus.actualSampleRateHz ?: nerdStats?.sampleRateHz ?: 48000
-                    val audioTrackText = "$audioTrackEncoding / $audioTrackRate Hz"
+                    val audioTrackRateText = "$audioTrackRate Hz"
 
-                    PipelineRule()
-                    PipelineSection(
-                        stageIndex = 4,
+                    val channelConfigText = when (nerdStats?.channels) {
+                        1 -> "Mono (1.0)"
+                        2 -> "Stereo (2.0)"
+                        null -> "Stereo (2.0)"
+                        else -> "${nerdStats?.channels} Channels"
+                    }
+
+                    val exactVerdict = bitExactVerdict(
+                        outputExact = outputStatus.outputExact,
+                        outputExactDetail = outputStatus.outputExactDetail,
+                        loudnessActive = loudnessNormalization && outputStatus.loudnessGainDb != null,
+                        eqActive = eqEnabled,
+                        spatialActive = spatialAudio,
+                    )
+
+                    val directStatusText = when {
+                        outputStatus.transportType == TransportType.DIRECT_USB ->
+                            "Active (Direct Userspace USB)"
+                        outputStatus.directPlaybackActual ->
+                            "Active (Direct AudioTrack, Bypasses Mixer)"
+                        outputStatus.directPlaybackRejected ->
+                            "Rejected"
+                        outputStatus.directPlaybackSupported ->
+                            "Supported (Framework Mixed)"
+                        else ->
+                            "Not Supported (Mixed Path)"
+                    }
+
+                    PipelineStage(
                         icon = Icons.AutoMirrored.Rounded.VolumeUp,
                         title = stringResource(R.string.pipeline_output_device),
-                        columnCoordinates = columnCoordinates,
-                        stageActivationProvider = stageActivation,
-                        onStageIconPositioned = onStageIconPositioned,
+                        isFirst = false,
+                        isLast = true,
+                        isPlaying = isPlaying,
                     ) {
-                        PipelineRow(stringResource(R.string.pipeline_device_name), deviceName)
-                        PipelineRow("Route", outputStatus.routeKind.name)
-                        PipelineRow("Transport", outputStatus.transportType.label)
+                        PipelinePropertyRow(stringResource(R.string.pipeline_device_name), deviceName)
+                        PipelinePropertyRow("Output Format", audioTrackEncoding)
+                        PipelinePropertyRow(stringResource(R.string.pipeline_sample_rate), audioTrackRateText)
+                        PipelinePropertyRow("Channel Config", channelConfigText)
+                        PipelinePropertyRow(
+                            label = "Bit-Perfect",
+                            value = exactVerdict,
+                            valueColor = if (exactVerdict.startsWith("Yes")) Color(0xFF10B981) else Color.White,
+                        )
+                        PipelinePropertyRow("Route / Transport", "${outputStatus.routeKind.name} / ${outputStatus.transportType.label}")
+                        PipelinePropertyRow("Direct Path", directStatusText)
 
-                        val directStatusText = when {
-                            outputStatus.transportType == com.music.raaga.playback.audio.TransportType.DIRECT_USB ->
-                                "Active (Direct Userspace USB)"
-                            outputStatus.directPlaybackActual ->
-                                "Active (Direct AudioTrack, Bypasses Mixer)"
-                            outputStatus.directPlaybackRejected ->
-                                "Rejected"
-                            outputStatus.directPlaybackSupported ->
-                                "Supported (Framework Mixed)"
-                            else ->
-                                "Not Supported (Mixed Path)"
-                        }
-                        PipelineRow("Direct", directStatusText)
-                        PipelineRow("AudioTrack", audioTrackText)
-                        PipelineRow("ExoPlayer Volume", String.format(Locale.US, "%.2f (Unity)", diagSnapshot.playerVolume))
                         if (outputStatus.isUsb || outputStatus.routeKind == com.music.raaga.playback.AudioRouting.Kind.USB) {
-                            PipelineRow("USB DAC Purity", if (bypassOnUsb) "Bit-Clean (OEM Effects Bypassed)" else "Standard (OEM Effects Active)")
-                        }
-
-                        val mixerText = when {
-                            outputStatus.transportType == com.music.raaga.playback.audio.TransportType.DIRECT_USB ->
-                                "Direct (Bypasses System Mixer)"
-                            outputStatus.directPlaybackActual ->
-                                "Direct path active; endpoint format not independently verified"
-                            outputStatus.systemMixerRateHz != null -> {
-                                val hal = outputStatus.halFormat
-                                if (hal != null) {
-                                    "AudioFlinger Mixer ${outputStatus.systemMixerRateHz} Hz, HAL $hal"
-                                } else {
-                                    "AudioFlinger Mixer ${outputStatus.systemMixerRateHz} Hz"
-                                }
-                            }
-                            else -> null
-                        }
-                        mixerText?.let {
-                            PipelineRow("System", it)
+                            PipelinePropertyRow("USB DAC Purity", if (bypassOnUsb) "Bit-Clean (OEM Effects Bypassed)" else "Standard (OEM Effects Active)")
                         }
 
                         outputStatus.usbEndpointFormat?.let {
-                            PipelineRow("USB Device Capability", formatUsbCapability(it))
-                            PipelineNote("Reported by Android for the connected USB device. This describes device capabilities and may differ from the active playback format.")
+                            PipelinePropertyRow("USB Capability", formatUsbCapability(it))
                         }
+
                         outputStatus.directUsbProbe?.takeIf { it.productName != null }?.let { probe ->
                             val ratesText = "Max ${probe.maxCalculatedSampleRate / 1000} kHz (${probe.supportedBitDepths.joinToString("/")}-bit)"
-                            PipelineRow("USB Direct Hardware", ratesText)
+                            PipelinePropertyRow("Hardware USB DAC", ratesText)
                         }
 
                         if (outputStatus.routeKind == com.music.raaga.playback.AudioRouting.Kind.BLUETOOTH) {
                             val bt = outputStatus.bluetoothTelemetry
-                            outputStatus.bluetoothProfile?.let { PipelineRow("Bluetooth", it) }
+                            val codecLabel = if (bt != null && bt.isConnected && bt.hasNamedCodec) bt.codecName else "System Managed"
+                            PipelinePropertyRow("Bluetooth Codec", codecLabel)
                             if (bt != null && bt.isConnected) {
-                                PipelineRow("Codec", if (bt.hasNamedCodec) bt.codecName else "System Managed")
-                                bt.bitDepth?.let { PipelineRow("Codec Bits", "$it-bit") }
-                                bt.sampleRateHz?.let { PipelineRow("Codec Sample Rate", "$it Hz") }
-                                PipelineRow("Codec Bitrate", bt.bitrateLabel)
-                                bt.mode?.let { PipelineRow("Codec Mode", it) }
-                            } else {
-                                PipelineRow("Codec", "System Managed")
+                                bt.bitDepth?.let { PipelinePropertyRow("Codec Bits", "$it-bit") }
+                                bt.sampleRateHz?.let { PipelinePropertyRow("Codec Rate", "$it Hz") }
+                                PipelinePropertyRow("Codec Bitrate", bt.bitrateLabel)
                             }
                         }
 
                         if (outputStatus.fallbackReason != com.music.raaga.playback.audio.FallbackReason.NONE) {
                             val fallbackText = outputStatus.fallbackDetail ?: outputStatus.fallbackReason.label
-                            PipelineRow("Fallback", fallbackText)
+                            PipelinePropertyRow("Fallback", fallbackText)
                         }
+                    }
+
+                    Spacer(Modifier.height(14.dp))
+                }
+
+                // Fixed Done Button at bottom
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(SHEET_BG_COLOR)
+                        .navigationBarsPadding()
+                        .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 14.dp),
+                ) {
+                    val buttonInteraction = remember { MutableInteractionSource() }
+                    val isPressed by buttonInteraction.collectIsPressedAsState()
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp)
+                            .clip(CircleShape)
+                            .background(if (isPressed) RaagaCobaltBlue.copy(alpha = 0.85f) else RaagaCobaltBlue)
+                            .clickable(
+                                interactionSource = buttonInteraction,
+                                indication = null,
+                                onClick = onDismiss,
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = stringResource(R.string.done),
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            ),
+                            color = Color.White,
+                        )
                     }
                 }
             }
-
-            PipelineRule()
-            PipelineDoneAction(label = stringResource(R.string.done), onClick = onDismiss)
         }
     }
 }
 
-/** The signal bus, the travelling pulse and the node rings behind the five stage icons. */
-private fun DrawScope.drawSignalFlow(
-    stageCenters: Map<Int, Offset>,
-    flowAlpha: Float,
-    pulseProgress: Float,
-    interactionRadiusPx: Float,
+/**
+ * Small, horizontally balanced signal summary container.
+ */
+@Composable
+private fun CompactSignalSummary(
+    dspActive: Boolean,
+    isBitExact: Boolean,
+    isDirectUsb: Boolean,
+    isDirectTrack: Boolean,
+    isHiRes: Boolean,
+    routeTag: String,
+    srcSummary: String,
+    dstSummary: String,
+    devLabel: String?,
 ) {
-    if (stageCenters.size < 5) return
+    val statusText = when {
+        isBitExact && (isDirectUsb || isDirectTrack) -> "BIT-PERFECT"
+        isBitExact -> "BIT-PERFECT"
+        isHiRes && (isDirectTrack || isDirectUsb) && !dspActive -> "HI-RES DIRECT"
+        dspActive -> "DSP ACTIVE"
+        else -> "ACTIVE SIGNAL"
+    }
 
-    val p0 = stageCenters[0] ?: return
-    val p1 = stageCenters[1] ?: return
-    val p2 = stageCenters[2] ?: return
-    val p3 = stageCenters[3] ?: return
-    val p4 = stageCenters[4] ?: return
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(SUMMARY_BG_COLOR)
+            .border(0.75.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(14.dp))
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        // Status indicator row with badge
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(7.dp)
+                        .clip(CircleShape)
+                        .background(RaagaCobaltBlue),
+                )
+                Text(
+                    text = statusText,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.8.sp,
+                        fontSize = 11.sp,
+                    ),
+                    color = RaagaCobaltBlue,
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(Color.White.copy(alpha = 0.08f))
+                    .padding(horizontal = 8.dp, vertical = 2.dp),
+            ) {
+                Text(
+                    text = routeTag,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                    ),
+                    color = Color.White.copy(alpha = 0.75f),
+                )
+            }
+        }
 
-    val xCenter = p0.x
-    val y0 = p0.y
-    val y4 = p4.y
-    val totalHeight = y4 - y0
-    if (totalHeight <= 0f) return
-
-    val currentFlowAlpha = flowAlpha
-    val currentProgress = pulseProgress
-    val stagePoints = listOf(p0, p1, p2, p3, p4)
-    val nodeRadius = 11.5.dp.toPx()
-
-    // 1. Static Node-to-Node Signal Bus Segments (~2.dp, butt caps at node rims)
-    val busAlpha = if (currentFlowAlpha > 0f) 0.22f + 0.06f * currentFlowAlpha else 0.18f
-    val busStroke = 2.dp.toPx()
-
-    for (i in 0 until stagePoints.size - 1) {
-        val yStart = stagePoints[i].y + nodeRadius
-        val yEnd = stagePoints[i + 1].y - nodeRadius
-        if (yEnd > yStart) {
-            drawLine(
-                color = Color.White.copy(alpha = busAlpha),
-                start = Offset(xCenter, yStart),
-                end = Offset(xCenter, yEnd),
-                strokeWidth = busStroke,
-                cap = StrokeCap.Butt,
+        // Horizontal Signal Flow: Input -> Arrow -> Output
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = srcSummary,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontSize = 12.5.sp,
+                    fontWeight = FontWeight.Medium,
+                ),
+                color = Color.White.copy(alpha = 0.85f),
+                modifier = Modifier.weight(1f),
             )
+            Text(
+                text = "→",
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                ),
+                color = RaagaCobaltBlue,
+                modifier = Modifier.padding(horizontal = 8.dp),
+            )
+            Text(
+                text = dstSummary,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontSize = 12.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                ),
+                color = Color.White,
+                textAlign = TextAlign.End,
+                modifier = Modifier.weight(1f),
+            )
+        }
 
-            // Subtle ambient under-glow along the bus when powered
-            if (currentFlowAlpha > 0f) {
-                drawLine(
-                    color = Color.White.copy(alpha = 0.05f * currentFlowAlpha),
-                    start = Offset(xCenter, yStart),
-                    end = Offset(xCenter, yEnd),
-                    strokeWidth = 4.5.dp.toPx(),
-                    cap = StrokeCap.Butt,
+        if (!devLabel.isNullOrBlank()) {
+            Text(
+                text = devLabel,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 10.5.sp,
+                ),
+                color = Color.White.copy(alpha = 0.45f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+/**
+ * Clean vertical timeline stage with small circular outline icon and connecting line.
+ */
+@Composable
+private fun PipelineStage(
+    icon: ImageVector,
+    title: String,
+    isFirst: Boolean = false,
+    isLast: Boolean = false,
+    isPlaying: Boolean = false,
+    content: @Composable () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(IntrinsicSize.Min),
+    ) {
+        // Left Column: Timeline Icon (32dp) + Continuous Line centered at x = 18dp
+        Box(
+            modifier = Modifier
+                .width(36.dp)
+                .fillMaxHeight()
+                .drawBehind {
+                    val centerX = size.width / 2f
+                    val iconCenterY = 16.dp.toPx()
+                    val lineColor = if (isPlaying) RaagaCobaltBlue.copy(alpha = 0.35f) else Color.White.copy(alpha = 0.12f)
+                    val strokeW = 1.5.dp.toPx()
+
+                    // Line from top down to icon center (if not first stage)
+                    if (!isFirst) {
+                        drawLine(
+                            color = lineColor,
+                            start = Offset(centerX, 0f),
+                            end = Offset(centerX, iconCenterY),
+                            strokeWidth = strokeW,
+                            cap = StrokeCap.Round,
+                        )
+                    }
+                    // Line from icon center down to bottom of stage (if not last stage)
+                    if (!isLast) {
+                        drawLine(
+                            color = lineColor,
+                            start = Offset(centerX, iconCenterY),
+                            end = Offset(centerX, size.height),
+                            strokeWidth = strokeW,
+                            cap = StrokeCap.Round,
+                        )
+                    }
+                },
+            contentAlignment = Alignment.TopCenter,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .background(SHEET_BG_COLOR, CircleShape)
+                    .border(
+                        1.dp,
+                        if (isPlaying) RaagaCobaltBlue.copy(alpha = 0.70f) else Color.White.copy(alpha = 0.22f),
+                        CircleShape,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = if (isPlaying) RaagaCobaltBlue else Color.White.copy(alpha = 0.85f),
+                    modifier = Modifier.size(15.dp),
+                )
+            }
+        }
+
+        Spacer(Modifier.width(12.dp))
+
+        // Right Column: Section Header & Property Table
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(bottom = if (isLast) 4.dp else 16.dp),
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall.copy(
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                ),
+                color = Color.White,
+                modifier = Modifier.padding(top = 5.dp, bottom = 6.dp),
+            )
+            content()
+
+            if (!isLast) {
+                HorizontalDivider(
+                    modifier = Modifier.padding(top = 10.dp),
+                    thickness = 0.5.dp,
+                    color = Color.White.copy(alpha = 0.07f),
                 )
             }
         }
     }
-
-    // 2. Dynamic Travelling Signal Pulse along Segments (When Playing)
-    if (currentFlowAlpha > 0f && currentProgress <= 0.95f) {
-        val pulseVisibility = if (currentProgress <= 0.85f) {
-            1f
-        } else {
-            (1f - (currentProgress - 0.85f) / 0.10f).coerceIn(0f, 1f)
-        } * currentFlowAlpha
-
-        if (pulseVisibility > 0.01f) {
-            val s = (currentProgress / 0.85f).coerceIn(0f, 1f)
-            val yPulse = y0 + s * totalHeight
-
-            val tailLength = 38.dp.toPx()
-            val leadLength = 8.dp.toPx()
-
-            for (i in 0 until stagePoints.size - 1) {
-                val yStart = stagePoints[i].y + nodeRadius
-                val yEnd = stagePoints[i + 1].y - nodeRadius
-                if (yEnd <= yStart) continue
-
-                val pStart = max(yStart, yPulse - tailLength)
-                val pEnd = min(yEnd, yPulse + leadLength)
-
-                if (pEnd > pStart) {
-                    // A. Soft Halo Line along Segment
-                    val haloBrush = Brush.verticalGradient(
-                        colorStops = arrayOf(
-                            0.0f to Color.Transparent,
-                            0.60f to Color.White.copy(alpha = 0.14f * pulseVisibility),
-                            0.88f to Color.White.copy(alpha = 0.28f * pulseVisibility),
-                            1.0f to Color.Transparent,
-                        ),
-                        startY = yPulse - tailLength,
-                        endY = yPulse + leadLength,
-                    )
-                    drawLine(
-                        brush = haloBrush,
-                        start = Offset(xCenter, pStart),
-                        end = Offset(xCenter, pEnd),
-                        strokeWidth = 6.dp.toPx(),
-                        cap = StrokeCap.Butt,
-                    )
-
-                    // B. Brilliant Core Energy Line along Segment
-                    val coreBrush = Brush.verticalGradient(
-                        colorStops = arrayOf(
-                            0.0f to Color.Transparent,
-                            0.50f to Color.White.copy(alpha = 0.45f * pulseVisibility),
-                            0.86f to Color.White.copy(alpha = 0.98f * pulseVisibility),
-                            1.0f to Color.Transparent,
-                        ),
-                        startY = yPulse - tailLength,
-                        endY = yPulse + leadLength,
-                    )
-                    drawLine(
-                        brush = coreBrush,
-                        start = Offset(xCenter, pStart),
-                        end = Offset(xCenter, pEnd),
-                        strokeWidth = 2.25.dp.toPx(),
-                        cap = StrokeCap.Butt,
-                    )
-
-                    // C. Leading Micro-Photon Pip (when pulse head is on this segment)
-                    if (yPulse in yStart..yEnd) {
-                        val headCenter = Offset(xCenter, yPulse)
-                        drawCircle(
-                            brush = Brush.radialGradient(
-                                colors = listOf(
-                                    Color.White.copy(alpha = 0.35f * pulseVisibility),
-                                    Color.Transparent,
-                                ),
-                                center = headCenter,
-                                radius = 7.dp.toPx(),
-                            ),
-                            radius = 7.dp.toPx(),
-                            center = headCenter,
-                        )
-                        drawCircle(
-                            color = Color.White.copy(alpha = 0.98f * pulseVisibility),
-                            radius = 1.75.dp.toPx(),
-                            center = headCenter,
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    // 3. Precision Node Anchors & White Outline Glow at Each Stage
-    for (i in stagePoints.indices) {
-        val stageCenter = Offset(xCenter, stagePoints[i].y)
-        val act = calculateStageActivation(i, currentProgress, currentFlowAlpha, stageCenters, interactionRadiusPx)
-
-        // A. Dark Backing Base (Seamless with card, guarantees zero bleed into icon interior)
-        drawCircle(
-            color = Color(0xFF131315),
-            radius = nodeRadius,
-            center = stageCenter,
-        )
-
-        // B. Subtle White Ambient Halo (Restrained when idle, blooms gently when active)
-        val haloAlpha = 0.10f + 0.24f * act * currentFlowAlpha
-        drawCircle(
-            brush = Brush.radialGradient(
-                colorStops = arrayOf(
-                    0.0f to Color.White.copy(alpha = haloAlpha * 0.40f),
-                    0.45f to Color.White.copy(alpha = haloAlpha),
-                    1.0f to Color.Transparent,
-                ),
-                center = stageCenter,
-                radius = nodeRadius + 5.dp.toPx(),
-            ),
-            radius = nodeRadius + 5.dp.toPx(),
-            center = stageCenter,
-        )
-
-        // C. Active Outer Luminous Flare Ring (When pulse arrives)
-        if (currentFlowAlpha > 0f && act > 0.02f) {
-            drawCircle(
-                color = Color.White.copy(alpha = 0.20f * act * currentFlowAlpha),
-                radius = nodeRadius + 1.2.dp.toPx(),
-                center = stageCenter,
-                style = Stroke(width = 2.dp.toPx()),
-            )
-        }
-
-        // D. Precision White Outline Micro-Ring (Crisp hardware boundary)
-        val ringAlpha = (0.35f + 0.55f * act * currentFlowAlpha).coerceIn(0f, 1f)
-        drawCircle(
-            color = Color.White.copy(alpha = ringAlpha),
-            radius = nodeRadius,
-            center = stageCenter,
-            style = Stroke(width = 1.dp.toPx()),
-        )
-
-        // E. High-Luminance Core Edge (When peak active)
-        if (currentFlowAlpha > 0f && act > 0.05f) {
-            drawCircle(
-                color = Color.White.copy(alpha = 0.60f * act * currentFlowAlpha),
-                radius = nodeRadius,
-                center = stageCenter,
-                style = Stroke(width = 1.5.dp.toPx()),
-            )
-        }
-    }
 }
 
-private fun calculateStageActivation(
-    stageIndex: Int,
-    progress: Float,
-    flowAlpha: Float,
-    stageCenters: Map<Int, Offset>,
-    interactionRadiusPx: Float,
-): Float {
-    if (flowAlpha <= 0.001f || stageCenters.size < 5) return 0f
-    val p0 = stageCenters[0] ?: return 0f
-    val p4 = stageCenters[4] ?: return 0f
-    val totalHeight = p4.y - p0.y
-    if (totalHeight <= 0f) return 0f
-
-    val targetY = stageCenters[stageIndex]?.y ?: return 0f
-
-    val yPulse = if (progress <= 0.85f) {
-        val s = (progress / 0.85f).coerceIn(0f, 1f)
-        p0.y + s * totalHeight
-    } else {
-        p4.y
-    }
-
-    val dy = abs(yPulse - targetY)
-    if (dy > interactionRadiusPx) return 0f
-
-    val p = 1f - (dy / interactionRadiusPx)
-    val raw = (0.5f - 0.5f * kotlin.math.cos(p * Math.PI.toFloat())).coerceIn(0f, 1f)
-
-    val absorption = if (stageIndex == 4 && progress > 0.85f) {
-        if (progress >= 0.95f) 0f else 1f - ((progress - 0.85f) / 0.10f)
-    } else 1f
-
-    return (raw * absorption * flowAlpha).coerceIn(0f, 1f)
-}
-
-/** One pipeline stage: an icon, its title, and the label/value rows under it. */
+/**
+ * Declarative 2-column property row ensuring consistent alignment across all sections.
+ */
 @Composable
-private fun PipelineSection(
-    stageIndex: Int,
-    icon: ImageVector,
-    title: String,
-    columnCoordinates: LayoutCoordinates?,
-    stageActivationProvider: (Int) -> Float,
-    onStageIconPositioned: (Int, Offset) -> Unit,
-    content: @Composable () -> Unit,
+private fun PipelinePropertyRow(
+    label: String,
+    value: String,
+    valueColor: Color = Color.White,
 ) {
-    var iconCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
-
-    fun reportCenter(child: LayoutCoordinates?, parent: LayoutCoordinates?) {
-        if (child == null || parent == null || !child.isAttached || !parent.isAttached) return
-        val center = parent.localPositionOf(
-            child,
-            Offset(child.size.width / 2f, child.size.height / 2f),
-        )
-        onStageIconPositioned(stageIndex, center)
-    }
-
-    // Covers the first pass, when the column may not have reported yet.
-    LaunchedEffect(iconCoordinates, columnCoordinates) {
-        reportCenter(iconCoordinates, columnCoordinates)
-    }
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 14.dp, end = 16.dp, top = 12.dp, bottom = 12.dp),
+            .padding(vertical = 2.5.dp),
+        verticalAlignment = Alignment.Top,
     ) {
-        // Left Column: Dedicated Icon / Signal Node lane (icon size strictly preserved at 15dp)
-        Box(
-            modifier = Modifier.size(24.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier
-                    .size(15.dp)
-                    .onGloballyPositioned { coords ->
-                        iconCoordinates = coords
-                        // The coordinates object never changes, so the effect
-                        // above only runs once. A section growing when stats
-                        // arrive moves every icon below it; track that here.
-                        reportCenter(coords, columnCoordinates)
-                    }
-                    .graphicsLayer {
-                        val act = stageActivationProvider(stageIndex)
-                        alpha = (0.80f + 0.20f * act).coerceIn(0f, 1f)
-                    },
-            )
-        }
-
-        Spacer(Modifier.width(14.dp))
-
-        // Right Column: Dedicated Information lane (Title + Telemetry Rows)
-        Column(
-            modifier = Modifier.weight(1f),
-        ) {
-            Text(
-                text = title.uppercase(),
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontSize = 11.5.sp,
-                    fontWeight = FontWeight.W600,
-                    letterSpacing = 0.5.sp,
-                ),
-                color = Color.White,
-                modifier = Modifier
-                    .padding(top = 3.dp)
-                    .graphicsLayer {
-                        val act = stageActivationProvider(stageIndex)
-                        alpha = (0.65f + 0.32f * act).coerceIn(0f, 1f)
-                    },
-            )
-            Spacer(Modifier.height(7.dp))
-            content()
-        }
-    }
-}
-
-@Composable
-private fun PipelineRow(label: String, value: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 1.dp),
-    ) {
-        val text = buildAnnotatedString {
-            withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = Color.White)) {
-                append("$label: ")
-            }
-            withStyle(SpanStyle(fontWeight = FontWeight.Normal, color = Color.White.copy(alpha = 0.82f))) {
-                append(value)
-            }
-        }
         Text(
-            text = text,
+            text = label,
             style = MaterialTheme.typography.bodySmall.copy(
-                fontSize = 12.5.sp,
+                fontSize = 13.5.sp,
+                fontWeight = FontWeight.Normal,
                 lineHeight = 17.sp,
             ),
+            color = TEXT_MUTED,
+            modifier = Modifier.width(130.dp),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontSize = 13.5.sp,
+                fontWeight = FontWeight.Medium,
+                lineHeight = 17.sp,
+            ),
+            color = valueColor,
+            modifier = Modifier.weight(1f),
         )
     }
 }
 
-/** Hairline separator between stages, indented to align with the text column and clear the signal lane. */
+internal fun formatUsbCapability(raw: String): String {
+    var formatted = raw
+        .replace("PCM32", "PCM 32-bit")
+        .replace("PCM24", "PCM 24-bit")
+        .replace("PCM16", "PCM 16-bit")
+        .replace("Float32", "Float 32-bit")
+
+    val hzRegex = Regex("""(\d+)\s*Hz""")
+    formatted = hzRegex.replace(formatted) { matchResult ->
+        val hz = matchResult.groupValues[1].toIntOrNull()
+            ?: return@replace matchResult.value
+        "${"%.1f".format(Locale.ROOT, hz / 1000f).removeSuffix(".0")} kHz"
+    }
+    return formatted
+}
+
+/** Hairline separator preserved for backwards compatibility with AudioPopupCard and CastDialog. */
 @Composable
 internal fun PipelineRule(modifier: Modifier = Modifier.padding(start = 52.dp, end = 16.dp)) {
     Box(
@@ -1101,7 +939,7 @@ internal fun PipelineRule(modifier: Modifier = Modifier.padding(start = 52.dp, e
     )
 }
 
-/** Full-bleed closing action, [AlertAction]'s shape fixed to this screen's white-on-dark palette. */
+/** Full-bleed closing action preserved for backwards compatibility with AudioPopupCard. */
 @Composable
 internal fun PipelineDoneAction(label: String, onClick: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -1131,33 +969,3 @@ internal fun PipelineDoneAction(label: String, onClick: () -> Unit) {
     }
 }
 
-@Composable
-private fun PipelineNote(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.bodySmall.copy(
-            fontSize = 11.sp,
-            lineHeight = 14.sp,
-            color = Color.White.copy(alpha = 0.60f),
-        ),
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 1.dp, bottom = 4.dp),
-    )
-}
-
-internal fun formatUsbCapability(raw: String): String {
-    var formatted = raw
-        .replace("PCM32", "PCM 32-bit")
-        .replace("PCM24", "PCM 24-bit")
-        .replace("PCM16", "PCM 16-bit")
-        .replace("Float32", "Float 32-bit")
-
-    val hzRegex = Regex("""(\d+)\s*Hz""")
-    formatted = hzRegex.replace(formatted) { matchResult ->
-        val hz = matchResult.groupValues[1].toIntOrNull()
-            ?: return@replace matchResult.value
-        "${"%.1f".format(Locale.ROOT, hz / 1000f).removeSuffix(".0")} kHz"
-    }
-    return formatted
-}

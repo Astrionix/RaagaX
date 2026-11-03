@@ -1102,7 +1102,7 @@ object AppSettings {
         prioritizeSpotifyCanvas.value = prefs.getBoolean(KEY_PRIORITIZE_SPOTIFY_CANVAS, false)
         spotifyCanvasEnabled.value = prefs.getBoolean(KEY_SPOTIFY_CANVAS_ENABLED, true)
         lockScreenCanvas.value = prefs.getBoolean(KEY_LOCK_SCREEN_CANVAS, true)
-        lockScreenArt.value = prefs.getBoolean(KEY_LOCK_SCREEN_ART, false)
+        lockScreenArt.value = false
         lockScreenArtTop.value = prefs.getInt(KEY_LOCK_SCREEN_ART_TOP, 50)
         lockScreenCanvasWifiOnly.value = prefs.getBoolean(KEY_LOCK_SCREEN_CANVAS_WIFI_ONLY, false)
         lockScreenCanvasBatterySaver.value = prefs.getBoolean(KEY_LOCK_SCREEN_CANVAS_BATTERY_SAVER, true)

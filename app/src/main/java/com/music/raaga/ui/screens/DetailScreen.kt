@@ -541,22 +541,17 @@ fun DetailScreen(
                         onShuffle = { onShuffle(songs) },
                         subscription = page.subscription?.takeIf { onToggleSubscription != null },
                         onToggleSubscription = onToggleSubscription,
-                        bottomSpace = if (cleanedDescription.isNullOrBlank()) 22.dp else 11.dp,
+                        bottomSpace = 22.dp,
                     )
                 }
             }
 
-            // YouTube's own editorial blurb — an album or an artist only, per
-            // [DetailPage.description]. A playlist never carries one, and the
-            // section is skipped for it even on the rare response that does.
-            if (!cleanedDescription.isNullOrBlank() &&
-                (page.type == BrowseType.ALBUM || isArtist)
-            ) {
+            // YouTube's own editorial blurb — an album only, per [DetailPage.description].
+            // A playlist never carries one, and "About the artist" is removed as requested.
+            if (!cleanedDescription.isNullOrBlank() && page.type == BrowseType.ALBUM) {
                 item(key = "about") {
                     AboutSection(
-                        title = stringResource(
-                            if (isArtist) R.string.about_artist else R.string.about_album,
-                        ),
+                        title = stringResource(R.string.about_album),
                         text = cleanedDescription,
                         palette = palette,
                     )
@@ -1630,7 +1625,8 @@ private fun AboutSection(title: String, text: String, palette: ArtworkPalette) {
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.Medium,
             color = palette.onBackgroundVariant,
-            textAlign = TextAlign.Justify,
+            textAlign = TextAlign.Start,
+            lineHeight = 22.sp,
             maxLines = if (expanded) Int.MAX_VALUE else 3,
             overflow = TextOverflow.Ellipsis,
             onTextLayout = { result -> if (!expanded) clipped = result.hasVisualOverflow },

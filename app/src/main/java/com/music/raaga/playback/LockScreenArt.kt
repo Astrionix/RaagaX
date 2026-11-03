@@ -86,6 +86,7 @@ object LockScreenArt {
      * burst, so only the track that stays for [DEBOUNCE_MS] is painted.
      */
     fun onTrack(context: Context, artUrl: String?, force: Boolean = false) {
+        if (!AppSettings.lockScreenArt.value) return
         val app = context.applicationContext
         if (!artUrl.isNullOrBlank()) currentArt = artUrl
         if (held) return

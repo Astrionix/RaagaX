@@ -17,6 +17,7 @@ import (
 )
 
 func setupTestServer() *httptest.Server {
+	createLimiter = newIPRateLimiter(time.Minute, 1000, 1000)
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", handleRoot)
 	mux.HandleFunc("GET /healthz", handleHealthz)
@@ -24,6 +25,7 @@ func setupTestServer() *httptest.Server {
 	mux.HandleFunc("POST /api/parties", handleCreateParty)
 	mux.HandleFunc("POST /api/parties/{code}/join", handleJoinParty)
 	mux.HandleFunc("GET /api/parties/{code}", handleGetParty)
+	mux.HandleFunc("GET /api/parties/{code}/preview", handlePreviewParty)
 	mux.HandleFunc("POST /api/parties/{code}/leave", handleLeaveParty)
 	mux.HandleFunc("GET /invite/{code}", handleInviteLanding)
 	mux.HandleFunc("GET /ws/parties/{code}", handleWebSocket)
@@ -274,5 +276,339 @@ func TestInviteLanding(t *testing.T) {
 	}
 	if !strings.Contains(content, code) {
 		t.Errorf("Expected HTML content to contain party code %s", code)
+	}
+}
+
+func TestControlFramesDeadlockRegression(t *testing.T) {
+	ts := setupTestServer()
+	defer ts.Close()
+
+	// 1. Create party
+	createBody, _ := json.Marshal(map[string]interface{}{
+		"userId":      "u1",
+		"deviceId":    "d1",
+		"displayName": "HostUser",
+	})
+	res, err := http.Post(ts.URL+"/api/parties", "application/json", bytes.NewReader(createBody))
+	if err != nil {
+		t.Fatalf("Party creation failed: %v", err)
+	}
+	var created map[string]interface{}
+	_ = json.NewDecoder(res.Body).Decode(&created)
+	code := created["code"].(string)
+	hostToken := created["token"].(string)
+
+	// 2. Member B joins via REST
+	joinBody, _ := json.Marshal(map[string]interface{}{
+		"userId":      "u2",
+		"deviceId":    "d2",
+		"displayName": "GuestUser",
+	})
+	resJoin, err := http.Post(ts.URL+"/api/parties/"+code+"/join", "application/json", bytes.NewReader(joinBody))
+	if err != nil {
+		t.Fatalf("Join failed: %v", err)
+	}
+	var joined map[string]interface{}
+	_ = json.NewDecoder(resJoin.Body).Decode(&joined)
+	guestToken := joined["token"].(string)
+
+	// 3. Connect Host and Guest over WebSockets
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/ws/parties/" + code
+	hHeaders := http.Header{"Authorization": []string{"Bearer " + hostToken}}
+	hostWs, _, err := websocket.DefaultDialer.Dial(wsURL, hHeaders)
+	if err != nil {
+		t.Fatalf("Host WS connect failed: %v", err)
+	}
+	defer hostWs.Close()
+
+	gHeaders := http.Header{"Authorization": []string{"Bearer " + guestToken}}
+	guestWs, _, err := websocket.DefaultDialer.Dial(wsURL, gHeaders)
+	if err != nil {
+		t.Fatalf("Guest WS connect failed: %v", err)
+	}
+	defer guestWs.Close()
+
+	// Read welcome frames
+	var f map[string]interface{}
+	_ = hostWs.ReadJSON(&f) // welcome
+	_ = guestWs.ReadJSON(&f) // welcome
+
+	// 4. Send multiple controls: play, pause, seek, setTrack
+	controls := []map[string]interface{}{
+		{
+			"type":       protocol.FrameControl,
+			"action":     protocol.ActionPlay,
+			"positionMs": 1500.0,
+		},
+		{
+			"type":       protocol.FrameControl,
+			"action":     protocol.ActionPause,
+			"positionMs": 2500.0,
+		},
+		{
+			"type":       protocol.FrameControl,
+			"action":     protocol.ActionSeek,
+			"positionMs": 10000.0,
+		},
+	}
+
+	for _, c := range controls {
+		if err := hostWs.WriteJSON(c); err != nil {
+			t.Fatalf("Failed to write control %v: %v", c["action"], err)
+		}
+	}
+
+	// Guest should receive broadcast state frames without deadlock
+	receivedStates := 0
+	for i := 0; i < 10; i++ {
+		_ = guestWs.SetReadDeadline(time.Now().Add(1 * time.Second))
+		var gf map[string]interface{}
+		if err := guestWs.ReadJSON(&gf); err != nil {
+			break
+		}
+		if gf["type"] == protocol.FrameState {
+			receivedStates++
+			if receivedStates >= 3 {
+				break
+			}
+		}
+	}
+
+	if receivedStates < 3 {
+		t.Errorf("Expected at least 3 state frames received by guest without deadlock, got %d", receivedStates)
+	}
+}
+
+func TestCrossDeviceCloudJoinAndControlFlow(t *testing.T) {
+	ts := setupTestServer()
+	defer ts.Close()
+
+	// 1. Invalid room code produces a clear error (404)
+	invRes, err := http.Get(ts.URL + "/api/parties/INVALID/preview")
+	if err != nil || invRes.StatusCode != http.StatusNotFound {
+		t.Fatalf("Expected 404 for invalid room code, got %v", invRes.StatusCode)
+	}
+
+	// 2. Android Phone A creates a cloud room
+	createBody, _ := json.Marshal(map[string]interface{}{
+		"userId":      "usr_phone_a",
+		"deviceId":    "dev_phone_a",
+		"displayName": "Phone A (Host)",
+		"maxMembers":  5,
+	})
+	reqA, _ := http.NewRequest("POST", ts.URL+"/api/parties", bytes.NewReader(createBody))
+	reqA.Header.Set("Content-Type", "application/json")
+	reqA.Header.Set("X-Forwarded-For", "198.51.100.10") // Network A
+	resA, err := http.DefaultClient.Do(reqA)
+	if err != nil || resA.StatusCode != http.StatusCreated {
+		t.Fatalf("Phone A create party failed: status %v, err %v", resA.StatusCode, err)
+	}
+	var createdA map[string]interface{}
+	_ = json.NewDecoder(resA.Body).Decode(&createdA)
+	code := createdA["code"].(string)
+	tokenA := createdA["token"].(string)
+	if code == "" || tokenA == "" {
+		t.Fatalf("Invalid response for Phone A: %v", createdA)
+	}
+
+	// 3. Android Phone B joins using the same cloud server from a different network
+	joinBody, _ := json.Marshal(map[string]interface{}{
+		"userId":      "usr_phone_b",
+		"deviceId":    "dev_phone_b",
+		"displayName": "Phone B (Listener)",
+	})
+	reqB, _ := http.NewRequest("POST", ts.URL+"/api/parties/"+code+"/join", bytes.NewReader(joinBody))
+	reqB.Header.Set("Content-Type", "application/json")
+	reqB.Header.Set("X-Forwarded-For", "203.0.113.195") // Different Network B (cellular/remote Wi-Fi)
+	resB, err := http.DefaultClient.Do(reqB)
+	if err != nil || resB.StatusCode != http.StatusOK {
+		t.Fatalf("Phone B join party failed: status %v, err %v", resB.StatusCode, err)
+	}
+	var joinedB map[string]interface{}
+	_ = json.NewDecoder(resB.Body).Decode(&joinedB)
+	tokenB := joinedB["token"].(string)
+	if tokenB == "" {
+		t.Fatalf("Invalid token for Phone B")
+	}
+
+	// 4. Both phones connect over WebSocket to the cloud server
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/ws/parties/" + code
+	wsA, _, err := websocket.DefaultDialer.Dial(wsURL, http.Header{"Authorization": []string{"Bearer " + tokenA}})
+	if err != nil {
+		t.Fatalf("Phone A WebSocket connect failed: %v", err)
+	}
+	defer wsA.Close()
+
+	wsB, _, err := websocket.DefaultDialer.Dial(wsURL, http.Header{"Authorization": []string{"Bearer " + tokenB}})
+	if err != nil {
+		t.Fatalf("Phone B WebSocket connect failed: %v", err)
+	}
+	defer wsB.Close()
+
+	// 5. Both phones receive the welcome frame
+	var welcomeA map[string]interface{}
+	if err := wsA.ReadJSON(&welcomeA); err != nil || welcomeA["type"] != protocol.FrameWelcome {
+		t.Fatalf("Phone A did not receive welcome frame: %v, err: %v", welcomeA, err)
+	}
+	var welcomeB map[string]interface{}
+	if err := wsB.ReadJSON(&welcomeB); err != nil || welcomeB["type"] != protocol.FrameWelcome {
+		t.Fatalf("Phone B did not receive welcome frame: %v, err: %v", welcomeB, err)
+	}
+
+	// Drain any initial members broadcast frame
+	_ = wsA.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
+	var dummyA map[string]interface{}
+	_ = wsA.ReadJSON(&dummyA)
+	_ = wsB.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
+	var dummyB map[string]interface{}
+	_ = wsB.ReadJSON(&dummyB)
+
+	// 6. Play, pause, seek, and next work:
+	// A) Play control
+	playControl := map[string]interface{}{
+		"type":       protocol.FrameControl,
+		"action":     protocol.ActionPlay,
+		"positionMs": 5000.0,
+	}
+	if err := wsA.WriteJSON(playControl); err != nil {
+		t.Fatalf("Failed to write play control: %v", err)
+	}
+
+	// Verify Phone B receives playback state update with isPlaying = true
+	var statePlay map[string]interface{}
+	for i := 0; i < 5; i++ {
+		_ = wsB.SetReadDeadline(time.Now().Add(1 * time.Second))
+		var f map[string]interface{}
+		if err := wsB.ReadJSON(&f); err == nil {
+			if f["type"] == protocol.FrameState {
+				statePlay = f
+				break
+			}
+		}
+	}
+	if statePlay == nil {
+		t.Fatalf("Phone B did not receive state frame after play")
+	}
+	pbPlay, _ := statePlay["playback"].(map[string]interface{})
+	if pbPlay["isPlaying"] != true {
+		t.Errorf("Expected isPlaying == true after play, got %v", pbPlay["isPlaying"])
+	}
+
+	// B) Pause control
+	pauseControl := map[string]interface{}{
+		"type":       protocol.FrameControl,
+		"action":     protocol.ActionPause,
+		"positionMs": 12000.0,
+	}
+	if err := wsA.WriteJSON(pauseControl); err != nil {
+		t.Fatalf("Failed to write pause control: %v", err)
+	}
+	var statePause map[string]interface{}
+	for i := 0; i < 5; i++ {
+		_ = wsB.SetReadDeadline(time.Now().Add(1 * time.Second))
+		var f map[string]interface{}
+		if err := wsB.ReadJSON(&f); err == nil {
+			if f["type"] == protocol.FrameState {
+				statePause = f
+				break
+			}
+		}
+	}
+	if statePause == nil {
+		t.Fatalf("Phone B did not receive state frame after pause")
+	}
+	pbPause, _ := statePause["playback"].(map[string]interface{})
+	if pbPause["isPlaying"] != false {
+		t.Errorf("Expected isPlaying == false after pause, got %v", pbPause["isPlaying"])
+	}
+
+	// C) Seek control
+	seekControl := map[string]interface{}{
+		"type":       protocol.FrameControl,
+		"action":     protocol.ActionSeek,
+		"positionMs": 45000.0,
+	}
+	if err := wsA.WriteJSON(seekControl); err != nil {
+		t.Fatalf("Failed to write seek control: %v", err)
+	}
+	var stateSeek map[string]interface{}
+	for i := 0; i < 5; i++ {
+		_ = wsB.SetReadDeadline(time.Now().Add(1 * time.Second))
+		var f map[string]interface{}
+		if err := wsB.ReadJSON(&f); err == nil {
+			if f["type"] == protocol.FrameState {
+				stateSeek = f
+				break
+			}
+		}
+	}
+	if stateSeek == nil {
+		t.Fatalf("Phone B did not receive state frame after seek")
+	}
+	pbSeek, _ := stateSeek["playback"].(map[string]interface{})
+	if pos, ok := pbSeek["positionMs"].(float64); !ok || pos != 45000.0 {
+		t.Errorf("Expected positionMs == 45000 after seek, got %v", pbSeek["positionMs"])
+	}
+
+	// D) Next control (next)
+	nextControl := map[string]interface{}{
+		"type":   protocol.FrameControl,
+		"action": protocol.ActionNext,
+	}
+	if err := wsA.WriteJSON(nextControl); err != nil {
+		t.Fatalf("Failed to write next control: %v", err)
+	}
+
+	// 7. A WebSocket reconnect retains membership
+	_ = wsB.Close()
+	time.Sleep(50 * time.Millisecond)
+
+	wsBReconnect, _, err := websocket.DefaultDialer.Dial(wsURL, http.Header{"Authorization": []string{"Bearer " + tokenB}})
+	if err != nil {
+		t.Fatalf("Phone B reconnect failed: %v", err)
+	}
+	defer wsBReconnect.Close()
+
+	var welcomeReconnect map[string]interface{}
+	_ = wsBReconnect.SetReadDeadline(time.Now().Add(2 * time.Second))
+	if err := wsBReconnect.ReadJSON(&welcomeReconnect); err != nil || welcomeReconnect["type"] != protocol.FrameWelcome {
+		t.Fatalf("Phone B did not receive welcome frame on reconnect: %v, err: %v", welcomeReconnect, err)
+	}
+	partyWire, _ := welcomeReconnect["party"].(map[string]interface{})
+	membersList, _ := partyWire["members"].([]interface{})
+	if len(membersList) != 2 {
+		t.Errorf("Expected 2 members preserved after reconnect, got %d", len(membersList))
+	}
+
+	// 8. Backend restart behavior tested against persistence layer:
+	pBeforeRestart, err := store.Get(code)
+	if err != nil {
+		t.Fatalf("Failed to get party from store: %v", err)
+	}
+	store.Save(pBeforeRestart)
+
+	// Simulate server process restart: purge all in-memory parties
+	store.ClearCacheForTest()
+
+	// Reload party from persistence backend
+	pAfterRestart, err := store.Get(code)
+	if err != nil {
+		t.Fatalf("Failed to reload party from persistence layer after simulated restart: %v", err)
+	}
+	if pAfterRestart.Code != code {
+		t.Errorf("Reloaded party code mismatch: got %s, want %s", pAfterRestart.Code, code)
+	}
+
+	// Check that members and tokens survived restart
+	pAfterRestart.Lock()
+	memA, errA := pAfterRestart.Authenticate(tokenA)
+	memB, errB := pAfterRestart.Authenticate(tokenB)
+	pAfterRestart.Unlock()
+
+	if errA != nil || memA == nil || !memA.IsHost {
+		t.Errorf("Host A auth failed after restart: %v", errA)
+	}
+	if errB != nil || memB == nil {
+		t.Errorf("Listener B auth failed after restart: %v", errB)
 	}
 }

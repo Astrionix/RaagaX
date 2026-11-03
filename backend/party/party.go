@@ -1,6 +1,7 @@
 package party
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/hex"
@@ -731,15 +732,37 @@ func (p *Party) ToWire() map[string]interface{} {
 	}
 }
 
-// PartyStore holds all live parties in process memory.
+// PartyStore manages live parties with optional shared persistent storage (e.g. Redis).
 type PartyStore struct {
 	mu      sync.RWMutex
 	parties map[string]*Party
+	backend StoreBackend
 }
 
 func NewPartyStore() *PartyStore {
+	return NewPartyStoreWithBackend(initStoreBackend())
+}
+
+func NewPartyStoreWithBackend(b StoreBackend) *PartyStore {
 	return &PartyStore{
 		parties: make(map[string]*Party),
+		backend: b,
+	}
+}
+
+func (s *PartyStore) ClearCacheForTest() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.parties = make(map[string]*Party)
+}
+
+func (s *PartyStore) Backend() StoreBackend {
+	return s.backend
+}
+
+func (s *PartyStore) Save(p *Party) {
+	if s.backend != nil && p != nil {
+		_ = s.backend.SaveParty(context.Background(), p)
 	}
 }
 
@@ -769,8 +792,11 @@ func (s *PartyStore) CreateWithLimits(maxParties, maxMembers int) (*Party, error
 	for i := 0; i < 12; i++ {
 		code := codes.NewCode()
 		if _, exists := s.parties[code]; !exists {
-		p := NewPartyWithMaxMembers(code, maxMembers)
+			p := NewPartyWithMaxMembers(code, maxMembers)
 			s.parties[code] = p
+			if s.backend != nil {
+				_ = s.backend.SaveParty(context.Background(), p)
+			}
 			return p, nil
 		}
 	}
@@ -782,28 +808,52 @@ func (s *PartyStore) Get(code string) (*Party, error) {
 	s.mu.RLock()
 	p, ok := s.parties[norm]
 	s.mu.RUnlock()
-	if !ok {
-		return nil, NewPartyError(404, "no_such_party", "No party with that code.")
+	if ok && p != nil {
+		return p, nil
 	}
-	return p, nil
+
+	if s.backend != nil {
+		loaded, err := s.backend.LoadParty(context.Background(), norm)
+		if err == nil && loaded != nil {
+			s.mu.Lock()
+			s.parties[norm] = loaded
+			s.mu.Unlock()
+			return loaded, nil
+		}
+	}
+
+	return nil, NewPartyError(404, "no_such_party", "No party with that code.")
 }
 
 func (s *PartyStore) Find(code string) *Party {
-	norm := codes.Normalise(code)
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.parties[norm]
+	p, _ := s.Get(code)
+	return p
 }
 
 func (s *PartyStore) Drop(code string) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	delete(s.parties, code)
+	s.mu.Unlock()
+	if s.backend != nil {
+		_ = s.backend.DeleteParty(context.Background(), code)
+	}
 }
 
 func (s *PartyStore) All() []*Party {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.backend != nil {
+		codes, err := s.backend.ListPartyCodes(context.Background())
+		if err == nil {
+			for _, code := range codes {
+				if _, ok := s.parties[code]; !ok {
+					if loaded, err := s.backend.LoadParty(context.Background(), code); err == nil && loaded != nil {
+						s.parties[code] = loaded
+					}
+				}
+			}
+		}
+	}
 	res := make([]*Party, 0, len(s.parties))
 	for _, p := range s.parties {
 		res = append(res, p)

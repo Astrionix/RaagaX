@@ -205,64 +205,6 @@ fun LibraryScreen(
         LibrarySongAggregator.syncOfflineSongs(context)
     }
 
-    if (!signedIn || state is UiState.Error) {
-        // No account library to categorise: on-device shelf plus a prompt.
-        LazyColumn(
-            state = listState,
-            modifier = modifier.fillMaxSize(),
-            contentPadding = contentPadding,
-        ) {
-            item(key = "title") {
-                Text(
-                    text = stringResource(R.string.library),
-                    style = MaterialTheme.typography.displayLarge,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    modifier = Modifier.padding(horizontal = PAGE_GUTTER, vertical = 8.dp),
-                )
-            }
-            item(key = "replay") {
-                if (replayCards.isEmpty()) {
-                    ReplayBanner(null) { onOpenReplay(ReplayStoryPage.INTRO) }
-                } else {
-                    ReplayCardRow(
-                        cards = replayCards,
-                        holder = replayHolder,
-                        memberSince = replayMemberSince,
-                        onCardClick = onOpenReplay,
-                        modifier = Modifier.padding(vertical = 6.dp),
-                        contentPadding = PaddingValues(horizontal = PAGE_GUTTER),
-                    )
-                }
-            }
-            item(key = "shelf:$onDevice") {
-                OnDeviceShelf(
-                    title = onDevice,
-                    downloadedPlaylists = downloadedPlaylists,
-                    onItemClick = onShelfItemClick,
-                    onItemLongPress = onShelfItemLongPress,
-                    onShowAll = onShowAll,
-                    onImportSpotifyPlaylist = onImportSpotifyPlaylist,
-                )
-            }
-            item(key = "message") {
-                if (state is UiState.Error && signedIn) {
-                    MessageState(
-                        message = state.message,
-                        actionLabel = stringResource(R.string.retry),
-                        onAction = onRetry,
-                    )
-                } else {
-                    MessageState(
-                        message = stringResource(R.string.library_sign_in_description),
-                        actionLabel = stringResource(R.string.sign_in),
-                        onAction = onSignIn,
-                    )
-                }
-            }
-        }
-        return
-    }
-
     AnimatedContent(
         targetState = currentCategory,
         label = "LibraryNavigation",
@@ -294,6 +236,8 @@ fun LibraryScreen(
                 pullState = pullState,
                 listState = listState,
                 contentPadding = contentPadding,
+                signedIn = signedIn,
+                onSignIn = onSignIn,
             )
 
             LibraryCategory.PLAYLISTS -> PlaylistsSubScreen(

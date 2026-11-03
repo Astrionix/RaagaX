@@ -492,9 +492,12 @@ class PartySync(
         }
     }
 
+    internal val currentNudgeRate: Float get() = nudgeRate
+    internal val currentDriftStrikes: Int get() = driftStrikes
+
     // ------------------------------------------------------------ inbound --
 
-    private fun reconcile() {
+    internal fun reconcile() {
         val party = ListenTogether.state.value
         if (!party.inParty) {
             releaseNudge()
@@ -684,6 +687,17 @@ class PartySync(
                 return
             }
         }
+
+        // Host is authoritative for playback timing. The party derives its clock and
+        // position from the host; the host must never chase an echo of its own timeline.
+        // Bypassing drift nudging and periodic correction seeks prevents repeated
+        // SonicAudioProcessor resample churn and buffer disruptions ("kar-kar" disturbance).
+        if (party.isHost) {
+            if (nudgeRate != 1f) releaseNudge()
+            driftStrikes = 0
+            return
+        }
+
         // Up to here a gap is closed by running slightly fast or slow, which
         // costs nothing audible. See [nudgeToward].
         if (abs(drift) < HARD_SEEK_MS) {
@@ -779,12 +793,13 @@ class PartySync(
      */
     private fun releaseNudge() {
         if (nudgeRate != 1f) {
-            val exo = nudgeTarget
+            val exo = nudgeTarget ?: player()
             if (exo != null && abs(exo.playbackParameters.speed - nudgeRate) <= RATE_EPSILON) {
                 exo.setPlaybackSpeed(nudgeBase)
             }
         }
         nudgeRate = 1f
+        nudgeTarget = null
     }
 
     /**
@@ -1065,6 +1080,7 @@ class PartySync(
 
     private fun onLeftParty() {
         Log.i(TAG, "left party, restoring personal queue if stashed")
+        releaseNudge()
         loadingVideoId = null
         alignedSeq = -1L
         focusLost = false
