@@ -6,6 +6,8 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import androidx.media3.common.Player
+import androidx.annotation.StringRes
+import com.music.raaga.R
 import com.music.raaga.BuildConfig
 import com.music.raaga.auth.AuthStore
 import com.music.raaga.data.lyrics.LyricsSource
@@ -147,6 +149,19 @@ enum class ThemeMode(val label: String) {
     SYSTEM("System"), LIGHT("Light"), DARK("Dark")
 }
 
+enum class AppFont(val id: String, @StringRes val labelRes: Int) {
+    IOS_BOLD("IOS_BOLD", R.string.font_ios_bold),
+    SF_PRO("SF_PRO", R.string.font_sf_pro),
+    NEW_YORK("NEW_YORK", R.string.font_new_york),
+    SYSTEM("SYSTEM", R.string.font_system),
+    MONOSPACE("MONOSPACE", R.string.font_monospace);
+
+    companion object {
+        fun fromId(id: String?): AppFont =
+            entries.firstOrNull { it.id.equals(id, ignoreCase = true) || it.name.equals(id, ignoreCase = true) } ?: SF_PRO
+    }
+}
+
 /**
  * Which of the equaliser's two tabs is driving the sound.
  *
@@ -167,6 +182,19 @@ enum class AutomixPerformanceMode(val inferenceThreads: Int) {
     EFFICIENT(1),
     BALANCED(2),
     PERFORMANCE(4),
+}
+
+/** Mode for track transitions: Automatic (intelligent), Manual (user duration), or Off. */
+enum class CrossfadeMode {
+    AUTOMATIC,
+    MANUAL,
+    OFF;
+
+    companion object {
+        fun fromString(name: String?): CrossfadeMode = runCatching {
+            name?.let { valueOf(it) }
+        }.getOrNull() ?: AUTOMATIC
+    }
 }
 
 /** Stable persisted ordering for each on-device music library. */
@@ -199,9 +227,14 @@ enum class LibrarySort {
  * page: one choice, kept until the user makes another.
  */
 enum class SongSort {
+    CUSTOM_ORDER,
     DEFAULT,
     TITLE_ASC,
     TITLE_DESC,
+    ARTIST_ASC,
+    ARTIST_DESC,
+    DURATION_ASC,
+    DURATION_DESC,
     DATE_ADDED_ASC,
     DATE_ADDED_DESC,
 }
@@ -288,6 +321,8 @@ object AppSettings {
      * not one portable audio file.
      */
     val exportDownloads = MutableStateFlow(false)
+    val exportSyncedLyrics = MutableStateFlow(true)
+    val exportArtwork = MutableStateFlow(true)
 
     /** Auto-download tracks added to user playlists. */
     val autoDownloadPlaylists = MutableStateFlow(AutoDownloadPlaylist.OFF)
@@ -309,19 +344,19 @@ object AppSettings {
     // [SourceResolver.requestForNow][com.music.raaga.data.sources.SourceResolver.requestForNow],
     // which now reads [effectiveAudioQuality] and nothing else.
 
-    val crossfadeSeconds = MutableStateFlow(0)
+    val crossfadeMode = MutableStateFlow(CrossfadeMode.AUTOMATIC)
+    val crossfadeSeconds = MutableStateFlow(5)
 
     /**
-     * Lets Automix's analyzer decide the transition's timing and length
+     * Lets the intelligent crossfade engine decide the transition's timing and length
      * from each track's tempo, energy and structure, replacing the fixed
      * [crossfadeSeconds] window rather than needing it set to anything first
      * — [crossfadeSeconds] only matters here as a fallback while a pair is
-     * still being analysed. Off by default: analysis costs a background
-     * decode per track.
+     * still being analysed.
      *
      * See [com.music.raaga.playback.smart.TransitionPlanner].
      */
-    val smartFadeEnabled = MutableStateFlow(false)
+    val smartFadeEnabled = MutableStateFlow(true)
 
     /** The CPU budget used by Beat This! and vocal analysis for Automix. */
     val automixPerformanceMode = MutableStateFlow(AutomixPerformanceMode.BALANCED)
@@ -448,6 +483,7 @@ object AppSettings {
 
     val playbackSpeed = MutableStateFlow(1.0f)
     val themeMode = MutableStateFlow(ThemeMode.DARK)
+    val appFont = MutableStateFlow(AppFont.SF_PRO)
     val lastSelectedTab = MutableStateFlow(0)
 
     /** Keep playing similar music once the queue runs out. */
@@ -613,6 +649,12 @@ object AppSettings {
      */
     val legacyMeshGradient = MutableStateFlow(false)
 
+    /**
+     * The background presentation style for the Now Playing screen.
+     * Defaults to [NowPlayingBlurStyle.NEW] (Apple Music-inspired ambient artwork blur).
+     */
+    val nowPlayingBlurStyle = MutableStateFlow(NowPlayingBlurStyle.NEW)
+
     /** Restores the expanded player to the surface the listener left open. */
     val lastPlayerScreen = MutableStateFlow(LastPlayerScreen.MAIN)
 
@@ -624,6 +666,17 @@ object AppSettings {
      * a switch, and [lyricsSources] narrows which of them get asked.
      */
     val syncedLyrics = MutableStateFlow(true)
+
+    /**
+     * Whether the 1-line lyric preview strip is displayed on the main Now Playing screen.
+     */
+    val lyricsPreview = MutableStateFlow(true)
+
+    /**
+     * Repositions song title and artist down into the space previously occupied
+     * by the lyrics preview when lyrics are disabled or hidden.
+     */
+    val adaptiveTrackInfo = MutableStateFlow(true)
 
     /** The databases [syncedLyrics] may ask. Empty is the same as off. */
     val lyricsSources = MutableStateFlow(LyricsSource.entries.toSet())
@@ -962,6 +1015,8 @@ object AppSettings {
     fun init(context: Context, authStore: AuthStore) {
         prefs = context.getSharedPreferences("raaga_settings", Context.MODE_PRIVATE)
         this.authStore = authStore
+        NowPlayingBlurDataStore.init(context)
+        PlaylistCustomOrderStore.init(context)
         readAll()
         watchConnection(context)
     }
@@ -994,14 +1049,31 @@ object AppSettings {
         downloadQuality.value = readDownloadQuality()
         wifiOnlyDownloads.value = prefs.getBoolean(KEY_WIFI_ONLY_DOWNLOADS, true)
         exportDownloads.value = prefs.getBoolean(KEY_EXPORT_DOWNLOADS, false)
+        exportSyncedLyrics.value = prefs.getBoolean(KEY_EXPORT_SYNCED_LYRICS, true)
+        exportArtwork.value = prefs.getBoolean(KEY_EXPORT_ARTWORK, true)
         autoDownloadPlaylists.value = runCatching {
             AutoDownloadPlaylist.valueOf(
                 prefs.getString(KEY_AUTO_DOWNLOAD_PLAYLISTS, null) ?: AutoDownloadPlaylist.OFF.name,
             )
         }.getOrDefault(AutoDownloadPlaylist.OFF)
         keepPlaylistsUpdated.value = prefs.getBoolean(KEY_KEEP_PLAYLISTS_UPDATED, true)
-        crossfadeSeconds.value = prefs.getInt(KEY_CROSSFADE, 0)
-        smartFadeEnabled.value = prefs.getBoolean(KEY_SMART_FADE, false)
+        val rawCrossfadeMode = prefs.getString(KEY_CROSSFADE_MODE, null)
+        val resolvedMode = if (rawCrossfadeMode != null) {
+            CrossfadeMode.fromString(rawCrossfadeMode)
+        } else {
+            val legacySmart = prefs.getBoolean(KEY_SMART_FADE, false)
+            val legacySec = prefs.getInt(KEY_CROSSFADE, -1)
+            when {
+                legacySmart -> CrossfadeMode.AUTOMATIC
+                legacySec > 0 -> CrossfadeMode.MANUAL
+                legacySec == 0 -> CrossfadeMode.OFF
+                else -> CrossfadeMode.AUTOMATIC
+            }
+        }
+        crossfadeMode.value = resolvedMode
+        val savedSec = prefs.getInt(KEY_CROSSFADE, 5)
+        crossfadeSeconds.value = if (savedSec > 0) savedSec else 5
+        smartFadeEnabled.value = (resolvedMode == CrossfadeMode.AUTOMATIC)
         automixPerformanceMode.value = runCatching {
             AutomixPerformanceMode.valueOf(
                 prefs.getString(KEY_AUTOMIX_PERFORMANCE_MODE, null) ?: AutomixPerformanceMode.BALANCED.name,
@@ -1067,6 +1139,9 @@ object AppSettings {
         themeMode.value = runCatching {
             ThemeMode.valueOf(prefs.getString(KEY_THEME, null) ?: "DARK")
         }.getOrDefault(ThemeMode.DARK)
+        appFont.value = runCatching {
+            AppFont.fromId(prefs.getString(KEY_APP_FONT, null))
+        }.getOrDefault(AppFont.SF_PRO)
         lastSelectedTab.value = prefs.getInt(KEY_LAST_SELECTED_TAB, 0).coerceIn(0, 3)
         autoplay.value = prefs.getBoolean(KEY_AUTOPLAY, true)
         shuffleEnabled.value = prefs.getBoolean(KEY_SHUFFLE_ENABLED, false)
@@ -1107,13 +1182,25 @@ object AppSettings {
         lockScreenCanvasWifiOnly.value = prefs.getBoolean(KEY_LOCK_SCREEN_CANVAS_WIFI_ONLY, false)
         lockScreenCanvasBatterySaver.value = prefs.getBoolean(KEY_LOCK_SCREEN_CANVAS_BATTERY_SAVER, true)
         fullBleedArtwork.value = prefs.getBoolean(KEY_FULL_BLEED_ARTWORK, true)
-        legacyMeshGradient.value = prefs.getBoolean(KEY_LEGACY_MESH_GRADIENT, false)
+        val legacyMesh = prefs.getBoolean(KEY_LEGACY_MESH_GRADIENT, false)
+        legacyMeshGradient.value = legacyMesh
+        val savedBlurKey = prefs.getString(KEY_NOW_PLAYING_BLUR_STYLE, null)
+        val resolvedBlurStyle = if (savedBlurKey != null) {
+            NowPlayingBlurStyle.fromKey(savedBlurKey)
+        } else if (legacyMesh) {
+            NowPlayingBlurStyle.OLD
+        } else {
+            NowPlayingBlurStyle.NEW
+        }
+        nowPlayingBlurStyle.value = resolvedBlurStyle
         lastPlayerScreen.value = runCatching {
             LastPlayerScreen.valueOf(
                 prefs.getString(KEY_LAST_PLAYER_SCREEN, null) ?: LastPlayerScreen.MAIN.name,
             )
         }.getOrDefault(LastPlayerScreen.MAIN)
         syncedLyrics.value = prefs.getBoolean(KEY_SYNCED_LYRICS, true)
+        lyricsPreview.value = prefs.getBoolean(KEY_LYRICS_PREVIEW, true)
+        adaptiveTrackInfo.value = prefs.getBoolean(KEY_ADAPTIVE_TRACK_INFO, true)
         lyricsSources.value = readLyricsSources()
         lyricsSourceOrder.value = readLyricsSourceOrder()
         prioritizeSyllableSync.value = prefs.getBoolean(KEY_PRIORITIZE_SYLLABLE_SYNC, false)
@@ -1370,14 +1457,23 @@ object AppSettings {
         prefs.edit().putBoolean(KEY_KEEP_PLAYLISTS_UPDATED, value).apply()
     }
 
+    fun setCrossfadeMode(mode: CrossfadeMode) {
+        crossfadeMode.value = mode
+        smartFadeEnabled.value = (mode == CrossfadeMode.AUTOMATIC)
+        prefs.edit()
+            .putString(KEY_CROSSFADE_MODE, mode.name)
+            .putBoolean(KEY_SMART_FADE, mode == CrossfadeMode.AUTOMATIC)
+            .apply()
+    }
+
     fun setCrossfadeSeconds(value: Int) {
-        crossfadeSeconds.value = value
-        prefs.edit().putInt(KEY_CROSSFADE, value).apply()
+        val sanitized = value.coerceIn(1, 12)
+        crossfadeSeconds.value = sanitized
+        prefs.edit().putInt(KEY_CROSSFADE, sanitized).apply()
     }
 
     fun setSmartFadeEnabled(value: Boolean) {
-        smartFadeEnabled.value = value
-        prefs.edit().putBoolean(KEY_SMART_FADE, value).apply()
+        setCrossfadeMode(if (value) CrossfadeMode.AUTOMATIC else CrossfadeMode.OFF)
     }
 
     fun setAutomixPerformanceMode(value: AutomixPerformanceMode) {
@@ -1482,6 +1578,11 @@ object AppSettings {
     fun setThemeMode(value: ThemeMode) {
         themeMode.value = value
         prefs.edit().putString(KEY_THEME, value.name).apply()
+    }
+
+    fun setAppFont(value: AppFont) {
+        appFont.value = value
+        prefs.edit().putString(KEY_APP_FONT, value.id).apply()
     }
 
     fun setLastSelectedTab(value: Int) {
@@ -1592,6 +1693,16 @@ object AppSettings {
     fun setSyncedLyrics(value: Boolean) {
         syncedLyrics.value = value
         prefs.edit().putBoolean(KEY_SYNCED_LYRICS, value).apply()
+    }
+
+    fun setLyricsPreview(value: Boolean) {
+        lyricsPreview.value = value
+        prefs.edit().putBoolean(KEY_LYRICS_PREVIEW, value).apply()
+    }
+
+    fun setAdaptiveTrackInfo(value: Boolean) {
+        adaptiveTrackInfo.value = value
+        prefs.edit().putBoolean(KEY_ADAPTIVE_TRACK_INFO, value).apply()
     }
 
     fun setLyricsSources(value: Set<LyricsSource>) {
@@ -1752,6 +1863,12 @@ object AppSettings {
         prefs.edit().putBoolean(KEY_LEGACY_MESH_GRADIENT, value).apply()
     }
 
+    fun setNowPlayingBlurStyle(value: NowPlayingBlurStyle) {
+        nowPlayingBlurStyle.value = value
+        prefs.edit().putString(KEY_NOW_PLAYING_BLUR_STYLE, value.key).apply()
+        NowPlayingBlurDataStore.persistBlurStyle(value)
+    }
+
     fun setLastPlayerScreen(value: LastPlayerScreen) {
         if (lastPlayerScreen.value == value) return
         lastPlayerScreen.value = value
@@ -1869,6 +1986,16 @@ object AppSettings {
     fun setExportDownloads(value: Boolean) {
         exportDownloads.value = value
         prefs.edit().putBoolean(KEY_EXPORT_DOWNLOADS, value).apply()
+    }
+
+    fun setExportSyncedLyrics(value: Boolean) {
+        exportSyncedLyrics.value = value
+        prefs.edit().putBoolean(KEY_EXPORT_SYNCED_LYRICS, value).apply()
+    }
+
+    fun setExportArtwork(value: Boolean) {
+        exportArtwork.value = value
+        prefs.edit().putBoolean(KEY_EXPORT_ARTWORK, value).apply()
     }
 
     fun setLastfmPrimaryArtistOnly(value: Boolean) {
@@ -2415,10 +2542,13 @@ object AppSettings {
     private const val KEY_QUALITY_DOWNLOAD = "audio_quality_download"
     private const val KEY_WIFI_ONLY_DOWNLOADS = "wifi_only_downloads"
     private const val KEY_EXPORT_DOWNLOADS = "export_downloads"
+    private const val KEY_EXPORT_SYNCED_LYRICS = "export_synced_lyrics"
+    private const val KEY_EXPORT_ARTWORK = "export_artwork"
     private const val KEY_AUTO_DOWNLOAD_PLAYLISTS = "auto_download_playlists"
     private const val KEY_KEEP_PLAYLISTS_UPDATED = "keep_playlists_updated"
     private const val KEY_LOSSLESS = "lossless_audio"
     private const val KEY_CROSSFADE = "crossfade_seconds"
+    private const val KEY_CROSSFADE_MODE = "crossfade_mode"
     private const val KEY_SMART_FADE = "smart_fade_enabled"
     private const val KEY_AUTOMIX_PERFORMANCE_MODE = "automix_performance_mode"
     private const val KEY_SKIP_SILENCE = "skip_silence"
@@ -2457,6 +2587,7 @@ object AppSettings {
     private const val KEY_EQ_BANDS = "equalizer_bands"
     private const val KEY_SPEED = "playback_speed"
     private const val KEY_THEME = "theme_mode"
+    private const val KEY_APP_FONT = "app_font"
     private const val KEY_LAST_SELECTED_TAB = "last_selected_tab"
     private const val KEY_AUTOPLAY = "autoplay"
     private const val KEY_SHUFFLE_ENABLED = "shuffle_enabled"
@@ -2492,8 +2623,11 @@ object AppSettings {
     private const val KEY_LOCK_SCREEN_CANVAS_BATTERY_SAVER = "lock_screen_canvas_battery_saver"
     private const val KEY_FULL_BLEED_ARTWORK = "full_bleed_artwork"
     private const val KEY_LEGACY_MESH_GRADIENT = "legacy_mesh_gradient"
+    private const val KEY_NOW_PLAYING_BLUR_STYLE = "now_playing_blur_style"
     private const val KEY_LAST_PLAYER_SCREEN = "last_player_screen"
     private const val KEY_SYNCED_LYRICS = "synced_lyrics"
+    private const val KEY_LYRICS_PREVIEW = "lyrics_preview"
+    private const val KEY_ADAPTIVE_TRACK_INFO = "adaptive_track_info"
     private const val KEY_LYRICS_SOURCES = "lyrics_sources"
     private const val KEY_LYRICS_SOURCES_SEEN = "lyrics_sources_seen"
     private const val KEY_LYRICS_SOURCE_ORDER = "lyrics_source_order"
