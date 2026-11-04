@@ -217,11 +217,15 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
                     android:scheme="https"
-                    android:host="raaga.app"
+                    android:host="raaga.me"
                     android:pathPattern="/invite/......" />
                 <data
                     android:scheme="https"
                     android:host="web.raaga.me"
+                    android:pathPattern="/invite/......" />
+                <data
+                    android:scheme="https"
+                    android:host="raaga.app"
                     android:pathPattern="/invite/......" />
             </intent-filter>
 
