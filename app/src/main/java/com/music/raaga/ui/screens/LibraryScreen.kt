@@ -151,6 +151,7 @@ fun LibraryScreen(
     onStartRadio: ((Song) -> Unit)? = null,
     onAddToQueue: ((List<Song>) -> Unit)? = null,
     onPlayNext: ((List<Song>) -> Unit)? = null,
+    onAddToPlaylist: ((List<Song>) -> Unit)? = null,
 ) {
     val onDevice = stringResource(R.string.on_device)
     var internalCategory by rememberSaveable { mutableStateOf<LibraryCategory?>(null) }
@@ -271,6 +272,7 @@ fun LibraryScreen(
                 onAddToQueue = { list ->
                     if (onSongClick != null) onSongClick(list, 0)
                 },
+                onAddToPlaylist = onAddToPlaylist,
                 modifier = Modifier.padding(top = contentPadding.calculateTopPadding()),
             )
 
@@ -280,6 +282,7 @@ fun LibraryScreen(
                 onAddToQueue = { list ->
                     if (onSongClick != null) onSongClick(list, 0)
                 },
+                onAddToPlaylist = onAddToPlaylist,
                 modifier = Modifier.padding(top = contentPadding.calculateTopPadding()),
             )
 
@@ -305,6 +308,7 @@ fun LibraryScreen(
                 onPlayNext = { list ->
                     onPlayNext?.invoke(list) ?: if (onSongClick != null) onSongClick(list, 0) else Unit
                 },
+                onAddToPlaylist = onAddToPlaylist,
                 modifier = Modifier.padding(top = contentPadding.calculateTopPadding()),
             )
 
