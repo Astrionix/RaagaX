@@ -15,6 +15,7 @@ import com.music.raaga.data.settings.MixBlend
 import com.music.raaga.data.settings.SmartAnalysis
 import com.music.raaga.data.settings.TrackAnalysisState
 import com.music.raaga.data.settings.TransitionWindow
+import com.music.raaga.playback.smart.AdaptiveCrossfadeEngine
 import com.music.raaga.playback.smart.CrossfadeMode
 import com.music.raaga.playback.smart.FILTER_ECHO_AT
 import com.music.raaga.playback.smart.FilterTransitionVariant
@@ -851,11 +852,12 @@ class CrossfadeController(
         // length: it decides its own duration from each pair of tracks (beats,
         // tempo, structure), so requiring a nonzero [AppSettings.crossfadeSeconds]
         // first would tie an automatic feature to a manual one it doesn't use.
-        if (AppSettings.smartFadeEnabled.value) {
+        if (AppSettings.crossfadeMode.value == com.music.raaga.data.settings.CrossfadeMode.AUTOMATIC || AppSettings.smartFadeEnabled.value) {
             considerSmartTransition(duration)
             return
         }
 
+        if (AppSettings.crossfadeMode.value == com.music.raaga.data.settings.CrossfadeMode.OFF) return
         if (configuredFadeMs() <= 0L) return
         val fade = fadeFor(duration)
         if (fade <= 0L) return
@@ -918,9 +920,16 @@ class CrossfadeController(
         // itself from tempo and structure and ignores this entirely. Honours
         // the manual slider if the listener also set one, so the two settings
         // don't fight; falls back to a fixed length when it's at "Off".
-        val fallbackSeconds = configuredFadeMs().takeIf { it > 0L }
-            ?.div(1000.0)
-            ?: DEFAULT_SMART_FALLBACK_SECONDS
+        val smartPlan = AdaptiveCrossfadeEngine.TransitionPlanner.plan(
+            currentAnalysis = analysisFor(currentItem),
+            nextAnalysis = analysisFor(nextItem),
+            currentTrack = currentItem.toTransitionInfo(duration),
+            nextTrack = nextItem.toTransitionInfo(nextDuration),
+            currentDuration = duration / 1000.0,
+            nextDuration = nextDuration / 1000.0,
+            albumSequential = true,
+        )
+        val fallbackSeconds = smartPlan.durationSeconds
 
         // Resolved once and reused: [analysisFor] was being called five separate
         // times per tick below, and the answer cannot change mid-tick.
@@ -1913,7 +1922,11 @@ class CrossfadeController(
 
     // ---- Numbers ------------------------------------------------------------
 
-    private fun configuredFadeMs(): Long = AppSettings.crossfadeSeconds.value * 1000L
+    private fun configuredFadeMs(): Long = if (AppSettings.crossfadeMode.value == com.music.raaga.data.settings.CrossfadeMode.OFF) {
+        0L
+    } else {
+        AppSettings.crossfadeSeconds.value * 1000L
+    }
 
     /**
      * The configured length, kept off tracks too short to spend it on. A fade
