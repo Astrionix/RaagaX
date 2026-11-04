@@ -24,6 +24,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.rounded.CheckCircle
@@ -80,6 +81,7 @@ fun SongsSubScreen(
     onSongLongPress: (Song) -> Unit,
     onAddToQueue: (List<Song>) -> Unit = {},
     onDownloadSelected: (List<Song>) -> Unit = {},
+    onAddToPlaylist: ((List<Song>) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     var searchQuery by remember { mutableStateOf("") }
@@ -404,21 +406,37 @@ fun SongsSubScreen(
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         IconButton(
                             onClick = {
-                                val selected = aggregatedSongs.filter { it.videoId in selectedSongIds }
+                                val selected = effectiveAllSongs.filter { it.videoId in selectedSongIds }
                                 onAddToQueue(selected)
                                 isMultiSelectMode = false
                                 selectedSongIds.clear()
                             },
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.PlaylistAdd,
+                                imageVector = Icons.AutoMirrored.Rounded.QueueMusic,
                                 contentDescription = "Add to Queue",
                                 tint = Color.White,
                             )
                         }
+                        if (onAddToPlaylist != null) {
+                            IconButton(
+                                onClick = {
+                                    val selected = effectiveAllSongs.filter { it.videoId in selectedSongIds }
+                                    onAddToPlaylist(selected)
+                                    isMultiSelectMode = false
+                                    selectedSongIds.clear()
+                                },
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Rounded.PlaylistAdd,
+                                    contentDescription = stringResource(R.string.add_to_playlist),
+                                    tint = Color.White,
+                                )
+                            }
+                        }
                         IconButton(
                             onClick = {
-                                val selected = aggregatedSongs.filter { it.videoId in selectedSongIds }
+                                val selected = effectiveAllSongs.filter { it.videoId in selectedSongIds }
                                 onDownloadSelected(selected)
                                 isMultiSelectMode = false
                                 selectedSongIds.clear()
