@@ -194,18 +194,28 @@ object FlacTagger {
     private fun picture(cover: ByteArray, mime: String): ByteArray {
         val out = ByteArrayOutputStream(cover.size + 64)
         val mimeBytes = mime.toByteArray(Charsets.US_ASCII)
+        val (width, height) = imageDimensions(cover)
+        val depth = if (width > 0 && height > 0) 24 else 0
         out.writeBe(PICTURE_FRONT_COVER)
         out.writeBe(mimeBytes.size)
         out.write(mimeBytes)
         out.writeBe(0) // description length; the picture type already says it
-        out.writeBe(0) // width
-        out.writeBe(0) // height
-        out.writeBe(0) // colour depth
+        out.writeBe(width) // width
+        out.writeBe(height) // height
+        out.writeBe(depth) // colour depth
         out.writeBe(0) // colours used — zero for anything that isn't paletted
         out.writeBe(cover.size)
         out.write(cover)
         return out.toByteArray()
     }
+
+    private fun imageDimensions(bytes: ByteArray): Pair<Int, Int> = runCatching {
+        val opts = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
+        val w = if (opts.outWidth > 0) opts.outWidth else 0
+        val h = if (opts.outHeight > 0) opts.outHeight else 0
+        w to h
+    }.getOrDefault(0 to 0)
 
     private class Block(val type: Int, val start: Int, val length: Int)
 
