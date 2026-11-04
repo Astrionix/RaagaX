@@ -24,6 +24,8 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
+import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.rounded.CheckCircle
@@ -83,6 +85,7 @@ fun DownloadedSubScreen(
     onSongClick: (List<Song>, Int) -> Unit,
     onAddToQueue: (List<Song>) -> Unit = {},
     onDeleteSong: (Song) -> Unit = {},
+    onAddToPlaylist: ((List<Song>) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -475,10 +478,26 @@ fun DownloadedSubScreen(
                             },
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.PlaylistAdd,
+                                imageVector = Icons.AutoMirrored.Rounded.QueueMusic,
                                 contentDescription = "Add to Queue",
                                 tint = Color.White,
                             )
+                        }
+                        if (onAddToPlaylist != null) {
+                            IconButton(
+                                onClick = {
+                                    val selected = offlineSongs.filter { (it.localUri ?: it.videoId) in selectedSongIds }
+                                    onAddToPlaylist(selected)
+                                    isMultiSelectMode = false
+                                    selectedSongIds.clear()
+                                },
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Rounded.PlaylistAdd,
+                                    contentDescription = stringResource(R.string.add_to_playlist),
+                                    tint = Color.White,
+                                )
+                            }
                         }
                         IconButton(
                             onClick = {
