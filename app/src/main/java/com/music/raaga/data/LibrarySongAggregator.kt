@@ -102,7 +102,7 @@ object LibrarySongAggregator {
                                 song = song,
                                 addedAtEpochSeconds = addedTime,
                                 sourceType = AdditionSourceType.SONG,
-                                sourceTitle = "Liked Music",
+                                sourceTitle = "Favorite Music",
                             )
                         )
                     }
