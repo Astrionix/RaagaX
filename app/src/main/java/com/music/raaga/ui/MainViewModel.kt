@@ -21,6 +21,8 @@ import com.music.raaga.data.lyrics.LyricLine
 import com.music.raaga.data.lyrics.LyricsRepository
 import com.music.raaga.data.lyrics.LyricsSource
 import com.music.raaga.data.settings.AppSettings
+import com.music.raaga.data.settings.PlaylistCustomOrderStore
+import com.music.raaga.data.settings.SongSort
 import com.music.raaga.data.innertube.Innertube
 import com.music.raaga.data.innertube.PlaybackTracker
 import com.music.raaga.data.innertube.StreamResolver
@@ -621,7 +623,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             LibrarySongAggregator.recordRecentlyAdded(
                                 song = knownSong,
                                 sourceType = AdditionSourceType.SONG,
-                                sourceTitle = "Liked Music",
+                                sourceTitle = "Favorite Music",
                             )
                         }
                     }
@@ -961,6 +963,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     // The playlist's page may be open behind the picker — it is
                     // reachable from a row's own menu on it — so the track goes
                     // into it for the same reason [addSuggestedSong] does.
+                    val addedSong = song.copy(setVideoId = added[song.videoId])
+                    if (known != null) {
+                        if (PlaylistCustomOrderStore.hasCustomOrder(playlist.browseId)) {
+                            PlaylistCustomOrderStore.appendSong(playlist.browseId, addedSong)
+                        } else {
+                            PlaylistCustomOrderStore.saveCustomOrder(playlist.browseId, known + addedSong)
+                        }
+                    }
                     appendToOpenPlaylist(playlist.browseId, song, added[song.videoId])
                     autoDownloadIfEnabled(song, playlist.title)
                     LibrarySongAggregator.recordRecentlyAdded(
@@ -973,6 +983,62 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 },
                 onFailure = {},
             )
+        }
+    }
+
+    /**
+     * Adds multiple songs to [playlist] in chunks, filtering out songs that are already present.
+     */
+    fun addMultipleToPlaylist(
+        playlist: UserPlaylist,
+        songs: List<Song>,
+        onResult: (addedCount: Int, alreadyPresentCount: Int) -> Unit = { _, _ -> },
+    ) {
+        if (!requireSignIn() || songs.isEmpty()) return
+        viewModelScope.launch {
+            val openSongs = (_detailStack.value.firstOrNull { it.browseId == playlist.browseId }
+                ?.songs as? UiState.Success)?.data
+            val known = openSongs
+                ?: YtMusicRepository.allSongs(playlist.browseId).getOrNull()
+            val knownVideoIds = known?.map { it.videoId }?.toSet() ?: emptySet()
+            val (alreadyPresent, toAdd) = songs.partition { it.videoId in knownVideoIds }
+            if (toAdd.isEmpty()) {
+                onResult(0, alreadyPresent.size)
+                return@launch
+            }
+
+            val addedMap = mutableMapOf<String, String>()
+            val batches = toAdd.map { it.videoId }.chunked(50)
+            for (batch in batches) {
+                if (!isActive) break
+                YtMusicRepository.addToPlaylist(playlist.playlistId, batch).fold(
+                    onSuccess = { res -> addedMap.putAll(res) },
+                    onFailure = { /* continue batching */ }
+                )
+            }
+
+            libraryStale = true
+            val newSongsWithSetIds = toAdd.map { song ->
+                song.copy(setVideoId = addedMap[song.videoId])
+            }
+            if (known != null) {
+                if (PlaylistCustomOrderStore.hasCustomOrder(playlist.browseId)) {
+                    newSongsWithSetIds.forEach { PlaylistCustomOrderStore.appendSong(playlist.browseId, it) }
+                } else {
+                    PlaylistCustomOrderStore.saveCustomOrder(playlist.browseId, known + newSongsWithSetIds)
+                }
+            }
+            for (song in toAdd) {
+                appendToOpenPlaylist(playlist.browseId, song, addedMap[song.videoId])
+                autoDownloadIfEnabled(song, playlist.title)
+                LibrarySongAggregator.recordRecentlyAdded(
+                    song = song,
+                    sourceType = AdditionSourceType.PLAYLIST,
+                    sourceId = playlist.browseId,
+                    sourceTitle = playlist.title,
+                )
+            }
+            onResult(toAdd.size, alreadyPresent.size)
         }
     }
 
@@ -1030,37 +1096,51 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * track's menu — one request, so it can't half-succeed into an empty
      * playlist the user has to add to again.
      */
-    fun createPlaylist(title: String, privacy: PlaylistPrivacy, song: Song? = null) {
+    fun createPlaylist(
+        title: String,
+        privacy: PlaylistPrivacy,
+        song: Song? = null,
+        initialSongs: List<Song> = listOfNotNull(song),
+    ) {
         if (!requireSignIn()) return
         val name = title.trim().ifBlank { text(R.string.new_playlist) }
+        val songsToAdd = if (initialSongs.isNotEmpty()) initialSongs else listOfNotNull(song)
         viewModelScope.launch {
+            val chunks = songsToAdd.map { it.videoId }.chunked(50)
+            val firstBatch = chunks.firstOrNull() ?: emptyList()
+            val remainingBatches = if (chunks.size > 1) chunks.drop(1) else emptyList()
+
             YtMusicRepository.createPlaylist(
                 title = name,
                 privacy = privacy,
-                videoIds = listOfNotNull(song?.videoId),
+                videoIds = firstBatch,
             ).fold(
                 onSuccess = { playlistId ->
+                    for (batch in remainingBatches) {
+                        if (!isActive) break
+                        runCatching {
+                            YtMusicRepository.addToPlaylist(playlistId, batch)
+                        }
+                    }
+
                     // Nothing to look up for a playlist this account has just
                     // made: it is the owner by construction, so its card is
                     // editable the moment it appears rather than one request
                     // after someone holds it.
-                    setPlaylistOwned("VL$playlistId", true)
+                    val browseId = "VL$playlistId"
+                    setPlaylistOwned(browseId, true)
                     libraryStale = true
+                    AppSettings.setDetailSongSort(browseId, SongSort.CUSTOM_ORDER)
+                    if (songsToAdd.isNotEmpty()) {
+                        PlaylistCustomOrderStore.saveCustomOrder(browseId, songsToAdd)
+                    }
+                    val count = songsToAdd.size
                     val created = UserPlaylist(
                         playlistId = playlistId,
                         title = name,
-                        // Only what this request itself establishes. Both
-                        // surfaces that draw it leave a blank one out, so an
-                        // unseeded playlist gets a card of just its name rather
-                        // than a guess at what the feed will call it.
-                        subtitle = if (song != null) "1 song" else "",
-                        thumbnailUrl = song?.thumbnailUrl,
+                        subtitle = if (count > 0) "$count ${if (count == 1) "song" else "songs"}" else "",
+                        thumbnailUrl = songsToAdd.firstOrNull()?.thumbnailUrl,
                     )
-                    // Drawn from what was just sent rather than waited for: the
-                    // library feed does not have this playlist yet, and the
-                    // fetch that used to run here answered without it — see
-                    // [editPlaylistShelf]. Leads the shelf because it is the
-                    // newest, which is the order the feed itself comes in.
                     _playlists.value = listOf(created) +
                         _playlists.value.filterNot { it.playlistId == created.playlistId }
                     editPlaylistShelf { items ->
@@ -1074,10 +1154,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             ),
                         ) + items.filterNot { it.browseId == created.browseId }
                     }
-                    song?.let {
-                        autoDownloadIfEnabled(it, name)
+                    for (item in songsToAdd) {
+                        autoDownloadIfEnabled(item, name)
                         LibrarySongAggregator.recordRecentlyAdded(
-                            song = it,
+                            song = item,
                             sourceType = AdditionSourceType.PLAYLIST,
                             sourceId = "VL$playlistId",
                             sourceTitle = name,
@@ -1260,6 +1340,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             ).fold(
                 onSuccess = {
                     libraryStale = true
+                    PlaylistCustomOrderStore.removeSongs(browseId, listOf(song))
                     _detailStack.value = _detailStack.value.map { page ->
                         val songs = (page.songs as? UiState.Success)?.data
                         if (page.browseId != browseId || songs == null) {
@@ -1387,6 +1468,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * own page or its card, so there is always something on screen still
      * showing the old name.
      */
+    fun savePlaylistOrder(browseId: String, songs: List<Song>) {
+        PlaylistCustomOrderStore.saveCustomOrder(browseId, songs)
+        AppSettings.setDetailSongSort(browseId, SongSort.CUSTOM_ORDER)
+        _detailStack.value = _detailStack.value.map { page ->
+            if (page.browseId == browseId) {
+                page.copy(songs = UiState.Success(songs))
+            } else page
+        }
+        if (browseId.startsWith("local:playlist:")) {
+            val cleanId = browseId.removePrefix("local:playlist:").removePrefix("VL")
+            val lp = com.music.raaga.data.spotify.LocalPlaylistStore.getPlaylist(cleanId)
+            if (lp != null) {
+                com.music.raaga.data.spotify.LocalPlaylistStore.savePlaylist(lp.title, songs)
+            }
+        }
+    }
+
     fun renamePlaylist(playlist: UserPlaylist, title: String) {
         if (!requireSignIn()) return
         val name = title.trim()
@@ -2596,11 +2694,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             } == true
         ) return
         val resolved = browseTypeOf(browseId, type)
+        val isFavoriteMusic = browseId == YtMusicRepository.LIKED_MUSIC ||
+            browseId == "VLLM" ||
+            browseId == "LM" ||
+            title.equals("Liked Music", ignoreCase = true) ||
+            title.equals("Favorite Songs", ignoreCase = true) ||
+            title.equals("Favorite Music", ignoreCase = true)
+        val initialTitle = if (isFavoriteMusic) "Favorite Music" else title
         _detailStack.value += DetailPage(
             browseId = browseId,
-            title = title,
+            title = initialTitle,
             subtitle = subtitle,
-            thumbnailUrl = thumbnailUrl,
+            thumbnailUrl = if (isFavoriteMusic) null else thumbnailUrl,
             songs = UiState.Loading,
             type = resolved,
         )
@@ -2717,11 +2822,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             // Update by id — the user may have pushed another page meanwhile.
             _detailStack.value = _detailStack.value.map {
                 if (it.browseId == browseId && it.songs is UiState.Loading) {
+                    val resolvedTitle = if (isFavoriteMusic) "Favorite Music" else (name ?: it.title)
                     it.copy(
                         songs = state,
                         sections = sections,
-                        thumbnailUrl = artwork ?: it.thumbnailUrl,
-                        title = name ?: it.title,
+                        thumbnailUrl = if (isFavoriteMusic) null else (artwork ?: it.thumbnailUrl),
+                        title = resolvedTitle,
                         subtitle = credit ?: it.subtitle,
                         suggestedSongs = suggested,
                         library = library,
