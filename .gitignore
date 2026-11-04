@@ -62,3 +62,7 @@ iosApp/**/.DS_Store
 # Desktop build artifacts
 desktop/dist/
 *.exe
+
+# Embedded glisse repo
+admin-dashboard/glisse-repo/
+scratch/
