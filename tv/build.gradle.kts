@@ -328,6 +328,7 @@ dependencies {
     // already in effect (foundation was reaching 1.10.0 transitively through
     // the liquid-glass library before that dependency was removed).
     implementation("androidx.compose.foundation:foundation:1.10.0")
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
