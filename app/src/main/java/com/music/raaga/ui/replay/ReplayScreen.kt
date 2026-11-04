@@ -1,6 +1,14 @@
 package com.music.raaga.ui.replay
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import java.time.LocalDate
+import java.time.YearMonth
+import java.util.Locale
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -33,6 +41,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -269,7 +278,7 @@ private fun Heading(state: ReplayState, onPeriodChange: (ReplayPeriod) -> Unit, 
             color = textColor.copy(alpha = 0.6f),
         )
         Spacer(Modifier.height(14.dp))
-        PeriodPicker(state.period, onPeriodChange, dark)
+        PeriodPicker(state.period, state.availableMonths, onPeriodChange, dark)
         Spacer(Modifier.height(18.dp))
     }
 }
@@ -283,34 +292,166 @@ private fun Heading(state: ReplayState, onPeriodChange: (ReplayPeriod) -> Unit, 
  * would make it a lie for the first thirty days of every month.
  */
 @Composable
-private fun PeriodPicker(selected: ReplayPeriod, onSelect: (ReplayPeriod) -> Unit, dark: Boolean) {
+private fun PeriodPicker(
+    selected: ReplayPeriod,
+    availableMonths: List<YearMonth>,
+    onSelect: (ReplayPeriod) -> Unit,
+    dark: Boolean
+) {
     val context = LocalContext.current
     val textColor = if (dark) Color.White else Color.Black
-    Row(
-        Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(textColor.copy(alpha = 0.10f))
-            .padding(3.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        ReplayPeriod.entries.forEach { period ->
-            val active = period == selected
-            val background by animateColorAsState(
-                if (active) textColor.copy(alpha = 0.92f) else Color.Transparent,
+    val today = remember { LocalDate.now() }
+    val currentYear = today.year
+
+    val isMonthly = selected is ReplayPeriod.MONTH || selected == ReplayPeriod.THIS_MONTH
+    val isYear = selected == ReplayPeriod.THIS_YEAR || (selected is ReplayPeriod.YEAR && selected.year == currentYear)
+    val isAllTime = selected == ReplayPeriod.ALL_TIME
+
+    val recordedSet = remember(availableMonths) { availableMonths.toSet() }
+    val currentMonthValue = today.monthValue
+    val monthsToDisplay = remember(availableMonths, currentYear) {
+        val list = mutableListOf<YearMonth>()
+        availableMonths.filter { it.year < currentYear }.forEach { list.add(it) }
+        val maxMonth = maxOf(currentMonthValue, availableMonths.filter { it.year == currentYear }.maxOfOrNull { it.monthValue } ?: currentMonthValue)
+        for (m in 1..maxMonth) {
+            list.add(YearMonth.of(currentYear, m))
+        }
+        list.distinct().sorted()
+    }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(13.dp))
+                .background(textColor.copy(alpha = 0.08f))
+                .padding(3.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            val yearBg by animateColorAsState(
+                if (isYear) textColor.copy(alpha = 0.92f) else Color.Transparent,
                 tween(160),
-                label = "periodChip",
+                label = "periodYearChip"
             )
             Text(
-                text = period.localizedChip(context),
+                text = currentYear.toString(),
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.W700,
-                color = if (active) if (dark) Color.Black else Color.White else textColor.copy(alpha = 0.75f),
+                color = if (isYear) if (dark) Color.Black else Color.White else textColor.copy(alpha = 0.75f),
                 modifier = Modifier
                     .clip(RoundedCornerShape(10.dp))
-                    .background(background)
-                    .clickable { onSelect(period) }
+                    .background(yearBg)
+                    .clickable { onSelect(ReplayPeriod.THIS_YEAR) }
                     .padding(horizontal = 14.dp, vertical = 8.dp),
             )
+
+            val monthlyBg by animateColorAsState(
+                if (isMonthly) textColor.copy(alpha = 0.92f) else Color.Transparent,
+                tween(160),
+                label = "periodMonthlyChip"
+            )
+            Text(
+                text = stringResource(R.string.this_month),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.W700,
+                color = if (isMonthly) if (dark) Color.Black else Color.White else textColor.copy(alpha = 0.75f),
+                modifier = Modifier
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(monthlyBg)
+                    .clickable {
+                        val target = availableMonths.lastOrNull() ?: YearMonth.now()
+                        onSelect(ReplayPeriod.MONTH(target))
+                    }
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+            )
+
+            val allTimeBg by animateColorAsState(
+                if (isAllTime) textColor.copy(alpha = 0.92f) else Color.Transparent,
+                tween(160),
+                label = "periodAllTimeChip"
+            )
+            Text(
+                text = context.getString(R.string.all_time),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.W700,
+                color = if (isAllTime) if (dark) Color.Black else Color.White else textColor.copy(alpha = 0.75f),
+                modifier = Modifier
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(allTimeBg)
+                    .clickable { onSelect(ReplayPeriod.ALL_TIME) }
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+            )
+        }
+
+        AnimatedVisibility(
+            visible = isMonthly,
+            enter = fadeIn(tween(180)) + expandVertically(tween(180)),
+            exit = fadeOut(tween(120)) + shrinkVertically(tween(120))
+        ) {
+            val listState = rememberLazyListState()
+            LaunchedEffect(selected) {
+                if (selected is ReplayPeriod.MONTH) {
+                    val idx = monthsToDisplay.indexOf(selected.yearMonth)
+                    if (idx >= 0) {
+                        listState.animateScrollToItem(idx)
+                    }
+                }
+            }
+
+            LazyRow(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                items(monthsToDisplay, key = { it.toString() }) { ym ->
+                    val isActive = (selected is ReplayPeriod.MONTH && selected.yearMonth == ym) ||
+                        (selected == ReplayPeriod.THIS_MONTH && ym == YearMonth.from(today))
+                    val hasData = recordedSet.contains(ym)
+
+                    val monthName = ym.month.getDisplayName(java.time.format.TextStyle.SHORT, Locale.getDefault())
+                    val monthLabel = if (ym.year == currentYear) monthName else "$monthName '${ym.year % 100}"
+
+                    val chipBg by animateColorAsState(
+                        targetValue = when {
+                            isActive -> textColor.copy(alpha = 0.92f)
+                            hasData -> textColor.copy(alpha = 0.14f)
+                            else -> textColor.copy(alpha = 0.05f)
+                        },
+                        animationSpec = tween(160),
+                        label = "monthChipBg"
+                    )
+
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(chipBg)
+                            .clickable { onSelect(ReplayPeriod.MONTH(ym)) }
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        Text(
+                            text = monthLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = if (isActive || hasData) FontWeight.W700 else FontWeight.W500,
+                            color = when {
+                                isActive -> if (dark) Color.Black else Color.White
+                                hasData -> textColor
+                                else -> textColor.copy(alpha = 0.40f)
+                            }
+                        )
+                        if (hasData && !isActive) {
+                            Box(
+                                modifier = Modifier
+                                    .size(4.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFFFA2D48))
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }
