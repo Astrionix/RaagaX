@@ -48,7 +48,8 @@
 - **True Gapless & Crossfade:** Adjustable 0–12s crossfade curves with zero clipping or silence between tracks.
 - **Automix [Beta]:** Intelligent beat-matching and tempo alignment for effortless, DJ-like continuous mixes.
 - **Silence Skipping & Speed Control:** Precise variable playback speed (0.5×–2.0×) and silence removal.
-- **Offline Music:** Download tracks locally with high-resolution artwork and embedded ID3 tags.
+- **Offline Music & Spotiflac Sidecars:** Download tracks locally with high-resolution artwork, embedded metadata, and automatic Spotiflac-compatible `.lrc` (synced scrolling lyrics) and `.jpg` (artwork) sidecar file exports.
+- **Multi-Song Playlist Management:** Select and add multiple tracks simultaneously to custom or new playlists with duplicate avoidance.
 - **Local Audio Library:** Scan and seamlessly mix your local file collections into your streaming queue.
 
     </td>
