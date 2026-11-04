@@ -1,6 +1,8 @@
 package com.music.raaga.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,11 +14,16 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -27,12 +34,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -44,9 +54,14 @@ import androidx.compose.ui.window.DialogProperties
 import com.music.raaga.R
 import com.music.raaga.data.SongInfo
 import com.music.raaga.data.SongInfoRepository
+import com.music.raaga.data.YtMusicRepository
 import com.music.raaga.data.compactCount
 import com.music.raaga.data.model.Song
+import com.music.raaga.ui.haptics.Haptic
+import com.music.raaga.ui.haptics.rememberHaptics
 import com.music.raaga.ui.theme.ArtworkPalette
+import kotlinx.coroutines.launch
+import java.util.Locale
 
 private val INFO_BODY_MAX_HEIGHT = 360.dp
 
@@ -181,22 +196,33 @@ private fun SongInfoRow(label: String, value: String?) {
 }
 
 /**
- * The sheet's own Song Info page, laid out like the sleep timer picker: a back
- * arrow and title over a hairline, then full-width rows on the artwork tint.
+ * Apple Music-inspired Credits & Contributors screen for Now Playing.
  */
 @Composable
-internal fun SongInfoPage(song: Song, palette: ArtworkPalette, onBack: () -> Unit) {
+internal fun BehindTheMusicPage(
+    song: Song,
+    palette: ArtworkPalette,
+    onOpenArtist: (String) -> Unit = {},
+    onSearchContributor: (String) -> Unit = {},
+    onBack: () -> Unit,
+) {
     var retry by remember(song.videoId) { mutableIntStateOf(0) }
     val info by produceState<SongInfo?>(null, song, retry) {
         value = null
         value = SongInfoRepository.load(song)
     }
 
-    Column(Modifier.fillMaxWidth()) {
+    val coroutineScope = rememberCoroutineScope()
+    var isFollowing by remember(song.artistId) { mutableStateOf(false) }
+
+    Column(
+        Modifier.fillMaxWidth(),
+    ) {
+        // 1. Top Header
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 8.dp, end = 22.dp, bottom = 8.dp),
+                .padding(start = 8.dp, end = 20.dp, top = 4.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = onBack) {
@@ -208,9 +234,11 @@ internal fun SongInfoPage(song: Song, palette: ArtworkPalette, onBack: () -> Uni
             }
             Column(Modifier.weight(1f)) {
                 Text(
-                    text = stringResource(R.string.song_info),
-                    style = MaterialTheme.typography.titleLarge,
+                    text = stringResource(R.string.behind_the_music),
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onBackground,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
                 Text(
                     text = listOf(song.title, song.artist).filter { it.isNotBlank() }.joinToString(" • "),
@@ -223,62 +251,292 @@ internal fun SongInfoPage(song: Song, palette: ArtworkPalette, onBack: () -> Uni
         }
         HorizontalDivider(thickness = 0.5.dp, color = palette.divider)
 
-        val unavailable = stringResource(R.string.song_info_unavailable)
-        listOf(
-            R.string.song_info_album to (info?.album ?: song.albumName),
-            R.string.song_info_release_date to (info?.releaseDate ?: info?.releaseYear),
-            R.string.song_info_views to info?.views?.let(::compactCount),
-            R.string.song_info_likes to info?.likes,
-            R.string.song_info_comments to info?.comments,
-        ).forEach { (label, value) ->
-            SongInfoPageRow(stringResource(label), value ?: unavailable.takeIf { info != null }, palette)
-        }
-
-        if (info?.failed == true) {
-            ActionRow(Icons.Rounded.Refresh, stringResource(R.string.song_info_retry), accent = palette.accent) {
-                retry++
+        // Loading state
+        if (info == null) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 44.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(28.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    strokeWidth = 2.5.dp,
+                )
             }
-            Text(
-                text = stringResource(R.string.song_info_error),
-                modifier = Modifier.padding(horizontal = 22.dp),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
-            )
+        } else {
+            val credits = info?.credits
+            val main = credits?.mainArtist
+            val featured = credits?.featuredArtists.orEmpty()
+
+            // 2. Artist Section
+            CreditsSectionHeader(stringResource(R.string.credits_artist))
+            if (main != null) {
+                ContributorRow(
+                    name = main.name,
+                    roles = main.roles,
+                    isMainArtist = true,
+                    isFollowing = isFollowing,
+                    onToggleFollow = {
+                        val next = !isFollowing
+                        isFollowing = next
+                        val channelId = main.artistId
+                        if (channelId != null) {
+                            coroutineScope.launch {
+                                YtMusicRepository.setSubscribed(channelId, next)
+                            }
+                        }
+                    },
+                    onClick = {
+                        if (main.artistId != null) onOpenArtist(main.artistId)
+                        else onSearchContributor(main.name)
+                    },
+                )
+            }
+            featured.forEach { feat ->
+                ContributorRow(
+                    name = feat.name,
+                    roles = feat.roles,
+                    onClick = {
+                        if (feat.artistId != null) onOpenArtist(feat.artistId)
+                        else onSearchContributor(feat.name)
+                    },
+                )
+            }
+
+            // 3. Composition & Lyrics (Hidden if empty)
+            val composition = credits?.compositionAndLyrics.orEmpty()
+            if (composition.isNotEmpty()) {
+                CreditsSectionHeader(stringResource(R.string.credits_composition_lyrics))
+                composition.forEach { contributor ->
+                    ContributorRow(
+                        name = contributor.name,
+                        roles = contributor.roles,
+                        onClick = { onSearchContributor(contributor.name) },
+                    )
+                }
+            }
+
+            // 4. Production (Hidden if empty)
+            val production = credits?.production.orEmpty()
+            if (production.isNotEmpty()) {
+                CreditsSectionHeader(stringResource(R.string.credits_production))
+                production.forEach { contributor ->
+                    ContributorRow(
+                        name = contributor.name,
+                        roles = contributor.roles,
+                        onClick = { onSearchContributor(contributor.name) },
+                    )
+                }
+            }
+
+            // 5. Engineering & Studio (Hidden if empty)
+            val engineering = credits?.engineering.orEmpty()
+            if (engineering.isNotEmpty()) {
+                CreditsSectionHeader(stringResource(R.string.credits_engineering))
+                engineering.forEach { contributor ->
+                    ContributorRow(
+                        name = contributor.name,
+                        roles = contributor.roles,
+                        onClick = { onSearchContributor(contributor.name) },
+                    )
+                }
+            }
+
+            // 6. Musicians & Performers (Hidden if empty)
+            val musicians = credits?.musicians.orEmpty()
+            if (musicians.isNotEmpty()) {
+                CreditsSectionHeader(stringResource(R.string.credits_musicians))
+                musicians.forEach { contributor ->
+                    ContributorRow(
+                        name = contributor.name,
+                        roles = contributor.roles,
+                        onClick = { onSearchContributor(contributor.name) },
+                    )
+                }
+            }
+
+            // 7. Additional Information
+            val label = credits?.label
+            val copyright = credits?.copyright
+            val releaseDate = info?.releaseDate ?: info?.releaseYear ?: credits?.releaseDate
+            val album = info?.album ?: song.albumName
+            val views = info?.views?.let(::compactCount)
+
+            CreditsSectionHeader(stringResource(R.string.credits_additional))
+            if (!album.isNullOrBlank()) {
+                InfoMetaRow(stringResource(R.string.song_info_album), album)
+            }
+            if (!releaseDate.isNullOrBlank()) {
+                InfoMetaRow(stringResource(R.string.song_info_release_date), releaseDate)
+            }
+            if (!label.isNullOrBlank()) {
+                InfoMetaRow(stringResource(R.string.credits_label), label)
+            }
+            if (!copyright.isNullOrBlank()) {
+                InfoMetaRow(stringResource(R.string.credits_copyright), copyright)
+            }
+            if (!views.isNullOrBlank()) {
+                InfoMetaRow(stringResource(R.string.song_info_views), views)
+            }
+
+            if (info?.failed == true) {
+                Spacer(Modifier.height(12.dp))
+                ActionRow(Icons.Rounded.Refresh, stringResource(R.string.song_info_retry), accent = palette.accent) {
+                    retry++
+                }
+            }
         }
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(32.dp))
     }
 }
 
-/** Same metrics as the sleep timer's options; the value takes the sheet's accent, spinner while loading. */
 @Composable
-private fun SongInfoPageRow(label: String, value: String?, palette: ArtworkPalette) {
+internal fun SongInfoPage(
+    song: Song,
+    palette: ArtworkPalette,
+    onOpenArtist: (String) -> Unit = {},
+    onSearchContributor: (String) -> Unit = {},
+    onBack: () -> Unit,
+) {
+    BehindTheMusicPage(
+        song = song,
+        palette = palette,
+        onOpenArtist = onOpenArtist,
+        onSearchContributor = onSearchContributor,
+        onBack = onBack,
+    )
+}
+
+@Composable
+private fun ContributorRow(
+    name: String,
+    roles: List<String>,
+    isMainArtist: Boolean = false,
+    isFollowing: Boolean = false,
+    onToggleFollow: (() -> Unit)? = null,
+    onClick: () -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 22.dp, vertical = 15.dp),
+            .clickable(onClick = onClick)
+            .padding(horizontal = 22.dp, vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = name,
+                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+                color = MaterialTheme.colorScheme.onBackground,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (roles.isNotEmpty()) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = roles.joinToString(", "),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+
+        if (isMainArtist && onToggleFollow != null) {
+            Spacer(Modifier.width(12.dp))
+            FollowButton(isFollowing = isFollowing, onClick = onToggleFollow)
+        } else {
+            Spacer(Modifier.width(8.dp))
+            Icon(
+                Icons.Rounded.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                modifier = Modifier.size(20.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun FollowButton(
+    isFollowing: Boolean,
+    onClick: () -> Unit,
+) {
+    val haptics = rememberHaptics()
+    val cobaltBlue = Color(0xFF2979FF)
+
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(16.dp))
+            .then(
+                if (isFollowing) {
+                    Modifier
+                        .border(1.dp, cobaltBlue.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
+                        .background(cobaltBlue.copy(alpha = 0.12f))
+                } else {
+                    Modifier.background(cobaltBlue)
+                }
+            )
+            .clickable {
+                haptics.play(if (isFollowing) Haptic.ToggleOff else Haptic.ToggleOn)
+                onClick()
+            }
+            .padding(horizontal = 14.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = if (isFollowing) Icons.Rounded.Check else Icons.Rounded.Add,
+                contentDescription = null,
+                tint = if (isFollowing) cobaltBlue else Color.White,
+                modifier = Modifier.size(15.dp),
+            )
+            Spacer(Modifier.width(4.dp))
+            Text(
+                text = stringResource(if (isFollowing) R.string.credits_following else R.string.credits_follow),
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                color = if (isFollowing) cobaltBlue else Color.White,
+            )
+        }
+    }
+}
+
+@Composable
+private fun CreditsSectionHeader(title: String) {
+    Text(
+        text = title.uppercase(Locale.ROOT),
+        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp),
+        color = Color(0xFF2979FF),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 22.dp, end = 22.dp, top = 18.dp, bottom = 4.dp),
+    )
+}
+
+@Composable
+private fun InfoMetaRow(label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 22.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             text = label,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onBackground,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.widthIn(min = 100.dp),
         )
         Spacer(Modifier.width(16.dp))
-        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
-            if (value == null) {
-                CircularProgressIndicator(
-                    color = palette.onBackgroundVariant,
-                    strokeWidth = 2.dp,
-                    modifier = Modifier.size(16.dp),
-                )
-            } else {
-                Text(
-                    text = value,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = palette.accent,
-                    textAlign = TextAlign.End,
-                )
-            }
-        }
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+            color = MaterialTheme.colorScheme.onBackground,
+            textAlign = TextAlign.End,
+            modifier = Modifier.weight(1f),
+        )
     }
 }
