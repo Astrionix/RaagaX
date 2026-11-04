@@ -121,15 +121,15 @@ fun LibraryHub(
     // Map pinned ids to ShelfItem
     val pinnedCollections = remember(pinnedPlaylistIds, playlists) {
         val list = mutableListOf<PinnedCollection>()
-        // Always start with Favorite Songs
+        // Always start with Favorite Music
         list.add(
             PinnedCollection(
                 id = YtMusicRepository.LIKED_MUSIC,
-                title = "Favorite Songs",
+                title = "Favorite Music",
                 subtitle = "Auto playlist",
                 isFavoriteSongs = true,
                 shelfItem = ShelfItem(
-                    title = "Favorite Songs",
+                    title = "Favorite Music",
                     subtitle = "Auto playlist",
                     thumbnailUrl = null,
                     videoId = null,
