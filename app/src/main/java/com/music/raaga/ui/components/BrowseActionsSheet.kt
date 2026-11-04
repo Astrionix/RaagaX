@@ -23,6 +23,7 @@ import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.HazeTint
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
+import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DeleteForever
@@ -141,6 +142,7 @@ fun BrowseActionsSheet(
     target: BrowseTarget,
     onPlayNext: () -> Unit,
     onAddToQueue: () -> Unit,
+    onAddToPlaylist: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     hazeState: HazeState? = null,
     onPlay: (() -> Unit)? = null,
@@ -165,6 +167,7 @@ fun BrowseActionsSheet(
      */
     isPinned: Boolean = false,
     onTogglePin: (() -> Unit)? = null,
+    onEditPlaylist: (() -> Unit)? = null,
     onRename: ((String) -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
     /**
@@ -278,6 +281,13 @@ fun BrowseActionsSheet(
             stringResource(R.string.add_to_queue),
             onClick = onAddToQueue,
         )
+        onAddToPlaylist?.let { addToPlaylist ->
+            ActionRow(
+                Icons.AutoMirrored.Rounded.PlaylistAdd,
+                stringResource(R.string.add_to_playlist),
+                onClick = addToPlaylist,
+            )
+        }
         onDownloadAll?.let { download ->
             // Saying which of the three it is, rather than offering the same row
             // whatever the state — this is where a release is asked for now that
@@ -335,6 +345,9 @@ fun BrowseActionsSheet(
                 stringResource(if (isPinned) R.string.unpin else R.string.pin),
                 onClick = it,
             )
+        }
+        if (onEditPlaylist != null) {
+            ActionRow(Icons.Rounded.Edit, stringResource(R.string.edit_playlist), onClick = onEditPlaylist)
         }
         if (onRename != null) {
             ActionRow(Icons.Rounded.Edit, stringResource(R.string.rename)) { renaming = true }
