@@ -1,4 +1,5 @@
 package com.music.raaga.ui.player
+import com.music.raaga.ui.components.copyOnLongPress
 
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.CompositingStrategy
@@ -158,12 +159,19 @@ internal fun playbackOriginText(song: Song, playedBy: String?): String =
 @Composable
 internal fun PlaybackOriginCaption(
     text: String,
+    rawName: String? = null,
     onClick: () -> Unit,
     textAlign: TextAlign,
     /** Inside the touch target, so it widens what a finger can hit. */
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
 ) {
+    val textToCopy = rawName?.takeIf { it.isNotBlank() } ?: text
+    val toastMsg = if (!rawName.isNullOrBlank()) {
+        stringResource(R.string.copied_album_format, rawName)
+    } else {
+        stringResource(R.string.copied_to_clipboard, text)
+    }
     Text(
         text = text,
         style = MaterialTheme.typography.labelSmall.copy(
@@ -178,7 +186,11 @@ internal fun PlaybackOriginCaption(
         overflow = TextOverflow.Ellipsis,
         textAlign = textAlign,
         modifier = modifier
-            .clickable(onClick = onClick)
+            .copyOnLongPress(
+                textToCopy = textToCopy,
+                toastMessage = toastMsg,
+                onClick = onClick
+            )
             .padding(contentPadding),
     )
 }
