@@ -33,6 +33,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Lock
@@ -98,6 +99,7 @@ fun PlaylistPickerSheet(
     modifier: Modifier = Modifier,
     hazeState: HazeState? = null,
     song: Song? = null,
+    songs: List<Song>? = null,
     startCreating: Boolean = false,
     onImportSpotify: (() -> Unit)? = null,
 ) {
@@ -181,12 +183,16 @@ fun PlaylistPickerSheet(
             )
         } else {
             Column(Modifier.fillMaxWidth()) {
-        if (song != null) {
-            SheetTrackHeader(song)
+        val effectiveSongs = songs ?: listOfNotNull(song)
+        if (effectiveSongs.size == 1) {
+            SheetTrackHeader(effectiveSongs.first())
+            HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline)
+        } else if (effectiveSongs.size > 1) {
+            SheetMultiSongHeader(effectiveSongs)
             HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline)
         }
         SheetHeading(
-            stringResource(if (song != null) R.string.add_to_playlist else R.string.your_playlists)
+            stringResource(if (effectiveSongs.isNotEmpty()) R.string.add_to_playlist else R.string.your_playlists)
                 .uppercase(Locale.getDefault()),
         )
 
@@ -613,5 +619,71 @@ private fun PrivacyPill(
             style = MaterialTheme.typography.titleMedium,
             color = content,
         )
+    }
+}
+
+@Composable
+internal fun SheetMultiSongHeader(
+    songs: List<Song>,
+    modifier: Modifier = Modifier,
+    subtitleColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        val firstSong = songs.firstOrNull()
+        Box(
+            modifier = Modifier
+                .size(52.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (firstSong != null) {
+                AsyncImage(
+                    model = firstSong.artworkAt(ROW_ART_PX),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .thumbnailBorder(RoundedCornerShape(8.dp)),
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Rounded.PlaylistAdd,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(24.dp),
+                )
+            }
+        }
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = "${songs.size} songs selected",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            val artists = songs.map { it.artist }.filter { it.isNotBlank() }.distinct()
+            val artistsSummary = when {
+                artists.isEmpty() -> ""
+                artists.size <= 2 -> artists.joinToString(", ")
+                else -> "${artists.take(2).joinToString(", ")} & ${artists.size - 2} more"
+            }
+            if (artistsSummary.isNotBlank()) {
+                Text(
+                    text = artistsSummary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = subtitleColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
     }
 }
