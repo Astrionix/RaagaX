@@ -17,6 +17,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
+import java.time.format.TextStyle
 import java.util.Locale
 
 /**
@@ -749,23 +750,48 @@ data class RankedEntry(
 data class RankedSong(val song: Song, val ms: Long, val plays: Int)
 
 /** How far back a Replay reaches. */
-enum class ReplayPeriod(val chip: String) {
-    THIS_MONTH("This month"),
-    THIS_YEAR("This year"),
-    ALL_TIME("All time"),
-    ;
+sealed class ReplayPeriod : java.io.Serializable {
+    abstract val chip: String
+    abstract fun covers(month: YearMonth, today: LocalDate): Boolean
+    abstract fun label(today: LocalDate): String
 
-    fun covers(month: YearMonth, today: LocalDate): Boolean = when (this) {
-        THIS_MONTH -> month == YearMonth.from(today)
-        THIS_YEAR -> month.year == today.year
-        ALL_TIME -> true
+    object THIS_MONTH : ReplayPeriod() {
+        override val chip: String = "This month"
+        override fun covers(month: YearMonth, today: LocalDate): Boolean = month == YearMonth.from(today)
+        override fun label(today: LocalDate): String =
+            YearMonth.from(today).month.name.lowercase(Locale.ROOT)
+                .replaceFirstChar { it.uppercase(Locale.ROOT) } + " ${today.year}"
     }
 
-    fun label(today: LocalDate): String = when (this) {
-        THIS_MONTH -> YearMonth.from(today).month.name.lowercase(Locale.ROOT)
-            .replaceFirstChar { it.uppercase(Locale.ROOT) } + " ${today.year}"
-        THIS_YEAR -> today.year.toString()
-        ALL_TIME -> "All time"
+    data class MONTH(val yearMonth: YearMonth) : ReplayPeriod() {
+        override val chip: String
+            get() = yearMonth.month.getDisplayName(TextStyle.SHORT, Locale.getDefault())
+        override fun covers(month: YearMonth, today: LocalDate): Boolean = month == yearMonth
+        override fun label(today: LocalDate): String =
+            yearMonth.month.name.lowercase(Locale.ROOT)
+                .replaceFirstChar { it.uppercase(Locale.ROOT) } + " ${yearMonth.year}"
+    }
+
+    object THIS_YEAR : ReplayPeriod() {
+        override val chip: String = "This year"
+        override fun covers(month: YearMonth, today: LocalDate): Boolean = month.year == today.year
+        override fun label(today: LocalDate): String = today.year.toString()
+    }
+
+    data class YEAR(val year: Int) : ReplayPeriod() {
+        override val chip: String = year.toString()
+        override fun covers(month: YearMonth, today: LocalDate): Boolean = month.year == year
+        override fun label(today: LocalDate): String = year.toString()
+    }
+
+    object ALL_TIME : ReplayPeriod() {
+        override val chip: String = "All time"
+        override fun covers(month: YearMonth, today: LocalDate): Boolean = true
+        override fun label(today: LocalDate): String = "All time"
+    }
+
+    companion object {
+        val entries: List<ReplayPeriod> get() = listOf(THIS_YEAR, ALL_TIME)
     }
 }
 
