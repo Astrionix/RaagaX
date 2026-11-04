@@ -1020,7 +1020,7 @@ object Downloads {
                     return@coroutineScope
                 }
 
-                val destination = DownloadStore.begin(context, name, route.mimeType)
+                val destination = DownloadStore.begin(context, name, route.mimeType, track)
                 pending = destination
                 destination.openStream().use { sink ->
                     route.write(sink) { written, total ->
@@ -1035,7 +1035,31 @@ object Downloads {
                 // concurrent album workers from exposing untagged tracks.
                 MediaTagger.embed(context, destination.tagUri, track, route.extension, words, cover)
                 val artworkUri = MediaTagger.persistArtwork(context, track.thumbnailUrl, cover)
-                val savedUri = destination.commit()
+                val savedUri = destination.commit(track)
+
+                // Spotiflac-style sidecar export: .lrc synced lyrics and .jpg cover art
+                val stem = name.substringBeforeLast('.')
+                if (AppSettings.exportSyncedLyrics.value) {
+                    val lrcText = words?.enhanced ?: words?.plain
+                    if (!lrcText.isNullOrBlank()) {
+                        DownloadStore.writeSidecarFile(
+                            context = context,
+                            baseName = stem,
+                            extension = "lrc",
+                            mimeType = "text/plain",
+                            bytes = lrcText.toByteArray(Charsets.UTF_8),
+                        )
+                    }
+                }
+                if (AppSettings.exportArtwork.value && cover != null && cover.bytes.isNotEmpty()) {
+                    DownloadStore.writeSidecarFile(
+                        context = context,
+                        baseName = stem,
+                        extension = "jpg",
+                        mimeType = "image/jpeg",
+                        bytes = cover.bytes,
+                    )
+                }
                 pending = null
                 remember(song, track, savedUri, route.downloadFormat, artworkUri)
                 DownloadSession.done(id)
