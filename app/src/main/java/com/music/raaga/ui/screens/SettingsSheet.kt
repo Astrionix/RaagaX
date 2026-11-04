@@ -57,6 +57,7 @@ import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.VerticalAlignBottom
 import androidx.compose.material.icons.rounded.FileDownload
 import androidx.compose.material.icons.rounded.FileUpload
 import androidx.compose.material.icons.rounded.FilterAlt
@@ -108,7 +109,8 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
-import androidx.compose.material3.Switch
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import com.music.raaga.ui.components.LiquidGlassSwitch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -171,11 +173,17 @@ import com.music.raaga.data.settings.BitPerfectMode
 import com.music.raaga.playback.audio.bitperfect.BitPerfectOutput
 import com.music.raaga.playback.AudioOutputStatus
 import com.music.raaga.data.settings.AutomixPerformanceMode
+import com.music.raaga.data.settings.CrossfadeMode
 import com.music.raaga.R
 import com.music.raaga.data.sources.DeviceCodecs
 import com.music.raaga.data.settings.AudioQuality
 import com.music.raaga.data.settings.DownloadQuality
+import com.music.raaga.data.settings.NowPlayingBlurStyle
 import com.music.raaga.data.settings.ThemeMode
+import com.music.raaga.data.settings.AppFont
+import com.music.raaga.ui.theme.AccentRed
+import com.music.raaga.ui.theme.previewFamilyFor
+import androidx.compose.material.icons.rounded.TextFields
 import com.music.raaga.data.stats.Backup
 import com.music.raaga.playback.AudioCache
 import com.music.raaga.ui.player.fullBleedArtworkAvailable
@@ -244,7 +252,9 @@ fun SettingsScreen(
     val wifiQuality by AppSettings.audioQualityWifi.collectAsStateWithLifecycle()
     val cellularQuality by AppSettings.audioQualityCellular.collectAsStateWithLifecycle()
     val metered by AppSettings.meteredConnection.collectAsStateWithLifecycle()
-    val crossfade by AppSettings.crossfadeSeconds.collectAsStateWithLifecycle()
+    val crossfadeMode by AppSettings.crossfadeMode.collectAsStateWithLifecycle()
+    val crossfadeSeconds by AppSettings.crossfadeSeconds.collectAsStateWithLifecycle()
+    var pickingCrossfadeMode by remember { mutableStateOf(false) }
     val smartFade by AppSettings.smartFadeEnabled.collectAsStateWithLifecycle()
     val automixPerformance by AppSettings.automixPerformanceMode.collectAsStateWithLifecycle()
     val bitPerfectMode by AppSettings.bitPerfectMode.collectAsStateWithLifecycle()
@@ -288,10 +298,14 @@ fun SettingsScreen(
     val spotifyCanvasEnabled by AppSettings.spotifyCanvasEnabled.collectAsStateWithLifecycle()
     val fullBleedArtwork by AppSettings.fullBleedArtwork.collectAsStateWithLifecycle()
     val legacyMeshGradient by AppSettings.legacyMeshGradient.collectAsStateWithLifecycle()
+    val nowPlayingBlurStyle by AppSettings.nowPlayingBlurStyle.collectAsStateWithLifecycle()
+    val adaptiveTrackInfo by AppSettings.adaptiveTrackInfo.collectAsStateWithLifecycle()
+    val lyricsPreview by AppSettings.lyricsPreview.collectAsStateWithLifecycle()
     val syncedLyrics by AppSettings.syncedLyrics.collectAsStateWithLifecycle()
     val lyricsSources by AppSettings.lyricsSources.collectAsStateWithLifecycle()
     val translationLanguage by AppSettings.translationLanguage.collectAsStateWithLifecycle()
     val theme by AppSettings.themeMode.collectAsStateWithLifecycle()
+    val font by AppSettings.appFont.collectAsStateWithLifecycle()
     val sessionId by AppSettings.audioSessionId.collectAsStateWithLifecycle()
     val outputPcmMode by AppSettings.outputPcmMode.collectAsStateWithLifecycle()
     val preferUsbDac by AppSettings.preferUsbDac.collectAsStateWithLifecycle()
@@ -305,6 +319,8 @@ fun SettingsScreen(
     val downloadQuality by AppSettings.downloadQuality.collectAsStateWithLifecycle()
     val wifiOnlyDownloads by AppSettings.wifiOnlyDownloads.collectAsStateWithLifecycle()
     val exportDownloads by AppSettings.exportDownloads.collectAsStateWithLifecycle()
+    val exportSyncedLyrics by AppSettings.exportSyncedLyrics.collectAsStateWithLifecycle()
+    val exportArtwork by AppSettings.exportArtwork.collectAsStateWithLifecycle()
     val autoDownloadPlaylists by AppSettings.autoDownloadPlaylists.collectAsStateWithLifecycle()
     val keepPlaylistsUpdated by AppSettings.keepPlaylistsUpdated.collectAsStateWithLifecycle()
     val stopOnTaskRemoved by AppSettings.stopOnTaskRemoved.collectAsStateWithLifecycle()
@@ -368,6 +384,7 @@ fun SettingsScreen(
 
     var picking by remember { mutableStateOf<QualityTarget?>(null) }
     var pickingDownloadQuality by remember { mutableStateOf(false) }
+    var pickingBlurStyle by remember { mutableStateOf(false) }
     var pickingAutoDownloadPlaylists by remember { mutableStateOf(false) }
     var pickingAutomixPerformance by remember { mutableStateOf(false) }
     var showBitPerfectChoice by remember { mutableStateOf(false) }
@@ -843,6 +860,24 @@ fun SettingsScreen(
                     subtitle = "Music/Raaga".takeIf { exportDownloads },
                 )
             }
+            val saveSyncedLyricsTitle = stringResource(R.string.save_synced_lyrics)
+            row(saveSyncedLyricsTitle, "lrc", "lyrics", "sync lyrics", divided = false) {
+                SettingsSubRow(
+                    title = saveSyncedLyricsTitle,
+                    checked = exportSyncedLyrics,
+                    onCheckedChange = AppSettings::setExportSyncedLyrics,
+                    subtitle = stringResource(R.string.save_synced_lyrics_subtitle),
+                )
+            }
+            val saveAlbumArtworkTitle = stringResource(R.string.save_album_artwork)
+            row(saveAlbumArtworkTitle, "cover", "art", "jpg", divided = false) {
+                SettingsSubRow(
+                    title = saveAlbumArtworkTitle,
+                    checked = exportArtwork,
+                    onCheckedChange = AppSettings::setExportArtwork,
+                    subtitle = stringResource(R.string.save_album_artwork_subtitle),
+                )
+            }
             val autoDownloadPlaylistsTitle = stringResource(R.string.auto_download_playlists)
             row(autoDownloadPlaylistsTitle, "playlist", "auto download", "offline", divided = false) {
                 SettingsRow(
@@ -1029,53 +1064,45 @@ fun SettingsScreen(
                     )
                 }
             }
-            // Automix decides its own length from each pair of tracks —
-            // tempo, key, structure — so it replaces the manual slider rather
-            // than needing it set to anything first.
-            if (!smartFade) {
-                val crossfadeTitle = stringResource(R.string.crossfade)
-                row(crossfadeTitle, "fade", "gapless") {
+            val crossfadeTitle = stringResource(R.string.crossfade)
+            row(crossfadeTitle, "crossfade", "smart crossfade", "fade", "gapless", "automatic") {
+                SettingsRow(
+                    icon = Icons.Rounded.AutoAwesome,
+                    title = crossfadeTitle,
+                    subtitle = stringResource(R.string.crossfade_settings_subtitle),
+                    value = when (crossfadeMode) {
+                        CrossfadeMode.AUTOMATIC -> stringResource(R.string.crossfade_mode_automatic)
+                        CrossfadeMode.MANUAL -> stringResource(R.string.crossfade_mode_manual) + " (${crossfadeSeconds}s)"
+                        CrossfadeMode.OFF -> stringResource(R.string.crossfade_mode_off)
+                    },
+                    onClick = { pickingCrossfadeMode = true },
+                )
+            }
+            if (crossfadeMode == CrossfadeMode.MANUAL) {
+                row(stringResource(R.string.crossfade_mode_manual), "crossfade", "seconds") {
                     SliderRow(
-                        icon = Icons.Rounded.Waves,
-                        title = crossfadeTitle,
-                        subtitle = stringResource(R.string.crossfade_subtitle),
-                        value = if (crossfade == 0) stringResource(R.string.off) else "${crossfade}s",
-                        sliderValue = crossfade.toFloat(),
+                        icon = Icons.Rounded.Tune,
+                        title = stringResource(R.string.crossfade_mode_manual),
+                        subtitle = stringResource(R.string.crossfade_mode_manual_desc),
+                        value = "${crossfadeSeconds}s",
+                        sliderValue = crossfadeSeconds.toFloat(),
                         onSliderValue = { AppSettings.setCrossfadeSeconds(it.roundToInt()) },
-                        valueRange = 0f..12f,
-                        steps = 11,
+                        valueRange = 1f..12f,
+                        steps = 10,
                     )
                 }
             }
-            val automixTitle = stringResource(R.string.automix)
-            row(automixTitle, "crossfade", "smart fade", "mix") {
-                SettingsRow(
-                    icon = Icons.Rounded.AutoAwesome,
-                    title = automixTitle,
-                    subtitle = if (smartFade) {
-                        stringResource(R.string.automix_enabled_subtitle)
-                    } else {
-                        stringResource(R.string.automix_disabled_subtitle)
-                    },
-                    trailing = {
-                        Switch(
-                            checked = smartFade,
-                            onCheckedChange = AppSettings::setSmartFadeEnabled,
-                            colors = settingsSwitchColors(),
-                        )
-                    },
-                    onClick = { AppSettings.setSmartFadeEnabled(!smartFade) },
-                )
-            }
-            val automixPerformanceTitle = stringResource(R.string.automix_performance)
-            row(automixPerformanceTitle, "cpu", "battery") {
-                SettingsRow(
-                    icon = Icons.Rounded.Tune,
-                    title = automixPerformanceTitle,
-                    subtitle = stringResource(R.string.automix_performance_subtitle),
-                    value = automixPerformance.localizedLabel(),
-                    onClick = { pickingAutomixPerformance = true },
-                )
+            if (crossfadeMode == CrossfadeMode.AUTOMATIC) {
+                val automixPerformanceTitle = stringResource(R.string.automix_performance)
+                row(automixPerformanceTitle, "cpu", "battery", "automix") {
+                    SettingsRow(
+                        icon = Icons.Rounded.Tune,
+                        title = automixPerformanceTitle,
+                        subtitle = stringResource(R.string.automix_performance_subtitle),
+                        value = automixPerformance.localizedLabel(),
+                        onClick = { pickingAutomixPerformance = true },
+                    )
+                }
             }
             val skipSilenceTitle = stringResource(R.string.skip_silence)
             row(skipSilenceTitle, "silence") {
@@ -1163,6 +1190,88 @@ fun SettingsScreen(
                     onSelect = { AppSettings.setThemeMode(ThemeMode.entries[it]) },
                     modifier = Modifier.padding(start = ROW_INSET, end = ROW_INSET, bottom = 14.dp),
                 )
+            }
+
+            val fontTitle = stringResource(R.string.font_style)
+            row(fontTitle, "font", "typography", "bold", "sf pro", "ios bold") {
+                SettingsRow(
+                    icon = Icons.Rounded.TextFields,
+                    title = fontTitle,
+                    subtitle = stringResource(R.string.font_style_subtitle),
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(start = ROW_INSET, end = ROW_INSET, bottom = 14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    AppFont.entries.forEach { option ->
+                        val selected = option == font
+                        val targetFamily = previewFamilyFor(option)
+                        val sampleWeight = when (option) {
+                            AppFont.IOS_BOLD -> FontWeight.W800
+                            AppFont.SF_PRO -> FontWeight.W700
+                            AppFont.NEW_YORK -> FontWeight.W700
+                            AppFont.SYSTEM -> FontWeight.Bold
+                            AppFont.MONOSPACE -> FontWeight.Bold
+                        }
+                        Box(
+                            modifier = Modifier
+                                .width(104.dp)
+                                .height(108.dp)
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(
+                                    if (selected) MaterialTheme.colorScheme.surfaceVariant
+                                    else MaterialTheme.colorScheme.surface
+                                )
+                                .border(
+                                    width = if (selected) 2.dp else 1.dp,
+                                    color = if (selected) AccentRed
+                                            else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                                    shape = RoundedCornerShape(18.dp),
+                                )
+                                .clickable {
+                                    AppSettings.setAppFont(option)
+                                }
+                                .padding(horizontal = 8.dp, vertical = 10.dp),
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(88.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                Box(
+                                    modifier = Modifier.weight(1f),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        text = "Aa",
+                                        fontFamily = targetFamily,
+                                        fontWeight = sampleWeight,
+                                        fontSize = 32.sp,
+                                        letterSpacing = if (option == AppFont.IOS_BOLD) (-1.0).sp else 0.sp,
+                                        color = if (selected) AccentRed
+                                                else MaterialTheme.colorScheme.onSurface,
+                                    )
+                                }
+                                Text(
+                                    text = stringResource(option.labelRes),
+                                    fontFamily = targetFamily,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                    fontSize = 12.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    textAlign = TextAlign.Center,
+                                    color = if (selected) MaterialTheme.colorScheme.onSurface
+                                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                }
             }
             val appIconTitle = stringResource(R.string.app_icon)
             row(appIconTitle, "icon", "launcher", "logo") {
@@ -1305,7 +1414,7 @@ fun SettingsScreen(
                 }
             }
             val legacyMeshGradientTitle = stringResource(R.string.legacy_mesh_gradient)
-            row(legacyMeshGradientTitle, "background", "player") {
+            row(legacyMeshGradientTitle, "background", "player", "mesh", "gradient") {
                 SettingsRow(
                     icon = Icons.Rounded.Gradient,
                     title = legacyMeshGradientTitle,
@@ -1318,6 +1427,31 @@ fun SettingsScreen(
                         )
                     },
                     onClick = { AppSettings.setLegacyMeshGradient(!legacyMeshGradient) },
+                )
+            }
+            val blurStyleTitle = stringResource(R.string.now_playing_blur_style)
+            row(blurStyleTitle, "background", "player", "blur", "mesh", "gradient", "ambient") {
+                SettingsRow(
+                    icon = Icons.Rounded.BlurOn,
+                    title = blurStyleTitle,
+                    subtitle = stringResource(nowPlayingBlurStyle.titleRes),
+                    onClick = { pickingBlurStyle = true },
+                )
+            }
+            val adaptiveTrackInfoTitle = stringResource(R.string.adaptive_track_info)
+            row(adaptiveTrackInfoTitle, "layout", "player", "lyrics", "track", "info", "compact", "dynamic") {
+                SettingsRow(
+                    icon = Icons.Rounded.VerticalAlignBottom,
+                    title = adaptiveTrackInfoTitle,
+                    subtitle = stringResource(R.string.adaptive_track_info_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = adaptiveTrackInfo,
+                            onCheckedChange = AppSettings::setAdaptiveTrackInfo,
+                            colors = settingsSwitchColors(),
+                        )
+                    },
+                    onClick = { AppSettings.setAdaptiveTrackInfo(!adaptiveTrackInfo) },
                 )
             }
             val animatedCoverArtTitle = stringResource(R.string.animated_cover_art)
@@ -1423,6 +1557,22 @@ fun SettingsScreen(
             // sources are third-party services being reached on the user's
             // connection — which is the part worth being able to narrow.
             if (syncedLyrics) {
+                val lyricsPreviewTitle = stringResource(R.string.lyrics_preview)
+                row(lyricsPreviewTitle, "lyrics", "preview", "strip") {
+                    SettingsRow(
+                        icon = Icons.AutoMirrored.Rounded.Notes,
+                        title = lyricsPreviewTitle,
+                        subtitle = stringResource(R.string.lyrics_preview_subtitle),
+                        trailing = {
+                            Switch(
+                                checked = lyricsPreview,
+                                onCheckedChange = AppSettings::setLyricsPreview,
+                                colors = settingsSwitchColors(),
+                            )
+                        },
+                        onClick = { AppSettings.setLyricsPreview(!lyricsPreview) },
+                    )
+                }
                 val lyricsBlurTitle = stringResource(R.string.blur_unfocused_lyrics)
                 row(lyricsBlurTitle, "lyrics", "blur") {
                     SettingsRow(
@@ -2009,6 +2159,21 @@ fun SettingsScreen(
         }
     }
 
+    if (pickingBlurStyle) {
+        ModalBottomSheet(
+            onDismissRequest = { pickingBlurStyle = false },
+            containerColor = MaterialTheme.colorScheme.background,
+        ) {
+            NowPlayingBlurStyleSheet(
+                selected = nowPlayingBlurStyle,
+                onSelect = { style ->
+                    AppSettings.setNowPlayingBlurStyle(style)
+                    pickingBlurStyle = false
+                },
+            )
+        }
+    }
+
     if (pickingDownloadQuality) {
         ModalBottomSheet(
             onDismissRequest = { pickingDownloadQuality = false },
@@ -2106,6 +2271,24 @@ fun SettingsScreen(
                 }
             },
         )
+    }
+
+    if (pickingCrossfadeMode) {
+        ModalBottomSheet(
+            onDismissRequest = { pickingCrossfadeMode = false },
+            containerColor = MaterialTheme.colorScheme.background,
+        ) {
+            CrossfadeSettingsSheet(
+                selectedMode = crossfadeMode,
+                currentSeconds = crossfadeSeconds,
+                onSelectMode = { mode ->
+                    AppSettings.setCrossfadeMode(mode)
+                },
+                onSelectSeconds = { sec ->
+                    AppSettings.setCrossfadeSeconds(sec)
+                },
+            )
+        }
     }
 
     if (pickingAutomixPerformance) {
@@ -2565,6 +2748,229 @@ private fun QualitySheet(
     }
 }
 
+/**
+ * Bottom sheet for configuring crossfade mode:
+ * - Automatic (Smart Crossfade: intelligent transitions based on audio characteristics)
+ * - Manual (User-selected duration: 1s .. 12s with preset chips 1s, 5s, 12s)
+ * - Off (Consecutive gapless playback)
+ */
+@Composable
+private fun CrossfadeSettingsSheet(
+    selectedMode: CrossfadeMode,
+    currentSeconds: Int,
+    onSelectMode: (CrossfadeMode) -> Unit,
+    onSelectSeconds: (Int) -> Unit,
+) {
+    val haptics = LocalHapticFeedback.current
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(bottom = 32.dp),
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 22.dp, end = 22.dp, bottom = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.AutoAwesome,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp),
+            )
+            Spacer(Modifier.width(14.dp))
+            Column {
+                Text(
+                    text = stringResource(R.string.crossfade),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
+                Text(
+                    text = stringResource(R.string.crossfade_settings_subtitle),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline)
+
+        // 1. Automatic Option
+        val isAuto = selectedMode == CrossfadeMode.AUTOMATIC
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onSelectMode(CrossfadeMode.AUTOMATIC)
+                }
+                .padding(horizontal = 22.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.crossfade_mode_automatic),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
+                    Badge(stringResource(R.string.crossfade_badge_recommended))
+                    Badge(stringResource(R.string.crossfade_badge_new))
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = stringResource(R.string.crossfade_mode_automatic_desc),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (isAuto) {
+                Spacer(Modifier.width(12.dp))
+                Icon(
+                    imageVector = Icons.Rounded.Check,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+        }
+
+        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), modifier = Modifier.padding(horizontal = 22.dp))
+
+        // 2. Manual Option
+        val isManual = selectedMode == CrossfadeMode.MANUAL
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onSelectMode(CrossfadeMode.MANUAL)
+                }
+                .padding(horizontal = 22.dp, vertical = 14.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.crossfade_mode_manual),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = stringResource(R.string.crossfade_mode_manual_desc),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (isManual) {
+                    Spacer(Modifier.width(12.dp))
+                    Icon(
+                        imageVector = Icons.Rounded.Check,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+            }
+
+            if (isManual) {
+                Spacer(Modifier.height(14.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    for (preset in listOf(1, 5, 12)) {
+                        val isPresetActive = currentSeconds == preset
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(
+                                    if (isPresetActive) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.surfaceVariant
+                                    },
+                                )
+                                .clickable {
+                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    onSelectSeconds(preset)
+                                }
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                        ) {
+                            Text(
+                                text = "${preset}s",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = if (isPresetActive) {
+                                    MaterialTheme.colorScheme.onPrimary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                            )
+                        }
+                    }
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        text = "${currentSeconds}s",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.align(Alignment.CenterVertically),
+                    )
+                }
+                Spacer(Modifier.height(10.dp))
+                Slider(
+                    value = currentSeconds.toFloat(),
+                    onValueChange = { onSelectSeconds(it.roundToInt()) },
+                    valueRange = 1f..12f,
+                    steps = 10,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+
+        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), modifier = Modifier.padding(horizontal = 22.dp))
+
+        // 3. Off Option
+        val isOff = selectedMode == CrossfadeMode.OFF
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onSelectMode(CrossfadeMode.OFF)
+                }
+                .padding(horizontal = 22.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.crossfade_mode_off),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = stringResource(R.string.crossfade_mode_off_desc),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (isOff) {
+                Spacer(Modifier.width(12.dp))
+                Icon(
+                    imageVector = Icons.Rounded.Check,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+        }
+    }
+}
+
 /** CPU budget picker for the background models that prepare Automix. */
 @Composable
 private fun AutomixPerformanceSheet(
@@ -2651,6 +3057,77 @@ private fun AutomixPerformanceSheet(
  * cost me", and the answer is charged once. Same widget, different question, so
  * the numbers beside the options are in different units on purpose.
  */
+@Composable
+private fun NowPlayingBlurStyleSheet(
+    selected: NowPlayingBlurStyle,
+    onSelect: (NowPlayingBlurStyle) -> Unit,
+) {
+    val haptics = LocalHapticFeedback.current
+    Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
+        Row(
+            modifier = Modifier.padding(start = 22.dp, end = 22.dp, bottom = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.BlurOn,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.size(22.dp),
+            )
+            Spacer(Modifier.width(14.dp))
+            Column {
+                Text(
+                    text = stringResource(R.string.now_playing_blur_style),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
+                Text(
+                    text = stringResource(R.string.now_playing_blur_style_subtitle),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline)
+
+        NowPlayingBlurStyle.entries.forEach { style ->
+            val chosen = style == selected
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onSelect(style)
+                    }
+                    .padding(horizontal = 22.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(style.titleRes),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
+                    Text(
+                        text = stringResource(style.subtitleRes),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (chosen) {
+                    Spacer(Modifier.width(12.dp))
+                    Icon(
+                        Icons.Rounded.Check,
+                        contentDescription = stringResource(R.string.selected),
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun DownloadQualitySheet(
     selected: DownloadQuality,
@@ -3092,6 +3569,30 @@ internal fun SettingsSubRow(
             colors = settingsSwitchColors(),
         )
     }
+}
+
+/**
+ * Settings sheet on/off toggle using Apple-style Liquid Glass optics.
+ */
+@Composable
+private fun Switch(
+    checked: Boolean,
+    onCheckedChange: ((Boolean) -> Unit)?,
+    modifier: Modifier = Modifier,
+    thumbContent: (@Composable () -> Unit)? = null,
+    enabled: Boolean = true,
+    colors: androidx.compose.material3.SwitchColors = settingsSwitchColors(),
+    interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
+) {
+    LiquidGlassSwitch(
+        checked = checked,
+        onCheckedChange = onCheckedChange,
+        modifier = modifier,
+        thumbContent = thumbContent,
+        enabled = enabled,
+        colors = colors,
+        interactionSource = interactionSource,
+    )
 }
 
 /** Marks the connection whose ceiling is actually in force right now. */
