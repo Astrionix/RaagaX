@@ -62,6 +62,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Edit
+import com.music.raaga.data.settings.PlaylistCustomOrderStore
+import com.music.raaga.ui.components.PlaylistEditorSheet
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.MoreHoriz
@@ -583,7 +586,7 @@ private fun RaagaApp(
     // Which track the playlist picker is adding, or null when it's closed.
     // Separate from [songActions] so the menu can close behind it — the picker
     // is the next step, not a second sheet stacked on the first.
-    var playlistTarget by remember { mutableStateOf<Song?>(null) }
+    var playlistTargets by remember { mutableStateOf<List<Song>?>(null) }
     // The picker opened from the Library tab, where there is no track and
     // creating the playlist is the whole errand.
     var creatingPlaylist by remember { mutableStateOf(false) }
@@ -593,6 +596,7 @@ private fun RaagaApp(
     // three tabs, the search rows, the artist page's carousels, the release
     // page's own overflow — because only one of them can be held at a time.
     var browseActions by remember { mutableStateOf<BrowseTarget?>(null) }
+    var playlistToEdit by remember { mutableStateOf<BrowseTarget?>(null) }
     val autoplay by AppSettings.autoplay.collectAsStateWithLifecycle()
     val partyState by ListenTogether.state.collectAsStateWithLifecycle()
     // The same answer the playback service acts on, rather than a second one
@@ -719,7 +723,8 @@ private fun RaagaApp(
     // order never imposes itself on another, and every page keeps its own
     // across visits.
     val detailSongSorts by AppSettings.detailSongSorts.collectAsStateWithLifecycle()
-    val songSort = detail?.browseId?.let { detailSongSorts[it] } ?: SongSort.DEFAULT
+    val songSort = detail?.browseId?.let { detailSongSorts[it] }
+        ?: if (detail?.type == BrowseType.PLAYLIST) SongSort.CUSTOM_ORDER else SongSort.DEFAULT
     var songSortMenuOpen by remember { mutableStateOf(false) }
     val likeStatuses by viewModel.likeStatuses.collectAsStateWithLifecycle()
     // Which tracks are being held on YouTube's own upload, so the player's menu
@@ -1828,7 +1833,12 @@ private fun RaagaApp(
      * download folder with nothing to file it under.
      */
     val withBrowseSongs: (BrowseTarget, (List<Song>) -> Unit) -> Unit = { target, action ->
-        val stamp: (List<Song>) -> Unit = { songs ->
+        val stamp: (List<Song>) -> Unit = { rawSongs ->
+            val songs = if (target.type == BrowseType.PLAYLIST && target.browseId != null) {
+                PlaylistCustomOrderStore.applyCustomOrder(target.browseId, rawSongs)
+            } else {
+                rawSongs
+            }
             action(
                 songs.map { song ->
                     song.copy(
@@ -2952,7 +2962,8 @@ private fun RaagaApp(
                                 song
                             }
                         }
-                        val isEditablePlaylist = page.type == BrowseType.PLAYLIST && viewModel.editablePlaylist(page.browseId) != null
+                        val isEditablePlaylist = page.type == BrowseType.PLAYLIST &&
+                            (viewModel.editablePlaylist(page.browseId) != null || page.browseId.startsWith("local:"))
                         DetailScreen(
                             page = page,
                             currentSong = player.song,
@@ -2973,6 +2984,19 @@ private fun RaagaApp(
                                 { song ->
                                     viewModel.removeFromPlaylist(page.browseId, song)
                                     showQueueNotice(context.getString(R.string.remove_from_playlist))
+                                }
+                            } else null,
+                            onEditPlaylist = if (page.type == BrowseType.PLAYLIST) {
+                                {
+                                    val releaseSongs = (page.songs as? UiState.Success)?.data.orEmpty()
+                                    playlistToEdit = BrowseTarget(
+                                        browseId = page.browseId,
+                                        title = page.title,
+                                        subtitle = page.subtitle,
+                                        thumbnailUrl = page.thumbnailUrl,
+                                        type = page.type,
+                                        songs = releaseSongs.sortedForDetail(songSort, page.browseId).map(withAlbum),
+                                    )
                                 }
                             } else null,
                             onShuffle = { songs ->
@@ -3162,7 +3186,7 @@ private fun RaagaApp(
                                     entityType = EntityType.TRACK,
                                 ))
                                 viewModel.loadPlaylists()
-                                playlistTarget = song
+                                playlistTargets = listOf(song)
                             },
                             onBrowseClick = { item ->
                                 viewModel.recordEntity(SearchHistoryEntity(
@@ -3247,6 +3271,10 @@ private fun RaagaApp(
                             onSongLongPress = { songActions = it },
                             onAddToQueue = { queueSongs(it, false) },
                             onPlayNext = playSongsNext,
+                            onAddToPlaylist = { songs ->
+                                viewModel.loadPlaylists()
+                                playlistTargets = songs
+                            },
                             // Every shelf here has a menu behind it now — the account's
                             // own playlists get rename and delete on top of what a saved
                             // album or a Liked Music card gets. Holding an artist still
@@ -3524,6 +3552,32 @@ private fun RaagaApp(
                                         )
                                     }
                                 }
+                                if (detail.type == BrowseType.PLAYLIST && releaseSongs.isNotEmpty()) {
+                                    IconButton(
+                                        onClick = {
+                                            playlistToEdit = BrowseTarget(
+                                                browseId = detail.browseId,
+                                                title = detail.title,
+                                                subtitle = detail.subtitle,
+                                                thumbnailUrl = detail.thumbnailUrl,
+                                                type = detail.type,
+                                                songs = releaseSongs.sortedForDetail(songSort, detail.browseId).map { song ->
+                                                    if (detail.type == BrowseType.ALBUM) {
+                                                        song.copy(albumName = song.albumName ?: detail.title)
+                                                    } else {
+                                                        song
+                                                    }
+                                                },
+                                            )
+                                        },
+                                    ) {
+                                        Icon(
+                                            Icons.Rounded.Edit,
+                                            contentDescription = stringResource(R.string.edit_playlist),
+                                            tint = MaterialTheme.colorScheme.onSurface,
+                                        )
+                                    }
+                                }
                                 IconButton(onClick = { songSortMenuOpen = true }) {
                                     Icon(
                                         Icons.Rounded.Sort,
@@ -3539,7 +3593,7 @@ private fun RaagaApp(
                                             subtitle = detail.subtitle,
                                             thumbnailUrl = detail.thumbnailUrl,
                                             type = detail.type,
-                                            songs = releaseSongs.sortedForDetail(songSort).map { song ->
+                                            songs = releaseSongs.sortedForDetail(songSort, detail.browseId).map { song ->
                                                 if (detail.type == BrowseType.ALBUM) {
                                                     song.copy(albumName = song.albumName ?: detail.title)
                                                 } else {
@@ -3946,7 +4000,7 @@ private fun RaagaApp(
                     onAddToPlaylist = {
                         songActions = null
                         viewModel.loadPlaylists()
-                        playlistTarget = song
+                        playlistTargets = listOf(song)
                     },
                     onRemoveFromPlaylist = editable?.let {
                         {
@@ -3964,6 +4018,11 @@ private fun RaagaApp(
                     },
                     onOpenArtist = { id ->
                         openPage(id, song.artist, context.getString(R.string.artist), BrowseType.ARTIST)
+                    },
+                    onSearchContributor = { term ->
+                        songActions = null
+                        showNowPlaying = false
+                        viewModel.searchFor(term)
                     },
                     // Only the player's copy of a track is ever missing these
                     // and backfilling — a row opened from a list already has
@@ -4117,10 +4176,10 @@ private fun RaagaApp(
         // One sheet for both, because they are one decision: the list of
         // playlists with a way to make another. `creatingPlaylist` opens it
         // straight onto the form, which is what the Library tile means.
-        if (playlistTarget != null || creatingPlaylist) {
-            val target = playlistTarget
+        if (playlistTargets != null || creatingPlaylist) {
+            val targets = playlistTargets
             val dismiss = {
-                playlistTarget = null
+                playlistTargets = null
                 creatingPlaylist = false
             }
             ModalBottomSheet(
@@ -4133,29 +4192,44 @@ private fun RaagaApp(
                     hazeState = hazeState,
                     playlists = playlists,
                     loading = playlistsLoading,
-                    song = target,
-                    startCreating = target == null,
-                    onImportSpotify = if (target == null) {
+                    songs = targets,
+                    startCreating = targets.isNullOrEmpty(),
+                    onImportSpotify = if (targets.isNullOrEmpty()) {
                         {
                             dismiss()
                             importingSpotifyPlaylist = true
                         }
                     } else null,
                     onPick = { playlist ->
-                        target?.let { song ->
-                            viewModel.addToPlaylist(playlist, song) { alreadyInPlaylist ->
-                                showQueueNotice(
-                                    context.getString(
-                                        if (alreadyInPlaylist) R.string.song_already_in_playlist
-                                        else R.string.song_added_to_playlist,
-                                    ),
-                                )
+                        targets?.let { songList ->
+                            if (songList.size == 1) {
+                                val song = songList.first()
+                                viewModel.addToPlaylist(playlist, song) { alreadyInPlaylist ->
+                                    showQueueNotice(
+                                        context.getString(
+                                            if (alreadyInPlaylist) R.string.song_already_in_playlist
+                                            else R.string.song_added_to_playlist,
+                                        ),
+                                    )
+                                }
+                            } else if (songList.isNotEmpty()) {
+                                viewModel.addMultipleToPlaylist(playlist, songList) { addedCount, alreadyPresentCount ->
+                                    val message = when {
+                                        addedCount > 0 && alreadyPresentCount > 0 ->
+                                            "Added $addedCount songs ($alreadyPresentCount already in playlist)"
+                                        addedCount > 0 ->
+                                            "Added $addedCount songs to ${playlist.title}"
+                                        else ->
+                                            "All selected songs are already in ${playlist.title}"
+                                    }
+                                    showQueueNotice(message)
+                                }
                             }
                         }
                         dismiss()
                     },
                     onCreate = { title, privacy ->
-                        viewModel.createPlaylist(title, privacy, target)
+                        viewModel.createPlaylist(title, privacy, initialSongs = targets ?: emptyList())
                         dismiss()
                     },
                 )
@@ -4275,6 +4349,12 @@ private fun RaagaApp(
                     target = target.copy(playlist = playlist),
                     onPlayNext = act(playSongsNext),
                     onAddToQueue = act(addSongsToQueue),
+                    onAddToPlaylist = if (target.type == BrowseType.ALBUM || target.type == BrowseType.PLAYLIST) {
+                        act { songs ->
+                            viewModel.loadPlaylists()
+                            playlistTargets = songs
+                        }
+                    } else null,
                     onPlay = act { songs -> play(songs, 0) }.takeIf { target.fromCard },
                     onShuffle = act { songs ->
                         // As on a release page: shuffle goes on before the queue
@@ -4372,6 +4452,15 @@ private fun RaagaApp(
                             browseActions = null
                         }
                     },
+                    onEditPlaylist = if (target.type == BrowseType.PLAYLIST) {
+                        {
+                            val t = target
+                            browseActions = null
+                            withBrowseSongs(t) { songs ->
+                                playlistToEdit = t.copy(songs = songs)
+                            }
+                        }
+                    } else null,
                     onRename = playlist?.let { p ->
                         { name: String ->
                             browseActions = null
@@ -4410,6 +4499,27 @@ private fun RaagaApp(
                             scope.launch { Downloads.deleteCollection(context, id) }
                         }
                     },
+                )
+            }
+        }
+
+        playlistToEdit?.let { target ->
+            ModalBottomSheet(
+                onDismissRequest = { playlistToEdit = null },
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                containerColor = MaterialTheme.colorScheme.background,
+            ) {
+                PlaylistEditorSheet(
+                    title = target.title,
+                    browseId = target.browseId.orEmpty(),
+                    entries = UiState.Success(target.songs),
+                    saving = false,
+                    onSave = { updatedSongs ->
+                        viewModel.savePlaylistOrder(target.browseId.orEmpty(), updatedSongs)
+                        playlistToEdit = null
+                        showQueueNotice(context.getString(R.string.playlist_reordered))
+                    },
+                    onClose = { playlistToEdit = null },
                 )
             }
         }
@@ -4551,6 +4661,7 @@ private fun RaagaApp(
             FrostedSortMenu(
                 hazeState = hazeState,
                 selected = songSort,
+                isPlaylist = detail?.type == BrowseType.PLAYLIST,
                 onSelect = { option ->
                     detail?.browseId?.let { AppSettings.setDetailSongSort(it, option) }
                     songSortMenuOpen = false
@@ -4914,6 +5025,7 @@ private fun LibrarySort.localizedLabel(): String = when (this) {
 private fun FrostedSortMenu(
     hazeState: HazeState,
     selected: SongSort,
+    isPlaylist: Boolean = false,
     onSelect: (SongSort) -> Unit,
     onFlipDateDirection: () -> Unit,
     onDismiss: () -> Unit,
@@ -4948,6 +5060,30 @@ private fun FrostedSortMenu(
                 .clickable(onClick = {}),
         ) {
             Column(Modifier.padding(vertical = 8.dp)) {
+                if (isPlaylist) {
+                    val customSelected = selected == SongSort.CUSTOM_ORDER
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 44.dp)
+                            .clickable(role = Role.Button) { onSelect(SongSort.CUSTOM_ORDER) }
+                            .padding(horizontal = 20.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            stringResource(R.string.sort_custom_order),
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.weight(1f),
+                        )
+                        if (customSelected) {
+                            Icon(
+                                Icons.Rounded.Check,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
+                }
                 // Date added is one row, Spotify-style: the arrow on it shows
                 // the direction — up for newest first, down for oldest — and
                 // tapping flips it, the rotation animating the flip. Up is
@@ -4982,31 +5118,43 @@ private fun FrostedSortMenu(
                         )
                     }
                 }
-                SongSort.entries
-                    .filter { it != SongSort.DATE_ADDED_ASC && it != SongSort.DATE_ADDED_DESC }
-                    .forEach { option ->
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 44.dp)
-                                .clickable(role = Role.Button) { onSelect(option) }
-                                .padding(horizontal = 20.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                option.localizedLabel(),
-                                style = MaterialTheme.typography.bodyLarge,
-                                modifier = Modifier.weight(1f),
+                val availableOptions = if (isPlaylist) {
+                    listOf(
+                        SongSort.TITLE_ASC,
+                        SongSort.ARTIST_ASC,
+                        SongSort.DURATION_DESC,
+                    )
+                } else {
+                    listOf(
+                        SongSort.DEFAULT,
+                        SongSort.TITLE_ASC,
+                        SongSort.ARTIST_ASC,
+                        SongSort.DURATION_DESC,
+                    )
+                }
+                availableOptions.forEach { option ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 44.dp)
+                            .clickable(role = Role.Button) { onSelect(option) }
+                            .padding(horizontal = 20.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            option.localizedLabel(),
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.weight(1f),
+                        )
+                        if (option == selected) {
+                            Icon(
+                                Icons.Rounded.Check,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
                             )
-                            if (option == selected) {
-                                Icon(
-                                    Icons.Rounded.Check,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                )
-                            }
                         }
                     }
+                }
             }
         }
     }
@@ -5015,10 +5163,15 @@ private fun FrostedSortMenu(
 @Composable
 private fun SongSort.localizedLabel(): String = when (this) {
     SongSort.DEFAULT -> stringResource(R.string.sort_default)
+    SongSort.CUSTOM_ORDER -> stringResource(R.string.sort_custom_order)
     SongSort.TITLE_ASC -> stringResource(R.string.sort_title_ascending)
     SongSort.TITLE_DESC -> stringResource(R.string.sort_title_descending)
     SongSort.DATE_ADDED_ASC -> stringResource(R.string.sort_date_added_oldest)
     SongSort.DATE_ADDED_DESC -> stringResource(R.string.sort_date_added)
+    SongSort.ARTIST_ASC -> stringResource(R.string.sort_artist)
+    SongSort.ARTIST_DESC -> stringResource(R.string.sort_artist)
+    SongSort.DURATION_DESC -> stringResource(R.string.sort_duration_desc)
+    SongSort.DURATION_ASC -> stringResource(R.string.sort_duration_asc)
 }
 
 /**
