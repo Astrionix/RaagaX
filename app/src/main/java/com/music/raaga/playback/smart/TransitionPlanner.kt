@@ -1495,7 +1495,18 @@ private fun planTransitionInner(
 
     val policy = assessTransitionTier(analysis, nextAnalysis, advanced)
     if (policy.tier == TransitionTier.PLAIN_CROSSFADE) {
-        val transitionStart = max(0.0, mixAnchor - standardFade)
+        val nextLength = max(nextAnalysis.duration.orZero(), trackDurationSeconds(nextTrack))
+        val smartResult = AdaptiveCrossfadeEngine.TransitionPlanner.plan(
+            currentAnalysis = analysis,
+            nextAnalysis = nextAnalysis,
+            currentTrack = currentTrack,
+            nextTrack = nextTrack,
+            currentDuration = length,
+            nextDuration = nextLength,
+            albumSequential = albumSequential,
+        )
+        val effectiveFade = clamp(smartResult.durationSeconds, minFadeSeconds, 12.0)
+        val transitionStart = max(0.0, mixAnchor - effectiveFade)
         val started = playbackTime >= transitionStart
         return TransitionPlan(
             shouldStart = started,
@@ -1504,9 +1515,9 @@ private fun planTransitionInner(
             transitionEnd = mixAnchor,
             fadeSeconds = mixAnchor - transitionStart,
             transitionStyle = TransitionStyle.EQUAL_POWER,
-            incomingCueTime = incomingStartPoint(nextAnalysis),
+            incomingCueTime = if (smartResult.incomingCueTime > 0.0) smartResult.incomingCueTime else incomingStartPoint(nextAnalysis),
             policyReasons = policy.reasons,
-            reason = if (started) "smart-plain-crossfade" else "before-plain-crossfade-window",
+            reason = if (started) smartResult.reason else "before-${smartResult.reason}-window",
         )
     }
 
