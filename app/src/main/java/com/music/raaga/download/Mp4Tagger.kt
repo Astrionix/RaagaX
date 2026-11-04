@@ -238,9 +238,10 @@ object Mp4Tagger {
 
     /** A minimal handler box declaring this `meta` as iTunes-style metadata. */
     private fun hdlrAtom(): ByteArray {
-        // version/flags(4) + pre_defined(4) + handler_type(4) + reserved(12) + name(1, empty cstring)
+        // version/flags(4) + pre_defined(4) + handler_type(4) + manufacturer(4) + reserved(8) + name(1, empty cstring)
         val body = ByteArray(25)
         "mdir".toByteArray(Charsets.ISO_8859_1).copyInto(body, 8)
+        "appl".toByteArray(Charsets.ISO_8859_1).copyInto(body, 12)
         return box("hdlr", body)
     }
 
