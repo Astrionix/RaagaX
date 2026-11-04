@@ -64,7 +64,6 @@ import com.music.raaga.ui.components.floatingtabbar.FloatingTabBarDefaults
 import com.music.raaga.ui.components.floatingtabbar.FloatingTabBarScrollConnection
 import com.music.raaga.ui.haptics.Haptic
 import com.music.raaga.ui.haptics.rememberHaptics
-import com.music.raaga.ui.theme.AccentRed
 
 /**
  * The liquid glass navigation bar: the iOS 26 shape where the now playing
@@ -108,7 +107,7 @@ fun GlassNavBar(
     // lambda, which the tab bar sees as a changed argument and recomposes on.
     val pillShape = remember { RoundedCornerShape(percent = 50) }
     val contentColor = glassContentColor()
-    val selectedColor = AccentRed
+    val selectedColor = contentColor
     val unselectedColor = contentColor.copy(alpha = 0.65f)
     val haptics = rememberHaptics()
 
@@ -178,7 +177,7 @@ fun GlassNavBar(
         colors = FloatingTabBarDefaults.colors(
             backgroundColor = Color.Transparent,
             accessoryBackgroundColor = Color.Transparent,
-            indicatorColor = AccentRed.copy(alpha = 0.18f),
+            indicatorColor = glassIndicatorColor(),
         ),
         // Flat, because the glass is not. Every surface here already draws its
         // own [Shadow.Default] as part of the backdrop pass, and the library's

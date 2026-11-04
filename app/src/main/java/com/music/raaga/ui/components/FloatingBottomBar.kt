@@ -1,4 +1,4 @@
-﻿package com.music.raaga.ui.components
+package com.music.raaga.ui.components
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.AnimationSpec
@@ -56,7 +56,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.music.raaga.data.settings.AppSettings
 import com.music.raaga.ui.haptics.Haptic
 import com.music.raaga.ui.haptics.rememberHaptics
-import com.music.raaga.ui.theme.AccentRed
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import dev.chrisbanes.haze.materials.HazeMaterials
@@ -103,13 +102,13 @@ internal val NAV_BAR_LIFT = 6.dp
 internal val floatingBarInsets: WindowInsets
     @Composable get() = WindowInsets.navigationBars.union(WindowInsets(bottom = GESTURE_BAR_FLOOR))
 
-/** A gesture bar's inset ΓÇö 45px at the test phone's 3x density. */
+/** A gesture bar's inset — 45px at the test phone's 3x density. */
 private val GESTURE_BAR_FLOOR = 15.dp
 
 /**
  * Each tab's own vertical padding, and the counterweight to [PILL_INSET].
  *
- * The pill has no height of its own ΓÇö it is whatever its contents come to ΓÇö so
+ * The pill has no height of its own — it is whatever its contents come to — so
  * taking 2dp off the inset above would have shortened the whole bar by 4. The
  * same 2dp is added back here instead, which leaves the bar's outer height
  * exactly where it was and moves the boundary rather than the bar. The two
@@ -138,8 +137,8 @@ internal fun tabLabelStyle(): TextStyle =
  *
  * Damping 0.72 rather than the 0.5 it was: half-damped overshoots two or three
  * times, and a run of diminishing bounces is what makes a control read as a
- * spring rather than as a material. This settles on the second approach ΓÇö one
- * soft pass beyond the mark and done ΓÇö which is the difference between bouncy
+ * spring rather than as a material. This settles on the second approach — one
+ * soft pass beyond the mark and done — which is the difference between bouncy
  * and alive.
  *
  * Stiffness 320 puts the whole movement at roughly a third of a second, quick
@@ -154,7 +153,7 @@ internal val GlassSpring = spring<Float>(dampingRatio = 0.72f, stiffness = 320f)
  * shape crossing a gap under its own momentum does not stay the shape it was:
  * it draws out along the direction it is going and gathers itself back at the
  * end. Driven off how far there is still to go, so it is widest in the middle
- * of the trip and exactly itself once it arrives ΓÇö no state to keep, and it
+ * of the trip and exactly itself once it arrives — no state to keep, and it
  * falls out of a drag for free, since dragging is nothing but a long way still
  * to go.
  *
@@ -167,7 +166,7 @@ internal const val STRETCH = 0.16f
  * How much of the stretch is taken back out of the indicator's height.
  *
  * Half, not all. Conserving area exactly is what a drop of water does, and it
- * is too much here ΓÇö the indicator sits behind a glyph that is not deforming
+ * is too much here — the indicator sits behind a glyph that is not deforming
  * with it, and a full counter-squash reads as the pill being crushed rather
  * than drawn. Half keeps the sense of something with a volume to redistribute
  * while leaving the glyph its ground.
@@ -189,7 +188,7 @@ fun FloatingBottomBar(
     val useGlass = LocalLiquidGlassEnabled.current && isGlassSupported()
     val reduceAnimation by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
     // The glass settle is exactly the motion "reduce animation" promises to
-    // drop ΓÇö snapping both the indicator's travel and the glyph's pop to
+    // drop — snapping both the indicator's travel and the glyph's pop to
     // their target leaves the tap itself instant rather than eased.
     val glassSpec: AnimationSpec<Float> = if (reduceAnimation) snap() else GlassSpring
 
@@ -232,7 +231,7 @@ fun FloatingBottomBar(
     // How much of a tab's stride is still ahead of the indicator: 0 at rest,
     // toward 1 in the middle of a move or under a drag that has run away from
     // it. The stretch below is a function of this and nothing else, which is
-    // what keeps it honest ΓÇö the shape can only be deformed while it is
+    // what keeps it honest — the shape can only be deformed while it is
     // actually behind where it is going.
     val lag = if (tabStepPx > 0f) {
         (abs(pillTargetPx - animatedPillOffset) / tabStepPx).coerceIn(0f, 1f)
@@ -277,7 +276,7 @@ fun FloatingBottomBar(
                     .graphicsLayer {
                         translationX = animatedPillOffset
                         // Around its own centre, so the indicator draws out
-                        // both ways rather than growing a tail off one edge ΓÇö
+                        // both ways rather than growing a tail off one edge —
                         // a leading edge that ran ahead of the glyph it is
                         // meant to be behind would read as two things moving,
                         // not one thing stretching.
@@ -285,8 +284,7 @@ fun FloatingBottomBar(
                         scaleY = 1f - lag * STRETCH * SQUASH
                     }
                     .clip(pillShape)
-                    .background(AccentRed.copy(alpha = 0.18f))
-                    .border(0.75.dp, AccentRed.copy(alpha = 0.35f), pillShape),
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)),
             )
         }
 
@@ -350,7 +348,7 @@ fun FloatingBottomBar(
                     tab = tab,
                     selected = index == selectedIndex,
                     glassSpec = glassSpec,
-                    selectedTint = AccentRed,
+                    selectedTint = adaptiveTint,
                     unselectedTint = adaptiveTint?.copy(alpha = 0.65f),
                     onClick = { onTabSelected(index) },
                     modifier = Modifier.weight(1f),
@@ -367,7 +365,7 @@ private fun BottomBarItem(
     glassSpec: AnimationSpec<Float>,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    /** Overrides the theme's primary/onSurfaceVariant tint ΓÇö see the glass branch above. */
+    /** Overrides the theme's primary/onSurfaceVariant tint — see the glass branch above. */
     selectedTint: Color? = null,
     unselectedTint: Color? = null,
 ) {
