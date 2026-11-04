@@ -20,10 +20,16 @@ import org.junit.Test
 class JamInviteLinkTest {
 
     @Test
+    fun `parses legacy raaga app and web raaga me invites`() {
+        assertEquals("A1B2C3", JamInviteLink.parse("https://raaga.app/invite/a1b2c3"))
+        assertEquals("A1B2C3", JamInviteLink.parse("https://web.raaga.me/invite/a1b2c3"))
+    }
+
+    @Test
     fun `parses and normalizes a public invite`() {
         assertEquals(
             "A1B2C3",
-            JamInviteLink.parse("https://raaga.app/invite/a1b2c3"),
+            JamInviteLink.parse("https://raaga.me/invite/a1b2c3"),
         )
     }
 
@@ -31,25 +37,25 @@ class JamInviteLinkTest {
     fun `accepts query parameters without making them part of the code`() {
         assertEquals(
             "ABC123",
-            JamInviteLink.parse("https://raaga.app/invite/ABC123?from=share"),
+            JamInviteLink.parse("https://raaga.me/invite/ABC123?from=share"),
         )
     }
 
     @Test
     fun `rejects other hosts schemes paths and malformed codes`() {
-        assertNull(JamInviteLink.parse("http://raaga.app/invite/ABC123"))
+        assertNull(JamInviteLink.parse("http://raaga.me/invite/ABC123"))
         assertNull(JamInviteLink.parse("https://example.com/invite/ABC123"))
-        assertNull(JamInviteLink.parse("https://raaga.app/"))
-        assertNull(JamInviteLink.parse("https://raaga.app/download"))
-        assertNull(JamInviteLink.parse("https://raaga.app/invite/ABC123/"))
-        assertNull(JamInviteLink.parse("https://raaga.app/invite/ABC123/extra"))
-        assertNull(JamInviteLink.parse("https://raaga.app/invite/TOO-LONG"))
+        assertNull(JamInviteLink.parse("https://raaga.me/"))
+        assertNull(JamInviteLink.parse("https://raaga.me/download"))
+        assertNull(JamInviteLink.parse("https://raaga.me/invite/ABC123/"))
+        assertNull(JamInviteLink.parse("https://raaga.me/invite/ABC123/extra"))
+        assertNull(JamInviteLink.parse("https://raaga.me/invite/TOO-LONG"))
     }
 
     @Test
     fun `builds the canonical share URL`() {
         assertEquals(
-            "https://raaga.app/invite/ABC123",
+            "https://raaga.me/invite/ABC123",
             JamInviteLink.url("abc123"),
         )
     }
@@ -65,11 +71,11 @@ class JamInviteLinkTest {
             JamInviteLink.url("abc123", "https://my-party.onrender.com/"),
         )
         assertEquals(
-            "https://raaga.app/invite/ABC123",
+            "https://raaga.me/invite/ABC123",
             JamInviteLink.url("abc123", ""),
         )
         assertEquals(
-            "https://raaga.app/invite/ABC123",
+            "https://raaga.me/invite/ABC123",
             JamInviteLink.url("abc123", null),
         )
     }
@@ -164,7 +170,7 @@ class JamInviteLinkTest {
         } else {
             JamInviteLink.url(code, activePartyHost)
         }
-        assertEquals("https://raaga.app/invite/JAM001", link)
+        assertEquals("https://raaga.me/invite/JAM001", link)
     }
 
     @Test
@@ -177,7 +183,7 @@ class JamInviteLinkTest {
             JamInviteLink.url(code, customHost)
         }
         assertEquals("https://custom.jam.example.com/invite/JAM002", link)
-        assertNotEquals("https://raaga.app/invite/JAM002", link)
+        assertNotEquals("https://raaga.me/invite/JAM002", link)
     }
 
     @Test
@@ -194,7 +200,7 @@ class JamInviteLinkTest {
 
     @Test
     fun `invariant 4 explicit invite target ignores idle fallback`() {
-        val explicitInvite = "https://raaga.app/invite/JAM004?server=https%3A%2F%2Ftarget.party.com"
+        val explicitInvite = "https://raaga.me/invite/JAM004?server=https%3A%2F%2Ftarget.party.com"
         val parsed = JamInviteLink.parseInvite(explicitInvite)
         assertEquals("JAM004", parsed?.code)
         assertEquals("https://target.party.com", parsed?.serverUrl)
