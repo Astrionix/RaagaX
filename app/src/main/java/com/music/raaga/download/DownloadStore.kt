@@ -11,6 +11,7 @@ import com.music.raaga.data.DebugLog as Log
 import com.music.raaga.data.settings.AppSettings
 import androidx.annotation.RequiresApi
 import com.music.raaga.data.model.Song
+import com.music.raaga.data.model.durationMillis
 import java.io.File
 import java.io.OutputStream
 import java.util.Locale
@@ -228,7 +229,7 @@ object DownloadStore {
                 ?: error("Could not open $name for writing")
 
         /** @return the uri the finished file can be reached at. */
-        fun commit(): Uri {
+        fun commit(song: Song? = null): Uri {
             if (part != null && target != null) {
                 if (!part.renameTo(target)) error("Could not finish writing $name")
                 // Nothing indexes a file that simply appeared; without this it
@@ -241,12 +242,33 @@ object DownloadStore {
                 )
                 return Uri.fromFile(target)
             }
+            val updateValues = ContentValues().apply {
+                put(MediaStore.MediaColumns.IS_PENDING, 0)
+                if (song != null) {
+                    if (song.title.isNotBlank()) put(MediaStore.Audio.Media.TITLE, song.title)
+                    if (song.artist.isNotBlank()) put(MediaStore.Audio.Media.ARTIST, song.artist)
+                    if (!song.albumName.isNullOrBlank()) put(MediaStore.Audio.Media.ALBUM, song.albumName)
+                    val dur = song.durationMillis()
+                    if (dur > 0L) put(MediaStore.Audio.Media.DURATION, dur)
+                }
+            }
             context.contentResolver.update(
                 uri,
-                ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) },
+                updateValues,
                 null,
                 null,
             )
+
+            // Trigger system MediaScanner so third-party music players (Poweramp, Samsung Music, VLC, etc.) immediately index the tags
+            runCatching {
+                val exportedPath = File(
+                    File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC), FOLDER),
+                    name,
+                )
+                if (exportedPath.exists()) {
+                    MediaScannerConnection.scanFile(context, arrayOf(exportedPath.absolutePath), null, null)
+                }
+            }
             return uri
         }
 
@@ -263,7 +285,7 @@ object DownloadStore {
      *   made — a failure worth surfacing, since every one of them means the
      *   download cannot start rather than that it might not finish.
      */
-    fun begin(context: Context, name: String, mimeType: String): Pending {
+    fun begin(context: Context, name: String, mimeType: String, song: Song? = null): Pending {
         if (!AppSettings.exportDownloads.value) {
             val target = privateFile(context, name)
             val folder = target.parentFile ?: error("No download folder")
@@ -278,6 +300,13 @@ object DownloadStore {
                 put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
                 put(MediaStore.MediaColumns.RELATIVE_PATH, relativePath)
                 put(MediaStore.MediaColumns.IS_PENDING, 1)
+                if (song != null) {
+                    if (song.title.isNotBlank()) put(MediaStore.Audio.Media.TITLE, song.title)
+                    if (song.artist.isNotBlank()) put(MediaStore.Audio.Media.ARTIST, song.artist)
+                    if (!song.albumName.isNullOrBlank()) put(MediaStore.Audio.Media.ALBUM, song.albumName)
+                    val dur = song.durationMillis()
+                    if (dur > 0L) put(MediaStore.Audio.Media.DURATION, dur)
+                }
             }
             // A MIME type the audio collection doesn't recognise is not a null
             // return but an IllegalArgumentException thrown from inside the
@@ -311,4 +340,36 @@ object DownloadStore {
 
     private fun privateFile(context: Context, name: String) =
         File(File(context.filesDir, "downloads"), name)
+
+    /**
+     * Writes sidecar files such as synced lyrics (`.lrc`) and album artwork (`.jpg`)
+     * alongside the downloaded track.
+     */
+    fun writeSidecarFile(
+        context: Context,
+        baseName: String,
+        extension: String,
+        mimeType: String,
+        bytes: ByteArray,
+    ) {
+        if (bytes.isEmpty()) return
+        val fileName = "$baseName.$extension"
+        runCatching {
+            if (!AppSettings.exportDownloads.value) {
+                val folder = File(context.filesDir, "downloads")
+                if (!folder.exists()) folder.mkdirs()
+                File(folder, fileName).writeBytes(bytes)
+                return
+            }
+
+            val musicFolder = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC), FOLDER)
+            if (!musicFolder.exists()) musicFolder.mkdirs()
+            val destFile = File(musicFolder, fileName)
+            destFile.writeBytes(bytes)
+
+            MediaScannerConnection.scanFile(context, arrayOf(destFile.absolutePath), arrayOf(mimeType), null)
+        }.onFailure {
+            Log.w(TAG, "could not write sidecar $fileName: ${it.message}")
+        }
+    }
 }
