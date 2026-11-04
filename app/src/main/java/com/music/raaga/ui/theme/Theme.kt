@@ -10,6 +10,11 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.music.raaga.data.settings.AppSettings
+import com.music.raaga.data.settings.AppFont
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
@@ -68,18 +73,19 @@ val SFProDisplay = FontFamily(
     Font(R.font.sf_pro_display_heavy, FontWeight.W800),
 )
 
-// Heavy, tight typography — the backbone of the Apple Music look.
-private val RaagaTypography = Typography(
-    displayLarge = TextStyle(fontWeight = FontWeight.W800, fontSize = 34.sp, letterSpacing = (-0.8).sp),
-    headlineLarge = TextStyle(fontWeight = FontWeight.W800, fontSize = 30.sp, letterSpacing = (-0.7).sp),
-    headlineMedium = TextStyle(fontWeight = FontWeight.W700, fontSize = 22.sp, letterSpacing = (-0.4).sp),
-    titleLarge = TextStyle(fontWeight = FontWeight.W700, fontSize = 20.sp, letterSpacing = (-0.3).sp),
-    titleMedium = TextStyle(fontWeight = FontWeight.W600, fontSize = 16.sp, letterSpacing = (-0.2).sp),
-    bodyLarge = TextStyle(fontWeight = FontWeight.W400, fontSize = 16.sp),
-    bodyMedium = TextStyle(fontWeight = FontWeight.W400, fontSize = 14.sp),
-    labelMedium = TextStyle(fontWeight = FontWeight.W600, fontSize = 12.sp),
-    labelSmall = TextStyle(fontWeight = FontWeight.W600, fontSize = 11.sp),
-).withFamily(SFProDisplay)
+/**
+ * SF Pro Bold / iPhone iOS Bold typography family.
+ * Maps weights up by 1-2 tiers using the bundled SF Pro Display files,
+ * matching the signature iPhone bold text look across all elements.
+ */
+val SFProBold = FontFamily(
+    Font(R.font.sf_pro_display_semibold, FontWeight.W400),
+    Font(R.font.sf_pro_display_bold, FontWeight.W500),
+    Font(R.font.sf_pro_display_bold, FontWeight.W600),
+    Font(R.font.sf_pro_display_heavy, FontWeight.W700),
+    Font(R.font.sf_pro_display_heavy, FontWeight.W800),
+    Font(R.font.sf_pro_display_heavy, FontWeight.W900),
+)
 
 /** Applies [family] to every style in the scale, so nothing is left on Roboto. */
 private fun Typography.withFamily(family: FontFamily) = Typography(
@@ -100,14 +106,93 @@ private fun Typography.withFamily(family: FontFamily) = Typography(
     labelSmall = labelSmall.copy(fontFamily = family),
 )
 
+fun typographyFor(font: AppFont): Typography = when (font) {
+    AppFont.IOS_BOLD -> Typography(
+        displayLarge = TextStyle(fontWeight = FontWeight.W800, fontSize = 34.sp, letterSpacing = (-1.0).sp),
+        displayMedium = TextStyle(fontWeight = FontWeight.W800, fontSize = 28.sp, letterSpacing = (-0.8).sp),
+        displaySmall = TextStyle(fontWeight = FontWeight.W800, fontSize = 24.sp, letterSpacing = (-0.6).sp),
+        headlineLarge = TextStyle(fontWeight = FontWeight.W800, fontSize = 30.sp, letterSpacing = (-0.8).sp),
+        headlineMedium = TextStyle(fontWeight = FontWeight.W800, fontSize = 22.sp, letterSpacing = (-0.5).sp),
+        headlineSmall = TextStyle(fontWeight = FontWeight.W700, fontSize = 18.sp, letterSpacing = (-0.4).sp),
+        titleLarge = TextStyle(fontWeight = FontWeight.W800, fontSize = 20.sp, letterSpacing = (-0.4).sp),
+        titleMedium = TextStyle(fontWeight = FontWeight.W700, fontSize = 16.sp, letterSpacing = (-0.3).sp),
+        titleSmall = TextStyle(fontWeight = FontWeight.W700, fontSize = 14.sp, letterSpacing = (-0.2).sp),
+        bodyLarge = TextStyle(fontWeight = FontWeight.W600, fontSize = 16.sp, letterSpacing = (-0.2).sp),
+        bodyMedium = TextStyle(fontWeight = FontWeight.W600, fontSize = 14.sp, letterSpacing = (-0.1).sp),
+        bodySmall = TextStyle(fontWeight = FontWeight.W500, fontSize = 12.sp),
+        labelLarge = TextStyle(fontWeight = FontWeight.W700, fontSize = 14.sp),
+        labelMedium = TextStyle(fontWeight = FontWeight.W700, fontSize = 12.sp),
+        labelSmall = TextStyle(fontWeight = FontWeight.W700, fontSize = 11.sp),
+    ).withFamily(SFProBold)
+
+    AppFont.SF_PRO -> Typography(
+        displayLarge = TextStyle(fontWeight = FontWeight.W800, fontSize = 34.sp, letterSpacing = (-0.8).sp),
+        headlineLarge = TextStyle(fontWeight = FontWeight.W800, fontSize = 30.sp, letterSpacing = (-0.7).sp),
+        headlineMedium = TextStyle(fontWeight = FontWeight.W700, fontSize = 22.sp, letterSpacing = (-0.4).sp),
+        titleLarge = TextStyle(fontWeight = FontWeight.W700, fontSize = 20.sp, letterSpacing = (-0.3).sp),
+        titleMedium = TextStyle(fontWeight = FontWeight.W600, fontSize = 16.sp, letterSpacing = (-0.2).sp),
+        bodyLarge = TextStyle(fontWeight = FontWeight.W400, fontSize = 16.sp),
+        bodyMedium = TextStyle(fontWeight = FontWeight.W400, fontSize = 14.sp),
+        labelMedium = TextStyle(fontWeight = FontWeight.W600, fontSize = 12.sp),
+        labelSmall = TextStyle(fontWeight = FontWeight.W600, fontSize = 11.sp),
+    ).withFamily(SFProDisplay)
+
+    AppFont.NEW_YORK -> Typography(
+        displayLarge = TextStyle(fontWeight = FontWeight.W700, fontSize = 34.sp, letterSpacing = (-0.4).sp),
+        headlineLarge = TextStyle(fontWeight = FontWeight.W700, fontSize = 30.sp, letterSpacing = (-0.3).sp),
+        headlineMedium = TextStyle(fontWeight = FontWeight.W700, fontSize = 22.sp, letterSpacing = (-0.2).sp),
+        titleLarge = TextStyle(fontWeight = FontWeight.W700, fontSize = 20.sp),
+        titleMedium = TextStyle(fontWeight = FontWeight.W600, fontSize = 16.sp),
+        bodyLarge = TextStyle(fontWeight = FontWeight.W400, fontSize = 16.sp),
+        bodyMedium = TextStyle(fontWeight = FontWeight.W400, fontSize = 14.sp),
+        labelMedium = TextStyle(fontWeight = FontWeight.W600, fontSize = 12.sp),
+        labelSmall = TextStyle(fontWeight = FontWeight.W600, fontSize = 11.sp),
+    ).withFamily(FontFamily.Serif)
+
+    AppFont.SYSTEM -> Typography(
+        displayLarge = TextStyle(fontWeight = FontWeight.W700, fontSize = 34.sp),
+        headlineLarge = TextStyle(fontWeight = FontWeight.W700, fontSize = 30.sp),
+        headlineMedium = TextStyle(fontWeight = FontWeight.W700, fontSize = 22.sp),
+        titleLarge = TextStyle(fontWeight = FontWeight.W600, fontSize = 20.sp),
+        titleMedium = TextStyle(fontWeight = FontWeight.W500, fontSize = 16.sp),
+        bodyLarge = TextStyle(fontWeight = FontWeight.W400, fontSize = 16.sp),
+        bodyMedium = TextStyle(fontWeight = FontWeight.W400, fontSize = 14.sp),
+        labelMedium = TextStyle(fontWeight = FontWeight.W500, fontSize = 12.sp),
+        labelSmall = TextStyle(fontWeight = FontWeight.W500, fontSize = 11.sp),
+    ).withFamily(FontFamily.Default)
+
+    AppFont.MONOSPACE -> Typography(
+        displayLarge = TextStyle(fontWeight = FontWeight.W700, fontSize = 32.sp, letterSpacing = (-0.5).sp),
+        headlineLarge = TextStyle(fontWeight = FontWeight.W700, fontSize = 28.sp, letterSpacing = (-0.4).sp),
+        headlineMedium = TextStyle(fontWeight = FontWeight.W700, fontSize = 20.sp),
+        titleLarge = TextStyle(fontWeight = FontWeight.W700, fontSize = 18.sp),
+        titleMedium = TextStyle(fontWeight = FontWeight.W600, fontSize = 15.sp),
+        bodyLarge = TextStyle(fontWeight = FontWeight.W400, fontSize = 15.sp),
+        bodyMedium = TextStyle(fontWeight = FontWeight.W400, fontSize = 13.sp),
+        labelMedium = TextStyle(fontWeight = FontWeight.W600, fontSize = 12.sp),
+        labelSmall = TextStyle(fontWeight = FontWeight.W600, fontSize = 11.sp),
+    ).withFamily(FontFamily.Monospace)
+}
+
+fun previewFamilyFor(font: AppFont): FontFamily = when (font) {
+    AppFont.IOS_BOLD -> SFProBold
+    AppFont.SF_PRO -> SFProDisplay
+    AppFont.NEW_YORK -> FontFamily.Serif
+    AppFont.SYSTEM -> FontFamily.Default
+    AppFont.MONOSPACE -> FontFamily.Monospace
+}
+
 @Composable
 fun RaagaTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {
+    val font by AppSettings.appFont.collectAsStateWithLifecycle()
+    val typography = remember(font) { typographyFor(font) }
+
     MaterialTheme(
         colorScheme = if (darkTheme) DarkColors else LightColors,
-        typography = RaagaTypography,
+        typography = typography,
         content = content,
     )
 }
