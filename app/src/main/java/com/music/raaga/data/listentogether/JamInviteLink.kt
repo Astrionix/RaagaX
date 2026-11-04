@@ -16,10 +16,11 @@ data class ParsedJamInvite(
 /** Relays a Raaga web or scheme invite from [com.music.raaga.MainActivity] to Compose. */
 object JamInviteLink {
 
-    const val ORIGIN = "https://raaga.app"
+    const val ORIGIN = "https://raaga.me"
+    const val LEGACY_ORIGIN = "https://raaga.app"
 
     private const val EXTRA_CONSUMED = "raaga.jamInviteConsumed"
-    private const val HOST = "raaga.app"
+    private const val HOST = "raaga.me"
     private const val CUSTOM_SCHEME = "raaga"
     private const val CUSTOM_HOST = "party"
 
@@ -115,7 +116,7 @@ object JamInviteLink {
             val match = INVITE_PATH.matchEntire(uri.path.orEmpty())
             if (match != null && isAllowedHost(host, explicitServer != null)) {
                 val code = match.groupValues[1].uppercase()
-                val isStaticWebFrontend = host == HOST || host == "web.raaga.me" || host == "raaga.me"
+                val isStaticWebFrontend = host == HOST || host == "raaga.me" || host == "web.raaga.me" || host == "raaga.app"
                 val serverUrl = explicitServer ?: if (!isStaticWebFrontend) {
                     val portPart = if (uri.port != -1 && !(scheme == "http" && uri.port == 80) && !(scheme == "https" && uri.port == 443)) {
                         ":${uri.port}"
@@ -138,7 +139,7 @@ object JamInviteLink {
 
     private fun isAllowedHost(host: String, hasExplicitServerParam: Boolean): Boolean {
         if (host.isBlank()) return false
-        if (host == HOST || host == "web.raaga.me" || host == "raaga.me") return true
+        if (host == HOST || host == "raaga.me" || host == "web.raaga.me" || host == "raaga.app") return true
         if (host.endsWith(".onrender.com") || host == "onrender.com") return true
         if (isLocalHost(host)) return true
         if (hasExplicitServerParam) return true
@@ -167,7 +168,7 @@ object JamInviteLink {
 
     fun url(code: String, customServer: String? = null): String {
         val base = customServer?.trim()?.trimEnd('/')
-        return if (!base.isNullOrBlank() && !base.equals(ORIGIN, ignoreCase = true)) {
+        return if (!base.isNullOrBlank() && !base.equals(ORIGIN, ignoreCase = true) && !base.equals(LEGACY_ORIGIN, ignoreCase = true) && !base.equals("https://web.raaga.me", ignoreCase = true)) {
             "$base/invite/${code.uppercase()}"
         } else {
             "$ORIGIN/invite/${code.uppercase()}"
