@@ -29,6 +29,7 @@ import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material.icons.rounded.Album
+import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.Check
@@ -148,6 +149,7 @@ fun SongActionsSheet(
     onAddToPlaylist: () -> Unit,
     onOpenAlbum: (String) -> Unit,
     onOpenArtist: (String) -> Unit,
+    onSearchContributor: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier,
     onRemoveFromPlaylist: (() -> Unit)? = null,
     showSleepTimer: Boolean = false,
@@ -206,6 +208,7 @@ fun SongActionsSheet(
     val palette = rememberArtworkPalette(song.thumbnailUrl, artPx = ROW_ART_PX)
     val liked = likeStatus == LikeStatus.LIKE
     val disliked = likeStatus == LikeStatus.DISLIKE
+    val context = LocalContext.current
     // A local file or a finished download has no YouTube identity behind it to
     // rate, save, queue into a playlist, fetch again, or share a link for.
     val isOffline = song.localUri != null
@@ -216,7 +219,13 @@ fun SongActionsSheet(
             return@TintedSheet
         }
         if (showingSongInfo) {
-            SongInfoPage(song = song, palette = palette, onBack = { showingSongInfo = false })
+            SongInfoPage(
+                song = song,
+                palette = palette,
+                onOpenArtist = onOpenArtist,
+                onSearchContributor = onSearchContributor ?: onOpenArtist,
+                onBack = { showingSongInfo = false },
+            )
             return@TintedSheet
         }
 
@@ -272,134 +281,216 @@ fun SongActionsSheet(
             )
         }
 
-        if (signedIn && !isOffline) {
-            val useStarFavorite by AppSettings.useStarFavorite.collectAsStateWithLifecycle()
-            val favoriteIcon = if (liked) {
-                if (useStarFavorite) RaagaIcons.StarFilled else Icons.Rounded.Favorite
-            } else {
-                if (useStarFavorite) RaagaIcons.Star else Icons.Rounded.FavoriteBorder
-            }
-            ActionRow(
-                icon = favoriteIcon,
-                label = if (liked) stringResource(R.string.remove_from_liked) else stringResource(R.string.like),
-                tint = if (liked) palette.accent else null,
-                accent = palette.accent,
-                onClick = onToggleLike,
-            )
-            ActionRow(
-                icon = if (disliked) Icons.Rounded.ThumbDown else Icons.Rounded.ThumbDownOffAlt,
-                label = if (disliked) stringResource(R.string.undo_dislike) else stringResource(R.string.dislike),
-                tint = if (disliked) palette.accent else null,
-                accent = palette.accent,
-                onClick = onToggleDislike,
-            )
+        if (showSleepTimer) {
+            // ---- Now Playing 9-Item Menu ----
+            // 1. Add to playlist
             ActionRow(
                 icon = Icons.AutoMirrored.Rounded.PlaylistAdd,
                 label = stringResource(R.string.add_to_playlist),
                 accent = palette.accent,
                 onClick = onAddToPlaylist,
             )
-            onRemoveFromPlaylist?.let {
-                ActionRow(
-                    icon = Icons.Rounded.PlaylistRemove,
-                    label = stringResource(R.string.remove_from_playlist),
-                    accent = palette.accent,
-                    onClick = it,
-                )
-            }
-            HorizontalDivider(
-                modifier = Modifier.padding(vertical = 6.dp),
-                thickness = 0.5.dp,
-                color = palette.divider,
-            )
-        }
 
-        DownloadRow(song, palette, isOffline, onDownload)
-        WebDavUploadRow(song, palette, isOffline, onUploadToWebDav)
-        ActionRow(
-            icon = Icons.Rounded.Radio,
-            label = stringResource(R.string.start_radio),
-            accent = palette.accent,
-            onClick = onStartRadio,
-        )
-        ActionRow(
-            icon = Icons.AutoMirrored.Rounded.PlaylistPlay,
-            label = stringResource(R.string.play_next),
-            accent = palette.accent,
-            onClick = onPlayNext,
-        )
-        ActionRow(
-            icon = Icons.AutoMirrored.Rounded.QueueMusic,
-            label = stringResource(R.string.add_to_queue),
-            accent = palette.accent,
-            onClick = onAddToQueue,
-        )
-        if (showLoopOption && onToggleLoop != null) {
+            // 2. Queue control: Play next & Add to queue
             ActionRow(
-                icon = RaagaIcons.Repeat,
-                label = stringResource(if (isLooping) R.string.loop_playlist_on else R.string.loop_queue),
-                value = if (isLooping) stringResource(R.string.loop_on) else null,
+                icon = Icons.AutoMirrored.Rounded.PlaylistPlay,
+                label = stringResource(R.string.play_next),
                 accent = palette.accent,
-                onClick = onToggleLoop,
+                onClick = onPlayNext,
             )
-        }
-        when (val id = song.albumId) {
-            null -> if (resolvingLinks) {
-                LoadingActionRow(Icons.Rounded.Album, stringResource(R.string.open_album), palette)
-            }
-            else -> ActionRow(
-                Icons.Rounded.Album,
-                stringResource(R.string.open_album),
+            ActionRow(
+                icon = Icons.AutoMirrored.Rounded.QueueMusic,
+                label = stringResource(R.string.add_to_queue),
                 accent = palette.accent,
-            ) { onOpenAlbum(id) }
-        }
-        when (val id = song.artistId) {
-            null -> if (resolvingLinks) {
-                LoadingActionRow(Icons.Rounded.Person, stringResource(R.string.open_artist), palette)
-            }
-            else -> ActionRow(
-                Icons.Rounded.Person,
-                stringResource(R.string.open_artist),
-                accent = palette.accent,
-            ) { onOpenArtist(id) }
-        }
-        ActionRow(
-            Icons.Rounded.Info,
-            stringResource(R.string.song_info),
-            accent = palette.accent,
-        ) {
-            showingSongInfo = true
-        }
-        if (showSleepTimer) {
+                onClick = onAddToQueue,
+            )
+
+            // 3. Sleep timer (Moved to #3!)
             ActionRow(
                 icon = Icons.Rounded.Bedtime,
                 label = stringResource(R.string.sleep_timer),
                 value = sleepTimerStatus(),
                 accent = palette.accent,
             ) { pickingSleepTimer = true }
-        }
-        // Deliberately outside the online-only block below. Local files and
-        // completed downloads use the same player lyric clock (including
-        // embedded synced lyrics), so they need this control just as much as
-        // streamed songs do.
-        onLyricsOffset?.let {
+
+            // 4. Start radio
             ActionRow(
-                icon = Icons.Rounded.Tune,
-                label = stringResource(R.string.lyrics_offset),
+                icon = Icons.Rounded.Radio,
+                label = stringResource(R.string.start_radio),
                 accent = palette.accent,
-                onClick = it,
+                onClick = onStartRadio,
             )
-        }
-        if (!isOffline) {
-            onShare?.let {
-                ActionRow(Icons.Rounded.Share, stringResource(R.string.share), accent = palette.accent, onClick = it)
+
+            // 5. Download
+            DownloadRow(song, palette, isOffline, onDownload)
+            WebDavUploadRow(song, palette, isOffline, onUploadToWebDav)
+
+            // 6. Behind the Music (Credits & Contributors)
+            ActionRow(
+                icon = Icons.Rounded.Info,
+                label = stringResource(R.string.behind_the_music),
+                value = stringResource(R.string.behind_the_music_subtitle),
+                accent = palette.accent,
+            ) {
+                showingSongInfo = true
+            }
+
+            // 7. View album
+            when (val id = song.albumId) {
+                null -> if (resolvingLinks) {
+                    LoadingActionRow(Icons.Rounded.Album, stringResource(R.string.open_album), palette)
+                }
+                else -> ActionRow(
+                    Icons.Rounded.Album,
+                    stringResource(R.string.open_album),
+                    accent = palette.accent,
+                ) { onOpenAlbum(id) }
+            }
+
+            // 8. View artist
+            when (val id = song.artistId) {
+                null -> if (resolvingLinks) {
+                    LoadingActionRow(Icons.Rounded.Person, stringResource(R.string.open_artist), palette)
+                }
+                else -> ActionRow(
+                    Icons.Rounded.Person,
+                    stringResource(R.string.open_artist),
+                    accent = palette.accent,
+                ) { onOpenArtist(id) }
+            }
+
+            // 9. Share
+            if (!isOffline) {
+                onShare?.let {
+                    ActionRow(Icons.Rounded.Share, stringResource(R.string.share), accent = palette.accent, onClick = it)
+                }
+            }
+
+
+        } else {
+            // ---- List Item Menu (Outside player) ----
+            if (signedIn && !isOffline) {
+                val useStarFavorite by AppSettings.useStarFavorite.collectAsStateWithLifecycle()
+                val favoriteIcon = if (liked) {
+                    if (useStarFavorite) RaagaIcons.StarFilled else Icons.Rounded.Favorite
+                } else {
+                    if (useStarFavorite) RaagaIcons.Star else Icons.Rounded.FavoriteBorder
+                }
+                ActionRow(
+                    icon = favoriteIcon,
+                    label = if (liked) stringResource(R.string.remove_from_liked) else stringResource(R.string.like),
+                    tint = if (liked) palette.accent else null,
+                    accent = palette.accent,
+                    onClick = onToggleLike,
+                )
+                ActionRow(
+                    icon = if (disliked) Icons.Rounded.ThumbDown else Icons.Rounded.ThumbDownOffAlt,
+                    label = if (disliked) stringResource(R.string.undo_dislike) else stringResource(R.string.dislike),
+                    tint = if (disliked) palette.accent else null,
+                    accent = palette.accent,
+                    onClick = onToggleDislike,
+                )
+                ActionRow(
+                    icon = Icons.AutoMirrored.Rounded.PlaylistAdd,
+                    label = stringResource(R.string.add_to_playlist),
+                    accent = palette.accent,
+                    onClick = onAddToPlaylist,
+                )
+                onRemoveFromPlaylist?.let {
+                    ActionRow(
+                        icon = Icons.Rounded.PlaylistRemove,
+                        label = stringResource(R.string.remove_from_playlist),
+                        accent = palette.accent,
+                        onClick = it,
+                    )
+                }
+                HorizontalDivider(
+                    modifier = Modifier.padding(vertical = 6.dp),
+                    thickness = 0.5.dp,
+                    color = palette.divider,
+                )
+            } else {
+                ActionRow(
+                    icon = Icons.AutoMirrored.Rounded.PlaylistAdd,
+                    label = stringResource(R.string.add_to_playlist),
+                    accent = palette.accent,
+                    onClick = onAddToPlaylist,
+                )
+            }
+
+            DownloadRow(song, palette, isOffline, onDownload)
+            WebDavUploadRow(song, palette, isOffline, onUploadToWebDav)
+            ActionRow(
+                icon = Icons.Rounded.Radio,
+                label = stringResource(R.string.start_radio),
+                accent = palette.accent,
+                onClick = onStartRadio,
+            )
+            ActionRow(
+                icon = Icons.AutoMirrored.Rounded.PlaylistPlay,
+                label = stringResource(R.string.play_next),
+                accent = palette.accent,
+                onClick = onPlayNext,
+            )
+            ActionRow(
+                icon = Icons.AutoMirrored.Rounded.QueueMusic,
+                label = stringResource(R.string.add_to_queue),
+                accent = palette.accent,
+                onClick = onAddToQueue,
+            )
+            when (val id = song.albumId) {
+                null -> if (resolvingLinks) {
+                    LoadingActionRow(Icons.Rounded.Album, stringResource(R.string.open_album), palette)
+                }
+                else -> ActionRow(
+                    Icons.Rounded.Album,
+                    stringResource(R.string.open_album),
+                    accent = palette.accent,
+                ) { onOpenAlbum(id) }
+            }
+            when (val id = song.artistId) {
+                null -> if (resolvingLinks) {
+                    LoadingActionRow(Icons.Rounded.Person, stringResource(R.string.open_artist), palette)
+                }
+                else -> ActionRow(
+                    Icons.Rounded.Person,
+                    stringResource(R.string.open_artist),
+                    accent = palette.accent,
+                ) { onOpenArtist(id) }
+            }
+            ActionRow(
+                Icons.Rounded.Info,
+                stringResource(R.string.behind_the_music),
+                value = stringResource(R.string.behind_the_music_subtitle),
+                accent = palette.accent,
+            ) {
+                showingSongInfo = true
+            }
+            if (!isOffline) {
+                onShare?.let {
+                    ActionRow(Icons.Rounded.Share, stringResource(R.string.share), accent = palette.accent, onClick = it)
+                }
             }
         }
-        // Last, and only from the player: it is about the track playing right
-        // now rather than about the song as a thing in a library, and it is
-        // the one row here nobody reaches for by accident.
-        onCopyLog?.let {
-            ActionRow(Icons.Rounded.BugReport, stringResource(R.string.copy_log), accent = palette.accent, onClick = it)
+
+        ActionRow(
+            icon = Icons.Rounded.ContentCopy,
+            label = stringResource(R.string.copy_song_title),
+            accent = palette.accent,
+            onClick = {
+                copyToClipboard(context, song.title, context.getString(R.string.copied_title_format, song.title))
+            }
+        )
+        val albumNameToCopy = song.albumName ?: (song.playbackSource?.takeIf { !it.startsWith("Radio") && !it.startsWith("Queue") })
+        if (!albumNameToCopy.isNullOrBlank()) {
+            ActionRow(
+                icon = Icons.Rounded.Album,
+                label = stringResource(R.string.copy_album_name),
+                accent = palette.accent,
+                onClick = {
+                    copyToClipboard(context, albumNameToCopy, context.getString(R.string.copied_album_format, albumNameToCopy))
+                }
+            )
         }
         Spacer(Modifier.height(24.dp))
     }
@@ -947,13 +1038,26 @@ internal fun SheetTrackHeader(
                 song = song,
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.copyOnLongPress(
+                    textToCopy = song.title,
+                    toastMessage = stringResource(R.string.copied_title_format, song.title)
+                )
             )
+            val subText = song.albumName ?: song.artist
             Text(
-                text = song.artist,
+                text = subText,
                 style = MaterialTheme.typography.bodyMedium,
                 color = subtitleColor,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.copyOnLongPress(
+                    textToCopy = subText,
+                    toastMessage = if (!song.albumName.isNullOrBlank()) {
+                        stringResource(R.string.copied_album_format, song.albumName!!)
+                    } else {
+                        stringResource(R.string.copied_artist_format, song.artist)
+                    }
+                )
             )
         }
     }
