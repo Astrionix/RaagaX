@@ -6,7 +6,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
+import java.time.YearMonth
 import androidx.compose.runtime.setValue
 import com.music.raaga.data.stats.ArtistFacts
 import com.music.raaga.data.stats.ListeningStats
@@ -47,6 +49,35 @@ class ReplayState(
      * chips were switched to This month.
      */
     val memberSince: String?,
+    val availableMonths: List<YearMonth> = emptyList(),
+)
+
+val ReplayPeriodSaver = Saver<ReplayPeriod, String>(
+    save = { period ->
+        when (period) {
+            ReplayPeriod.THIS_MONTH -> "THIS_MONTH"
+            ReplayPeriod.THIS_YEAR -> "THIS_YEAR"
+            ReplayPeriod.ALL_TIME -> "ALL_TIME"
+            is ReplayPeriod.MONTH -> "MONTH:${period.yearMonth}"
+            is ReplayPeriod.YEAR -> "YEAR:${period.year}"
+        }
+    },
+    restore = { str ->
+        when {
+            str == "THIS_MONTH" -> ReplayPeriod.THIS_MONTH
+            str == "THIS_YEAR" -> ReplayPeriod.THIS_YEAR
+            str == "ALL_TIME" -> ReplayPeriod.ALL_TIME
+            str.startsWith("MONTH:") -> {
+                val ym = runCatching { YearMonth.parse(str.removePrefix("MONTH:")) }.getOrNull()
+                if (ym != null) ReplayPeriod.MONTH(ym) else ReplayPeriod.THIS_YEAR
+            }
+            str.startsWith("YEAR:") -> {
+                val yr = str.removePrefix("YEAR:").toIntOrNull()
+                if (yr != null) ReplayPeriod.YEAR(yr) else ReplayPeriod.THIS_YEAR
+            }
+            else -> ReplayPeriod.THIS_YEAR
+        }
+    }
 )
 
 /**
@@ -59,18 +90,19 @@ class ReplayState(
  */
 @Composable
 fun rememberReplayState(active: Boolean): Pair<ReplayState, (ReplayPeriod) -> Unit> {
-    var period by rememberSaveable { mutableStateOf(ReplayPeriod.THIS_YEAR) }
+    var period by rememberSaveable(stateSaver = ReplayPeriodSaver) { mutableStateOf<ReplayPeriod>(ReplayPeriod.THIS_YEAR) }
     var summary by remember { mutableStateOf<ReplaySummary?>(null) }
     var loading by remember { mutableStateOf(true) }
     var memberSince by remember { mutableStateOf<String?>(null) }
+    var availableMonths by remember { mutableStateOf<List<YearMonth>>(emptyList()) }
 
     LaunchedEffect(active) {
         if (!active) return@LaunchedEffect
         // A directory listing, so off the composition's thread.
-        memberSince = withContext(Dispatchers.IO) {
-            ListeningStats.months().firstOrNull()?.let {
-                "%02d/%02d".format(Locale.ROOT, it.monthValue, it.year % 100)
-            }
+        val months = withContext(Dispatchers.IO) { ListeningStats.months() }
+        availableMonths = months
+        memberSince = months.firstOrNull()?.let {
+            "%02d/%02d".format(Locale.ROOT, it.monthValue, it.year % 100)
         }
     }
     LaunchedEffect(period, active) {
@@ -96,7 +128,7 @@ fun rememberReplayState(active: Boolean): Pair<ReplayState, (ReplayPeriod) -> Un
             summary = ListeningStats.summary(period)
         }
     }
-    return ReplayState(period, summary, loading, memberSince) to
+    return ReplayState(period, summary, loading, memberSince, availableMonths) to
         { next: ReplayPeriod -> period = next }
 }
 
@@ -181,7 +213,9 @@ fun ReplaySummary.storyHeadline(context: Context, page: ReplayStoryPage): List<H
 
 fun ReplayPeriod.localizedChip(context: Context): String = when (this) {
     ReplayPeriod.THIS_MONTH -> context.getString(R.string.this_month)
+    is ReplayPeriod.MONTH -> this.yearMonth.month.getDisplayName(java.time.format.TextStyle.SHORT, Locale.getDefault())
     ReplayPeriod.THIS_YEAR -> context.getString(R.string.this_year)
+    is ReplayPeriod.YEAR -> this.year.toString()
     ReplayPeriod.ALL_TIME -> context.getString(R.string.all_time)
 }
 
@@ -189,7 +223,10 @@ fun ReplaySummary.localizedLabel(context: Context): String = when (period) {
     ReplayPeriod.THIS_MONTH -> DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault())
         .format(LocalDate.now())
         .replaceFirstChar { it.titlecase(Locale.getDefault()) }
+    is ReplayPeriod.MONTH -> period.yearMonth.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault()))
+        .replaceFirstChar { it.titlecase(Locale.getDefault()) }
     ReplayPeriod.THIS_YEAR -> LocalDate.now().year.toString()
+    is ReplayPeriod.YEAR -> period.year.toString()
     ReplayPeriod.ALL_TIME -> context.getString(R.string.all_time)
 }
 
