@@ -6,6 +6,7 @@ import androidx.compose.ui.unit.offset
 import androidx.compose.ui.unit.constrain
 import androidx.compose.ui.unit.Constraints
 import com.music.raaga.playback.PlaybackPosition
+import com.music.raaga.ui.components.copyOnLongPress
 import com.music.raaga.R
 
 import android.graphics.Bitmap
@@ -29,6 +30,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -152,6 +154,7 @@ import com.music.raaga.data.lyrics.LyricLine
 import com.music.raaga.data.lyrics.LyricsSource
 import com.music.raaga.data.settings.AppSettings
 import com.music.raaga.data.settings.LastPlayerScreen
+import com.music.raaga.data.settings.NowPlayingBlurStyle
 import com.music.raaga.data.model.LikeStatus
 import com.music.raaga.data.model.PlaybackSourceType
 import com.music.raaga.data.model.PLAYER_ART_PX
@@ -657,6 +660,9 @@ fun NowPlayingScreen(
     }
 
     val syncedLyricsEnabled by AppSettings.syncedLyrics.collectAsStateWithLifecycle()
+    val lyricsPreviewEnabled by AppSettings.lyricsPreview.collectAsStateWithLifecycle()
+    val adaptiveTrackInfoEnabled by AppSettings.adaptiveTrackInfo.collectAsStateWithLifecycle()
+    val showLyricsPreview = syncedLyricsEnabled && lyricsPreviewEnabled
     val lyricsOffsetMs by AppSettings.lyricsOffsetMs.collectAsStateWithLifecycle()
     // A lambda, not a value: read by the lyric strip and panel in scopes of
     // their own, so a tick recomposes them and not the player around them.
@@ -707,6 +713,7 @@ fun NowPlayingScreen(
     }
     // v1.5's backdrop, kept behind a switch — see [AppSettings.legacyMeshGradient].
     val legacyMesh by AppSettings.legacyMeshGradient.collectAsStateWithLifecycle()
+    val blurStyle by AppSettings.nowPlayingBlurStyle.collectAsStateWithLifecycle()
     // The backdrop's colours, taken off the artwork's own arrangement rather
     // than quantised out of it — see [ArtworkMesh].
     //
@@ -1165,8 +1172,8 @@ fun NowPlayingScreen(
         }
     }
     // Portrait clips always use the existing artwork mesh, even if the user
-    // selected the legacy backdrop for ordinary artwork.
-    val artMesh = if (legacyMesh && !canvasFirstPortrait) null else
+    // selected another backdrop for ordinary artwork. Only computed when actually rendered.
+    val artMesh = if (blurStyle != NowPlayingBlurStyle.LEGACY && !canvasFirstPortrait) null else
         key(song.videoId) { rememberArtworkMesh(remoteArt, canvasFrame, ART_PX) }
     // Whether the banner is the presentation at all: full-bleed is on, and there
     // is something to blow out. The collapse is deliberately *not* part of this
@@ -1559,7 +1566,7 @@ fun NowPlayingScreen(
                                 onOpenArtist = onOpenArtist,
                             )
                         },
-                        lyricStrip = if (syncedLyricsEnabled) {
+                        lyricStrip = if (showLyricsPreview) {
                             {
                                 CurrentLyricStrip(
                                     lines = lyricsTranslation.displayedLyrics,
@@ -1729,25 +1736,55 @@ fun NowPlayingScreen(
             animationSpec = tween(durationMillis = 360, easing = FastOutSlowInEasing),
             label = "fullArtworkBackdropCrossfade",
         )
-        if (!tabletArtworkBackdrop && !spotifyCanvasPresentation && legacyMesh && !canvasFirstPortrait) {
-            // v1.5's backdrop, restored verbatim: no seam, because the blobs
-            // are not anchored to anything on screen — they fill the player and
-            // the artwork simply sits on top of them. Keyed on the track, so
-            // they drift when the player opens and on every skip, then rest.
-            // Position ticks recompose this screen twice a second and must not
-            // drag a full-screen blur along with them, which is why the palette
-            // is passed as one immutable value.
-            MeshGradientBackground(
-                palette = rememberArtworkColors(remoteArt, canvasFrame),
-                trackKey = song.videoId,
-                modifier = Modifier.graphicsLayer { alpha = 1f - fullArtworkBackdropAlpha },
-            )
-        } else if (!tabletArtworkBackdrop && !spotifyCanvasPresentation) {
-            ArtworkMeshBackdrop(
-                mesh = artMesh,
-                seam = if (canvasFirstPortrait) renderedCanvasBottom else if (heroMode) heroHeight else 0.dp,
-                modifier = Modifier.graphicsLayer { alpha = 1f - fullArtworkBackdropAlpha },
-            )
+        if (!tabletArtworkBackdrop && !spotifyCanvasPresentation) {
+            if (canvasFirstPortrait) {
+                ArtworkMeshBackdrop(
+                    mesh = artMesh,
+                    seam = renderedCanvasBottom,
+                    modifier = Modifier.graphicsLayer { alpha = 1f - fullArtworkBackdropAlpha },
+                )
+            } else if (legacyMesh) {
+                // v1.5's backdrop, restored verbatim: no seam, because the blobs
+                // are not anchored to anything on screen — they fill the player and
+                // the artwork simply sits on top of them. Keyed on the track, so
+                // they drift when the player opens and on every skip, then rest.
+                // Position ticks recompose this screen twice a second and must not
+                // drag a full-screen blur along with them, which is why the palette
+                // is passed as one immutable value.
+                MeshGradientBackground(
+                    palette = rememberArtworkColors(remoteArt, canvasFrame),
+                    trackKey = song.videoId,
+                    modifier = Modifier.graphicsLayer { alpha = 1f - fullArtworkBackdropAlpha },
+                )
+            } else {
+                // When Legacy mesh gradient switch is OFF:
+                // Uses the selected blur mode (defaults to NEW Dynamic Ambient Blur)
+                when (blurStyle) {
+                    NowPlayingBlurStyle.LEGACY -> {
+                        ArtworkMeshBackdrop(
+                            mesh = artMesh,
+                            seam = if (heroMode) heroHeight else 0.dp,
+                            modifier = Modifier.graphicsLayer { alpha = 1f - fullArtworkBackdropAlpha },
+                        )
+                    }
+                    NowPlayingBlurStyle.OLD -> {
+                        MeshGradientBackground(
+                            palette = rememberArtworkColors(remoteArt, canvasFrame),
+                            trackKey = song.videoId,
+                            modifier = Modifier.graphicsLayer { alpha = 1f - fullArtworkBackdropAlpha },
+                        )
+                    }
+                    NowPlayingBlurStyle.NEW -> {
+                        // New full-screen ambient artwork Gaussian blur with layered
+                        // blue, violet, and magenta dynamic atmospheric lighting.
+                        AmbientArtworkBlurBackdrop(
+                            imageUrl = remoteArt,
+                            canvasFrame = canvasFrame,
+                            modifier = Modifier.graphicsLayer { alpha = 1f - fullArtworkBackdropAlpha },
+                        )
+                    }
+                }
+            }
         }
         fullArtworkBlurContent(
             Modifier.graphicsLayer { alpha = fullArtworkBackdropAlpha },
@@ -2092,6 +2129,7 @@ fun NowPlayingScreen(
                 if (!hideSongStatus && !collapseAlmostDone) {
                     PlaybackOriginCaption(
                         text = playbackOriginText(song, playedBy),
+                        rawName = song.playbackSource ?: song.albumName ?: song.radioName,
                         onClick = openPlaybackOrigin,
                         textAlign = TextAlign.Center,
                         contentPadding = PaddingValues(start = PLAYER_GUTTER, end = PLAYER_GUTTER, bottom = 1.dp),
@@ -2335,7 +2373,25 @@ fun NowPlayingScreen(
                 // player and has to be centred in it; collapsed, it belongs
                 // hard against the left edge with the credits beside it.
                 fun artStart(): Dp = lerp((maxWidth - fullArt) / 2, 0.dp, p())
-                fun regularTitleTop(): Dp = lerp(groupTop + fullArt + ART_TITLE_GAP, 0.dp, p())
+
+                // Adaptive Track Info: Reposition track information down into the space
+                // previously occupied by lyrics preview when lyrics are disabled or hidden.
+                val targetTitleShift = if (adaptiveTrackInfoEnabled && !showLyricsPreview) {
+                    24.dp.coerceAtMost(groupTop + 12.dp)
+                } else {
+                    0.dp
+                }
+                val adaptiveTitleShift by animateDpAsState(
+                    targetValue = targetTitleShift,
+                    animationSpec = tween(durationMillis = 300),
+                    label = "adaptiveTitleShift",
+                )
+
+                fun regularTitleTop(): Dp = lerp(
+                    groupTop + fullArt + ART_TITLE_GAP + adaptiveTitleShift,
+                    0.dp,
+                    p(),
+                )
                 // Once Spotify's control deck has left, keep the only remaining
                 // player chrome against the bottom edge instead of stranding it
                 // where the artwork's title normally sits near mid-screen.
@@ -2364,7 +2420,7 @@ fun NowPlayingScreen(
                 // screen's top and this box's own top is fixed padding, so it
                 // can simply be added back up rather than measured.
                 val bannerBottom = statusBarTop + topStrip + ART_BOX_TOP_PAD +
-                    groupTop + fullArt + ART_TITLE_GAP / 2
+                    groupTop + fullArt + (ART_TITLE_GAP + adaptiveTitleShift) / 2
                 // Frozen while lyrics are up. The controls now retain their full
                 // footprint across the transition, so this answer is identical
                 // on both sides; avoiding writes during the panel keeps the
@@ -2594,7 +2650,7 @@ fun NowPlayingScreen(
                         modifier = Modifier
                             .align(Alignment.TopCenter)
                             .offset {
-                                IntOffset(0, (artTop() + artSize() + (ART_TITLE_GAP - 16.dp) / 2).roundToPx())
+                                IntOffset(0, (artTop() + artSize() + (ART_TITLE_GAP + adaptiveTitleShift - 16.dp) / 2).roundToPx())
                             }
                             .size(16.dp)
                             .graphicsLayer {
@@ -2695,7 +2751,11 @@ fun NowPlayingScreen(
                                     onOverflowChange = { titleOverflowing = it },
                                     // Only the tracks YouTube hands us a browse id for
                                     // lead anywhere; the rest stay plain text.
-                                    modifier = Modifier.opensPage(song.albumId, onOpenAlbum),
+                                    modifier = Modifier.copyOnLongPress(
+                                        textToCopy = song.title,
+                                        toastMessage = stringResource(R.string.copied_title_format, song.title),
+                                        onClick = if (song.albumId != null) { { onOpenAlbum(song.albumId) } } else null
+                                    ),
                                 )
                                 MarqueeText(
                                     text = song.artist,
@@ -2709,7 +2769,11 @@ fun NowPlayingScreen(
                                     // starting together reads as clutter, so the artist
                                     // waits a beat before it joins in.
                                     startDelayMillis = if (titleOverflowing) MARQUEE_ARTIST_STAGGER_MS else 0L,
-                                    modifier = Modifier.opensPage(song.artistId, onOpenArtist),
+                                    modifier = Modifier.copyOnLongPress(
+                                        textToCopy = song.artist,
+                                        toastMessage = stringResource(R.string.copied_artist_format, song.artist),
+                                        onClick = if (song.artistId != null) { { onOpenArtist(song.artistId) } } else null
+                                    ),
                                 )
                             }
                         }
@@ -2956,7 +3020,7 @@ fun NowPlayingScreen(
             // accompanied by a dedicated lyrics button in the bottom row. Its
             // one-line slot remains, invisibly, so opening lyrics cannot grow
             // the half-player merely to make room for the source label.
-            if (!lyricsOpen && syncedLyricsEnabled) {
+            if (!lyricsOpen && showLyricsPreview) {
                 CurrentLyricStrip(
                     lines = lyricsTranslation.displayedLyrics,
                     trackKey = song.videoId,
@@ -2971,8 +3035,8 @@ fun NowPlayingScreen(
                     // closes lyrics behind the queue.
                     onClick = openLyrics,
                 )
-            }
-            if (!lyricsOpen && !syncedLyricsEnabled) {
+            } else if (!lyricsOpen && !showLyricsPreview && !adaptiveTrackInfoEnabled) {
+                // Fixed layout: retain the empty one-line slot so controls don't shift
                 Text(
                     text = "\u00A0",
                     style = MaterialTheme.typography.titleMedium,
