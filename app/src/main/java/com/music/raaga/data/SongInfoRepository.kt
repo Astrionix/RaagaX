@@ -18,6 +18,25 @@ import org.jsoup.Jsoup
 import java.text.DecimalFormatSymbols
 import java.time.LocalDate
 
+data class CreditContributor(
+    val name: String,
+    val roles: List<String>,
+    val artistId: String? = null,
+)
+
+data class SongCredits(
+    val mainArtist: CreditContributor? = null,
+    val featuredArtists: List<CreditContributor> = emptyList(),
+    val compositionAndLyrics: List<CreditContributor> = emptyList(),
+    val production: List<CreditContributor> = emptyList(),
+    val engineering: List<CreditContributor> = emptyList(),
+    val musicians: List<CreditContributor> = emptyList(),
+    val label: String? = null,
+    val copyright: String? = null,
+    val publisher: String? = null,
+    val releaseDate: String? = null,
+)
+
 data class SongInfo(
     val album: String? = null,
     val releaseYear: String? = null,
@@ -25,6 +44,7 @@ data class SongInfo(
     val views: String? = null,
     val likes: String? = null,
     val comments: String? = null,
+    val credits: SongCredits? = null,
     val failed: Boolean = false,
 )
 
@@ -54,7 +74,8 @@ object SongInfoRepository {
 
     suspend fun load(song: Song): SongInfo = withContext(Dispatchers.IO) {
         if (song.localUri != null || !Regex("[A-Za-z0-9_-]{11}").matches(song.videoId)) {
-            return@withContext SongInfo(album = song.albumName)
+            val credits = SongCreditsParser.parse(null, song)
+            return@withContext SongInfo(album = song.albumName, credits = credits)
         }
         val statistics = async {
             attempt {
@@ -73,7 +94,7 @@ object SongInfoRepository {
                     check(response.isSuccessful) { "HTTP ${response.code}" }
                     response.body?.string().orEmpty()
                 }
-                SongInfoParser.parse(html, song.videoId)
+                SongInfoParser.parse(html, song.videoId, song)
             }
         }
         var album = song.albumName
@@ -90,8 +111,12 @@ object SongInfoRepository {
                     ?.firstOrNull { it.matches(Regex("(?:19|20)[0-9]{2}")) }
             }
         }
-        (statistics.await().getOrNull() ?: SongInfo(failed = true)).copy(
-            album = album, releaseYear = year,
+        val baseInfo = statistics.await().getOrNull() ?: SongInfo(failed = true)
+        val finalCredits = baseInfo.credits ?: SongCreditsParser.parse(null, song)
+        baseInfo.copy(
+            album = album,
+            releaseYear = year,
+            credits = finalCredits,
         ).let { it.copy(failed = it.failed || release.isFailure) }
     }
 
@@ -105,7 +130,7 @@ object SongInfoRepository {
 }
 
 internal object SongInfoParser {
-    fun parse(html: String, videoId: String): SongInfo {
+    fun parse(html: String, videoId: String, song: Song? = null): SongInfo {
         val scripts = Jsoup.parse(html).select("script").map { it.data() }
         val player = scripts.firstNotNullOfOrNull { extract(it, "ytInitialPlayerResponse") }
             ?: error("Missing player metadata")
@@ -129,11 +154,14 @@ internal object SongInfoParser {
                     it.str("panelIdentifier") == "engagement-panel-comments-section"
             }?.find("engagementPanelTitleHeaderRenderer")?.firstOrNull()
                 ?.get("contextualInfo")?.text()?.withCount()
+        val description = details.str("shortDescription")
+        val credits = if (song != null) SongCreditsParser.parse(description, song) else null
         return SongInfo(
-            releaseDate = releaseDate(details.str("shortDescription")),
+            releaseDate = releaseDate(description),
             views = details.str("viewCount")?.takeIf { it.toLongOrNull()?.let { n -> n >= 0 } == true },
             likes = (newLike ?: oldLike)?.withCount(),
             comments = comments,
+            credits = credits,
             failed = data == null,
         )
     }
@@ -185,5 +213,113 @@ internal object SongInfoParser {
         is JsonObject -> listOfNotNull(this[key] as? JsonObject) + values.flatMap { it.find(key) }
         is JsonArray -> flatMap { it.find(key) }
         else -> emptyList()
+    }
+}
+
+internal object SongCreditsParser {
+    private val ARTIST_SPLIT_REGEX = Regex(""",\s*|\s*&\s*|\s+(?:feat\.?|ft\.?|with|x)\s+""", RegexOption.IGNORE_CASE)
+
+    fun splitArtists(raw: String): List<String> =
+        raw.split(ARTIST_SPLIT_REGEX).map { it.trim() }.filter { it.isNotBlank() }
+
+    fun parse(description: String?, song: Song): SongCredits {
+        val artists = splitArtists(song.artist)
+        val mainArtistName = artists.firstOrNull() ?: song.artist.ifBlank { "Unknown Artist" }
+        val main = CreditContributor(
+            name = mainArtistName,
+            roles = listOf("Main Artist"),
+            artistId = song.artistId,
+        )
+        val featured = artists.drop(1).map {
+            CreditContributor(name = it, roles = listOf("Featured Artist"))
+        }
+
+        if (description.isNullOrBlank()) {
+            return SongCredits(
+                mainArtist = main,
+                featuredArtists = featured,
+                releaseDate = null,
+            )
+        }
+
+        var label: String? = null
+        var copyright: String? = null
+        var publisher: String? = null
+        var releaseDate: String? = null
+
+        val compositionMap = linkedMapOf<String, MutableSet<String>>()
+        val productionMap = linkedMapOf<String, MutableSet<String>>()
+        val engineeringMap = linkedMapOf<String, MutableSet<String>>()
+        val musiciansMap = linkedMapOf<String, MutableSet<String>>()
+
+        for (line in description.lineSequence().map { it.trim() }.filter { it.isNotBlank() }) {
+            when {
+                line.startsWith("Provided to YouTube by", ignoreCase = true) -> {
+                    label = line.substringAfter("Provided to YouTube by").trim()
+                }
+                line.startsWith("℗") || line.startsWith("©") || line.startsWith("(P)") || line.startsWith("(C)") -> {
+                    copyright = line
+                }
+                line.startsWith("Released on:", ignoreCase = true) -> {
+                    releaseDate = line.substringAfter("Released on:").trim()
+                }
+                line.startsWith("Published by", ignoreCase = true) -> {
+                    publisher = line.substringAfter("Published by").trim()
+                }
+                line.contains(":") -> {
+                    val colonIdx = line.indexOf(':')
+                    val rolePart = line.substring(0, colonIdx).trim()
+                    val namePart = line.substring(colonIdx + 1).trim()
+                    if (rolePart.isNotBlank() && namePart.isNotBlank() && !rolePart.contains("http", ignoreCase = true)) {
+                        val names = namePart.split(',', ';', '·', '/').map { it.trim() }.filter { it.isNotBlank() }
+                        val roles = rolePart.split(',', ';', '/').map { it.trim() }.filter { it.isNotBlank() }
+                        for (name in names) {
+                            for (role in roles) {
+                                val lower = role.lowercase()
+                                when {
+                                    lower.contains("composer") || lower.contains("lyricist") ||
+                                        lower.contains("songwriter") || lower.contains("written by") ||
+                                        lower.contains("author") -> {
+                                        compositionMap.getOrPut(name) { linkedSetOf() }.add(role)
+                                    }
+                                    lower.contains("producer") -> {
+                                        productionMap.getOrPut(name) { linkedSetOf() }.add(role)
+                                    }
+                                    lower.contains("engineer") || lower.contains("mixer") ||
+                                        lower.contains("mix") || lower.contains("master") ||
+                                        lower.contains("recording") || lower.contains("studio personnel") -> {
+                                        engineeringMap.getOrPut(name) { linkedSetOf() }.add(role)
+                                    }
+                                    lower.contains("performer") || lower.contains("vocal") ||
+                                        lower.contains("guitar") || lower.contains("bass") ||
+                                        lower.contains("drum") || lower.contains("keyboard") ||
+                                        lower.contains("piano") || lower.contains("strings") ||
+                                        lower.contains("instrument") || lower.contains("flute") ||
+                                        lower.contains("percussion") -> {
+                                        musiciansMap.getOrPut(name) { linkedSetOf() }.add(role)
+                                    }
+                                    else -> {
+                                        compositionMap.getOrPut(name) { linkedSetOf() }.add(role)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return SongCredits(
+            mainArtist = main,
+            featuredArtists = featured,
+            compositionAndLyrics = compositionMap.map { (name, roles) -> CreditContributor(name, roles.toList()) },
+            production = productionMap.map { (name, roles) -> CreditContributor(name, roles.toList()) },
+            engineering = engineeringMap.map { (name, roles) -> CreditContributor(name, roles.toList()) },
+            musicians = musiciansMap.map { (name, roles) -> CreditContributor(name, roles.toList()) },
+            label = label,
+            copyright = copyright,
+            publisher = publisher,
+            releaseDate = releaseDate,
+        )
     }
 }
