@@ -1,5 +1,6 @@
 package com.music.raaga.ui.player
-
+import com.music.raaga.ui.components.copyOnLongPress
+import androidx.compose.ui.res.stringResource
 import com.music.raaga.R
 
 import androidx.compose.animation.Crossfade
@@ -407,7 +408,11 @@ internal fun LandscapeCredits(
                     } else {
                         null
                     },
-                    modifier = Modifier.opensPage(song.albumId, onOpenAlbum),
+                    modifier = Modifier.copyOnLongPress(
+                        textToCopy = song.title,
+                        toastMessage = stringResource(R.string.copied_title_format, song.title),
+                        onClick = if (song.albumId != null) { { onOpenAlbum(song.albumId) } } else null
+                    ),
                 )
                 Spacer(Modifier.height(2.dp))
                 MarqueeText(
@@ -417,7 +422,11 @@ internal fun LandscapeCredits(
                     // A title that's also scrolling gets to go first — starting
                     // together reads as clutter, so the artist waits a beat.
                     startDelayMillis = if (titleOverflowing) MARQUEE_ARTIST_STAGGER_MS else 0L,
-                    modifier = Modifier.opensPage(song.artistId, onOpenArtist),
+                    modifier = Modifier.copyOnLongPress(
+                        textToCopy = song.artist,
+                        toastMessage = stringResource(R.string.copied_artist_format, song.artist),
+                        onClick = if (song.artistId != null) { { onOpenArtist(song.artistId) } } else null
+                    ),
                 )
             }
         }
