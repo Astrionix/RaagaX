@@ -108,7 +108,8 @@ fun PlaylistsSubScreen(
         var list = playlists.filter {
             it.browseId != YtMusicRepository.LIKED_MUSIC &&
                 !it.title.equals("Liked Music", ignoreCase = true) &&
-                !it.title.equals("Favorite Songs", ignoreCase = true)
+                !it.title.equals("Favorite Songs", ignoreCase = true) &&
+                !it.title.equals("Favorite Music", ignoreCase = true)
         }
 
         // Apply folder filter if inside a folder
@@ -222,7 +223,7 @@ fun PlaylistsSubScreen(
                     }
                 }
 
-                // Favorite Songs Card (top item when at root)
+                // Favorite Music Card (top item when at root)
                 if (activeFolderId == null && searchQuery.isBlank()) {
                     item {
                         Column(
@@ -231,7 +232,7 @@ fun PlaylistsSubScreen(
                                 .clickable {
                                     onPlaylistClick(
                                         ShelfItem(
-                                            title = "Favorite Songs",
+                                            title = "Favorite Music",
                                             subtitle = "Auto playlist",
                                             thumbnailUrl = null,
                                             videoId = null,
@@ -464,16 +465,16 @@ fun PlaylistsSubScreen(
                     }
                 }
 
-                // Favorite Songs row
+                // Favorite Music row
                 if (activeFolderId == null && searchQuery.isBlank()) {
-                    item(key = "favorite_songs_row") {
+                    item(key = "favorite_music_row") {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
                                     onPlaylistClick(
                                         ShelfItem(
-                                            title = "Favorite Songs",
+                                            title = "Favorite Music",
                                             subtitle = "Auto playlist",
                                             thumbnailUrl = null,
                                             videoId = null,
