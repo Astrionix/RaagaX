@@ -1,5 +1,23 @@
 # Changelog
 
+## v2.1.0
+
+### 🚀 Enhancements
+
+- **Multi-Song Playlist Additions:** Batch add multiple selected songs from Songs, Downloaded, and Recently Added screens directly to playlists or newly created playlists.
+- **Whole Album / Playlist Addition:** Add complete albums or playlists to a target playlist via long-press and overflow actions.
+- **Spotiflac-style Sidecar Files:** Automatic export of `.lrc` (synced scrolling lyrics) and `.jpg` (high-res artwork) files beside audio tracks in Music/Raaga.
+- **System MediaStore Tagging:** Explicit title, artist, album, and duration registration in Android MediaStore alongside MediaScanner triggers for 100% metadata fidelity in third-party media players.
+- **Listen Together raaga.me Migration:** Streamlined Jam invite links under raaga.me with backwards compatibility.
+- **iOS Bold Typography:** Added iOS-style bold display typography and user selection preferences.
+
+### 🩹 Fixes
+
+- Fixed FLAC tagger 0x0 cover dimension bug by dynamically computing decoded bounds.
+- Fixed MP4 metadata parser compatibility by adding iTunes appl manufacturer atom.
+- Fixed Favorite Music playlist cover and naming synchronizations.
+
+
 
 ## v0.1.0
 
