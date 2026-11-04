@@ -1,6 +1,7 @@
 package com.music.raaga.ui.screens
 
 import com.music.raaga.R
+import com.music.raaga.ui.components.copyOnLongPress
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateContentSize
@@ -57,6 +58,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Edit
+import com.music.raaga.data.settings.PlaylistCustomOrderStore
+import androidx.compose.material.icons.rounded.Star
+import com.music.raaga.data.YtMusicRepository
+import com.music.raaga.ui.screens.library.RaagaAccentRed
+import com.music.raaga.data.sources.TrackMatcher
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.MoreVert
@@ -316,9 +323,11 @@ fun DetailScreen(
      * owned/editable playlists.
      */
     onRemoveSongFromPlaylist: ((Song) -> Unit)? = null,
+    onEditPlaylist: (() -> Unit)? = null,
 ) {
     val rawSongs = (page.songs as? UiState.Success)?.data.orEmpty()
-    val songs = remember(rawSongs, songSort) { rawSongs.sortedForDetail(songSort) }
+    val customOrders by PlaylistCustomOrderStore.customOrders.collectAsStateWithLifecycle()
+    val songs = remember(rawSongs, songSort, customOrders) { rawSongs.sortedForDetail(songSort, page.browseId) }
     // What a numbered row shows regardless of [songSort] — an album's track
     // numbers are the sleeve's own and must not relabel themselves to match
     // wherever a sort put the row.
@@ -504,6 +513,7 @@ fun DetailScreen(
                         onShuffle = { onShuffle(songs) },
                         onArtistClick = onArtistClick,
                         onToggleLibrary = onToggleLibrary,
+                        onEditPlaylist = onEditPlaylist,
                         fullBleed = hasFullBleed,
                         artHeight = effectiveArtHeight,
                     )
@@ -739,6 +749,7 @@ private fun ReleaseHeader(
     onShuffle: () -> Unit,
     onArtistClick: (String, String) -> Unit,
     onToggleLibrary: (() -> Unit)?,
+    onEditPlaylist: (() -> Unit)? = null,
     fullBleed: Boolean = false,
     artHeight: Dp = 0.dp,
 ) {
@@ -751,6 +762,13 @@ private fun ReleaseHeader(
             .padding(top = if (fullBleed) 0.dp else topBarContentPadding(), bottom = 18.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        val isFavoriteMusic = page.browseId == YtMusicRepository.LIKED_MUSIC ||
+            page.browseId == "VLLM" ||
+            page.browseId == "LM" ||
+            page.title.equals("Favorite Music", ignoreCase = true) ||
+            page.title.equals("Liked Music", ignoreCase = true) ||
+            page.title.equals("Favorite Songs", ignoreCase = true)
+
         if (fullBleed) {
             Spacer(Modifier.fillMaxWidth().height(artHeight * 0.70f))
         } else {
@@ -758,34 +776,50 @@ private fun ReleaseHeader(
                 Modifier
                     .size(sleeveSize)
                     .shadow(SLEEVE_SHADOW, SLEEVE_SHAPE)
-                    .background(palette.elevated)
+                    .background(if (isFavoriteMusic) Color.White else palette.elevated)
                     .thumbnailBorder(SLEEVE_SHAPE),
+                contentAlignment = Alignment.Center,
             ) {
-                AsyncImage(
-                    model = effectiveThumbnailUrl?.artworkAt(HEADER_ART_PX),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.matchParentSize(),
-                )
-                canvas?.let { clip ->
-                    CanvasArtworkPlayer(
-                        canvas = clip,
-                        isPlaying = true,
+                if (isFavoriteMusic) {
+                    Icon(
+                        imageVector = Icons.Rounded.Star,
+                        contentDescription = null,
+                        tint = RaagaAccentRed,
+                        modifier = Modifier.size(sleeveSize * 0.45f),
+                    )
+                } else {
+                    AsyncImage(
+                        model = effectiveThumbnailUrl?.artworkAt(HEADER_ART_PX),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
                         modifier = Modifier.matchParentSize(),
                     )
+                    canvas?.let { clip ->
+                        CanvasArtworkPlayer(
+                            canvas = clip,
+                            isPlaying = true,
+                            modifier = Modifier.matchParentSize(),
+                        )
+                    }
                 }
             }
         }
 
         Spacer(Modifier.height(20.dp))
+        val displayTitle = if (isFavoriteMusic) stringResource(R.string.favorite_music) else page.title
         Text(
-            text = page.title,
+            text = displayTitle,
             style = MaterialTheme.typography.headlineMedium,
             color = palette.onBackground,
             textAlign = TextAlign.Center,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = HEADER_GUTTER),
+            modifier = Modifier
+                .padding(horizontal = HEADER_GUTTER)
+                .copyOnLongPress(
+                    textToCopy = displayTitle,
+                    toastMessage = stringResource(R.string.copied_album_format, displayTitle)
+                ),
         )
         if (credit.isNotBlank()) {
             Spacer(Modifier.height(2.dp))
@@ -848,7 +882,15 @@ private fun ReleaseHeader(
                     size = RELEASE_SIDE_BUTTON,
                     modifier = Modifier.weight(1f),
                 )
-                if (library != null) {
+                if (onEditPlaylist != null) {
+                    CircleIconButton(
+                        icon = Icons.Rounded.Edit,
+                        contentDescription = stringResource(R.string.edit_playlist),
+                        onClick = onEditPlaylist,
+                        haptic = Haptic.ToggleOn,
+                        size = RELEASE_SIDE_BUTTON,
+                    )
+                } else if (library != null) {
                     CircleIconButton(
                         icon = if (library.saved) RaagaIcons.Check else RaagaIcons.Plus,
                         contentDescription = if (library.saved) {
@@ -962,15 +1004,35 @@ private fun DetailSearchField(
     }
 }
 
-internal fun List<Song>.sortedForDetail(sort: SongSort): List<Song> = when (sort) {
-    SongSort.DEFAULT -> this
+internal fun List<Song>.sortedForDetail(sort: SongSort, browseId: String? = null): List<Song> = when (sort) {
+    SongSort.CUSTOM_ORDER -> {
+        if (browseId != null) PlaylistCustomOrderStore.applyCustomOrder(browseId, this) else this
+    }
+    SongSort.DEFAULT -> {
+        if (browseId != null && (browseId.startsWith("VL") || browseId.startsWith("PL") || browseId.startsWith("local:playlist:"))) {
+            PlaylistCustomOrderStore.applyCustomOrder(browseId, this)
+        } else {
+            this
+        }
+    }
     SongSort.TITLE_ASC -> sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.title })
     SongSort.TITLE_DESC -> sortedWith(compareByDescending(String.CASE_INSENSITIVE_ORDER) { it.title })
-    // A catalogue row carries no added date, so its place in the running
-    // order stands in for one: a playlist is appended to as songs are added,
-    // and reversed that puts the most recent addition on top. Rows that do
-    // carry a MediaStore timestamp — device tracks, downloads — are dated
-    // properly, with the position order left to break the ties.
+    SongSort.ARTIST_ASC -> sortedWith(
+        compareBy<Song, String>(String.CASE_INSENSITIVE_ORDER) { it.artist }
+            .thenBy(String.CASE_INSENSITIVE_ORDER) { it.title },
+    )
+    SongSort.ARTIST_DESC -> sortedWith(
+        compareBy<Song, String>(java.util.Collections.reverseOrder(String.CASE_INSENSITIVE_ORDER)) { it.artist }
+            .thenBy(String.CASE_INSENSITIVE_ORDER) { it.title },
+    )
+    SongSort.DURATION_ASC -> sortedWith(
+        compareBy<Song> { TrackMatcher.secondsOf(it.durationText) ?: 0 }
+            .thenBy(String.CASE_INSENSITIVE_ORDER) { it.title },
+    )
+    SongSort.DURATION_DESC -> sortedWith(
+        compareByDescending<Song> { TrackMatcher.secondsOf(it.durationText) ?: 0 }
+            .thenBy(String.CASE_INSENSITIVE_ORDER) { it.title },
+    )
     SongSort.DATE_ADDED_ASC -> withIndex()
         .sortedWith(
             compareBy<IndexedValue<Song>> { (_, song) ->
@@ -1086,8 +1148,15 @@ private fun ArtistHeader(
                     )
                 }
             } else {
+                val isFavoriteMusic = page.browseId == YtMusicRepository.LIKED_MUSIC ||
+                    page.browseId == "VLLM" ||
+                    page.browseId == "LM" ||
+                    page.title.equals("Favorite Music", ignoreCase = true) ||
+                    page.title.equals("Liked Music", ignoreCase = true) ||
+                    page.title.equals("Favorite Songs", ignoreCase = true)
+                val displayTitle = if (isFavoriteMusic) stringResource(R.string.favorite_music) else page.title
                 Text(
-                    text = page.title,
+                    text = displayTitle,
                     style = MaterialTheme.typography.displayLarge,
                     color = palette.onBackground,
                     textAlign = TextAlign.Center,
@@ -1095,7 +1164,11 @@ private fun ArtistHeader(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = HEADER_GUTTER, end = HEADER_GUTTER, top = 14.dp, bottom = 7.dp),
+                        .padding(start = HEADER_GUTTER, end = HEADER_GUTTER, top = 14.dp, bottom = 7.dp)
+                        .copyOnLongPress(
+                            textToCopy = displayTitle,
+                            toastMessage = stringResource(R.string.copied_album_format, displayTitle)
+                        ),
                 )
             }
         }
@@ -1168,13 +1241,55 @@ private fun PageBackground(
         if (fullBleed) {
             val displayUrl = effectiveThumbnailUrl ?: page.thumbnailUrl
 
+            val isFavoriteMusic = page.browseId == YtMusicRepository.LIKED_MUSIC ||
+                page.browseId == "VLLM" ||
+                page.browseId == "LM" ||
+                page.title.equals("Favorite Music", ignoreCase = true) ||
+                page.title.equals("Liked Music", ignoreCase = true) ||
+                page.title.equals("Favorite Songs", ignoreCase = true)
+
             Box(
                 Modifier
                     .fillMaxWidth()
                     .height(artHeight)
                     .offset { IntOffset(0, listState.headerTop(artHeight.toPx()).roundToInt()) },
             ) {
-                if (isPlaylist && !fullBleed) {
+                if (isFavoriteMusic) {
+                    val horizontalPad = 32.dp
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.radialGradient(
+                                    colors = listOf(
+                                        Color.White.copy(alpha = 0.25f),
+                                        Color.Transparent,
+                                    ),
+                                ),
+                            ),
+                    )
+                    Box(
+                        modifier = Modifier
+                            .padding(horizontal = horizontalPad, vertical = 16.dp)
+                            .aspectRatio(1f)
+                            .align(Alignment.Center)
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(Color.White)
+                            .border(
+                                width = 0.5.dp,
+                                color = Color.White.copy(alpha = 0.3f),
+                                shape = RoundedCornerShape(18.dp),
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Star,
+                            contentDescription = null,
+                            tint = RaagaAccentRed,
+                            modifier = Modifier.size(80.dp),
+                        )
+                    }
+                } else if (isPlaylist && !fullBleed) {
                 // Playlist: centered artwork card with rounded corners + shadow,
                 // matching the expanded player's sleeve feel.
                 // The gradient backdrop (ArtworkWash above) provides the full-bleed
