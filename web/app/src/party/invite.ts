@@ -4,8 +4,9 @@
  * On the web the first is a route of this app (`/invite/:code`).
  */
 
-export const INVITE_ORIGIN = 'https://web.raaga.me';
-export const LEGACY_INVITE_ORIGIN = 'https://raaga.me';
+export const INVITE_ORIGIN = 'https://raaga.me';
+export const WEB_INVITE_ORIGIN = 'https://web.raaga.me';
+export const LEGACY_INVITE_ORIGIN = 'https://raaga.app';
 export const CODE_LENGTH = 6;
 export const DEFAULT_LOCAL_JAM_PORT = 8890;
 
@@ -113,6 +114,6 @@ export function inviteUrl(code: string, customServer: string | null): string {
       // fallback
     }
   }
-  const origin = base && base.toLowerCase() !== INVITE_ORIGIN && base.toLowerCase() !== LEGACY_INVITE_ORIGIN ? base : INVITE_ORIGIN;
+  const origin = base && base.toLowerCase() !== INVITE_ORIGIN && base.toLowerCase() !== WEB_INVITE_ORIGIN && base.toLowerCase() !== LEGACY_INVITE_ORIGIN ? base : INVITE_ORIGIN;
   return `${origin}/invite/${code.toUpperCase()}`;
 }
