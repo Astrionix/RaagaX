@@ -385,6 +385,7 @@ dependencies {
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.0.4")
     implementation("io.coil-kt.coil3:coil-svg:3.0.4")
     implementation("androidx.palette:palette-ktx:1.0.0")
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
 
     // ---- Frosted glass / progressive blur (Telegram-style bars) ----
     implementation("dev.chrisbanes.haze:haze:1.3.1")
