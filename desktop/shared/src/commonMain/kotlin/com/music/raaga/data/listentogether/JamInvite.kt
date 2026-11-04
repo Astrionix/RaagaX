@@ -9,7 +9,8 @@ package com.music.raaga.data.listentogether
  */
 object JamInvite {
 
-    const val ORIGIN = "https://web.raaga.me"
+    const val ORIGIN = "https://raaga.me"
+    const val WEB_ORIGIN = "https://web.raaga.me"
     const val LEGACY_ORIGIN = "https://raaga.app"
 
     /** How many characters a party code carries. */
@@ -19,9 +20,11 @@ object JamInvite {
     fun parse(value: String?): String? {
         val text = value?.trim() ?: return null
         val prefix = "$ORIGIN/invite/"
+        val webPrefix = "$WEB_ORIGIN/invite/"
         val legacyPrefix = "$LEGACY_ORIGIN/invite/"
         val code = when {
             text.startsWith(prefix, ignoreCase = true) -> text.removePrefix(prefix)
+            text.startsWith(webPrefix, ignoreCase = true) -> text.removePrefix(webPrefix)
             text.startsWith(legacyPrefix, ignoreCase = true) -> text.removePrefix(legacyPrefix)
             else -> return null
         }.substringBefore('?').substringBefore('#')
