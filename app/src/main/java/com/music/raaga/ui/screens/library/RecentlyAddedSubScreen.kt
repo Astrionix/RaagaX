@@ -35,6 +35,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
+import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.rounded.Album
@@ -100,6 +101,7 @@ fun RecentlyAddedSubScreen(
     onAddToQueue: (List<Song>) -> Unit = {},
     onPlayNext: (List<Song>) -> Unit = {},
     onDownloadSelected: (List<Song>) -> Unit = {},
+    onAddToPlaylist: ((List<Song>) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val allRecentTracks by LibrarySongAggregator.recentlyAddedTracks.collectAsState()
@@ -448,10 +450,27 @@ fun RecentlyAddedSubScreen(
                                 },
                             ) {
                                 Icon(
-                                    imageVector = Icons.AutoMirrored.Rounded.PlaylistAdd,
+                                    imageVector = Icons.AutoMirrored.Rounded.PlaylistPlay,
                                     contentDescription = "Add to Queue",
                                     tint = Color.White,
                                 )
+                            }
+                            if (onAddToPlaylist != null) {
+                                IconButton(
+                                    onClick = {
+                                        if (selectedSongs.isNotEmpty()) {
+                                            onAddToPlaylist(selectedSongs)
+                                            isMultiSelectMode = false
+                                            selectedKeys.clear()
+                                        }
+                                    },
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Rounded.PlaylistAdd,
+                                        contentDescription = stringResource(R.string.add_to_playlist),
+                                        tint = Color.White,
+                                    )
+                                }
                             }
                             IconButton(
                                 onClick = {
