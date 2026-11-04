@@ -53,6 +53,12 @@
     <string name="import_spotify_description" translatable="false">Paste a Spotify or Apple Music playlist or album link to convert and import it into your library.</string>
     <string name="spotify_link_placeholder" translatable="false">https://open.spotify.com/... or music.apple.com/...</string>
     <string name="paste_from_clipboard" translatable="false">Paste from clipboard</string>
+    <string name="copied_to_clipboard">Copied "%1$s" to clipboard</string>
+    <string name="copied_title_format">Copied song title: %1$s</string>
+    <string name="copied_album_format">Copied album name: %1$s</string>
+    <string name="copied_artist_format">Copied artist name: %1$s</string>
+    <string name="copy_song_title">Copy song title</string>
+    <string name="copy_album_name">Copy album name</string>
     <string name="fetch_playlist" translatable="false">Fetch playlist</string>
     <string name="fetching_spotify_playlist" translatable="false">Fetching playlist details…</string>
     <string name="fetching_apple_music_playlist" translatable="false">Fetching Apple Music playlist…</string>
@@ -89,7 +95,7 @@
     <string name="increase_lyrics_offset">Increase lyrics offset</string>
     <string name="auto_quick_picks">Quick picks</string>
     <string name="auto_recents">Recent</string>
-    <string name="auto_liked">Liked songs</string>
+    <string name="auto_liked">Favorite Music</string>
     <string name="auto_login_title">Sign in to YouTube on your phone</string>
     <string name="auto_login_subtitle">Open Raaga on your phone to sign in</string>
     <string name="auto_empty_recents_title">No recent songs</string>
@@ -98,8 +104,8 @@
     <string name="auto_empty_quick_picks_subtitle">Check your connection and try again</string>
     <string name="auto_empty_playlists_title">No playlists available</string>
     <string name="auto_empty_playlists_subtitle">Check your connection and try again</string>
-    <string name="auto_empty_liked_title">No liked songs</string>
-    <string name="auto_empty_liked_subtitle">Tap the heart on a song to save it here</string>
+    <string name="auto_empty_liked_title">No favorite music</string>
+    <string name="auto_empty_liked_subtitle">Tap the star on a song to save it here</string>
     <string name="auto_empty_offline_title">No offline songs</string>
     <string name="auto_empty_offline_subtitle">Download songs on your phone to listen here</string>
     <string name="auto_unavailable_title">Content unavailable</string>
@@ -331,6 +337,16 @@
     <string name="blocking">Blocking</string>
     <string name="crossfade">Crossfade</string>
     <string name="crossfade_subtitle">Blends one track into the next</string>
+    <string name="smart_crossfade">Crossfade</string>
+    <string name="crossfade_settings_subtitle">Choose how songs transition into one another</string>
+    <string name="crossfade_mode_automatic">Automatic</string>
+    <string name="crossfade_mode_automatic_desc">Intelligently adjust transitions based on song endings, beginnings and audio characteristics</string>
+    <string name="crossfade_mode_manual">Manual</string>
+    <string name="crossfade_mode_manual_desc">Choose your preferred crossfade duration</string>
+    <string name="crossfade_mode_off">Off</string>
+    <string name="crossfade_mode_off_desc">Play songs consecutively without overlapping them</string>
+    <string name="crossfade_badge_recommended">Recommended</string>
+    <string name="crossfade_badge_new">New</string>
     <string name="automix">Automix [BETA]</string>
     <string name="automix_performance">Automix performance</string>
     <string name="automix_performance_subtitle">Sets how much CPU background analysis may use</string>
@@ -406,9 +422,21 @@
     <string name="full_screen_cover_art">Full-screen cover art</string>
     <string name="legacy_mesh_gradient">Legacy mesh gradient</string>
     <string name="legacy_mesh_gradient_subtitle">Brings back the drifting colour blobs behind the player from v1.5</string>
+    <string name="now_playing_blur_style">Player blur style</string>
+    <string name="now_playing_blur_style_subtitle">Background appearance for the Now Playing player</string>
+    <string name="blur_style_new">Dynamic Ambient Blur (New)</string>
+    <string name="blur_style_new_subtitle">Apple Music-inspired full-screen ambient blur with dynamic atmospheric lighting</string>
+    <string name="blur_style_legacy">Seam-Aware Mesh (Legacy)</string>
+    <string name="blur_style_legacy_subtitle">Reflected mesh gradient smoothly continuing from the cover\'s bottom edge</string>
+    <string name="blur_style_old">Classic Blobs (Old)</string>
+    <string name="blur_style_old_subtitle">Drifting quantised colour blobs behind the whole screen from v1.5</string>
     <string name="animated_cover_art">Animated cover art</string>
     <string name="synced_lyrics">Synced lyrics</string>
     <string name="synced_lyrics_subtitle">Lights up the words on the player as they’re sung</string>
+    <string name="lyrics_preview">Lyrics preview</string>
+    <string name="lyrics_preview_subtitle">Show the current lyric line above the scrubber</string>
+    <string name="adaptive_track_info">Adaptive Track Info</string>
+    <string name="adaptive_track_info_subtitle">Automatically adjust song information placement based on lyrics visibility</string>
     <string name="lyrics_sources">Lyrics sources</string>
     <string name="song_cache_limit">Song cache limit</string>
     <string name="clear_song_cache">Clear song cache</string>
@@ -713,7 +741,7 @@
     <string name="quality_per_track">%1$s · %2$s per track</string>
     <string name="queued">Queued</string>
     <string name="remove">Remove</string>
-    <string name="remove_from_liked">Remove from Liked Music</string>
+    <string name="remove_from_liked">Remove from Favorite Music</string>
     <string name="remove_from_playlist">Remove from this playlist</string>
     <string name="remove_from_queue">Remove from queue</string>
     <string name="rename_playlist">Rename playlist</string>
@@ -880,6 +908,11 @@
     <string name="sort_default">Default order</string>
     <string name="sort_library">Sort</string>
     <string name="sort_songs">Sort songs</string>
+    <string name="sort_custom_order">Custom order</string>
+    <string name="sort_artist">Artist</string>
+    <string name="sort_duration">Duration</string>
+    <string name="sort_duration_desc">Duration (longest first)</string>
+    <string name="sort_duration_asc">Duration (shortest first)</string>
     <string name="use_all_audio_folders">Use all audio folders</string>
     <string name="use_all_audio_folders_subtitle">Remove the folder limit and scan music across the device</string>
     <string name="album">album</string>
@@ -1134,6 +1167,10 @@
     <string name="miscellaneous_footer">When enabled, closing the app from the recent apps screen will also stop music playback.</string>
 
     <string name="export_compatible_downloads">Export compatible downloads</string>
+    <string name="save_synced_lyrics">Save Synced Lyrics (.lrc)</string>
+    <string name="save_synced_lyrics_subtitle">Save a .lrc synchronized lyrics file alongside each track for external players</string>
+    <string name="save_album_artwork">Save Album Artwork (.jpg)</string>
+    <string name="save_album_artwork_subtitle">Save a high-resolution .jpg cover image alongside each track</string>
 
     <string name="output_precision">Output precision</string>
 
@@ -1365,6 +1402,22 @@
     <string name="song_info_unavailable">Not available</string>
     <string name="song_info_error">Some information could not be loaded.</string>
     <string name="song_info_retry">Retry</string>
+    <string name="behind_the_music">Behind the Music</string>
+    <string name="behind_the_music_subtitle">Credits &amp; Contributors</string>
+    <string name="credits_artist">Artist</string>
+    <string name="credits_composition_lyrics">Composition &amp; Lyrics</string>
+    <string name="credits_production">Production</string>
+    <string name="credits_engineering">Engineering &amp; Studio</string>
+    <string name="credits_musicians">Musicians &amp; Performers</string>
+    <string name="credits_additional">Additional Information</string>
+    <string name="credits_main_artist">Main Artist</string>
+    <string name="credits_featured_artist">Featured Artist</string>
+    <string name="credits_follow">Follow</string>
+    <string name="credits_following">Following</string>
+    <string name="credits_label">Record Label</string>
+    <string name="credits_copyright">Copyright</string>
+    <string name="credits_publisher">Publisher</string>
+    <string name="credits_audio_quality">Audio Quality</string>
 
     
     <string name="artist_signatures">Artist signatures</string>
@@ -1378,7 +1431,16 @@
     <string name="title">Title</string>
     <string name="recently_added">Recently Added</string>
     <string name="recently_played">Recently Played</string>
-    <string name="favorite_songs">Favorite Songs</string>
+    <string name="favorite_songs">Favorite Music</string>
+    <string name="favorite_music">Favorite Music</string>
+    <string name="font_style">Font Style</string>
+    <string name="font_style_subtitle">Customize typography and text weights</string>
+    <string name="font_sf_pro">SF Pro</string>
+    <string name="font_ios_bold">iOS Bold</string>
+    <string name="font_new_york">New York</string>
+    <string name="font_system">System</string>
+    <string name="font_monospace">Monospace</string>
+
     <string name="create">Create</string>
     <string name="playlist_type">Playlist Type</string>
     <string name="all_playlists">All Playlists</string>
@@ -1510,6 +1572,14 @@
     <string name="recent_single">Recent Single</string>
     <string name="reorder_failed">Couldn\'t save the new order</string>
     <string name="reorder_songs">Reorder songs</string>
+    <string name="edit_playlist">Edit playlist</string>
+    <string name="playlist_editor">Playlist Editor</string>
+    <string name="custom_order">Custom order</string>
+    <string name="move_to_top">Move to top</string>
+    <string name="move_to_bottom">Move to bottom</string>
+    <string name="items_selected">%1$d selected</string>
+    <string name="clear_selection">Clear selection</string>
+    <string name="drag_to_rearrange">Drag songs to rearrange</string>
     <string name="replay_artist_start_week">This week, </string>
     <string name="replay_songs_end_week"> filled your week.</string>
     <string name="replay_summary_end_week">week</string>
