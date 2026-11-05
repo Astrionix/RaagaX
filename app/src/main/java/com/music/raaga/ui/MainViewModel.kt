@@ -158,6 +158,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _results = MutableStateFlow<UiState<List<SearchResult>>?>(null)
     val results: StateFlow<UiState<List<SearchResult>>?> = _results.asStateFlow()
 
+    /** Query whose first-page results are currently represented by [results]. */
+    private val _resultsQuery = MutableStateFlow<String?>(null)
+    val resultsQuery: StateFlow<String?> = _resultsQuery.asStateFlow()
+
     /** The mixed YouTube Music result page is the fast, useful default. */
     private val _filter = MutableStateFlow(SearchFilter.ALL)
     val filter: StateFlow<SearchFilter> = _filter.asStateFlow()
@@ -2287,9 +2291,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             searchSession = null
             _searchLoadingMore.value = false
             _results.value = null
+            _resultsQuery.value = null
             return
         }
         val id = newestRequestId.incrementAndGet()
+        // A previous page must not be consumed by an action waiting for this
+        // request, especially notification Play now.
+        _resultsQuery.value = null
         _searchScrollReset.value += 1
         searchSession = null
         _searchLoadingMore.value = false
@@ -2325,6 +2333,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val exact = searchCache.get(key)
                 val cached = exact?.rows ?: prefixMatch(request.query, request.filter)
                 _results.value = cached?.let { UiState.Success(it) } ?: UiState.Loading
+                _resultsQuery.value = request.query.takeIf { exact != null }
                 if (exact != null) {
                     searchSession = SearchSession(key, request.requestId, request.filter, exact.continuation)
                     return@collectLatest
@@ -2344,9 +2353,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 // whether it succeeded or failed.
                 if (request.requestId != newestRequestId.get()) return@collectLatest
                 _results.value = result.fold(
-                    onSuccess = { page -> published(page, key, request.requestId) },
+                    onSuccess = { page ->
+                        _resultsQuery.value = request.query
+                        published(page, key, request.requestId)
+                    },
                     onFailure = { failure -> UiState.Error(failure.friendly()) },
                 )
+                if (_results.value is UiState.Error) _resultsQuery.value = request.query
             }
     }
 
