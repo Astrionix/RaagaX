@@ -1539,6 +1539,27 @@ private fun RaagaApp(
         if (resumeAfterRecognition) controller?.play()
         resumeAfterRecognition = false
     }
+    val searchRecognizedSong: (String) -> Unit = { query ->
+        resumeAfterRecognition = false
+        showNowPlaying = false
+        while (viewModel.detailStack.value.isNotEmpty()) {
+            viewModel.closeDetail()
+        }
+        showReplay = false
+        replayStory = null
+        selectedTab = TAB_SEARCH
+        recognitionQuery = query
+        viewModel.onFilterChange(SearchFilter.ALL)
+        viewModel.searchFor(query)
+    }
+    val searchRecognizedSongFromApp: (String) -> Unit = { query ->
+        inAppRecognitionAutoPlay = autoPlayRecognizedSong
+        searchRecognizedSong(query)
+    }
+    val resolveNotificationSong: (String) -> Unit = { query ->
+        viewModel.onFilterChange(SearchFilter.ALL)
+        viewModel.searchFor(query)
+    }
 
     val addToQueue: (Song) -> Unit = { song ->
         scope.launch {
