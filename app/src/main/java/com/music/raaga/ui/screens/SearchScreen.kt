@@ -1,5 +1,19 @@
 package com.music.raaga.ui.screens
 
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
+
+
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -77,6 +91,21 @@ import com.music.raaga.ui.haptics.Haptic
 import com.music.raaga.ui.haptics.rememberHaptics
 import java.util.Locale
 
+
+/**
+ * Where Search's promoted "Top result" card sits, in window coordinates. A
+ * recognized song flies its cover and title into these rectangles, so the
+ * handoff lands on the result it becomes instead of the search field.
+ */
+data class TopResultBounds(
+    val videoId: String,
+    val songTitle: String,
+    val songArtist: String,
+    val artwork: Rect,
+    val title: Rect,
+    val artist: Rect,
+)
+
 @Composable
 fun SearchScreen(
     query: String,
@@ -112,6 +141,12 @@ fun SearchScreen(
     onHistoryClear: () -> Unit,
     /** Long-press handler for typeahead rows — opens the song actions sheet. */
     onTypeaheadLongPress: ((Song) -> Unit)? = null,
+    onVoiceSearch: (() -> Unit)? = null,
+    onTopResultBounds: ((TopResultBounds) -> Unit)? = null,
+    onSearchFieldBounds: ((Rect) -> Unit)? = null,
+    topResultPulseTrigger: Int = 0,
+    searchFieldPulseTrigger: Int = 0,
+    forceTopResult: Boolean = false,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues,
 ) {
@@ -165,7 +200,11 @@ fun SearchScreen(
                 onQueryChange = onQueryChange,
                 onSubmit = onSubmit,
                 focusRequester = focusRequester,
-                modifier = Modifier.padding(start = PAGE_GUTTER, end = PAGE_GUTTER, bottom = 4.dp),
+                onVoiceSearch = onVoiceSearch,
+                pulseTrigger = searchFieldPulseTrigger,
+                modifier = Modifier
+                    .onGloballyPositioned { onSearchFieldBounds?.invoke(it.boundsInWindow()) }
+                    .padding(start = PAGE_GUTTER, end = PAGE_GUTTER, bottom = 4.dp),
             )
             // The filters only mean something once there is a result set to narrow;
             // they stay up for an empty or failed search too, or picking a filter
@@ -220,6 +259,7 @@ fun SearchScreen(
                             else -> null
                         } }
                     val topResult = results.data.filterIsInstance<SearchResult.TopTrack>().firstOrNull()
+                        ?: if (forceTopResult) results.data.filterIsInstance<SearchResult.Track>().firstOrNull()?.let { SearchResult.TopTrack(it.song) } else null
                     if (filter == SearchFilter.ALL && topResult != null) {
                         item(key = "search:top-result:${topResult.song.videoId}") {
                             SwipeToQueueBox(
@@ -230,6 +270,19 @@ fun SearchScreen(
                                     onPlay = { onTopResultPlay(topResult.song) },
                                     onPlaylist = { onTopResultPlaylist(topResult.song) },
                                     onLongPress = { onSongLongPress(topResult.song) },
+                                    pulseTrigger = topResultPulseTrigger,
+                                    onBounds = { artwork, title, artist ->
+                                        onTopResultBounds?.invoke(
+                                            TopResultBounds(
+                                                videoId = topResult.song.videoId,
+                                                songTitle = topResult.song.title,
+                                                songArtist = topResult.song.artist,
+                                                artwork = artwork,
+                                                title = title,
+                                                artist = artist,
+                                            ),
+                                        )
+                                    },
                                 )
                             }
                         }
@@ -320,10 +373,38 @@ private fun TopResultCard(
     onPlay: () -> Unit,
     onPlaylist: () -> Unit,
     onLongPress: () -> Unit,
+    modifier: Modifier = Modifier,
+    pulseTrigger: Int = 0,
+    reportKey: Int = 0,
+    onBounds: ((artwork: Rect, title: Rect, artist: Rect) -> Unit)? = null,
 ) {
+    var artworkBounds by remember { mutableStateOf<Rect?>(null) }
+    var titleBounds by remember { mutableStateOf<Rect?>(null) }
+    var artistBounds by remember { mutableStateOf<Rect?>(null) }
+    val pulseScale = remember { Animatable(1f) }
+    LaunchedEffect(pulseTrigger) {
+        if (pulseTrigger == 0) return@LaunchedEffect
+        pulseScale.animateTo(1.03f, animationSpec = tween(120, easing = FastOutSlowInEasing))
+        pulseScale.animateTo(1f, animationSpec = tween(130, easing = FastOutSlowInEasing))
+    }
+    val _ab = artworkBounds
+    val _tb = titleBounds
+    val _arb = artistBounds
+    val _rk = reportKey
+    SideEffect {
+        val artwork = artworkBounds ?: return@SideEffect
+        val title = titleBounds ?: return@SideEffect
+        val artist = artistBounds ?: return@SideEffect
+        onBounds?.invoke(artwork, title, artist)
+    }
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
+            .graphicsLayer {
+                scaleX = pulseScale.value
+                scaleY = pulseScale.value
+                transformOrigin = TransformOrigin(0.5f, 0.5f)
+            }
             .padding(start = PAGE_GUTTER, end = PAGE_GUTTER, top = 18.dp, bottom = 8.dp)
             .combinedClickable(onClick = onPlay, onLongClick = onLongPress),
     ) {
@@ -337,7 +418,10 @@ private fun TopResultCard(
             AsyncImage(
                 model = song.thumbnailUrl?.artworkAt(ROW_ART_PX),
                 contentDescription = null,
-                modifier = Modifier.size(72.dp).clip(RoundedCornerShape(10.dp)),
+                modifier = Modifier
+                    .size(72.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .onGloballyPositioned { artworkBounds = it.boundsInWindow() },
             )
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
@@ -347,6 +431,7 @@ private fun TopResultCard(
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.onGloballyPositioned { titleBounds = it.boundsInWindow() },
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
@@ -355,6 +440,7 @@ private fun TopResultCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.onGloballyPositioned { artistBounds = it.boundsInWindow() },
                 )
             }
             IconButton(onClick = onLongPress, modifier = Modifier.size(48.dp)) {
