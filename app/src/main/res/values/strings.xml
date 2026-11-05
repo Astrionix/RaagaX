@@ -1782,4 +1782,33 @@ A safety checkpoint of your current state will be automatically created before r
     <string name="when_you_listen_the_most">When you listen the most</string>
     <string name="your_lyrics_card">Your lyrics card</string>
     <string name="lyrics_share_pick_limit">Card is full</string>
+
+    <string name="recognition_title">Search for a song</string>
+    <string name="recognition_listening">Listening…</string>
+    <string name="recognition_hint">Play, sing, or hum</string>
+    <string name="recognition_microphone">Microphone</string>
+    <string name="recognition_permission_title">Enable Mic to recognize music</string>
+    <string name="recognition_permission_body">Allow microphone access so Raaga can listen to what\'s playing around you.</string>
+    <string name="recognition_enable_microphone">Enable Mic</string>
+    <string name="recognition_open_settings">Open settings</string>
+    <string name="recognition_searching">Searching…</string>
+    <string name="recognition_no_match_hint">Move closer to the music and try again.</string>
+    <string name="recognition_failed_hint">Check your connection and try again.</string>
+    <string name="recognition_cancel">Cancel</string>
+    <string name="recognition_tile_hint">Hum or sing</string>
+    <string name="quick_tile_listening">Listening for music</string>
+    <string name="widget_recognition_description">Tap to recognize the song playing around you.</string>
+    <string name="widget_recognition_label">Recognize</string>
+    <string name="widget_recognition_listening">Listening…</string>
+    <string name="widget_recognition_no_match">Couldn\'t recognize anything. Try again while the music plays.</string>
+    <string name="quick_tile_recognition_label">Raaga Recognize</string>
+    <string name="recognition_notification_channel">Song recognition</string>
+    <string name="recognition_notification_channel_description">Notifications for songs recognized from the widget and Quick Settings.</string>
+    <string name="recognition_notification_art_description">Recognized song cover</string>
+    <string name="recognition_notification_label">SONG RECOGNIZED</string>
+    <string name="recognition_notification_play_now">Play now</string>
+    <string name="recognition_notification_add_to_playlist">Add to playlist</string>
+    <string name="auto_play_recognized_song">Auto Play Recognized Song</string>
+    <string name="auto_play_recognized_song_subtitle">Automatically play a song after recognition finds it</string>
+    <string name="search_voice">Search with your voice</string>
 </resources>
