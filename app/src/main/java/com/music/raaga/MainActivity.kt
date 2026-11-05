@@ -1524,6 +1524,22 @@ private fun RaagaApp(
         }
     }
 }
+    var resumeAfterRecognition by remember { mutableStateOf(false) }
+    val startSongRecognition: () -> Unit = {
+        focusManager.clearFocus()
+        softwareKeyboard?.hide()
+        resumeAfterRecognition = controller?.playWhenReady == true
+        if (resumeAfterRecognition) controller?.pause()
+        recognitionTopBounds = null
+        showSongRecognition = true
+    }
+    val dismissSongRecognition: () -> Unit = {
+        showSongRecognition = false
+        recognitionTopBounds = null
+        if (resumeAfterRecognition) controller?.play()
+        resumeAfterRecognition = false
+    }
+
     val addToQueue: (Song) -> Unit = { song ->
         scope.launch {
             if (refusedByHost()) return@launch
