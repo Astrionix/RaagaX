@@ -257,6 +257,15 @@ import com.music.raaga.ui.screens.LibraryGridPage
 import com.music.raaga.ui.screens.LibraryScreen
 import com.music.raaga.ui.screens.MoodGenrePlaylistsScreen
 import com.music.raaga.ui.screens.SearchScreen
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import com.music.raaga.ui.components.SongRecognitionDialog
+import com.music.raaga.ui.screens.TopResultBounds
+import com.music.raaga.widget.RecognitionNotificationActions
+import com.music.raaga.widget.RecognitionNotifications
 import com.music.raaga.data.settings.SongSort
 import com.music.raaga.ui.replay.ReplayScreen
 import com.music.raaga.ui.replay.cards
@@ -300,6 +309,9 @@ class MainActivity : AppCompatActivity() {
         JamInviteLink.consume(intent)
         // Likewise for a link tapped or shared from another app — see [MusicLink].
         MusicLink.consume(intent)
+        if (RecognitionNotificationActions.consume(intent)) {
+            RecognitionNotifications.cancel(this)
+        }
         com.music.raaga.data.spotify.SpotifyAuthManager.consumeIntent(intent)
         com.music.raaga.data.LibrarySongAggregator.syncOfflineSongs(this)
         if (AppSettings.shouldShowConnectAnnouncement()) {
@@ -411,6 +423,9 @@ class MainActivity : AppCompatActivity() {
         PlayerDeepLink.consume(intent)
         JamInviteLink.consume(intent)
         MusicLink.consume(intent)
+        if (RecognitionNotificationActions.consume(intent)) {
+            RecognitionNotifications.cancel(this)
+        }
         com.music.raaga.data.spotify.SpotifyAuthManager.consumeIntent(intent)
         com.music.raaga.data.LibrarySongAggregator.syncOfflineSongs(this)
     }
