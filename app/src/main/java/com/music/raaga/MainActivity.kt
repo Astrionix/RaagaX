@@ -3217,6 +3217,16 @@ private fun RaagaApp(
                             scrollResetTrigger = searchScrollReset,
                             focusRequested = searchFocusRequested,
                             onFocusHandled = { searchFocusRequested = false },
+                            onVoiceSearch = startSongRecognition,
+                            onTopResultBounds = { bounds ->
+                                if (showSongRecognition) recognitionTopBounds = bounds
+                            },
+                            onSearchFieldBounds = { bounds ->
+                                recognitionFieldBounds = bounds
+                            },
+                            topResultPulseTrigger = recognitionLandedTrigger,
+                            searchFieldPulseTrigger = recognitionFieldLandedTrigger,
+                            forceTopResult = (recognitionQuery != null && query == recognitionQuery),
                             // Search hits are alternatives to each other, not a running
                             // order — play the one tapped and build a station from it.
                             onSongClick = { songs, index ->
