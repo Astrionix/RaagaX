@@ -5169,6 +5169,16 @@ private fun RaagaApp(
             }
         }
 
+        if (showSongRecognition) {
+            SongRecognitionDialog(
+                onDismiss = dismissSongRecognition,
+                onSearch = searchRecognizedSongFromApp,
+                searchFieldBounds = recognitionFieldBounds,
+                topResultBounds = recognitionTopBounds,
+                onLanded = { onCard -> if (onCard) recognitionLandedTrigger++ else recognitionFieldLandedTrigger++ },
+            )
+        }
+
         if (confirmJioSaavn) {
             ConfirmationAlert(
                 hazeState = hazeState,
