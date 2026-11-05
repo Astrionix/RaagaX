@@ -5060,6 +5060,45 @@ private fun RaagaApp(
             )
         }
 
+        var widgetRecognitionMode by remember { mutableStateOf(false) }
+        var widgetRecognitionQuery by remember { mutableStateOf<String?>(null) }
+        val widgetMatch by com.music.raaga.widget.RecognitionDeepLink.pendingMatch.collectAsStateWithLifecycle()
+        val notificationAction by RecognitionNotificationActions.pending.collectAsStateWithLifecycle()
+        LaunchedEffect(widgetMatch) {
+            val query = widgetMatch ?: return@LaunchedEffect
+            com.music.raaga.widget.RecognitionDeepLink.matchHandled()
+            widgetRecognitionMode = true
+            widgetRecognitionQuery = query
+            resolveNotificationSong(query)
+        }
+        LaunchedEffect(widgetRecognitionMode, results, resultsQuery, controller, query) {
+            if (!widgetRecognitionMode) return@LaunchedEffect
+            val expectedQuery = widgetRecognitionQuery ?: return@LaunchedEffect
+            if (query != expectedQuery || resultsQuery != expectedQuery) return@LaunchedEffect
+            when (val state = results) {
+                is UiState.Error -> {
+                    widgetRecognitionMode = false
+                    widgetRecognitionQuery = null
+                }
+                is UiState.Success -> {
+                    val data = state.data
+                    val song = data?.filterIsInstance<SearchResult.TopTrack>()?.firstOrNull()?.song
+                        ?: data?.filterIsInstance<SearchResult.Track>()?.firstOrNull()?.song
+                    if (song != null) {
+                        val c = controller ?: return@LaunchedEffect
+                        widgetRecognitionMode = false
+                        widgetRecognitionQuery = null
+                        playRadio(song, QueueSource("Recognition", PlaybackSourceType.SEARCH))
+                        showNowPlaying = true
+                    } else {
+                        widgetRecognitionMode = false
+                        widgetRecognitionQuery = null
+                        controller?.play()
+                    }
+                }
+                else -> {}
+            }
+        }
         LaunchedEffect(inAppRecognitionAutoPlay, results, controller) {
             if (!inAppRecognitionAutoPlay) return@LaunchedEffect
             when (val state = results) {
@@ -5076,6 +5115,54 @@ private fun RaagaApp(
                     } else {
                         inAppRecognitionAutoPlay = false
                         controller?.play()
+                    }
+                }
+                else -> {}
+            }
+        }
+
+        LaunchedEffect(notificationAction) {
+            val action = notificationAction ?: return@LaunchedEffect
+            RecognitionNotificationActions.handled()
+            when (action) {
+                is RecognitionNotificationActions.Action.OpenSearch -> {
+                    notificationRecognitionMode = null
+                    searchRecognizedSong(action.query)
+                }
+                is RecognitionNotificationActions.Action.PlayNow,
+                is RecognitionNotificationActions.Action.AddToPlaylist -> {
+                    notificationRecognitionMode = action
+                    resolveNotificationSong(action.query)
+                }
+            }
+        }
+        LaunchedEffect(notificationRecognitionMode, results, resultsQuery, controller, query) {
+            val action = notificationRecognitionMode ?: return@LaunchedEffect
+            if (query != action.query || resultsQuery != action.query) return@LaunchedEffect
+            when (val state = results) {
+                is UiState.Error -> notificationRecognitionMode = null
+                is UiState.Success -> {
+                    val data = state.data
+                    val song = data?.filterIsInstance<SearchResult.TopTrack>()?.firstOrNull()?.song
+                        ?: data?.filterIsInstance<SearchResult.Track>()?.firstOrNull()?.song
+                    if (song == null) {
+                        notificationRecognitionMode = null
+                        return@LaunchedEffect
+                    }
+                    when (action) {
+                        is RecognitionNotificationActions.Action.OpenSearch ->
+                            return@LaunchedEffect
+                        is RecognitionNotificationActions.Action.PlayNow -> {
+                            controller ?: return@LaunchedEffect
+                            notificationRecognitionMode = null
+                            playRadio(song, QueueSource("Recognition", PlaybackSourceType.SEARCH))
+                            showNowPlaying = true
+                        }
+                        is RecognitionNotificationActions.Action.AddToPlaylist -> {
+                            notificationRecognitionMode = null
+                            viewModel.loadPlaylists()
+                            playlistTargets = listOf(song)
+                        }
                     }
                 }
                 else -> {}
