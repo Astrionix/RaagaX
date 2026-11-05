@@ -41,8 +41,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -269,6 +272,41 @@ fun FloatingBottomBar(
             .padding(horizontal = PILL_INSET, vertical = PILL_INSET),
     ) {
         if (tabWidthPx > 0f) {
+            val isLight = MaterialTheme.colorScheme.surface.luminance() > 0.5f
+            val bgBrush = remember(isLight) {
+                if (isLight) {
+                    Brush.verticalGradient(
+                        listOf(
+                            Color.White.copy(alpha = 0.75f),
+                            Color.White.copy(alpha = 0.45f),
+                        )
+                    )
+                } else {
+                    Brush.verticalGradient(
+                        listOf(
+                            Color.White.copy(alpha = 0.22f),
+                            Color.White.copy(alpha = 0.08f),
+                        )
+                    )
+                }
+            }
+            val borderBrush = remember(isLight) {
+                if (isLight) {
+                    Brush.verticalGradient(
+                        listOf(
+                            Color.Black.copy(alpha = 0.16f),
+                            Color.Black.copy(alpha = 0.05f),
+                        )
+                    )
+                } else {
+                    Brush.verticalGradient(
+                        listOf(
+                            Color.White.copy(alpha = 0.70f),
+                            Color.White.copy(alpha = 0.12f),
+                        )
+                    )
+                }
+            }
             Box(
                 modifier = Modifier
                     .width(with(density) { tabWidthPx.toDp() })
@@ -283,8 +321,14 @@ fun FloatingBottomBar(
                         scaleX = 1f + lag * STRETCH
                         scaleY = 1f - lag * STRETCH * SQUASH
                     }
-                    .clip(pillShape)
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)),
+                    .shadow(
+                        elevation = (6.dp * lag).coerceAtLeast(0.dp),
+                        shape = pillShape,
+                        ambientColor = Color.Black.copy(alpha = 0.35f),
+                        spotColor = Color.Black.copy(alpha = 0.35f),
+                    )
+                    .background(bgBrush, pillShape)
+                    .border(width = 1.dp, brush = borderBrush, shape = pillShape),
             )
         }
 

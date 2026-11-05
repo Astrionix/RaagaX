@@ -13,8 +13,10 @@ package com.music.raaga.ui.components.floatingtabbar
 
 import android.os.Build
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -26,9 +28,11 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.Constraints
@@ -495,14 +499,53 @@ internal fun Modifier.pillPlacement(center: () -> Offset, size: () -> Size): Mod
         }
     }
 
-/** The flat pill: a fill and nothing else. */
+/** The resting flat pill: a specular liquid glass fill with vertical gradient and rim border. */
 @Composable
 internal fun FlatSelectionPill(
     color: Color,
     modifier: Modifier,
 ) {
     val shape = remember { RoundedCornerShape(percent = 50) }
-    Box(modifier.background(color, shape))
+    val isLight = MaterialTheme.colorScheme.surface.luminance() > 0.5f
+    val bgBrush = remember(isLight) {
+        if (isLight) {
+            Brush.verticalGradient(
+                listOf(
+                    Color.White.copy(alpha = 0.75f),
+                    Color.White.copy(alpha = 0.45f),
+                )
+            )
+        } else {
+            Brush.verticalGradient(
+                listOf(
+                    Color.White.copy(alpha = 0.22f),
+                    Color.White.copy(alpha = 0.08f),
+                )
+            )
+        }
+    }
+    val borderBrush = remember(isLight) {
+        if (isLight) {
+            Brush.verticalGradient(
+                listOf(
+                    Color.Black.copy(alpha = 0.16f),
+                    Color.Black.copy(alpha = 0.05f),
+                )
+            )
+        } else {
+            Brush.verticalGradient(
+                listOf(
+                    Color.White.copy(alpha = 0.70f),
+                    Color.White.copy(alpha = 0.12f),
+                )
+            )
+        }
+    }
+    Box(
+        modifier
+            .background(bgBrush, shape)
+            .border(width = 1.dp, brush = borderBrush, shape = shape)
+    )
 }
 
 /**
