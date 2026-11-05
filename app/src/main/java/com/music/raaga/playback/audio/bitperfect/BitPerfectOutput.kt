@@ -145,21 +145,28 @@ internal object BitPerfectOutput {
             }
         }
 
-        if (AppSettings.bitPerfectMode.value == BitPerfectMode.DAP_EXCLUSIVE) {
-            val audioManager = context.getSystemService(AudioManager::class.java)
-            val wired = audioManager?.getDevices(AudioManager.GET_DEVICES_OUTPUTS)?.any {
-                it.type == android.media.AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
-                    it.type == android.media.AudioDeviceInfo.TYPE_WIRED_HEADSET
-            } == true
-            if (wired) {
-                return DacInfo(
-                    connected = true,
-                    name = "Built-in DAP DAC",
-                    vendorId = 0,
-                    productId = 0,
-                    supportedFormats = listOf("PCM 16-bit, 24-bit, 32-bit (Native AAudio)"),
-                )
+        val audioManager = context.getSystemService(AudioManager::class.java)
+        val wiredDevice = audioManager?.getDevices(AudioManager.GET_DEVICES_OUTPUTS)?.firstOrNull {
+            it.type == android.media.AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
+                it.type == android.media.AudioDeviceInfo.TYPE_WIRED_HEADSET
+        }
+        if (wiredDevice != null) {
+            val devName = wiredDevice.productName?.toString()?.trim()
+                ?.takeUnless { it.isNullOrBlank() } ?: "Built-in 3.5mm Headphone Jack"
+            val rates = wiredDevice.sampleRates?.takeIf { it.isNotEmpty() }?.toList()
+            val rateStr = if (rates != null && rates.isNotEmpty()) {
+                val maxKhz = rates.maxOrNull()?.div(1000) ?: 192
+                "up to $maxKhz kHz"
+            } else {
+                "Native Direct / AAudio"
             }
+            return DacInfo(
+                connected = true,
+                name = devName,
+                vendorId = 0,
+                productId = 0,
+                supportedFormats = listOf("PCM 16-bit, 24-bit, 32-bit ($rateStr)"),
+            )
         }
 
         return DacInfo(
@@ -167,7 +174,7 @@ internal object BitPerfectOutput {
             name = null,
             vendorId = 0,
             productId = 0,
-            supportedFormats = listOf("PCM 16-bit, 24-bit, 32-bit (Requires DAC)"),
+            supportedFormats = listOf("PCM 16-bit, 24-bit, 32-bit (Requires DAC or 3.5mm headphones)"),
         )
     }
 
@@ -232,6 +239,15 @@ internal object BitPerfectOutput {
         val audio = context.getSystemService(AudioManager::class.java)
         val attached = when (AppSettings.bitPerfectMode.value) {
             BitPerfectMode.OFF -> false
+            BitPerfectMode.AUTOMATIC -> {
+                val hasUsb = (Build.VERSION.SDK_INT >= 34 && audio?.let(MixerTransport::usbDevice) != null) ||
+                    (UsbDirectDevices.manager(context)?.let(UsbDirectDevices::audioDevice) != null)
+                val hasWired = Build.VERSION.SDK_INT >= 27 && audio?.getDevices(AudioManager.GET_DEVICES_OUTPUTS)?.any {
+                    it.type == android.media.AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
+                        it.type == android.media.AudioDeviceInfo.TYPE_WIRED_HEADSET
+                } == true
+                hasUsb || hasWired
+            }
             BitPerfectMode.USB_ANDROID ->
                 Build.VERSION.SDK_INT >= 34 && audio?.let(MixerTransport::usbDevice) != null
             // Android's own driver lets go of the DAC while this one streams,
@@ -335,6 +351,41 @@ internal object BitPerfectOutput {
         val manager = context.getSystemService(AudioManager::class.java) ?: return false
         return when (mode) {
             BitPerfectMode.OFF -> false
+            BitPerfectMode.AUTOMATIC -> {
+                // 1. Try USB Direct if device present and permitted
+                val usb = UsbDirectDevices.manager(context)
+                val usbDev = usb?.let(UsbDirectDevices::audioDevice)
+                if (usb != null && usbDev != null && usb.hasPermission(usbDev)) {
+                    if (key(BitPerfectMode.USB_DIRECT, usbDev.deviceId, sampleRate, channels, sourceBits) !in currentFailures(BitPerfectMode.USB_DIRECT, usbDev.deviceId)) {
+                        val raw = UsbDirectDevices.rawDescriptors(usb, usbDev)
+                        if (raw != null && UsbDirectTransport.plans(raw, sampleRate, channels, sourceBits, AppSettings.convertForLimitedDac.value).isNotEmpty()) {
+                            return true
+                        }
+                    }
+                }
+                // 2. Try USB Android if Android 14+ and USB mixer device present
+                if (Build.VERSION.SDK_INT >= 34) {
+                    val mixerDev = MixerTransport.usbDevice(manager)
+                    if (mixerDev != null) {
+                        if (key(BitPerfectMode.USB_ANDROID, mixerDev.id, sampleRate, channels, sourceBits) !in currentFailures(BitPerfectMode.USB_ANDROID, mixerDev.id)) {
+                            if (MixerTransport.bestFormat(manager, mixerDev, sampleRate, channels, sourceBits, AppSettings.convertForLimitedDac.value) != null) {
+                                return true
+                            }
+                        }
+                    }
+                }
+                // 3. Try Built-in 3.5mm / wired headphones via ExclusiveTransport
+                val wired = manager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any {
+                    it.type == android.media.AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
+                        it.type == android.media.AudioDeviceInfo.TYPE_WIRED_HEADSET
+                }
+                if (wired && Build.VERSION.SDK_INT >= 27) {
+                    if (key(BitPerfectMode.DAP_EXCLUSIVE, NO_DEVICE, sampleRate, channels, sourceBits) !in currentFailures(BitPerfectMode.DAP_EXCLUSIVE, NO_DEVICE)) {
+                        return true
+                    }
+                }
+                false
+            }
             BitPerfectMode.USB_ANDROID -> {
                 if (Build.VERSION.SDK_INT < 34) return false
                 val device = MixerTransport.usbDevice(manager) ?: return false
@@ -343,12 +394,12 @@ internal object BitPerfectOutput {
                 }
                 MixerTransport.bestFormat(manager, device, sampleRate, channels, sourceBits, AppSettings.convertForLimitedDac.value) != null
             }
-            // Nothing short of opening a stream says whether Android will grant
-            // exclusive mode, so the first track of each format finds out.
             BitPerfectMode.DAP_EXCLUSIVE -> Build.VERSION.SDK_INT >= 27 &&
+                manager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any {
+                    it.type == android.media.AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
+                        it.type == android.media.AudioDeviceInfo.TYPE_WIRED_HEADSET
+                } &&
                 key(mode, NO_DEVICE, sampleRate, channels, sourceBits) !in currentFailures(mode, NO_DEVICE)
-            // Permission is asked for by the service when the mode is chosen or a
-            // DAC is attached; until it is granted, tracks use normal output.
             BitPerfectMode.USB_DIRECT -> {
                 val usb = UsbDirectDevices.manager(context) ?: return false
                 val device = UsbDirectDevices.audioDevice(usb) ?: return false
@@ -378,6 +429,40 @@ internal object BitPerfectOutput {
         val convert = AppSettings.convertForLimitedDac.value
         val transport = when (mode) {
             BitPerfectMode.OFF -> throw BitPerfectTransportException("off")
+            BitPerfectMode.AUTOMATIC -> {
+                var transportResult: BitPerfectTransport? = null
+                val usb = UsbDirectDevices.manager(context)
+                val usbDev = usb?.let(UsbDirectDevices::audioDevice)
+                if (usb != null && usbDev != null && usb.hasPermission(usbDev)) {
+                    transportResult = runCatching {
+                        UsbDirectTransport.open(
+                            manager = usb,
+                            device = usbDev,
+                            rate = sampleRate,
+                            channels = channels,
+                            sourceBits = sourceBits,
+                            convert = convert,
+                            allowFixedVolume = AppSettings.usbAllowFixedVolume.value,
+                            rememberedDb = UsbDirectDevices.rememberedVolume(usbDev.deviceId),
+                        )
+                    }.getOrNull()
+                }
+                if (transportResult == null && Build.VERSION.SDK_INT >= 34 && MixerTransport.usbDevice(manager) != null) {
+                    transportResult = runCatching {
+                        MixerTransport.open(manager, sampleRate, channels, sourceBits, convert)
+                    }.getOrNull()
+                }
+                if (transportResult == null) {
+                    val wired = manager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any {
+                        it.type == android.media.AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
+                            it.type == android.media.AudioDeviceInfo.TYPE_WIRED_HEADSET
+                    }
+                    if (wired && Build.VERSION.SDK_INT >= 27) {
+                        transportResult = ExclusiveTransport.open(manager, sampleRate, channels, sourceBits, convert)
+                    }
+                }
+                transportResult ?: throw BitPerfectTransportException("exclusive_unavailable")
+            }
             BitPerfectMode.USB_ANDROID -> {
                 if (Build.VERSION.SDK_INT < 34) throw BitPerfectTransportException("android_version")
                 MixerTransport.open(manager, sampleRate, channels, sourceBits, convert)
@@ -457,7 +542,12 @@ internal object BitPerfectOutput {
         }
         currentFailures(mode, deviceId).add(key(mode, deviceId, sampleRate, channels, sourceBits))
         Log.i(TAG, "Bit-perfect output unavailable ($reason) for $sampleRate Hz/$channels ch/$sourceBits-bit")
-        _status.value = Status(fallbackReason = reason)
+        val displayReason = if (reason == "exclusive_unavailable") {
+            "Direct output unavailable on this device. Using Android's standard audio path."
+        } else {
+            reason
+        }
+        _status.value = Status(fallbackReason = displayReason)
         recomputeReady()
     }
 

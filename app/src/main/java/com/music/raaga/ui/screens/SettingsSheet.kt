@@ -39,6 +39,7 @@ import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material.icons.rounded.Apps
+import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.viewinterop.AndroidView
 import com.music.raaga.AppIcon
@@ -986,17 +987,17 @@ fun SettingsScreen(
                 BitPerfectOutput.UiState.ACTIVE -> {
                     val rateKhz = if (bitPerfectStatus.sampleRateHz > 0) "${bitPerfectStatus.sampleRateHz / 1000} kHz" else "192 kHz"
                     val bits = if (bitPerfectStatus.outputBits > 0) "${bitPerfectStatus.outputBits}-bit" else "24-bit"
-                    val dacLabel = dacInfo.name ?: "USB DAC"
+                    val dacLabel = dacInfo.name ?: if (dacInfo.connected) "Built-in DAC" else "USB DAC"
                     "$dacLabel · $rateKhz · $bits"
                 }
                 BitPerfectOutput.UiState.WAITING -> {
-                    dacInfo.name ?: "USB DAC"
+                    dacInfo.name ?: if (dacInfo.connected) "Built-in DAC" else "USB DAC"
                 }
                 BitPerfectOutput.UiState.UNSUPPORTED -> {
                     stringResource(R.string.bit_perfect_unsupported_desc)
                 }
                 BitPerfectOutput.UiState.DISCONNECTED -> {
-                    if (bitPerfectMode == BitPerfectMode.OFF) stringResource(R.string.off) else "USB DAC"
+                    if (bitPerfectMode == BitPerfectMode.OFF) stringResource(R.string.off) else (dacInfo.name ?: "DAC / Headphone Output")
                 }
             }
             row(bitPerfectTitle, "usb", "dac", "exclusive", "hi-res", "bitperfect", divided = false) {
@@ -3873,8 +3874,11 @@ private fun BitPerfectCard(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            val isWiredOutput = supportText.contains("3.5mm", ignoreCase = true) ||
+                supportText.contains("Headphone", ignoreCase = true) ||
+                supportText.contains("Built-in", ignoreCase = true)
             Icon(
-                imageVector = Icons.Rounded.Usb,
+                imageVector = if (isWiredOutput) Icons.Rounded.Headphones else Icons.Rounded.Usb,
                 contentDescription = null,
                 tint = iconTint,
                 modifier = Modifier.size(24.dp),
@@ -3937,6 +3941,9 @@ private fun BitPerfectSheet(
 ) {
     val haptics = LocalHapticFeedback.current
     val cobaltBlue = Color(0xFF287BFF)
+    val isWired = dacInfo.name?.contains("3.5mm", ignoreCase = true) == true ||
+        dacInfo.name?.contains("Headphone", ignoreCase = true) == true ||
+        dacInfo.name?.contains("Built-in", ignoreCase = true) == true
 
     Column(
         modifier = Modifier
@@ -3950,7 +3957,7 @@ private fun BitPerfectSheet(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                imageVector = Icons.Rounded.Usb,
+                imageVector = if (isWired) Icons.Rounded.Headphones else Icons.Rounded.Usb,
                 contentDescription = null,
                 tint = if (uiState == BitPerfectOutput.UiState.ACTIVE) cobaltBlue else MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(26.dp),
@@ -4036,9 +4043,12 @@ private fun BitPerfectSheet(
                     modifier = Modifier.padding(vertical = 12.dp),
                 )
 
-                // Connected DAC Name
+                // Connected DAC Name / Output
+                val isWired = dacInfo.name?.contains("3.5mm", ignoreCase = true) == true ||
+                    dacInfo.name?.contains("Headphone", ignoreCase = true) == true ||
+                    dacInfo.name?.contains("Built-in", ignoreCase = true) == true
                 DetailRow(
-                    label = stringResource(R.string.bit_perfect_connected_dac),
+                    label = if (isWired) stringResource(R.string.bit_perfect_detected_output) else stringResource(R.string.bit_perfect_connected_dac),
                     value = dacInfo.name ?: stringResource(R.string.bit_perfect_none_detected),
                     highlight = dacInfo.name != null,
                 )
@@ -4122,7 +4132,12 @@ private fun BitPerfectSheet(
                     style = TextStyle(fontSize = 12.sp, color = Color(0xFFB3B3B3), lineHeight = 16.sp),
                 )
                 Spacer(Modifier.height(8.dp))
-                CompatRequirement(number = "1", text = stringResource(R.string.bit_perfect_compat_1), satisfied = dacInfo.connected)
+                val req1Text = when {
+                    dacInfo.connected && isWired -> stringResource(R.string.bit_perfect_compat_1_wired)
+                    dacInfo.connected -> stringResource(R.string.bit_perfect_compat_1_usb)
+                    else -> stringResource(R.string.bit_perfect_compat_1)
+                }
+                CompatRequirement(number = "1", text = req1Text, satisfied = dacInfo.connected)
                 CompatRequirement(number = "2", text = stringResource(R.string.bit_perfect_compat_2), satisfied = nerdStats?.isLossless == true)
                 CompatRequirement(number = "3", text = stringResource(R.string.bit_perfect_compat_3), satisfied = status.exact && !status.dacLimited)
                 CompatRequirement(number = "4", text = stringResource(R.string.bit_perfect_compat_4), satisfied = status.active)
@@ -4303,6 +4318,7 @@ private fun CompatRequirement(
 private val BitPerfectMode.isSupported: Boolean
     get() = when (this) {
         BitPerfectMode.OFF -> true
+        BitPerfectMode.AUTOMATIC -> true
         BitPerfectMode.USB_DIRECT -> true
         BitPerfectMode.DAP_EXCLUSIVE -> Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1
         BitPerfectMode.USB_ANDROID -> Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE
@@ -4312,6 +4328,7 @@ private val BitPerfectMode.isSupported: Boolean
 private fun BitPerfectMode.localizedLabel(): String = stringResource(
     when (this) {
         BitPerfectMode.OFF -> R.string.off
+        BitPerfectMode.AUTOMATIC -> R.string.bit_perfect_mode_automatic
         BitPerfectMode.USB_DIRECT -> R.string.bit_perfect_mode_usb_direct
         BitPerfectMode.DAP_EXCLUSIVE -> R.string.bit_perfect_mode_dap_exclusive
         BitPerfectMode.USB_ANDROID -> R.string.bit_perfect_mode_usb_android
@@ -4325,6 +4342,7 @@ private fun BitPerfectMode.description(): String = when {
     else -> stringResource(
         when (this) {
             BitPerfectMode.OFF -> R.string.bit_perfect_mode_off_subtitle
+            BitPerfectMode.AUTOMATIC -> R.string.bit_perfect_mode_automatic_subtitle
             BitPerfectMode.USB_DIRECT -> R.string.bit_perfect_mode_usb_direct_subtitle
             BitPerfectMode.DAP_EXCLUSIVE -> R.string.bit_perfect_mode_dap_exclusive_subtitle
             BitPerfectMode.USB_ANDROID -> R.string.bit_perfect_mode_usb_android_subtitle
@@ -4351,6 +4369,12 @@ private fun bitPerfectSubtitle(mode: BitPerfectMode, status: BitPerfectOutput.St
         "%.1f".format(Locale.ROOT, status.sampleRateHz / 1000.0),
         status.outputBits,
     )
-    status.fallbackReason != null -> stringResource(R.string.bit_perfect_status_unavailable, status.fallbackReason.orEmpty())
+    status.fallbackReason != null -> {
+        if (status.fallbackReason.contains("standard audio path", ignoreCase = true)) {
+            status.fallbackReason
+        } else {
+            stringResource(R.string.bit_perfect_status_unavailable, status.fallbackReason.orEmpty())
+        }
+    }
     else -> stringResource(R.string.bit_perfect_status_waiting)
 }

@@ -86,6 +86,12 @@ enum class BitPerfectMode {
     OFF,
 
     /**
+     * Automatically attempts the direct bit-perfect path for the active output:
+     * USB DAC or Built-in 3.5mm headphone DAC, safely falling back to standard Android mixer when unsupported.
+     */
+    AUTOMATIC,
+
+    /**
      * Raaga's own USB Audio Class driver on libusb: any Android version,
      * volume set on the DAC itself. Requires USB permission.
      */

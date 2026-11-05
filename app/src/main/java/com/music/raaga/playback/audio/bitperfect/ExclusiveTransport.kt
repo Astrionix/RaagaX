@@ -136,24 +136,30 @@ internal class ExclusiveTransport private constructor(
             var openedRate = rate
             var failure: Throwable? = null
             var handle = 0L
-            search@ for (candidate in rates) {
-                for (bits in depths) {
-                    try {
-                        handle = ExclusiveNative.open(candidate, channels, bits, wired?.id ?: 0)
-                        openedRate = candidate
-                        break@search
-                    } catch (error: IllegalStateException) {
-                        failure = error
-                    } catch (error: UnsatisfiedLinkError) {
-                        throw BitPerfectTransportException("exclusive_unavailable", error)
+            // Try explicit device ID first, then fall back to device 0 (active default route)
+            // for devices whose audio HAL does not accept explicit AudioDeviceInfo IDs for AAudio exclusive MMAP.
+            val deviceCandidates = if (wired != null && wired.id != 0) listOf(wired.id, 0) else listOf(0)
+            search@ for (devId in deviceCandidates) {
+                for (candidate in rates) {
+                    for (bits in depths) {
+                        try {
+                            handle = ExclusiveNative.open(candidate, channels, bits, devId)
+                            openedRate = candidate
+                            break@search
+                        } catch (error: IllegalStateException) {
+                            failure = error
+                        } catch (error: UnsatisfiedLinkError) {
+                            throw BitPerfectTransportException("exclusive_unavailable", error)
+                        }
                     }
                 }
             }
             if (handle == 0L) throw BitPerfectTransportException("exclusive_unavailable", failure)
             try {
                 val device = ExclusiveNative.device(handle)
-                val name = outputs.firstOrNull { it.id == device }?.productName?.toString()
-                    ?.takeIf { it.isNotBlank() } ?: "AAudio"
+                val deviceObj = outputs.firstOrNull { it.id == device } ?: wired
+                val name = deviceObj?.productName?.toString()?.takeIf { it.isNotBlank() }
+                    ?: if (wired != null) "Built-in 3.5mm DAC" else "Built-in DAC"
                 return ExclusiveTransport(
                     manager = manager,
                     handle = handle,

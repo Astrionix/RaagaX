@@ -5831,7 +5831,9 @@ class PlaybackService : MediaLibraryService() {
         UsbDirectDevices.onChanged = {
             BitPerfectOutput.refreshReady(this)
             scope.launch {
-                if (AppSettings.bitPerfectMode.value == BitPerfectMode.USB_DIRECT) {
+                if (AppSettings.bitPerfectMode.value == BitPerfectMode.USB_DIRECT ||
+                    AppSettings.bitPerfectMode.value == BitPerfectMode.AUTOMATIC
+                ) {
                     UsbDirectDevices.requestPermission(this@PlaybackService)
                     requestOutputReconfiguration(rebuild = true)
                 }
@@ -5840,7 +5842,9 @@ class PlaybackService : MediaLibraryService() {
         scope.launch {
             AppSettings.bitPerfectMode.collect { mode ->
                 BitPerfectOutput.refreshReady(this@PlaybackService)
-                if (mode == BitPerfectMode.USB_DIRECT) UsbDirectDevices.requestPermission(this@PlaybackService)
+                if (mode == BitPerfectMode.USB_DIRECT || mode == BitPerfectMode.AUTOMATIC) {
+                    UsbDirectDevices.requestPermission(this@PlaybackService)
+                }
             }
         }
         scope.launch {
