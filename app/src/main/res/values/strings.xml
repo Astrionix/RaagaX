@@ -347,7 +347,7 @@
     <string name="crossfade_mode_off_desc">Play songs consecutively without overlapping them</string>
     <string name="crossfade_badge_recommended">Recommended</string>
     <string name="crossfade_badge_new">New</string>
-    <string name="automix">Automix [BETA]</string>
+    <string name="automix">Automix</string>
     <string name="automix_performance">Automix performance</string>
     <string name="automix_performance_subtitle">Sets how much CPU background analysis may use</string>
     <string name="automix_performance_warning">Higher performance analyses tracks faster, but can use more battery and make the phone warmer.</string>
@@ -988,6 +988,122 @@
     <string name="import_succeeded">Imported %1$s from v%2$s</string>
     <string name="import_failed">Import failed: %1$s</string>
     <string name="unknown_error">unknown error</string>
+
+
+
+    <!-- Smart Backup & Restore -->
+
+    <string name="backup_and_restore">Smart Backup &amp; Restore</string>
+
+    <string name="backup_and_restore_subtitle">Automatic backups, destinations, retention &amp; restore</string>
+
+    <string name="automatic_backup">Automatic Backup</string>
+
+    <string name="enable_automatic_backup">Enable Automatic Backup</string>
+
+    <string name="enable_automatic_backup_desc">Periodically back up settings and listening history in background</string>
+
+    <string name="backup_frequency">Backup Frequency</string>
+
+    <string name="backup_frequency_off">Off</string>
+
+    <string name="backup_frequency_6h">Every 6 hours</string>
+
+    <string name="backup_frequency_12h">Every 12 hours</string>
+
+    <string name="backup_frequency_24h">Every 24 hours</string>
+
+    <string name="backup_frequency_2d">Every 2 days</string>
+
+    <string name="backup_frequency_7d">Every 7 days</string>
+
+    <string name="backup_destination">Backup Location</string>
+
+    <string name="backup_destination_google_drive">Google Drive</string>
+
+    <string name="backup_destination_google_drive_desc">Cloud backups in Google Drive</string>
+
+    <string name="backup_destination_local_storage">Local Storage</string>
+
+    <string name="backup_destination_local_storage_desc">Internal storage backup directory</string>
+
+    <string name="backup_management">Backup Management</string>
+
+    <string name="manage_backups">Manage Backups</string>
+
+    <string name="manage_backups_subtitle">View, restore, or delete saved backup recovery points</string>
+
+    <string name="retention_title">Retention</string>
+
+    <string name="delete_backups_older_than">Delete backups older than</string>
+
+    <string name="retention_forever">Forever</string>
+
+    <string name="retention_7d">7 days</string>
+
+    <string name="retention_30d">30 days</string>
+
+    <string name="retention_90d">90 days</string>
+
+    <string name="retention_6m">6 months</string>
+
+    <string name="retention_1y">1 year</string>
+
+    <string name="keep_at_least">Keep at least</string>
+
+    <string name="keep_at_least_desc">Prevents cleanup from deleting all recovery points</string>
+
+    <string name="keep_at_least_count">%1$d backups</string>
+
+    <string name="back_up_now">Back Up Now</string>
+
+    <string name="backing_up">Backing up…</string>
+
+    <string name="backup_success">Backup created successfully</string>
+
+    <string name="backup_failed">Backup failed: %1$s</string>
+
+    <string name="last_backup">Last Backup</string>
+
+    <string name="no_backup_yet">No backups created yet</string>
+
+    <string name="restore_backup_title">Restore Backup?</string>
+
+    <string name="restore_backup_confirm">Restore</string>
+
+    <string name="restore_backup_message">This will replace your current settings and listening history with the backup from %1$s (%2$s).
+
+
+
+A safety checkpoint of your current state will be automatically created before restoring.</string>
+
+    <string name="safety_checkpoint_created">Safety checkpoint saved</string>
+
+    <string name="restore_success">Backup restored successfully</string>
+
+    <string name="restore_failed">Restore failed: %1$s</string>
+
+    <string name="delete_backup_title">Delete Backup?</string>
+
+    <string name="delete_backup_message">Are you sure you want to delete this backup?</string>
+
+    <string name="delete_selected">Delete Selected (%1$d)</string>
+
+    <string name="delete_selected_title">Delete Selected Backups?</string>
+
+    <string name="delete_selected_message">Are you sure you want to delete %1$d selected backup(s)? This cannot be undone.</string>
+
+    <string name="no_backups_found">No backups found</string>
+
+    <string name="backup_type_automatic">Automatic backup</string>
+
+    <string name="backup_type_manual">Manual backup</string>
+
+    <string name="backup_type_checkpoint">Safety checkpoint</string>
+
+    <string name="google_drive_connected">Connected as %1$s</string>
+
+    <string name="google_drive_not_connected">Connect Google account to sync</string>
     <string name="no_listening_history">no listening history</string>
     <plurals name="listening_month_count">
         <item quantity="one">%1$d month of listening</item>

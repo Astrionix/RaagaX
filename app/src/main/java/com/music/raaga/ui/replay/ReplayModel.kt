@@ -455,8 +455,8 @@ fun ReplaySummary.cards(context: Context): List<ReplayHeroCard> = buildList {
             ReplayHeroCard(
                 label = context.getString(R.string.top_artist),
                 value = it.title,
-                detail = "${formatListening(context, it.ms)} · " +
-                    context.replayCount(it.plays, R.plurals.replay_play_count),
+                detail = "${context.replayCount(it.plays, R.plurals.replay_play_count)} · " +
+                    formatListening(context, it.ms),
                 artworkUrl = it.artworkUrl,
                 page = ReplayStoryPage.ARTISTS,
             ),
@@ -467,7 +467,7 @@ fun ReplaySummary.cards(context: Context): List<ReplayHeroCard> = buildList {
             ReplayHeroCard(
                 label = context.getString(R.string.top_album),
                 value = it.title,
-                detail = listOfNotNull(it.subtitle, formatListening(context, it.ms)).joinToString(" · "),
+                detail = listOfNotNull(it.subtitle, if (it.plays > 0) context.replayCount(it.plays, R.plurals.replay_play_count) else null, formatListening(context, it.ms)).joinToString(" · "),
                 artworkUrl = it.artworkUrl,
                 page = ReplayStoryPage.ALBUMS,
             ),

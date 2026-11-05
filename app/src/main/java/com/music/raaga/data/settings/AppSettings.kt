@@ -14,6 +14,8 @@ import com.music.raaga.data.lyrics.LyricsSource
 import com.music.raaga.data.sources.SourceKind
 import com.music.raaga.playback.EqLayout
 import com.music.raaga.playback.EqualizerPreset
+import com.music.raaga.data.backup.BackupFrequency
+import com.music.raaga.data.backup.BackupRetentionPeriod
 import kotlinx.coroutines.flow.MutableStateFlow
 
 /**
@@ -988,6 +990,15 @@ object AppSettings {
     val smartMixBlend = MutableStateFlow<MixBlend?>(null)
     val streamCeilingOverride = MutableStateFlow<AudioQuality?>(null)
 
+    val smartBackupEnabled = MutableStateFlow(true)
+    val backupFrequency = MutableStateFlow(BackupFrequency.EVERY_24_HOURS)
+    val backupDestLocal = MutableStateFlow(true)
+    val backupDestDrive = MutableStateFlow(false)
+    val backupRetention = MutableStateFlow(BackupRetentionPeriod.DAYS_30)
+    val backupMinKeep = MutableStateFlow(5)
+    val lastBackupTime = MutableStateFlow(0L)
+    val lastBackupInfo = MutableStateFlow("")
+
     /** The ceiling that applies to a stream started right now. */
     val effectiveAudioQuality: AudioQuality
         get() = if (meteredConnection.value == true) {
@@ -1292,6 +1303,14 @@ object AppSettings {
         discordButton2Text.value = prefs.getString(KEY_DISCORD_BUTTON_2_TEXT, "").orEmpty()
         discordButton2Visible.value = prefs.getBoolean(KEY_DISCORD_BUTTON_2_VISIBLE, true)
         discordInfoDismissed.value = prefs.getBoolean(KEY_DISCORD_INFO_DISMISSED, false)
+        smartBackupEnabled.value = prefs.getBoolean(KEY_SMART_BACKUP_ENABLED, true)
+        backupFrequency.value = BackupFrequency.fromHours(prefs.getLong(KEY_BACKUP_FREQUENCY, BackupFrequency.EVERY_24_HOURS.hours))
+        backupDestLocal.value = prefs.getBoolean(KEY_BACKUP_DEST_LOCAL, true)
+        backupDestDrive.value = prefs.getBoolean(KEY_BACKUP_DEST_DRIVE, false)
+        backupRetention.value = BackupRetentionPeriod.fromDays(prefs.getInt(KEY_BACKUP_RETENTION, BackupRetentionPeriod.DAYS_30.days))
+        backupMinKeep.value = prefs.getInt(KEY_BACKUP_MIN_KEEP, 5).coerceIn(1, 50)
+        lastBackupTime.value = prefs.getLong(KEY_LAST_BACKUP_TIME, 0L)
+        lastBackupInfo.value = prefs.getString(KEY_LAST_BACKUP_INFO, "").orEmpty()
     }
 
     /**
@@ -2436,6 +2455,46 @@ object AppSettings {
 
     // ── Backup ──────────────────────────────────────────────────────────────
 
+    fun setSmartBackupEnabled(enabled: Boolean) {
+        smartBackupEnabled.value = enabled
+        prefs.edit().putBoolean(KEY_SMART_BACKUP_ENABLED, enabled).apply()
+    }
+
+    fun setBackupFrequency(freq: BackupFrequency) {
+        backupFrequency.value = freq
+        prefs.edit().putLong(KEY_BACKUP_FREQUENCY, freq.hours).apply()
+    }
+
+    fun setBackupDestLocal(enabled: Boolean) {
+        backupDestLocal.value = enabled
+        prefs.edit().putBoolean(KEY_BACKUP_DEST_LOCAL, enabled).apply()
+    }
+
+    fun setBackupDestDrive(enabled: Boolean) {
+        backupDestDrive.value = enabled
+        prefs.edit().putBoolean(KEY_BACKUP_DEST_DRIVE, enabled).apply()
+    }
+
+    fun setBackupRetention(retention: BackupRetentionPeriod) {
+        backupRetention.value = retention
+        prefs.edit().putInt(KEY_BACKUP_RETENTION, retention.days).apply()
+    }
+
+    fun setBackupMinKeep(count: Int) {
+        val clamped = count.coerceIn(1, 50)
+        backupMinKeep.value = clamped
+        prefs.edit().putInt(KEY_BACKUP_MIN_KEEP, clamped).apply()
+    }
+
+    fun setLastBackupRecord(timestamp: Long, info: String) {
+        lastBackupTime.value = timestamp
+        lastBackupInfo.value = info
+        prefs.edit()
+            .putLong(KEY_LAST_BACKUP_TIME, timestamp)
+            .putString(KEY_LAST_BACKUP_INFO, info)
+            .apply()
+    }
+
     /**
      * Every stored preference, for an export.
      *
@@ -2518,6 +2577,14 @@ object AppSettings {
         "downloaded_collections",
         KEY_LOCAL_MUSIC_FOLDER_URI,
         KEY_LAST_VERSION_CODE,
+        KEY_SMART_BACKUP_ENABLED,
+        KEY_BACKUP_FREQUENCY,
+        KEY_BACKUP_DEST_LOCAL,
+        KEY_BACKUP_DEST_DRIVE,
+        KEY_BACKUP_RETENTION,
+        KEY_BACKUP_MIN_KEEP,
+        KEY_LAST_BACKUP_TIME,
+        KEY_LAST_BACKUP_INFO,
     )
 
     const val DEFAULT_CACHE_LIMIT_BYTES = 512L * 1024 * 1024
@@ -2534,6 +2601,15 @@ object AppSettings {
 
     private fun normalizePerformanceRefreshRate(value: Int): Int =
         value.takeIf { it in 50..240 } ?: DEFAULT_PERFORMANCE_REFRESH_RATE
+
+    private const val KEY_SMART_BACKUP_ENABLED = "smart_backup_enabled"
+    private const val KEY_BACKUP_FREQUENCY = "smart_backup_frequency"
+    private const val KEY_BACKUP_DEST_LOCAL = "smart_backup_dest_local"
+    private const val KEY_BACKUP_DEST_DRIVE = "smart_backup_dest_drive"
+    private const val KEY_BACKUP_RETENTION = "smart_backup_retention"
+    private const val KEY_BACKUP_MIN_KEEP = "smart_backup_min_keep"
+    private const val KEY_LAST_BACKUP_TIME = "smart_backup_last_time"
+    private const val KEY_LAST_BACKUP_INFO = "smart_backup_last_info"
 
     private const val KEY_QUALITY_LEGACY = "audio_quality"
     private const val KEY_QUALITY_WIFI = "audio_quality_wifi"

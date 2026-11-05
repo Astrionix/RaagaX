@@ -284,7 +284,10 @@ object ArtistFacts {
         runCatching {
             json.decodeFromString(Stored.serializer(), file.readText())
         }.onSuccess { stored ->
-            stored.artists.forEach { known[it.key] = it }
+            stored.artists.forEach {
+                val entry = if (it.genres.isEmpty()) it.copy(genresAt = 0L) else it
+                known[entry.key] = entry
+            }
         }.onFailure {
             Log.w(TAG, "Discarding unreadable artist cache", it)
             file.delete()
@@ -337,6 +340,7 @@ object ArtistFacts {
     private val SPELLINGS = mapOf(
         "randb" to "R&B",
         "edm" to "EDM",
+        "idm" to "IDM",
         "lo fi" to "Lo-Fi",
         "hip hop" to "Hip-Hop",
         "k pop" to "K-Pop",
@@ -347,7 +351,15 @@ object ArtistFacts {
         "singer songwriter" to "Singer-Songwriter",
         "post punk" to "Post-Punk",
         "post rock" to "Post-Rock",
+        "post hardcore" to "Post-Hardcore",
+        "nu metal" to "Nu-Metal",
+        "pop punk" to "Pop-Punk",
+        "neo soul" to "Neo-Soul",
+        "neo classical" to "Neo-Classical",
+        "uk drill" to "UK Drill",
+        "uk garage" to "UK Garage",
         "bossa nova" to "Bossa Nova",
+        "video game music" to "Video Game Music",
     )
 
     /**
@@ -378,6 +390,24 @@ object ArtistFacts {
         "black metal", "death metal", "thrash metal", "metalcore", "post rock",
         "math rock", "jam band", "surf rock", "rockabilly", "boom bap",
         "cloud rap", "conscious hip hop", "west coast rap", "east coast rap",
+        // Regional Indian & South Asian
+        "telugu", "tamil", "malayalam", "kannada", "carnatic", "hindustani",
+        "qawwali", "devotional", "marathi", "bengali",
+        // Global & Electronic
+        "amapiano", "synthwave", "vaporwave", "future bass", "hardstyle",
+        "psytrance", "tropical house", "slap house", "progressive house",
+        "electro house", "tech house", "melodic techno", "breakcore",
+        "chiptune", "eurobeat", "idm", "uk garage", "jersey club", "baile funk",
+        // Rap / R&B / Soul
+        "neo soul", "trap soul", "uk drill", "melodic rap", "emo rap",
+        "conscious rap", "afroswing",
+        // Rock / Metal / Punk
+        "nu metal", "pop punk", "post hardcore", "deathcore", "symphonic metal",
+        "power metal", "folk metal", "midwest emo", "industrial metal", "psychedelic rock",
+        // Jazz / Latin / Other
+        "city pop", "jazz fusion", "smooth jazz", "bebop", "neo classical",
+        "bachata", "cumbia", "corrido", "samba", "anime", "vocaloid",
+        "video game music", "dark ambient", "drone",
     ).associateWith { normalised ->
         SPELLINGS[normalised] ?: normalised.split(" ").joinToString(" ") { word ->
             word.replaceFirstChar { it.uppercase(Locale.ROOT) }
@@ -419,15 +449,12 @@ object ArtistFacts {
         "filmi" to "bollywood",
         "afro beats" to "afrobeats",
         "afropop" to "afrobeats",
-        "amapiano" to "afrobeats",
         "regueton" to "reggaeton",
         "latin pop" to "latin",
         "trip hop" to "downtempo",
-        "nu metal" to "metal",
         "classic rock" to "rock",
         "soft rock" to "rock",
         "pop rock" to "rock",
-        "pop punk" to "punk",
         "hardcore punk" to "hardcore",
         "orchestral" to "classical",
         "film score" to "soundtrack",
@@ -439,5 +466,91 @@ object ArtistFacts {
         "rap rock" to "rap",
         "gangsta rap" to "rap",
         "underground hip hop" to "hip hop",
+        // Indian regional
+        "telugu songs" to "telugu",
+        "tollywood" to "telugu",
+        "telugu cinema" to "telugu",
+        "telugu pop" to "telugu",
+        "tamil songs" to "tamil",
+        "kollywood" to "tamil",
+        "tamil cinema" to "tamil",
+        "tamil pop" to "tamil",
+        "malayalam songs" to "malayalam",
+        "mollywood" to "malayalam",
+        "kannada songs" to "kannada",
+        "sandalwood" to "kannada",
+        "carnatic music" to "carnatic",
+        "karnatak" to "carnatic",
+        "classical carnatic" to "carnatic",
+        "hindustani classical" to "hindustani",
+        "hindustani music" to "hindustani",
+        "qawali" to "qawwali",
+        "kawwali" to "qawwali",
+        "bhajan" to "devotional",
+        "bhakti" to "devotional",
+        "kirtan" to "devotional",
+        "stotram" to "devotional",
+        "shabad" to "devotional",
+        "spiritual" to "devotional",
+        "marathi songs" to "marathi",
+        "bangla" to "bengali",
+        "bengali songs" to "bengali",
+        "desi hip hop" to "hip hop",
+        "desi pop" to "desi",
+        "indian pop" to "desi",
+        // Electronic & Dance
+        "synth wave" to "synthwave",
+        "retrowave" to "synthwave",
+        "retro wave" to "synthwave",
+        "outrun" to "synthwave",
+        "vapor wave" to "vaporwave",
+        "futurebass" to "future bass",
+        "hard style" to "hardstyle",
+        "rawstyle" to "hardstyle",
+        "hardcore edm" to "hardstyle",
+        "psy trance" to "psytrance",
+        "psychedelic trance" to "psytrance",
+        "goa trance" to "psytrance",
+        "trop house" to "tropical house",
+        "slaphouse" to "slap house",
+        "prog house" to "progressive house",
+        "electrohouse" to "electro house",
+        "techhouse" to "tech house",
+        "8 bit" to "chiptune",
+        "8bit" to "chiptune",
+        "bitpop" to "chiptune",
+        "funk carioca" to "baile funk",
+        "brazilian funk" to "baile funk",
+        "favela funk" to "baile funk",
+        "intelligent dance music" to "idm",
+        "ukg" to "uk garage",
+        "2 step" to "uk garage",
+        "2step" to "uk garage",
+        // Rap & Urban
+        "trapsoul" to "trap soul",
+        "neosoul" to "neo soul",
+        "conscious rap" to "conscious hip hop",
+        // Rock & Metal
+        "numetal" to "nu metal",
+        "aggro rock" to "nu metal",
+        "poppunk" to "pop punk",
+        "posthardcore" to "post hardcore",
+        // Global / Other
+        "citypop" to "city pop",
+        "japanese city pop" to "city pop",
+        "fusion" to "jazz fusion",
+        "hard bop" to "bebop",
+        "neoclassical" to "neo classical",
+        "modern classical" to "neo classical",
+        "corridos" to "corrido",
+        "corridos tumbados" to "corrido",
+        "regional mexican" to "corrido",
+        "pagode" to "samba",
+        "mpb" to "samba",
+        "anison" to "anime",
+        "anime ost" to "anime",
+        "vgm" to "video game music",
+        "game soundtrack" to "video game music",
+        "gaming" to "video game music",
     )
 }

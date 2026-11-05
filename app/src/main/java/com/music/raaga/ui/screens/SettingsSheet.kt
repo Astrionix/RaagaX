@@ -204,6 +204,7 @@ enum class SettingsCategory(
     PERFORMANCE(R.string.performance),
     LOCAL_MUSIC(R.string.local_music),
     STORAGE(R.string.storage),
+    BACKUP_AND_RESTORE(R.string.backup_and_restore),
     YOUR_DATA(R.string.your_data),
     MISCELLANEOUS(R.string.miscellaneous),
     LANGUAGE(R.string.language),
@@ -608,10 +609,22 @@ fun SettingsScreen(
 
             // Group 3: Data & Preferences
             SettingsGroup(topSpacing = 16.dp) {
+                val lastBackupTime by AppSettings.lastBackupTime.collectAsStateWithLifecycle()
+                SettingsRow(
+                    icon = Icons.Rounded.Cloud,
+                    title = stringResource(R.string.backup_and_restore),
+                    subtitle = if (lastBackupTime > 0) {
+                        "Last backup: ${com.music.raaga.data.backup.formatBackupDate(lastBackupTime)}"
+                    } else {
+                        stringResource(R.string.backup_and_restore_subtitle)
+                    },
+                    onClick = { onActiveCategoryChange(SettingsCategory.BACKUP_AND_RESTORE) },
+                )
+                RowDivider()
                 SettingsRow(
                     icon = Icons.Rounded.Sync,
                     title = stringResource(R.string.your_data),
-                    subtitle = "Backup & restore, Raaga Replay stats",
+                    subtitle = "Raaga Replay stats, JSON export",
                     onClick = { onActiveCategoryChange(SettingsCategory.YOUR_DATA) },
                 )
                 if (remember { com.music.raaga.wear.WatchInstaller.available(context) }) {
@@ -1788,12 +1801,45 @@ fun SettingsScreen(
         }
     }
 
+    if (activeCategory == SettingsCategory.BACKUP_AND_RESTORE) {
+        BackupSettingsSubScreen(
+            onSignIn = onSignIn,
+        )
+    }
+
+    if (searchQuery.isNotBlank() && activeCategory == null) {
+        SearchableSettingsGroup(
+            search,
+            header = stringResource(R.string.backup_and_restore),
+            topSpacing = 8.dp,
+        ) {
+            val smartBackupTitle = stringResource(R.string.backup_and_restore)
+            row(smartBackupTitle, "backup", "restore", "smart backup", "drive", "automatic", "retention") {
+                SettingsRow(
+                    icon = Icons.Rounded.Cloud,
+                    title = smartBackupTitle,
+                    subtitle = stringResource(R.string.backup_and_restore_subtitle),
+                    onClick = { onActiveCategoryChange(SettingsCategory.BACKUP_AND_RESTORE) },
+                )
+            }
+        }
+    }
+
     if (searchQuery.isNotBlank() || activeCategory == SettingsCategory.YOUR_DATA) {
         SearchableSettingsGroup(
             search,
             header = if (searchQuery.isNotBlank()) stringResource(R.string.your_data) else null,
             topSpacing = 8.dp,
         ) {
+            val smartBackupTitle = stringResource(R.string.backup_and_restore)
+            row(smartBackupTitle, "backup", "restore", "smart backup", "drive") {
+                SettingsRow(
+                    icon = Icons.Rounded.Cloud,
+                    title = smartBackupTitle,
+                    subtitle = "Automatic backup, Google Drive, history & restore",
+                    onClick = { onActiveCategoryChange(SettingsCategory.BACKUP_AND_RESTORE) },
+                )
+            }
             val replayTitle = stringResource(R.string.replay)
             row(replayTitle, "stats", "history", "wrapped") {
                 SettingsRow(

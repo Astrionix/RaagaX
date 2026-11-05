@@ -633,9 +633,13 @@ private fun ReplayChartRow(row: ReplayRow, circular: Boolean, dark: Boolean, onC
         }
         if (row.plays > 0) {
             Text(
-                text = row.plays.toString(),
+                text = LocalContext.current.resources.getQuantityString(
+                    R.plurals.replay_play_count,
+                    row.plays,
+                    row.plays,
+                ),
                 style = MaterialTheme.typography.labelMedium,
-                color = textColor.copy(alpha = 0.45f),
+                color = textColor.copy(alpha = 0.55f),
             )
         }
     }

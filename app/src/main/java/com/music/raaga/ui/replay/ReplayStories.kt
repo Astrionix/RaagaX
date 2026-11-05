@@ -618,11 +618,11 @@ private fun ColumnScope.Leaderboard(
             }
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "${formatListening(context, lead.ms)} · " + context.resources.getQuantityString(
+                text = context.resources.getQuantityString(
                     R.plurals.replay_play_count,
                     lead.plays,
                     grouped(lead.plays.toLong()),
-                ),
+                ) + " · ${formatListening(context, lead.ms)}",
                 style = MaterialTheme.typography.bodyMedium,
                 color = Color.White.copy(alpha = 0.55f),
             )
@@ -647,7 +647,13 @@ private fun ColumnScope.Leaderboard(
                 modifier = Modifier.weight(1f),
             )
             Text(
-                text = formatListening(context, row.ms),
+                text = if (row.plays > 0) {
+                    context.resources.getQuantityString(
+                        R.plurals.replay_play_count,
+                        row.plays,
+                        grouped(row.plays.toLong()),
+                    )
+                } else formatListening(context, row.ms),
                 style = MaterialTheme.typography.labelMedium,
                 color = Color.White.copy(alpha = 0.5f),
             )
@@ -672,8 +678,17 @@ private fun ColumnScope.Genres(summary: ReplaySummary, headline: List<HeadlineRu
         maxLines = 2,
         overflow = TextOverflow.Ellipsis,
     )
+    val leadGenreDetail = if (lead.plays > 0) {
+        context.resources.getQuantityString(
+            R.plurals.replay_play_count,
+            lead.plays,
+            grouped(lead.plays.toLong()),
+        ) + " · ${formatListening(context, lead.ms)}"
+    } else {
+        formatListening(context, lead.ms)
+    }
     Text(
-        text = formatListening(context, lead.ms),
+        text = leadGenreDetail,
         style = MaterialTheme.typography.titleMedium,
         color = Color.White.copy(alpha = 0.6f),
     )
@@ -692,7 +707,13 @@ private fun ColumnScope.Genres(summary: ReplaySummary, headline: List<HeadlineRu
                 modifier = Modifier.weight(1f),
             )
             Text(
-                text = formatListening(context, row.ms),
+                text = if (row.plays > 0) {
+                    context.resources.getQuantityString(
+                        R.plurals.replay_play_count,
+                        row.plays,
+                        grouped(row.plays.toLong()),
+                    )
+                } else formatListening(context, row.ms),
                 style = MaterialTheme.typography.labelMedium,
                 color = Color.White.copy(alpha = 0.45f),
             )

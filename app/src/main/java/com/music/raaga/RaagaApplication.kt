@@ -94,6 +94,7 @@ class RaagaApplication : Application(), SingletonImageLoader.Factory {
             if (AppSettings.keepPlaylistsUpdated.value) {
                 com.music.raaga.download.PlaylistSyncWorker.schedule(this@RaagaApplication)
             }
+            com.music.raaga.data.backup.SmartBackupManager.scheduleOrUpdateWork(this@RaagaApplication)
             com.music.raaga.data.connect.RaagaPairingStore.init(this@RaagaApplication)
             ListenTogether.init(this@RaagaApplication)
             SearchHistory.init(this@RaagaApplication)

@@ -168,7 +168,7 @@ private fun drawLeaderboard(
     }
     val stats = type.body(44f, 0x8CFFFFFF.toInt())
     canvas.drawText(
-        "${formatListening(context, lead.ms)} · ${context.replayCount(lead.plays, R.plurals.replay_play_count)}",
+        "${context.replayCount(lead.plays, R.plurals.replay_play_count)} · ${formatListening(context, lead.ms)}",
         textX,
         y + 62f,
         stats,
@@ -186,8 +186,9 @@ private fun drawLeaderboard(
         drawArtwork(canvas, row.artworkUrl?.let { covers[it] }, row.title, artX, rowY, 108f, circular)
         val name = type.body(48f, Color.WHITE, bold = true)
         val nameX = artX + 108f + 28f
+        val statText = if (row.plays > 0) context.replayCount(row.plays, R.plurals.replay_play_count) else formatListening(context, row.ms)
         val stat = type.body(38f, 0x80FFFFFF.toInt())
-        val statWidth = stat.measureText(formatListening(context, row.ms))
+        val statWidth = stat.measureText(statText)
         canvas.drawText(
             ellipsised(row.title, name, POSTER_W - MARGIN - nameX - statWidth - 32f),
             nameX,
@@ -195,7 +196,7 @@ private fun drawLeaderboard(
             name,
         )
         stat.textAlign = Paint.Align.RIGHT
-        canvas.drawText(formatListening(context, row.ms), POSTER_W - MARGIN, rowY + 72f, stat)
+        canvas.drawText(statText, POSTER_W - MARGIN, rowY + 72f, stat)
         rowY += 148f
     }
 }
@@ -205,7 +206,8 @@ private fun drawBigList(canvas: Canvas, context: Context, type: Fonts, rows: Lis
     val lead = rows.firstOrNull() ?: return
     val word = type.heading(150f, Color.WHITE)
     canvas.drawText(ellipsised(lead.title, word, CONTENT_W), MARGIN, top + 120f, word)
-    canvas.drawText(formatListening(context, lead.ms), MARGIN, top + 186f, type.body(46f, 0x99FFFFFF.toInt()))
+    val leadStat = if (lead.plays > 0) "${context.replayCount(lead.plays, R.plurals.replay_play_count)} · ${formatListening(context, lead.ms)}" else formatListening(context, lead.ms)
+    canvas.drawText(leadStat, MARGIN, top + 186f, type.body(46f, 0x99FFFFFF.toInt()))
 
     var y = top + 300f
     rows.drop(1).forEach { row ->
@@ -213,7 +215,8 @@ private fun drawBigList(canvas: Canvas, context: Context, type: Fonts, rows: Lis
         val name = type.body(52f, Color.WHITE, bold = true)
         canvas.drawText(row.title, MARGIN + 80f, y, name)
         val stat = type.body(38f, 0x80FFFFFF.toInt()).apply { textAlign = Paint.Align.RIGHT }
-        canvas.drawText(formatListening(context, row.ms), POSTER_W - MARGIN, y, stat)
+        val statText = if (row.plays > 0) context.replayCount(row.plays, R.plurals.replay_play_count) else formatListening(context, row.ms)
+        canvas.drawText(statText, POSTER_W - MARGIN, y, stat)
         y += 106f
     }
 }

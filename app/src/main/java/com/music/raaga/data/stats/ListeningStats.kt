@@ -490,7 +490,7 @@ object ListeningStats {
 
         fun toSummary(period: ReplayPeriod, today: LocalDate): ReplaySummary {
             val rankedSongs = tracks.values
-                .sortedWith(compareByDescending<TrackEntry> { it.ms }.thenByDescending { it.plays })
+                .sortedWith(compareByDescending<TrackEntry> { it.plays }.thenByDescending { it.ms })
                 .map {
                     RankedSong(
                         song = Song(
@@ -513,7 +513,7 @@ object ListeningStats {
             // into every month it would freeze at whatever was known the first
             // time they came up, and be missing from every month before that.
             val rankedArtists = artists.values
-                .sortedWith(compareByDescending<NameEntry> { it.ms }.thenByDescending { it.plays })
+                .sortedWith(compareByDescending<NameEntry> { it.plays }.thenByDescending { it.ms })
                 .map {
                     RankedEntry(
                         title = it.name,
@@ -525,7 +525,7 @@ object ListeningStats {
                     )
                 }
             val rankedAlbums = albums.values
-                .sortedWith(compareByDescending<NameEntry> { it.ms }.thenByDescending { it.plays })
+                .sortedWith(compareByDescending<NameEntry> { it.plays }.thenByDescending { it.ms })
                 .map { RankedEntry(it.name, it.sub, it.art, it.id, it.ms, it.plays) }
 
             // Genres are derived rather than stored — see [ArtistFacts]. An
@@ -546,11 +546,11 @@ object ListeningStats {
             // playing the music, which is no help to someone who has just
             // installed a build that started collecting them.
             rankedArtists.take(ARTISTS_TO_RESOLVE)
-                .filter { it.artworkUrl == null || it.browseId == null }
+                .filter { it.artworkUrl == null || it.browseId == null || ArtistFacts.genresFor(it.title).isEmpty() }
                 .forEach { ArtistFacts.noticed(it.title) }
 
             val rankedGenres = genreMs.entries
-                .sortedByDescending { it.value }
+                .sortedWith(compareByDescending<Map.Entry<String, Long>> { genrePlays[it.key] ?: 0 }.thenByDescending { it.value })
                 .map {
                     RankedEntry(
                         title = it.key,
