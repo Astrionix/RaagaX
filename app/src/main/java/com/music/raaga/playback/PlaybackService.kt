@@ -12,7 +12,9 @@ import android.media.AudioManager
 import android.media.audiofx.AudioEffect
 import android.media.audiofx.LoudnessEnhancer
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.view.KeyEvent
 import android.os.SystemClock
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -6358,6 +6360,44 @@ class PlaybackService : MediaLibraryService() {
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? =
         mediaSession
 
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent != null && intent.action == Intent.ACTION_MEDIA_BUTTON) {
+            val keyEvent = if (Build.VERSION.SDK_INT >= 33) {
+                intent.getParcelableExtra(Intent.EXTRA_KEY_EVENT, KeyEvent::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                intent.getParcelableExtra(Intent.EXTRA_KEY_EVENT)
+            }
+            if (keyEvent != null && keyEvent.action == KeyEvent.ACTION_DOWN) {
+                when (keyEvent.keyCode) {
+                    KeyEvent.KEYCODE_MEDIA_PLAY,
+                    KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+                    KeyEvent.KEYCODE_HEADSETHOOK -> {
+                        handleInstantPlay()
+                    }
+                }
+            }
+        }
+        return super.onStartCommand(intent, flags, startId)
+    }
+
+    /**
+     * Resumes playback instantly from the current or persisted state.
+     * Used for cold-start and background Bluetooth/headphone play commands.
+     */
+    private fun handleInstantPlay() {
+        val p = player ?: return
+        if (p.mediaItemCount == 0) {
+            restoreLastQueue(p)
+        }
+        if (p.mediaItemCount > 0) {
+            if (p.playbackState == Player.STATE_IDLE) {
+                p.prepare()
+            }
+            p.play()
+        }
+    }
+
     /**
      * Called by Android when the user swipes this app's task away from the
      * recent apps screen.
@@ -6368,7 +6408,6 @@ class PlaybackService : MediaLibraryService() {
      * a foreground-service-backed media session.
      */
     override fun onTaskRemoved(rootIntent: Intent?) {
-        super.onTaskRemoved(rootIntent)
         // Cleared from recents: the user's own lock wallpaper comes back now,
         // whether or not the music keeps playing.
         LockScreenArt.restore(this, hold = true)
@@ -6377,7 +6416,12 @@ class PlaybackService : MediaLibraryService() {
             // playing on its own out of a service that is on its way out.
             eachPlayer { it.stop() }
             stopSelf()
+            super.onTaskRemoved(rootIntent)
         }
+        // When stopOnTaskRemoved is false, do not call super.onTaskRemoved(rootIntent)
+        // because MediaSessionService.onTaskRemoved terminates the service if the player
+        // is paused. Keeping the service alive preserves the active MediaSession in
+        // Android's session stack, allowing Bluetooth/headphone play buttons to resume instantly.
     }
 
 
@@ -6935,6 +6979,16 @@ class PlaybackService : MediaLibraryService() {
             // itself on the party's instant, and starts it anyway if the party
             // never answers. Outside a party this is an ordinary play().
             if (deferPlayToParty()) return
+
+            val p = player
+            if (p != null) {
+                if (p.mediaItemCount == 0) {
+                    restoreLastQueue(p)
+                }
+                if (p.playbackState == Player.STATE_IDLE && p.mediaItemCount > 0) {
+                    p.prepare()
+                }
+            }
             super.play()
         }
 
@@ -7628,54 +7682,83 @@ class PlaybackService : MediaLibraryService() {
                 )
             }
 
-            // 2. Fallback to local downloaded songs (offline-ready)
-            val downloaded = Downloads.getDownloadedSongs(this@PlaybackService)
-            if (downloaded.isNotEmpty()) {
-                val items = downloaded.map { it.toMediaItem() }
+            // 2. Restore from durable LastPlayed queue snapshot
+            val last = LastPlayed.load()
+            if (last != null && last.songs.isNotEmpty()) {
+                val items = last.songs.map { it.toMediaItem() }
+                val startIndex = last.index.coerceIn(0, items.size - 1)
+                val startPositionMs = last.positionMs.coerceAtLeast(0L)
                 return@future MediaSession.MediaItemsWithStartPosition(
                     ImmutableList.copyOf(items),
-                    0,
-                    0L,
+                    startIndex,
+                    startPositionMs,
                 )
             }
 
-            // 3. Fallback to device local music
-            val localSongs = LocalMediaRepository.getLocalMusic(this@PlaybackService)
-            if (localSongs.isNotEmpty()) {
-                val items = localSongs.map { it.toMediaItem() }
-                return@future MediaSession.MediaItemsWithStartPosition(
-                    ImmutableList.copyOf(items),
-                    0,
-                    0L,
-                )
-            }
-
-            // 5. Fallback to Quick Picks / Home shelves
-            val fallbackSongs = try {
-                withTimeoutOrNull(2500L) {
-                    val home = YtMusicRepository.home().getOrNull()
-                    home?.shelves?.flatMap { shelf ->
-                        shelf.items.mapNotNull { it.toMediaItemOrNull() }
-                    }?.distinctBy { it.mediaId }
-                } ?: emptyList()
-            } catch (_: Exception) {
-                emptyList()
-            }
-
-            if (fallbackSongs.isNotEmpty()) {
-                return@future MediaSession.MediaItemsWithStartPosition(
-                    ImmutableList.copyOf(fallbackSongs),
-                    0,
-                    0L,
-                )
-            }
-
-            // Return empty instead of throwing an unhandled exception to prevent crash
+            // 3. Return empty if no valid previous playback state exists
             MediaSession.MediaItemsWithStartPosition(
                 ImmutableList.of(),
                 0,
                 0L,
             )
+        }
+
+        override fun onMediaButtonEvent(
+            session: MediaSession,
+            controllerInfo: MediaSession.ControllerInfo,
+            intent: Intent,
+        ): Boolean {
+            val keyEvent = if (Build.VERSION.SDK_INT >= 33) {
+                intent.getParcelableExtra(Intent.EXTRA_KEY_EVENT, KeyEvent::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                intent.getParcelableExtra(Intent.EXTRA_KEY_EVENT)
+            } ?: return super.onMediaButtonEvent(session, controllerInfo, intent)
+
+            if (keyEvent.action == KeyEvent.ACTION_DOWN) {
+                when (keyEvent.keyCode) {
+                    KeyEvent.KEYCODE_MEDIA_PLAY -> {
+                        handleInstantPlay()
+                        return true
+                    }
+                    KeyEvent.KEYCODE_MEDIA_PAUSE -> {
+                        player?.pause()
+                        return true
+                    }
+                    KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+                    KeyEvent.KEYCODE_HEADSETHOOK -> {
+                        if (player?.isPlaying == true) {
+                            player?.pause()
+                        } else {
+                            handleInstantPlay()
+                        }
+                        return true
+                    }
+                    KeyEvent.KEYCODE_MEDIA_STOP -> {
+                        player?.stop()
+                        return true
+                    }
+                    KeyEvent.KEYCODE_MEDIA_NEXT -> {
+                        val p = player ?: return false
+                        if (p.hasNextMediaItem()) {
+                            p.seekToNextMediaItem()
+                            if (p.playbackState == Player.STATE_IDLE) p.prepare()
+                            p.play()
+                            return true
+                        }
+                    }
+                    KeyEvent.KEYCODE_MEDIA_PREVIOUS -> {
+                        val p = player ?: return false
+                        if (p.hasPreviousMediaItem()) {
+                            p.seekToPreviousMediaItem()
+                            if (p.playbackState == Player.STATE_IDLE) p.prepare()
+                            p.play()
+                            return true
+                        }
+                    }
+                }
+            }
+            return super.onMediaButtonEvent(session, controllerInfo, intent)
         }
 
         override fun onSearch(
