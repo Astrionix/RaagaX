@@ -49,6 +49,8 @@
       folder through MediaStore, which grants access to the rows it created and
       needs no permission at all — and this one stops being grantable there.
     -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
@@ -595,6 +597,41 @@
         <meta-data
             android:name="com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME"
             android:value="com.music.raaga.playback.cast.CastOptionsProvider" />
+    
+        <activity
+            android:name=".widget.RecognitionActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:label="@string/widget_recognition_label"
+            android:launchMode="singleTask"
+            android:taskAffinity=""
+            android:theme="@style/Theme.Raaga.Recognition" />
+
+        <service
+            android:name=".widget.RecognitionTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_qs_recognition"
+            android:label="@string/quick_tile_recognition_label"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+    
+        <receiver
+            android:name=".widget.RecognitionWidgetWide"
+            android:exported="false"
+            android:label="@string/widget_recognition_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_recognition_wide" />
+        </receiver>
+
     </application>
 
 </manifest>
