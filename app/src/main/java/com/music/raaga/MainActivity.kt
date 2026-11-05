@@ -621,11 +621,24 @@ private fun RaagaApp(
     // suggestions, and pressing the button appeared to do nothing, because it
     // turned the party's setting on while the label already said so.
     val autoplayEnabled = autoplayEnabledFor(partyState, autoplay)
+    val autoPlayRecognizedSong by AppSettings.autoPlayRecognizedSong.collectAsStateWithLifecycle()
     val partyServerStatus by ListenTogether.serverConnectionState.collectAsStateWithLifecycle()
     val listenBrainzToken by AppSettings.listenBrainzToken.collectAsStateWithLifecycle()
     // Set each time the search tab is tapped, which SearchScreen uses as a
     // signal to focus the input field.
     var searchFocusRequested by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
+    val softwareKeyboard = LocalSoftwareKeyboardController.current
+    var showSongRecognition by remember { mutableStateOf(false) }
+    var recognitionFieldBounds by remember { mutableStateOf<Rect?>(null) }
+    var recognitionTopBounds by remember { mutableStateOf<TopResultBounds?>(null) }
+    var recognitionLandedTrigger by remember { mutableIntStateOf(0) }
+    var recognitionFieldLandedTrigger by remember { mutableIntStateOf(0) }
+    var recognitionQuery by remember { mutableStateOf<String?>(null) }
+    var notificationRecognitionMode by remember {
+        mutableStateOf<RecognitionNotificationActions.Action?>(null)
+    }
+    var inAppRecognitionAutoPlay by remember { mutableStateOf(false) }
     // Invalidates an in-flight radio lookup when a later play request wins.
     var playRequestGeneration by remember { mutableIntStateOf(0) }
     // Starting radio from the item already playing must not replace that media
@@ -666,6 +679,7 @@ private fun RaagaApp(
     }
     val query by viewModel.query.collectAsStateWithLifecycle()
     val results by viewModel.results.collectAsStateWithLifecycle()
+    val resultsQuery by viewModel.resultsQuery.collectAsStateWithLifecycle()
     val exploreState by viewModel.explore.collectAsStateWithLifecycle()
     val selectedMoodGenre by viewModel.selectedMoodGenre.collectAsStateWithLifecycle()
     val moodGenreShelves by viewModel.moodGenreShelves.collectAsStateWithLifecycle()
