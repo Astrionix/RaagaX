@@ -5060,6 +5060,28 @@ private fun RaagaApp(
             )
         }
 
+        LaunchedEffect(inAppRecognitionAutoPlay, results, controller) {
+            if (!inAppRecognitionAutoPlay) return@LaunchedEffect
+            when (val state = results) {
+                is UiState.Error -> inAppRecognitionAutoPlay = false
+                is UiState.Success -> {
+                    val data = state.data
+                    val song = data?.filterIsInstance<SearchResult.TopTrack>()?.firstOrNull()?.song
+                        ?: data?.filterIsInstance<SearchResult.Track>()?.firstOrNull()?.song
+                    if (song != null) {
+                        controller ?: return@LaunchedEffect
+                        inAppRecognitionAutoPlay = false
+                        playRadio(song, QueueSource("Recognition", PlaybackSourceType.SEARCH))
+                        showNowPlaying = true
+                    } else {
+                        inAppRecognitionAutoPlay = false
+                        controller?.play()
+                    }
+                }
+                else -> {}
+            }
+        }
+
         if (confirmJioSaavn) {
             ConfirmationAlert(
                 hazeState = hazeState,
