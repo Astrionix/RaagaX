@@ -34,6 +34,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+
 import com.music.raaga.R
 
 /**
@@ -51,6 +66,13 @@ fun SearchField(
     focusRequester: FocusRequester = remember { FocusRequester() },
     /** What the empty field says it is for — the one part that changes per screen. */
     placeholder: String = stringResource(R.string.search_hint),
+    /**
+     * Starts the platform's voice input, or null when this device has none.
+     * Only surfaces that can act on a spoken query pass it, which keeps the
+     * microphone off the settings filter and the desktop's sidebar field.
+     */
+    onVoiceSearch: (() -> Unit)? = null,
+    pulseTrigger: Int = 0,
     modifier: Modifier = Modifier,
 ) {
     val focusManager = LocalFocusManager.current
@@ -61,9 +83,20 @@ fun SearchField(
         onSubmit()
         focusManager.clearFocus()
     }
+    val pulseScale = remember { Animatable(1f) }
+    LaunchedEffect(pulseTrigger) {
+        if (pulseTrigger == 0) return@LaunchedEffect
+        pulseScale.animateTo(1.02f, animationSpec = tween(120, easing = FastOutSlowInEasing))
+        pulseScale.animateTo(1f, animationSpec = tween(130, easing = FastOutSlowInEasing))
+    }
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .graphicsLayer {
+                scaleX = pulseScale.value
+                scaleY = pulseScale.value
+                transformOrigin = TransformOrigin(0.5f, 0.5f)
+            }
             // Fixed height prevents the row from growing when text is entered
             .height(46.dp)
             .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(11.dp))
@@ -134,6 +167,52 @@ fun SearchField(
                     modifier = Modifier.size(18.dp),
                 )
             }
+        }
+
+        // Voice / recognition input is the last thing in the pill, after the clear button.
+        if (onVoiceSearch != null) {
+            Spacer(Modifier.width(4.dp))
+            val voiceDescription = stringResource(R.string.recognition_microphone)
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .clickable(onClick = onVoiceSearch)
+                    .semantics { contentDescription = voiceDescription },
+                contentAlignment = Alignment.Center,
+            ) {
+                VoiceSearchBars(
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Four rounded bars rather than a microphone: the same mark the recognition
+ * sheet listens with, so the search field's voice action reads as "listen to
+ * this song" instead of Android's text dictation.
+ */
+@Composable
+private fun VoiceSearchBars(tint: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val heights = floatArrayOf(0.46f, 0.78f, 1f, 0.62f)
+        val gap = size.width * 0.14f
+        val barWidth = (size.width - gap * (heights.size - 1)) / heights.size
+        val radius = CornerRadius(barWidth / 2f)
+        heights.forEachIndexed { index, fraction ->
+            val barHeight = size.height * fraction
+            drawRoundRect(
+                color = tint,
+                topLeft = Offset(
+                    x = index * (barWidth + gap),
+                    y = (size.height - barHeight) / 2f,
+                ),
+                size = Size(barWidth, barHeight),
+                cornerRadius = radius,
+            )
         }
     }
 }
