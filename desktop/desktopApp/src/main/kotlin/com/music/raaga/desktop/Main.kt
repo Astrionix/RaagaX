@@ -96,29 +96,18 @@ private fun desktopMain() = application {
         // No system title bar on Windows, where the application draws its own instead — see
         // [DesktopWindowChrome].
         undecorated = DesktopPlatform.drawsOwnWindowFrame,
-        // For Mica and Acrylic behind the sidebar and top bar: only a transparent window lets
-        // DWM's material show through the chrome. Fixed at creation, so it is on wherever the
-        // material is possible and the chosen one can be switched live — see [DesktopWindowBackdrop].
-        transparent = DesktopWindowBackdrop.available,
+        // Spotify-style solid opaque window: pure pitch-black canvas, no transparent edge or desktop show-through
+        transparent = false,
         resizable = true,
     ) {
         val composeWindow = window
         val openingSize = remember { state.size }
         LaunchedEffect(composeWindow) {
             DesktopWindowVisibility.attachWindow(composeWindow)
-            // AWT's default is white, and it is what shows for the frame or two a moved or resized
-            // window takes to repaint: a white band along its edges.
-            // Not over a transparent window, whose clear background is what the material shows
-            // through; DWM moves that window, so there is no band to hide.
-            if (!DesktopWindowBackdrop.available) {
-                composeWindow.background = java.awt.Color.BLACK
-                composeWindow.contentPane.background = java.awt.Color.BLACK
-            } else {
-                composeWindow.background = java.awt.Color(0, 0, 0, 0)
-                composeWindow.contentPane.background = java.awt.Color(0, 0, 0, 0)
-                (composeWindow.contentPane as? javax.swing.JComponent)?.isOpaque = false
-                composeWindow.rootPane.isOpaque = false
-            }
+            composeWindow.background = java.awt.Color.BLACK
+            composeWindow.contentPane.background = java.awt.Color.BLACK
+            (composeWindow.contentPane as? javax.swing.JComponent)?.isOpaque = true
+            composeWindow.rootPane.isOpaque = true
             // AWT measures this in device pixels while Compose's window state is in dp. Keeping
             // the scale in the conversion makes the usable minimum consistent on every display.
             val transform = composeWindow.graphicsConfiguration.defaultTransform
