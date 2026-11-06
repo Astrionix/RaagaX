@@ -79,6 +79,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.FilterQuality
 import coil3.compose.AsyncImage
 import com.music.raaga.data.model.ROW_ART_PX
 import com.music.raaga.data.model.Song
@@ -588,6 +589,7 @@ private fun SongRowContent(
                 AsyncImage(
                     model = com.music.raaga.ui.player.rememberRemoteArtworkUrl(song)?.artworkAt(ROW_ART_PX),
                     contentDescription = null,
+                    filterQuality = FilterQuality.High,
                     modifier = Modifier
                         .matchParentSize()
                         .clip(RoundedCornerShape(8.dp))
