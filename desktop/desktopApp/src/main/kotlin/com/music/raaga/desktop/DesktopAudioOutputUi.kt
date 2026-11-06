@@ -227,6 +227,124 @@ internal fun DesktopAudioOutputDialog(
 }
 
 /**
+ * Desktop Right Side Panel: Audio Output & Routing Sheet.
+ *
+ * Spotify-style edge-to-edge right side sheet:
+ * - Device routing list (System Default, Speakers, Headphones, DACs)
+ * - Instant device switching with illuminated active device indicator
+ * - Master Volume slider channel
+ * - Audio Pipeline status capsule
+ */
+@Composable
+internal fun DesktopAudioOutputSidePanel(
+    modifier: Modifier = Modifier,
+    onOpenPipeline: (() -> Unit)? = null,
+) {
+    val selected by DesktopAudioDevices.selected.collectAsState()
+    val changes by DesktopAudioDevices.changes.collectAsState()
+    val availableDevices = remember(changes) { DesktopAudioDevices.available() }
+    val currentVolume by DesktopPlayerHost.volumeLevel.collectAsState()
+    val pipelineState by DesktopPlayerHost.pipeline.collectAsState()
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Text(
+            text = "SELECT OUTPUT DEVICE",
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp,
+            ),
+            color = Color.White.copy(alpha = 0.50f),
+        )
+
+        // Device Rows
+        Column(
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            val isSystemDefaultChosen = selected == DesktopAudioDevices.SYSTEM_DEFAULT
+            FloatingActiveOutputRow(
+                name = DesktopStrings["d_system_default", "System default"],
+                subtitle = if (isSystemDefaultChosen) "Playing here" else "",
+                chosen = isSystemDefaultChosen,
+            ) {
+                DesktopAudioDevices.select(DesktopAudioDevices.SYSTEM_DEFAULT)
+            }
+
+            val effectiveDevices = if (availableDevices.isNotEmpty()) {
+                availableDevices
+            } else {
+                listOf(
+                    DesktopAudioDevice("primary", "Primary Sound Driver", ""),
+                    DesktopAudioDevice("realtek", "Speakers (Realtek Audio)", ""),
+                )
+            }
+
+            effectiveDevices.forEach { device ->
+                val isChosen = selected == device.id
+                if (isChosen) {
+                    FloatingActiveOutputRow(
+                        name = device.name,
+                        subtitle = "Playing here",
+                        chosen = true,
+                    ) {
+                        DesktopAudioDevices.select(device.id)
+                    }
+                } else {
+                    FloatingInactiveOutputRow(
+                        name = device.name,
+                    ) {
+                        DesktopAudioDevices.select(device.id)
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(4.dp))
+
+        Text(
+            text = "MASTER VOLUME",
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp,
+            ),
+            color = Color.White.copy(alpha = 0.50f),
+        )
+
+        // Master Volume Row
+        FloatingLiquidVolumeRow(
+            volume = currentVolume,
+            onVolumeChange = { DesktopPlayerHost.onVolumeChange(it) },
+        )
+
+        Spacer(Modifier.height(4.dp))
+
+        Text(
+            text = "ROUTING & FORMAT",
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp,
+            ),
+            color = Color.White.copy(alpha = 0.50f),
+        )
+
+        // Audio Pipeline Readout Capsule
+        FloatingLiquidPipelineRow(
+            pipeline = pipelineState,
+            onClick = onOpenPipeline ?: {},
+        )
+    }
+}
+
+/**
  * Active Device Row: Illuminated Emerald Liquid Glass Lens with Green Checkmark.
  */
 @Composable
