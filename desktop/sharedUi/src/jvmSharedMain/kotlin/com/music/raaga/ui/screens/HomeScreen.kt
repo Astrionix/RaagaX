@@ -68,6 +68,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
@@ -470,6 +471,7 @@ fun CompactTrackRow(
                 model = thumbnailUrl.artworkAt(ROW_ART_PX),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
+                filterQuality = FilterQuality.High,
                 modifier = Modifier
                     .size(48.dp)
                     .clip(RoundedCornerShape(7.dp))
@@ -889,6 +891,7 @@ private fun HeroCard(
             model = item.thumbnailUrl.artworkAt(HEADER_ART_PX),
             contentDescription = null,
             contentScale = ContentScale.Crop,
+            filterQuality = FilterQuality.High,
             modifier = Modifier.fillMaxSize(),
         )
         if (isCurrent && isPlaying) SearchPlayingBars(Modifier.align(Alignment.Center))
@@ -1217,6 +1220,7 @@ internal fun ShelfCard(
                         model = item.thumbnailUrl.artworkAt(CARD_ART_PX),
                         contentDescription = null,
                         contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        filterQuality = FilterQuality.High,
                         modifier = Modifier.fillMaxSize(),
                     )
                     if (isCurrent && isPlaying) SearchPlayingBars(Modifier.align(Alignment.Center))
