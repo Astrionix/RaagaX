@@ -1,4 +1,6 @@
 package com.music.raaga.ui.player
+
+import com.music.raaga.ui.components.onMouseWheelVolume
 import com.music.raaga.ui.components.copyOnLongPress
 
 import androidx.compose.ui.graphics.graphicsLayer
@@ -478,7 +480,13 @@ internal fun VolumeRow(
     onValueChangeFinished: () -> Unit,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .onMouseWheelVolume { delta ->
+                val newVol = (value() + delta).coerceIn(0f, 1f)
+                onValueChange(newVol)
+                onValueChangeFinished()
+            },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(

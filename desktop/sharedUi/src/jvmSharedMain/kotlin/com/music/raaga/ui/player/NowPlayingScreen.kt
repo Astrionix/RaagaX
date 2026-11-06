@@ -1,5 +1,7 @@
 package com.music.raaga.ui.player
 
+import com.music.raaga.ui.components.onMouseWheelVolume
+
 import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.unit.constrainWidth
 import androidx.compose.ui.unit.offset
@@ -1814,6 +1816,11 @@ fun NowPlayingScreen(
                                 }
                             }
                             .then(skipSwipeGesture)
+                            .onMouseWheelVolume { delta ->
+                                val newVol = (volume.level.value + delta).coerceIn(0f, 1f)
+                                onVolumeChange(newVol)
+                                onVolumeChangeFinished()
+                            }
                             .graphicsLayer {
                                 // The paused shrink and the swipe nudge are
                                 // let go of on the way, as the portrait

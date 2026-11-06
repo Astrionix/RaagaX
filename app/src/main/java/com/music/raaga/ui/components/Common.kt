@@ -3,6 +3,8 @@ package com.music.raaga.ui.components
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.material.icons.Icons
@@ -938,5 +940,30 @@ fun PillTextField(
             keyboardActions = keyboardActions,
             modifier = Modifier.fillMaxWidth(),
         )
+    }
+}
+
+/**
+ * Listens for mouse wheel scroll events to adjust volume.
+ *
+ * Scrolling up (negative delta.y) increases volume by [step].
+ * Scrolling down (positive delta.y) decreases volume by [step].
+ */
+fun Modifier.onMouseWheelVolume(
+    step: Float = 0.05f,
+    onAdjustVolume: (delta: Float) -> Unit,
+): Modifier = pointerInput(step, onAdjustVolume) {
+    awaitPointerEventScope {
+        while (true) {
+            val event = awaitPointerEvent()
+            if (event.type == PointerEventType.Scroll) {
+                val deltaY = event.changes.firstOrNull()?.scrollDelta?.y ?: 0f
+                if (deltaY != 0f) {
+                    val delta = -deltaY * step
+                    onAdjustVolume(delta)
+                    event.changes.forEach { it.consume() }
+                }
+            }
+        }
     }
 }

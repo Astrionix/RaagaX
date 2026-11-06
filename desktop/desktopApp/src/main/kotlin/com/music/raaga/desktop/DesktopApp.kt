@@ -1,5 +1,7 @@
 package com.music.raaga.desktop
 
+import com.music.raaga.ui.components.onMouseWheelVolume
+
 import com.music.raaga.data.canvas.ArtistSignature
 import com.music.raaga.data.canvas.ArtistSignatureRepository
 import coil3.compose.AsyncImage
@@ -5900,39 +5902,46 @@ private fun DesktopPlayerBar(
                     else -> Icons.AutoMirrored.Rounded.VolumeUp
                 }
 
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(CircleShape)
-                        .clickable {
-                            if (volume > 0f) {
-                                lastNonZeroVolume = volume
-                                onVolumeChange(0f)
-                            } else {
-                                onVolumeChange(if (lastNonZeroVolume > 0f) lastNonZeroVolume else 0.7f)
-                            }
-                        },
-                    contentAlignment = Alignment.Center,
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.onMouseWheelVolume { delta ->
+                        onVolumeChange((volume + delta).coerceIn(0f, 1f))
+                    },
                 ) {
-                    Icon(
-                        imageVector = volIcon,
-                        contentDescription = "Volume",
-                        tint = Color.White.copy(alpha = 0.70f),
-                        modifier = Modifier.size(18.dp),
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .clickable {
+                                if (volume > 0f) {
+                                    lastNonZeroVolume = volume
+                                    onVolumeChange(0f)
+                                } else {
+                                    onVolumeChange(if (lastNonZeroVolume > 0f) lastNonZeroVolume else 0.7f)
+                                }
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = volIcon,
+                            contentDescription = "Volume",
+                            tint = Color.White.copy(alpha = 0.70f),
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+
+                    Spacer(Modifier.width(6.dp))
+
+                    DesktopThinSlider(
+                        value = volume,
+                        onValueChange = onVolumeChange,
+                        activeColor = Color.White,
+                        inactiveColor = Color(0xFF4D4D4D),
+                        idleHeight = 4.dp,
+                        activeHeight = 6.dp,
+                        modifier = Modifier.width(88.dp),
                     )
                 }
-
-                Spacer(Modifier.width(6.dp))
-
-                DesktopThinSlider(
-                    value = volume,
-                    onValueChange = onVolumeChange,
-                    activeColor = Color.White,
-                    inactiveColor = Color(0xFF4D4D4D),
-                    idleHeight = 4.dp,
-                    activeHeight = 6.dp,
-                    modifier = Modifier.width(88.dp),
-                )
 
                 Spacer(Modifier.width(6.dp))
 

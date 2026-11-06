@@ -1,5 +1,7 @@
 package com.music.raaga.ui.player
 
+import com.music.raaga.ui.components.onMouseWheelVolume
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -461,7 +463,12 @@ private fun VolumeRow(routeKey: Any) {
         modifier = Modifier
             .fillMaxWidth()
             .interactiveLiquidGlassCard(active = false)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .padding(horizontal = 16.dp, vertical = 14.dp)
+            .onMouseWheelVolume { delta ->
+                val newVol = (level + delta).coerceIn(0f, 1f)
+                level = newVol
+                system.set(newVol)
+            },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(

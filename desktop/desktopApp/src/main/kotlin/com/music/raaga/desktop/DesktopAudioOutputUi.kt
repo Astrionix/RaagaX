@@ -1,5 +1,7 @@
 package com.music.raaga.desktop
 
+import com.music.raaga.ui.components.onMouseWheelVolume
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
@@ -558,7 +560,10 @@ private fun FloatingLiquidVolumeRow(
             .fillMaxWidth()
             .heightIn(min = 58.dp)
             .interactiveLiquidGlassCard(active = false, shape = rowShape)
-            .padding(horizontal = 16.dp, vertical = 13.dp),
+            .padding(horizontal = 16.dp, vertical = 13.dp)
+            .onMouseWheelVolume { delta ->
+                onVolumeChange((volume + delta).coerceIn(0f, 1f))
+            },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
