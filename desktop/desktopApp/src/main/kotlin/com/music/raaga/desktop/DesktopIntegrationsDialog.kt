@@ -140,13 +140,14 @@ private fun DiscordSection(
         PanelSwitchRow(
             title = DesktopStrings["show_what_playing", "Show what I am playing"],
             subtitle = when {
-                !connected -> "Connect an account first"
+                !rpcEnabled -> "Disabled"
                 local -> "Sharing through the Discord app on this computer"
                 username.isNotBlank() -> "Sharing as @$username"
-                else -> null
+                token.isBlank() -> "Enabled — will display activity when Discord is open"
+                else -> "Connecting..."
             },
-            checked = rpcEnabled && connected,
-            enabled = connected,
+            checked = rpcEnabled,
+            enabled = true,
             onCheckedChange = DesktopDiscordRpc::setEnabled,
         )
         DesktopCardRule()
@@ -154,7 +155,7 @@ private fun DiscordSection(
             title = DesktopStrings["lead_with_song", "Lead with the song"],
             subtitle = DesktopStrings["lead_with_song_subtitle", "Puts the title on the bold line instead of the artist"],
             checked = useDetails,
-            enabled = connected && rpcEnabled,
+            enabled = rpcEnabled,
             onCheckedChange = DesktopDiscordSettings::setUseDetails,
         )
         DesktopCardRule()
@@ -162,12 +163,12 @@ private fun DiscordSection(
             title = DesktopStrings["customize_card", "Customize the card"],
             subtitle = DesktopStrings["customize_card_subtitle", "Status, wording and both buttons"],
             checked = advanced,
-            enabled = connected && rpcEnabled,
+            enabled = rpcEnabled,
             onCheckedChange = DesktopDiscordSettings::setAdvancedMode,
         )
     }
 
-    if (connected && rpcEnabled && advanced) {
+    if (rpcEnabled && advanced) {
         PanelGroup(header = "Presence") {
             PanelValueRow("Status", DesktopDiscordSettings.statusLabel(status)) {
                 onChoose(
@@ -271,24 +272,20 @@ private fun DiscordSection(
         )
     }
 
-    // The account route stays the alternative, and only while the local client
-    // is not answering; see [DesktopDiscordRpc].
-    if (!local) {
-        PanelGroup(
-            footer = "Signing in with a token grants full account access, and account " +
-                "automation is against Discord's terms. Use it only if you accept that risk.",
-        ) {
-            PanelActionRow(
-                title = if (token.isBlank()) "Enter a token instead" else "Disconnect",
-                subtitle = if (token.isBlank()) {
-                    "Use this if Discord is not running on this computer"
-                } else {
-                    "Signed in as @$username"
-                },
-                destructive = token.isNotBlank(),
-                onClick = { if (token.isBlank()) onOpenDiscordToken() else DesktopDiscordRpc.signOut() },
-            )
-        }
+    // Web & Android style token connection: Always accessible so user can connect or manage token
+    PanelGroup(
+        footer = "Connect with your Discord token to broadcast Rich Presence globally across Discord servers, mobile, and web (identical to Raaga on Web & Android).",
+    ) {
+        PanelActionRow(
+            title = if (token.isBlank()) "Connect Discord Account (Token)" else "Discord Account: @$username",
+            subtitle = if (token.isBlank()) {
+                "Sign in with token for Web & Android style rich presence"
+            } else {
+                "Connected with token • Click to change or disconnect"
+            },
+            destructive = token.isNotBlank(),
+            onClick = onOpenDiscordToken,
+        )
     }
 }
 
