@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -24,6 +25,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -330,7 +332,9 @@ private fun DialogActions(
  */
 @Composable
 internal fun DesktopDiscordTokenDialog(onDismiss: () -> Unit) {
-    var token by remember { mutableStateOf("") }
+    val currentToken by DesktopDiscordRpc.token.collectAsState()
+    val currentUsername by DesktopDiscordRpc.username.collectAsState()
+    var token by remember { mutableStateOf(currentToken) }
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -349,12 +353,15 @@ internal fun DesktopDiscordTokenDialog(onDismiss: () -> Unit) {
         }
     }
 
-    DesktopDialogPanel(onDismiss = onDismiss, maxWidth = 400) {
+    DesktopDialogPanel(onDismiss = onDismiss, maxWidth = 420) {
         DialogHeading(
             title = DesktopStrings["discord_token", "Discord token"],
             message = error
-                ?: "Your account's own token, since Discord has no other way to let " +
-                "an app set your presence.",
+                ?: if (currentUsername.isNotBlank()) {
+                    "Connected as @$currentUsername (Web & Android style). Enter a new token to switch accounts, or disconnect below."
+                } else {
+                    "Paste your Discord user token for Web & Android style Rich Presence (Listening to Raaga, track name, artist, album art, buttons)."
+                },
             isError = error != null,
         )
         DialogField(
@@ -366,13 +373,77 @@ internal fun DesktopDiscordTokenDialog(onDismiss: () -> Unit) {
             onSubmit = ::save,
             modifier = Modifier.focusRequester(focus),
         )
-        DialogActions(
-            confirm = if (busy) "Checking…" else "Save",
-            confirmEnabled = !busy && token.isNotBlank(),
-            busy = busy,
-            onConfirm = ::save,
-            onDismiss = onDismiss,
-        )
+        var snippetCopied by remember { mutableStateOf(false) }
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = panelInset(22.dp), vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(
+                onClick = {
+                    DesktopExternalLinks.copy(
+                        "(webpackChunkdiscord_app.push([[''],{},e=>{m=[];for(let c in e.c)m.push(e.c[c])}]),m).find(m=>m?.exports?.default?.getToken!==void 0).exports.default.getToken()"
+                    )
+                    snippetCopied = true
+                },
+            ) {
+                Text(
+                    if (snippetCopied) "Snippet Copied!" else "Copy Token Script",
+                    color = if (snippetCopied) DesktopAccent else DesktopSecondary,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            TextButton(
+                onClick = { DesktopExternalLinks.open("https://discord.com/app") },
+            ) {
+                Text(
+                    "Open Discord Web",
+                    color = DesktopSecondary,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = panelInset(16.dp), vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (currentToken.isNotBlank()) {
+                TextButton(
+                    onClick = {
+                        DesktopDiscordRpc.signOut()
+                        onDismiss()
+                    },
+                    enabled = !busy,
+                ) {
+                    Text("Disconnect", color = DesktopDestructive)
+                }
+            } else {
+                Spacer(Modifier.width(1.dp))
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (busy) {
+                    CircularProgressIndicator(
+                        color = DesktopAccent,
+                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(Modifier.size(12.dp))
+                }
+                TextButton(onClick = onDismiss, enabled = !busy) {
+                    Text(DesktopStrings["cancel", "Cancel"], color = DesktopSecondary)
+                }
+                TextButton(
+                    onClick = ::save,
+                    enabled = !busy && token.isNotBlank() && (token != currentToken || currentUsername.isBlank()),
+                ) {
+                    Text(
+                        if (busy) "Checking…" else "Save",
+                        color = if (!busy && token.isNotBlank() && (token != currentToken || currentUsername.isBlank())) DesktopAccent else DesktopSecondary,
+                    )
+                }
+            }
+        }
     }
 }
 
