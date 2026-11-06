@@ -79,6 +79,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Velocity
+import androidx.compose.ui.graphics.FilterQuality
 import coil3.compose.AsyncImage
 import com.music.raaga.ui.components.thumbnailBorder
 import com.music.raaga.ui.icons.RaagaIcons
@@ -786,6 +787,7 @@ private fun InlineQueueRow(
         AsyncImage(
             model = rememberRemoteArtworkUrl(song),
             contentDescription = null,
+            filterQuality = FilterQuality.High,
             modifier = Modifier
                 .size(44.dp)
                 .clip(RoundedCornerShape(6.dp))
