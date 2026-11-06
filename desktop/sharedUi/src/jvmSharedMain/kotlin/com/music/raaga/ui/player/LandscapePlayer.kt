@@ -9,6 +9,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -169,28 +170,32 @@ internal fun LandscapePlayerLayout(
                         bottom = if (compact) 8.dp else 20.dp,
                     ),
             ) {
-                Column(
+                BoxWithConstraints(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
                         .padding(horizontal = gutter),
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                    contentAlignment = Alignment.Center,
                 ) {
-                    // The sleeve is square and takes whichever of the two axes
-                    // runs out first once the row below has had its height —
-                    // the column's width on a big tablet, the height on
-                    // anything shorter. Measured here rather than estimated,
-                    // so the row under it can never be pushed off the bottom.
-                    BoxWithConstraints(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth(),
-                        contentAlignment = Alignment.Center,
+                    val gap = if (compact) 12.dp else 20.dp
+                    val actionRowHeight = 44.dp
+                    val maxArtHeight = (maxHeight - gap - actionRowHeight).coerceAtLeast(100.dp)
+                    val sleeveSize = minOf(maxWidth, maxArtHeight)
+                    val actionWidth = maxOf(sleeveSize, 260.dp).coerceAtMost(maxWidth)
+
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
                     ) {
-                        artwork(Modifier.size(minOf(maxWidth, maxHeight)))
+                        artwork(Modifier.size(sleeveSize))
+                        Spacer(Modifier.height(gap))
+                        Box(
+                            modifier = Modifier.width(actionWidth),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            actions()
+                        }
                     }
-                    Spacer(Modifier.height(if (compact) 12.dp else 24.dp))
-                    actions()
                 }
 
                 AnimatedContent(
