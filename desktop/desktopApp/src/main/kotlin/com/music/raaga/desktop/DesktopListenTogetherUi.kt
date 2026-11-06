@@ -1104,3 +1104,459 @@ private fun serverStatusLine(status: DesktopListenTogether.ServerStatus): String
     status.isFallback -> "Custom server offline · using built-in · ${status.latencyMs}ms"
     else -> "Party server online · ${status.latencyMs}ms"
 }
+/**
+ * Spotify-style right dockable side panel for Raaga Jam (Listen Together).
+ * Shows active session controls, invite code, playback sync state, members list,
+ * nearby LAN jams, and host/join controls.
+ */
+@Composable
+internal fun DesktopJamSidePanel(
+    modifier: Modifier = Modifier,
+    autoplayEnabled: Boolean = false,
+    onClose: (() -> Unit)? = null,
+) {
+    val state by DesktopListenTogether.state.collectAsState()
+    val localEndpoints by LocalJamDiscovery.activeLocalEndpoints.collectAsState()
+
+    var preferLocal by remember { mutableStateOf(true) }
+    val scope = rememberCoroutineScope()
+    val clipboard = LocalClipboardManager.current
+
+    var joinCodeInput by remember { mutableStateOf("") }
+    var nickname by remember { mutableStateOf(DesktopListenTogether.nickname()) }
+    var maxMembers by remember { mutableStateOf(5) }
+    var busy by remember { mutableStateOf(false) }
+    var localError by remember { mutableStateOf<String?>(null) }
+    var copyNotice by remember { mutableStateOf<String?>(null) }
+
+    fun showToast(msg: String) {
+        copyNotice = msg
+        scope.launch {
+            delay(2200)
+            if (copyNotice == msg) copyNotice = null
+        }
+    }
+
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        // Toast / Copy notification badge
+        if (copyNotice != null) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(EmeraldBg)
+                        .border(1.dp, EmeraldGreen.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Rounded.Check, null, tint = EmeraldGreen, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(copyNotice!!, color = EmeraldGreen, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    }
+                }
+            }
+        }
+
+        // Error notice
+        (localError ?: state.error)?.takeIf(String::isNotBlank)?.let { err ->
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(DesktopDestructive.copy(alpha = 0.15f))
+                        .border(1.dp, DesktopDestructive.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                ) {
+                    Text(err, color = DesktopDestructive, fontSize = 13.sp)
+                }
+            }
+        }
+
+        if (state.inParty) {
+            // =========================================================
+            // IN PARTY: Active Jam Session with Generated 6-Digit Code
+            // =========================================================
+            item {
+                ActiveJamBanner(
+                    state = state,
+                    onCopyCode = {
+                        clipboard.setText(AnnotatedString(state.code.orEmpty()))
+                        showToast("Copied Jam Room Code: ${state.code.orEmpty()}")
+                    },
+                    onCopyLink = {
+                        val url = DesktopListenTogether.inviteUrl(state.code.orEmpty())
+                        clipboard.setText(AnnotatedString(url))
+                        showToast("Copied Jam Invite Link!")
+                    },
+                )
+            }
+
+            // Playing track / synchronized status
+            item {
+                JamPlaybackStatus(state = state)
+            }
+
+            // Members list
+            item {
+                JamMembersCard(state = state)
+            }
+
+            // Host governance controls (if host)
+            if (state.you?.isHost == true) {
+                item {
+                    JamHostControls(state = state)
+                }
+            }
+
+            // Leave Jam button
+            item {
+                Button(
+                    onClick = {
+                        busy = true
+                        scope.launch {
+                            DesktopListenTogether.leaveParty()
+                            busy = false
+                        }
+                    },
+                    enabled = !busy,
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = DesktopDestructive.copy(alpha = 0.15f),
+                        contentColor = DesktopDestructive,
+                    ),
+                    modifier = Modifier.fillMaxWidth().height(42.dp),
+                ) {
+                    Text("Leave Jam", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                }
+            }
+        } else {
+            // =========================================================
+            // NOT IN PARTY: Nearby LAN jams, Start Jam, Join with Code
+            // =========================================================
+            if (localEndpoints.isNotEmpty()) {
+                item {
+                    NearbyJamsCard(
+                        endpoints = localEndpoints.values.toList(),
+                        busy = busy,
+                        onJoin = { ep ->
+                            busy = true
+                            localError = null
+                            scope.launch {
+                                DesktopListenTogether.joinParty(ep.code, nickname, explicitServerUrl = ep.httpBase)
+                                    .onFailure { localError = it.message }
+                                busy = false
+                            }
+                        },
+                    )
+                }
+            }
+
+            // 1. Start a Jam Hero Card
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .desktopLiquidCard(RoundedCornerShape(18.dp))
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(DesktopAccent.copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Groups,
+                                contentDescription = null,
+                                tint = DesktopAccent,
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "Start a Jam",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = Color.White,
+                            )
+                            Text(
+                                text = "Listen together in real-time",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = DesktopSecondary,
+                            )
+                        }
+                    }
+
+                    // Hybrid Mode Selector (⚡ Local Wi-Fi vs ☁ Cloud Jam)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color.White.copy(alpha = 0.04f))
+                            .padding(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        JamModePill(
+                            selected = preferLocal,
+                            label = "⚡ Wi-Fi",
+                            icon = Icons.Rounded.Wifi,
+                            modifier = Modifier.weight(1f),
+                            onClick = { preferLocal = true },
+                        )
+                        JamModePill(
+                            selected = !preferLocal,
+                            label = "☁ Cloud",
+                            icon = Icons.Rounded.Radio,
+                            modifier = Modifier.weight(1f),
+                            onClick = { preferLocal = false },
+                        )
+                    }
+
+                    // Profile & Nickname row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        PartyAvatar(DesktopListenTogether.myAvatarUrl(), 34, nickname)
+                        Spacer(Modifier.width(8.dp))
+                        OutlinedTextField(
+                            value = nickname,
+                            onValueChange = {
+                                nickname = it.take(60)
+                                DesktopListenTogether.setNickname(nickname)
+                            },
+                            label = { Text("Nickname", fontSize = 11.sp) },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = DesktopAccent,
+                                unfocusedBorderColor = DesktopCardEdge,
+                            ),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("Size", style = MaterialTheme.typography.labelSmall, color = DesktopSecondary)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Stepper("−", maxMembers > 2) { maxMembers = (maxMembers - 1).coerceAtLeast(2) }
+                                Text(
+                                    text = "$maxMembers",
+                                    modifier = Modifier.width(22.dp),
+                                    textAlign = TextAlign.Center,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                )
+                                Stepper("+", maxMembers < 10) { maxMembers = (maxMembers + 1).coerceAtMost(10) }
+                            }
+                        }
+                    }
+
+                    // Start Jam Button
+                    Button(
+                        onClick = {
+                            busy = true
+                            localError = null
+                            scope.launch {
+                                val res = DesktopListenTogether.createParty(nickname, maxMembers, autoplayEnabled, preferLocal)
+                                busy = false
+                                if (res.isFailure) {
+                                    localError = res.exceptionOrNull()?.message ?: "Failed to start Jam"
+                                } else {
+                                    showToast("Jam created! Room code: ${res.getOrNull()}")
+                                }
+                            }
+                        },
+                        enabled = !busy,
+                        shape = RoundedCornerShape(50),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = DesktopAccent,
+                            contentColor = Color.Black,
+                        ),
+                        modifier = Modifier.fillMaxWidth().height(42.dp),
+                    ) {
+                        if (busy) {
+                            CircularProgressIndicator(Modifier.size(18.dp), color = Color.Black, strokeWidth = 2.dp)
+                        } else {
+                            Text(
+                                text = if (preferLocal) "⚡ Start Local Jam" else "☁ Start Cloud Jam",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.5.sp,
+                            )
+                        }
+                    }
+                }
+            }
+
+            // 2. Join with 6-Digit Code Card
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .desktopLiquidCard(RoundedCornerShape(18.dp))
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text(
+                        text = "Join with Code",
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        color = Color.White,
+                    )
+                    Text(
+                        text = "Enter 6-digit room code or paste link",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = DesktopSecondary,
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(44.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color.White.copy(alpha = 0.07f))
+                                .border(
+                                    1.dp,
+                                    if (joinCodeInput.length == 6) DesktopAccent.copy(alpha = 0.6f) else DesktopCardEdge,
+                                    RoundedCornerShape(12.dp),
+                                )
+                                .padding(horizontal = 10.dp),
+                            contentAlignment = Alignment.CenterStart,
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                BasicTextField(
+                                    value = joinCodeInput,
+                                    onValueChange = { input ->
+                                        val parsed = JamInvite.parse(input)
+                                        if (parsed != null) {
+                                            joinCodeInput = parsed
+                                        } else {
+                                            joinCodeInput = input.filter(Char::isLetterOrDigit).take(6).uppercase()
+                                        }
+                                        localError = null
+                                    },
+                                    textStyle = TextStyle(
+                                        color = Color.White,
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 3.sp,
+                                    ),
+                                    singleLine = true,
+                                    cursorBrush = SolidColor(DesktopAccent),
+                                    keyboardOptions = KeyboardOptions(
+                                        capitalization = KeyboardCapitalization.Characters,
+                                        imeAction = ImeAction.Done,
+                                    ),
+                                    keyboardActions = KeyboardActions(onDone = {
+                                        if (joinCodeInput.length == 6 && !busy) {
+                                            busy = true
+                                            localError = null
+                                            scope.launch {
+                                                val res = DesktopListenTogether.joinParty(joinCodeInput, nickname)
+                                                busy = false
+                                                if (res.isFailure) {
+                                                    localError = res.exceptionOrNull()?.message ?: "Failed to join Jam"
+                                                }
+                                            }
+                                        }
+                                    }),
+                                    modifier = Modifier.weight(1f),
+                                    decorationBox = { innerTextField ->
+                                        if (joinCodeInput.isEmpty()) {
+                                            Text(
+                                                text = "CODE",
+                                                style = TextStyle(
+                                                    color = Color.White.copy(alpha = 0.35f),
+                                                    fontSize = 13.sp,
+                                                    letterSpacing = 2.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                ),
+                                            )
+                                        }
+                                        innerTextField()
+                                    },
+                                )
+
+                                if (joinCodeInput.isNotEmpty()) {
+                                    IconButton(
+                                        onClick = { joinCodeInput = "" },
+                                        modifier = Modifier.size(26.dp),
+                                    ) {
+                                        Icon(
+                                            Icons.Rounded.Close,
+                                            contentDescription = "Clear",
+                                            tint = DesktopSecondary,
+                                            modifier = Modifier.size(15.dp),
+                                        )
+                                    }
+                                } else {
+                                    IconButton(
+                                        onClick = {
+                                            val clip = clipboard.getText()?.text?.trim()
+                                            if (!clip.isNullOrBlank()) {
+                                                val parsed = JamInvite.parse(clip)
+                                                joinCodeInput = parsed ?: clip.filter(Char::isLetterOrDigit).take(6).uppercase()
+                                                showToast("Pasted code: $joinCodeInput")
+                                            }
+                                        },
+                                        modifier = Modifier.size(26.dp),
+                                    ) {
+                                        Icon(
+                                            Icons.Rounded.ContentPaste,
+                                            contentDescription = "Paste from clipboard",
+                                            tint = DesktopAccent,
+                                            modifier = Modifier.size(15.dp),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(Modifier.width(8.dp))
+
+                        Button(
+                            onClick = {
+                                busy = true
+                                localError = null
+                                scope.launch {
+                                    val res = DesktopListenTogether.joinParty(joinCodeInput, nickname)
+                                    busy = false
+                                    if (res.isFailure) {
+                                        localError = res.exceptionOrNull()?.message ?: "Failed to join Jam"
+                                    }
+                                }
+                            },
+                            enabled = joinCodeInput.length == 6 && !busy,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = DesktopAccent,
+                                contentColor = Color.Black,
+                            ),
+                            modifier = Modifier.height(44.dp),
+                        ) {
+                            if (busy) {
+                                CircularProgressIndicator(Modifier.size(16.dp), color = Color.Black, strokeWidth = 2.dp)
+                            } else {
+                                Text("Join", fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
