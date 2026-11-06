@@ -61,6 +61,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import coil3.compose.AsyncImage
 import com.music.raaga.data.model.BrowseItem
@@ -466,6 +467,7 @@ private fun TopResultCard(
             AsyncImage(
                 model = song.thumbnailUrl?.artworkAt(ROW_ART_PX),
                 contentDescription = null,
+                filterQuality = FilterQuality.High,
                 modifier = Modifier.size(72.dp).clip(RoundedCornerShape(10.dp)),
             )
             Spacer(Modifier.width(14.dp))
@@ -687,6 +689,7 @@ private fun TypeaheadSongRow(
             AsyncImage(
                 model = song.artworkAt(ROW_ART_PX),
                 contentDescription = null,
+                filterQuality = FilterQuality.High,
                 modifier = Modifier
                     .size(52.dp)
                     .clip(RoundedCornerShape(8.dp))
@@ -787,6 +790,7 @@ private fun RecentSearchEntityRow(
             AsyncImage(
                 model = entity.artworkUrl,
                 contentDescription = null,
+                filterQuality = FilterQuality.High,
                 modifier = Modifier
                     .size(52.dp)
                     .clip(RoundedCornerShape(8.dp))
@@ -846,6 +850,7 @@ private fun BrowseRow(item: BrowseItem, onClick: () -> Unit, onLongPress: (() ->
         AsyncImage(
             model = item.thumbnailUrl.artworkAt(ROW_ART_PX),
             contentDescription = null,
+            filterQuality = FilterQuality.High,
             modifier = Modifier
                 .size(52.dp)
                 .clip(
