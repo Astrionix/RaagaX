@@ -88,21 +88,29 @@ internal object DesktopDiscordRpc {
                 DesktopPersistence().saveString(KEY_USERNAME, user.name)
                 _token.value = candidate
                 _username.value = user.name
+                lastKey = null
+                rpc?.closeRPC()
+                rpc = null
                 setEnabled(true)
             }
 
     fun signOut() {
-        setEnabled(false)
         DesktopPersistence().saveString(KEY_TOKEN, "")
         DesktopPersistence().saveString(KEY_USERNAME, "")
         _token.value = ""
         _username.value = ""
+        clear()
     }
 
     fun setEnabled(value: Boolean) {
         DesktopPersistence().saveBoolean(KEY_ENABLED, value)
         _enabled.value = value
-        if (!value) clear()
+        lastKey = null
+        if (value) {
+            refreshLocalClient()
+        } else {
+            clear()
+        }
     }
 
     /**
@@ -117,7 +125,6 @@ internal object DesktopDiscordRpc {
      */
     fun onPlaybackStateChanged(state: DesktopPlaybackState, speed: Float) {
         if (!_enabled.value) return
-        if (_token.value.isBlank() && ipc == null) return
         val song = state.song
         if (song == null || !state.isPlaying) {
             clear()
@@ -137,61 +144,69 @@ internal object DesktopDiscordRpc {
             } else {
                 song.title
             }
-            // The socket first, and the gateway only if there is no socket:
-            // publishing through both would put the same presence up twice.
+
+            // Web & Android style: If user connected a Discord token, broadcast directly via KizzyRPC gateway
+            if (_token.value.isNotBlank()) {
+                runCatching {
+                    val client = rpc ?: KizzyRPC(
+                        token = _token.value,
+                        os = if (DesktopPlatform.isWindows) "Windows" else "Linux",
+                        browser = "Discord Client",
+                        device = "desktop",
+                        userAgent = USER_AGENT,
+                        superPropertiesBase64 = superProperties(),
+                    ).also { rpc = it }
+
+                    client.setActivity(
+                        name = DesktopDiscordSettings.activityName.value
+                            .ifBlank { DesktopDiscordSettings.APP_NAME },
+                        details = title,
+                        state = song.artist,
+                        detailsUrl = watchUrl(song),
+                        largeImage = RpcImage.ExternalImage(
+                            song.artworkAt(ART_PX)?.takeIf { it.startsWith("http") } ?: FALLBACK_ART_URL,
+                        ),
+                        smallImage = null,
+                        largeText = song.albumName,
+                        buttons = buttonLabels(song).takeIf { it.isNotEmpty() },
+                        type = when (DesktopDiscordSettings.activityType.value) {
+                            "playing" -> KizzyRPC.Type.PLAYING
+                            "watching" -> KizzyRPC.Type.WATCHING
+                            "competing" -> KizzyRPC.Type.COMPETING
+                            else -> KizzyRPC.Type.LISTENING
+                        },
+                        statusDisplayType = if (DesktopDiscordSettings.useDetails.value) {
+                            KizzyRPC.StatusDisplayType.DETAILS
+                        } else {
+                            KizzyRPC.StatusDisplayType.STATE
+                        },
+                        since = now,
+                        startTime = now - elapsed,
+                        endTime = now + remaining,
+                        applicationId = APPLICATION_ID,
+                        status = DesktopDiscordSettings.status.value,
+                    )
+                }
+                return@launch
+            }
+
+            // Fallback: Local named pipe if Discord desktop app is running
+            if (ipc == null) {
+                val found = runCatching { DesktopDiscordIpc.connect(APPLICATION_ID) }.getOrNull()
+                if (found != null) {
+                    ipc = found
+                    _localClient.value = true
+                }
+            }
             val local = ipc
             if (local != null) {
                 val sent = runCatching {
                     local.setActivity(ipcActivity(song, title, now - elapsed, now + remaining))
                 }.isSuccess
-                if (sent) return@launch
-                // A client that has quit takes its socket with it.
-                ipc = null
-                _localClient.value = false
-            }
-            if (_token.value.isBlank()) return@launch
-            runCatching {
-                val client = rpc ?: KizzyRPC(
-                    token = _token.value,
-                    os = if (DesktopPlatform.isWindows) "Windows" else "Linux",
-                    browser = "Discord Client",
-                    device = "desktop",
-                    userAgent = USER_AGENT,
-                    superPropertiesBase64 = superProperties(),
-                ).also { rpc = it }
-
-                client.setActivity(
-                    name = DesktopDiscordSettings.activityName.value
-                        .ifBlank { DesktopDiscordSettings.APP_NAME },
-                    details = title,
-                    state = song.artist,
-                    detailsUrl = watchUrl(song),
-                    // Never null: an activity with no large image falls back to
-                    // whatever icon the application id points at, which is not
-                    // ours to set.
-                    largeImage = RpcImage.ExternalImage(
-                        song.artworkAt(ART_PX)?.takeIf { it.startsWith("http") } ?: FALLBACK_ART_URL,
-                    ),
-                    smallImage = null,
-                    largeText = song.albumName,
-                    buttons = buttonLabels(song).takeIf { it.isNotEmpty() },
-                    type = when (DesktopDiscordSettings.activityType.value) {
-                        "playing" -> KizzyRPC.Type.PLAYING
-                        "watching" -> KizzyRPC.Type.WATCHING
-                        "competing" -> KizzyRPC.Type.COMPETING
-                        else -> KizzyRPC.Type.LISTENING
-                    },
-                    statusDisplayType = if (DesktopDiscordSettings.useDetails.value) {
-                        KizzyRPC.StatusDisplayType.DETAILS
-                    } else {
-                        KizzyRPC.StatusDisplayType.STATE
-                    },
-                    since = now,
-                    startTime = now - elapsed,
-                    endTime = now + remaining,
-                    applicationId = APPLICATION_ID,
-                    status = DesktopDiscordSettings.status.value,
-                )
+                if (!sent) {
+                    ipc = null
+                    _localClient.value = false
+                }
             }
         }
     }
