@@ -279,6 +279,10 @@ import androidx.compose.ui.unit.sp
 import raaga.desktopapp.generated.resources.Res
 import raaga.desktopapp.generated.resources.logo
 import raaga.desktopapp.generated.resources.logo_mark
+import raaga.desktopapp.generated.resources.ic_logo
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.material.icons.rounded.Groups
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import raaga.desktopapp.generated.resources.sf_pro_display_bold
 import raaga.desktopapp.generated.resources.sf_pro_display_heavy
 import raaga.desktopapp.generated.resources.sf_pro_display_medium
@@ -352,7 +356,7 @@ import org.jetbrains.compose.resources.painterResource
  */
 internal val DesktopPageGutter = PAGE_GUTTER
 
-internal val DesktopBackground = Color(0xFF202020)
+internal val DesktopBackground = Color(0xFF000000)
 internal val DesktopSurface = Color(0xFF0D0D0F)
 private val DesktopSurfaceRaised = Color(0xFF1C1C1E)
 internal val DesktopGlass = Color(0x661C1C1E)
@@ -484,6 +488,7 @@ private enum class DesktopDestination(val id: String, val label: String) {
     LISTEN_NOW("listen-now", "Home"),
     EXPLORE("explore", "Explore"),
     LIBRARY("library", "Library"),
+    LIKED_SONGS("liked-songs", "Liked Songs"),
     SEARCH("search", "Search"),
     HISTORY("history", "History"),
     DOWNLOADS("downloads", "Downloads"),
@@ -2141,7 +2146,16 @@ fun RaagaDesktopApp() {
     }
     // Keyed on the same things, plus the rate: Discord counts the bar down on
     // its own clock, so only a change to what it was told is worth another push.
-    LaunchedEffect(effectivePlayback.song?.videoId, effectivePlayback.isPlaying, effectivePlayback.durationMs, playbackSpeed) {
+    val discordEnabledState by DesktopDiscordRpc.enabled.collectAsState()
+    val discordTokenState by DesktopDiscordRpc.token.collectAsState()
+    LaunchedEffect(
+        effectivePlayback.song?.videoId,
+        effectivePlayback.isPlaying,
+        effectivePlayback.durationMs,
+        playbackSpeed,
+        discordEnabledState,
+        discordTokenState,
+    ) {
         DesktopDiscordRpc.onPlaybackStateChanged(effectivePlayback, playbackSpeed)
     }
     // The account's own history on YouTube Music, which is what the home feed is built out of.
@@ -2657,6 +2671,9 @@ fun RaagaDesktopApp() {
         // The logo travels to the tray as pixels: a themed icon name would be whatever the user's
         // theme draws for a generic music player.
         runCatching { Res.readBytes("drawable/logo.png") }.onSuccess(tray::setIcon)
+    }
+    LaunchedEffect(Unit) {
+        DesktopDiscordRpc.refreshLocalClient()
     }
     LaunchedEffect(tray) {
         DesktopTrayMenu.bind(
@@ -3257,6 +3274,12 @@ fun RaagaDesktopApp() {
                         // One layer at a time, innermost first: the player's own side panel, then
                         // the player.
                         event.key == Key.Escape -> when {
+                            overlays.nowPlaying && PlayerBack.dispatch() -> true
+                            overlays.nowPlaying -> {
+                                DesktopWindowMode.exit()
+                                overlays.nowPlaying = false
+                                true
+                            }
                             // Exit full screen mode first if active
                             DesktopWindowMode.fullScreen.value -> {
                                 DesktopWindowMode.exit()
@@ -3294,6 +3317,45 @@ fun RaagaDesktopApp() {
                     }
                 },
                 topBar = { compact ->
+                    DesktopTopBar(
+                        compact = compact,
+                        query = query,
+                        onQueryChange = { text ->
+                            editQuery(text)
+                            if (destination != DesktopDestination.SEARCH || overlays.settingsPage != null) {
+                                selectDestination(DesktopDestination.SEARCH)
+                            }
+                        },
+                        onSearch = ::search,
+                        onNavigateHome = { selectDestination(DesktopDestination.LISTEN_NOW) },
+                        onNavigateExplore = { selectDestination(DesktopDestination.EXPLORE) },
+                        canGoBack = navHistory.isNotEmpty(),
+                        onBack = ::goBack,
+                        accountAvatar = activeAccount?.avatar
+                            ?: activeAccount?.profiles?.firstOrNull()?.avatar,
+                        onOpenAccounts = { DesktopTrackLog.log("accounts: opening the switcher"); overlays.accounts = true },
+                        onOpenSettings = ::openSettings,
+                        onNavigateHistory = { selectDestination(DesktopDestination.HISTORY) },
+                        focusSearch = searchFocusRequested,
+                        onSearchFocused = { searchFocusRequested = false },
+                    )
+                },
+                sidebar = {
+                    DesktopSidebar(
+                        destination = destination,
+                        settingsOpen = overlays.settingsPage != null,
+                        accountPlaylists = sidebarAccountPlaylists,
+                        localPlaylists = playlists,
+                        openedCollectionId = openedCollection?.browseId,
+                        likedCount = likedIds.size,
+                        onDestinationSelected = ::selectDestination,
+                        onOpenAccountPlaylist = { openShelfItem(it, PLAYLISTS_SHELF) },
+                        onOpenLocalPlaylist = ::openPlaylist,
+                        onOpenSettings = ::openSettings,
+                    )
+                },
+                bottomBar = { compact ->
+                    val current = effectiveSong
                     val effectiveProgress = if (activeRemoteDeviceState != null && remoteStatusState != null) {
                         val dur = if (remoteStatusState!!.durationMs > 0L) {
                             remoteStatusState!!.durationMs
@@ -3306,17 +3368,26 @@ fun RaagaDesktopApp() {
                     } else {
                         0f
                     }
-                    DesktopTopBar(
-                        compact = compact,
-                        song = effectiveSong,
+                    val effectiveDur = if (activeRemoteDeviceState != null && remoteStatusState != null) {
+                        if (remoteStatusState!!.durationMs > 0L) remoteStatusState!!.durationMs
+                        else com.music.raaga.data.connect.parseDurationTextToMs(remoteStatusState!!.track?.durationText)
+                    } else {
+                        playback.durationMs
+                    }
+                    DesktopPlayerBar(
+                        song = current,
                         isPlaying = effectivePlayback.isPlaying,
                         isLoading = if (activeRemoteDeviceState != null) false else playback.isLoading,
                         previousEnabled = if (activeRemoteDeviceState != null) true else (liveQueue.hasPrevious ||
                             playback.positionMs > BACK_RESTARTS_AFTER_MS),
                         progress = effectiveProgress,
+                        durationMs = effectiveDur,
+                        positionMs = playerPosition.positionMs,
                         volume = if (activeRemoteDeviceState != null && remoteStatusState != null) remoteStatusState!!.volume else playback.volume,
                         shuffle = shuffle,
                         repeatMode = repeatMode,
+                        isLiked = current != null && current.videoId in likedIds,
+                        onToggleLike = { if (current != null) toggleLike(current) },
                         onPlayPause = { if (effectiveSong != null) togglePlayPauseFromUser() },
                         onPrevious = ::playPrevious,
                         onNext = ::playNext,
@@ -3325,7 +3396,10 @@ fun RaagaDesktopApp() {
                             repeatMode = it
                             persistence.saveString("repeat_mode", it.name)
                         },
-                        onOpenNowPlaying = { overlays.nowPlaying = true },
+                        onSeek = { fraction ->
+                            val targetMs = (fraction * effectiveDur.toFloat()).toLong()
+                            seekPlayer(targetMs)
+                        },
                         onVolumeChange = {
                             volume = it
                             persistence.saveString("volume", it.toString())
@@ -3334,62 +3408,44 @@ fun RaagaDesktopApp() {
                                 DesktopConnect.manager.sendVolume(it)
                             }
                         },
-                        onOpenConnectDevice = { overlays.toggleSidePanel(DesktopSidePanel.CONNECT) },
-                        onOpenAudioOutput = { overlays.audioOutput = true },
-                        // A second click on the same button puts the column away, as in Apple Music.
-                        onOpenLyrics = { overlays.toggleSidePanel(DesktopSidePanel.LYRICS) },
-                        onOpenQueue = { overlays.toggleSidePanel(DesktopSidePanel.QUEUE) },
                         sidePanel = overlays.sidePanel,
-                        accountAvatar = activeAccount?.avatar
-                            ?: activeAccount?.profiles?.firstOrNull()?.avatar,
-                        onOpenAccounts = { DesktopTrackLog.log("accounts: opening the switcher"); overlays.accounts = true },
-                        canGoBack = navHistory.isNotEmpty(),
-                        onBack = ::goBack,
-                    )
-                },
-                sidebar = {
-                    DesktopSidebar(
-                        destination = destination,
-                        settingsOpen = overlays.settingsPage != null,
-                        accountPlaylists = sidebarAccountPlaylists,
-                        localPlaylists = playlists,
-                        openedCollectionId = openedCollection?.browseId,
-                        query = query,
-                        onQueryChange = { text ->
-                            editQuery(text)
-                            if (destination != DesktopDestination.SEARCH || overlays.settingsPage != null) {
-                                selectDestination(DesktopDestination.SEARCH)
+                        onToggleSidePanel = { panel ->
+                            overlays.toggleSidePanel(panel)
+                        },
+                        onOpenAudioOutput = { overlays.toggleSidePanel(DesktopSidePanel.AUDIO_OUTPUT) },
+                        activeRemoteDevice = activeRemoteDeviceState?.name,
+                        onOpenNowPlayingSheet = { overlays.toggleSidePanel(DesktopSidePanel.NOW_PLAYING) },
+                        isExpanded = overlays.nowPlaying,
+                        onToggleExpand = {
+                            if (effectiveSong != null) {
+                                overlays.nowPlaying = !overlays.nowPlaying
                             }
                         },
-                        onSearch = ::search,
-                        onDestinationSelected = ::selectDestination,
-                        onOpenAccountPlaylist = { openShelfItem(it, PLAYLISTS_SHELF) },
-                        onOpenLocalPlaylist = ::openPlaylist,
-                        onOpenSettings = ::openSettings,
-                        focusSearch = searchFocusRequested,
-                        onSearchFocused = { searchFocusRequested = false },
-                    )
-                },
-                bottomBar = { compact ->
-                    DesktopBottomChrome(
-                        compact = compact,
-                        destination = destination,
-                        song = effectiveSong,
-                        isPlaying = effectivePlayback.isPlaying,
-                        onDestinationSelected = ::selectDestination,
-                        onExpand = { overlays.nowPlaying = true },
-                        onPlayPause = { if (effectiveSong != null) togglePlayPauseFromUser() },
-                        onNext = ::playNext,
-                        onOpenConnectDevice = { overlays.toggleSidePanel(DesktopSidePanel.CONNECT) },
                     )
                 },
                 trailing = {
                     val current = effectiveSong
                     DesktopSidePanelColumn(
-                        panel = overlays.sidePanel.takeIf { current != null || it == DesktopSidePanel.CONNECT },
+                        panel = overlays.sidePanel.takeIf { it == DesktopSidePanel.AUDIO_OUTPUT || it == DesktopSidePanel.JAM || current != null },
                         onClose = { overlays.sidePanel = null },
                     ) { which ->
                         when (which) {
+                            DesktopSidePanel.NOW_PLAYING -> {
+                                if (current != null) {
+                                    NowPlayingSidePanel(
+                                        song = current,
+                                        isPlaying = effectivePlayback.isPlaying,
+                                        isLiked = current.videoId in likedIds,
+                                        onToggleLike = { toggleLike(current) },
+                                        lyrics = sharedLyrics,
+                                        position = playerPosition,
+                                        onOpenLyrics = { overlays.sidePanel = DesktopSidePanel.LYRICS },
+                                        onOpenArtist = ::openArtist,
+                                        artistPage = (artistState as? UiState.Success)?.data?.takeIf { it.name == current.artist },
+                                        modifier = Modifier.fillMaxSize(),
+                                    )
+                                }
+                            }
                             DesktopSidePanel.LYRICS -> {
                                 if (current != null) {
                                     LyricsSidePanel(
@@ -3416,7 +3472,15 @@ fun RaagaDesktopApp() {
                                 onClear = ::clearQueue,
                                 modifier = Modifier.fillMaxSize(),
                             )
-                            DesktopSidePanel.CONNECT -> ConnectSidePanel(
+                            DesktopSidePanel.AUDIO_OUTPUT -> DesktopAudioOutputSidePanel(
+                                onOpenPipeline = {
+                                    overlays.settingsPage = DesktopSettingsPage.AUDIO_OUTPUT
+                                },
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                            DesktopSidePanel.JAM -> DesktopJamSidePanel(
+                                autoplayEnabled = DesktopAutoplay.enabled(partyState, autoplay),
+                                onClose = { overlays.sidePanel = null },
                                 modifier = Modifier.fillMaxSize(),
                             )
                         }
@@ -3543,7 +3607,7 @@ fun RaagaDesktopApp() {
                             lyricsUnavailable = sharedLyricsUnavailable,
                             lyricsOffsetOpen = false,
                             onDismissLyricsOffset = {},
-                            onOpenAudioOutput = { overlays.audioOutput = true },
+                            onOpenAudioOutput = { overlays.toggleSidePanel(DesktopSidePanel.AUDIO_OUTPUT) },
                             windowWidth = windowWidth,
                             windowHeight = windowHeight,
                         )
@@ -3763,7 +3827,7 @@ fun RaagaDesktopApp() {
                     }
                 },
             ) { rawContentPadding ->
-                val sidePanelActive = overlays.sidePanel != null && (effectiveSong != null || overlays.sidePanel == DesktopSidePanel.CONNECT)
+                val sidePanelActive = overlays.sidePanel != null && (effectiveSong != null || (overlays.sidePanel == DesktopSidePanel.AUDIO_OUTPUT || overlays.sidePanel == DesktopSidePanel.JAM))
                 val panelEndMargin = if (sidePanelActive) 18.dp else 0.dp
                 val contentPadding = PaddingValues(
                     start = rawContentPadding.calculateStartPadding(androidx.compose.ui.unit.LayoutDirection.Ltr),
@@ -4012,6 +4076,7 @@ fun RaagaDesktopApp() {
                                         }
                                     },
                                     onOpenIntegrations = { overlays.settingsPage = DesktopSettingsPage.INTEGRATIONS },
+                                    onOpenDiscordToken = { overlays.discordToken = true },
                                     onOpenLicenses = { overlays.settingsPage = DesktopSettingsPage.LICENSES },
                                     onCheckForUpdates = {
                                         scope.launch {
@@ -4292,6 +4357,35 @@ fun RaagaDesktopApp() {
                                     .takeIf { libraryShowAll?.title == PLAYLISTS_SHELF },
                             )
                         }
+                        destination == DesktopDestination.LIKED_SONGS -> {
+                            val accountLiked = (libraryState as? UiState.Success)?.data?.likedSongs.orEmpty()
+                            val allLikedSongs = remember(accountLiked, history, localSongs, likedIds) {
+                                if (accountLiked.isNotEmpty()) {
+                                    accountLiked
+                                } else {
+                                    (history + localSongs).filter { it.videoId in likedIds }.distinctBy { it.videoId }
+                                }
+                            }
+                            DesktopSpotifyTableView(
+                                title = "Liked Songs",
+                                subtitle = "${activeAccount?.name ?: "Raaga User"} • ${allLikedSongs.size} songs",
+                                category = "Playlist",
+                                isLikedSongs = true,
+                                songs = allLikedSongs,
+                                likedIds = likedIds,
+                                currentSongId = effectiveSong?.videoId,
+                                onPlaySongs = { songs, index ->
+                                    playSongs(songs, index, DesktopQueueSource("Liked Songs", PlaybackSourceType.BROWSE))
+                                },
+                                onShuffle = { songs ->
+                                    playSongs(songs.shuffled(), 0, DesktopQueueSource("Liked Songs", PlaybackSourceType.BROWSE))
+                                },
+                                onToggleLike = ::toggleLike,
+                                onAddToPlaylist = { playlistTarget = it },
+                                onDownload = ::downloadSong,
+                                contentPadding = contentPadding,
+                            )
+                        }
                         destination == DesktopDestination.LIBRARY -> LibraryScreen(
                             signedIn = youtubeSignedIn,
                             state = libraryState,
@@ -4440,626 +4534,391 @@ private fun DesktopMiniEqualizer(
 @Composable
 private fun DesktopTopBar(
     compact: Boolean,
-    song: Song?,
-    isPlaying: Boolean,
-    isLoading: Boolean,
-    previousEnabled: Boolean,
-    progress: Float,
-    volume: Float,
-    shuffle: Boolean,
-    repeatMode: DesktopRepeatMode,
-    onPlayPause: () -> Unit,
-    onPrevious: () -> Unit,
-    onNext: () -> Unit,
-    onShuffleChange: (Boolean) -> Unit,
-    onRepeatModeChange: (DesktopRepeatMode) -> Unit,
-    onOpenNowPlaying: () -> Unit,
-    onVolumeChange: (Float) -> Unit,
-    onOpenConnectDevice: () -> Unit,
-    onOpenAudioOutput: () -> Unit,
-    onOpenLyrics: () -> Unit,
-    onOpenQueue: () -> Unit,
-    /** Which of the two the column beside the page is showing, lit on its button. */
-    sidePanel: DesktopSidePanel?,
-    accountAvatar: String?,
-    onOpenAccounts: () -> Unit,
-    /** The app's one way back — every page's own arrow was folded into this. */
+    query: String,
+    onQueryChange: (String) -> Unit,
+    onSearch: () -> Unit,
+    onNavigateHome: () -> Unit,
+    onNavigateExplore: () -> Unit,
     canGoBack: Boolean,
     onBack: () -> Unit,
+    accountAvatar: String?,
+    onOpenAccounts: () -> Unit,
+    onOpenSettings: () -> Unit = {},
+    onNavigateHistory: () -> Unit = {},
+    focusSearch: Boolean,
+    onSearchFocused: () -> Unit,
 ) {
+    val searchFocusRequester = remember { FocusRequester() }
+    LaunchedEffect(focusSearch) {
+        if (focusSearch) {
+            runCatching { searchFocusRequester.requestFocus() }
+            onSearchFocused()
+        }
+    }
+
     val titleBarEnabled by DesktopTitleBarSetting.enabled.collectAsState()
     val inlineCaption = DesktopPlatform.drawsOwnWindowFrame && !titleBarEnabled
-    // The same beat clock the player's scrubber runs, so this line and the player breathe
-    // together through an Automix blend.
-    val mixBlend = DesktopPlayerSettings.smartMixBlend.collectAsState()
-    val reduceAnimation by DesktopPlayerSettings.reduceAnimation.collectAsState()
-    val mixPulse = rememberMixPulse({ mixBlend.value }, enabled = !reduceAnimation)
-    val currentProgress by rememberUpdatedState(progress)
 
-    val haze = LocalDesktopHaze.current
-    val reduceDynamicBlur by DesktopAppearanceSettings.reduceDynamicBlur.collectAsState()
+    DesktopTitleBarDragArea(
+        Modifier
+            .fillMaxWidth()
+            .height(60.dp)
+            .background(Color.Black),
+    ) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .padding(
+                    start = if (compact && inlineCaption && DesktopPlatform.isMac) 0.dp else 16.dp,
+                    end = if (DesktopPlatform.drawsOwnWindowFrame && !DesktopPlatform.isMac) 8.dp else 16.dp,
+                ),
+        ) {
+            if (compact && inlineCaption && DesktopPlatform.isMac) {
+                Box(
+                    Modifier
+                        .fillMaxHeight()
+                        .padding(start = 16.dp, end = 10.dp),
+                    contentAlignment = Alignment.CenterStart,
+                ) {
+                    DesktopWindowButtons()
+                }
+            }
 
-    // Apple Music macOS Sequoia / visionOS: Floating Liquid Glass Header
-    DesktopTitleBarDragArea(Modifier.fillMaxWidth().height(66.dp)) {
-        Box(Modifier.fillMaxSize()) {
+            // 1. LEFT: Raaga Logo & Back Navigation
             Row(
-                Modifier
-                    .fillMaxSize()
-                    .padding(
-                        start = if (compact && inlineCaption && DesktopPlatform.isMac) 0.dp else 12.dp,
-                        end = if (DesktopPlatform.drawsOwnWindowFrame && !DesktopPlatform.isMac) 8.dp else 16.dp,
-                    ),
+                modifier = Modifier.align(Alignment.CenterStart),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Image(
+                    painter = painterResource(Res.drawable.logo_mark),
+                    contentDescription = "Raaga",
+                    modifier = Modifier.size(26.dp),
+                    contentScale = ContentScale.Fit,
+                )
+                DesktopToolbarButton(
+                    onClick = onBack,
+                    enabled = canGoBack,
+                    size = 32.dp,
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Rounded.ArrowBack,
+                        DesktopStrings["back", "Back"],
+                        tint = if (canGoBack) Color.White else Color.White.copy(alpha = 0.35f),
+                        modifier = Modifier.size(19.dp),
+                    )
+                }
+            }
+
+            // 2. CENTER: Home Circular Button & Pill Search Input
+            Row(
+                modifier = Modifier.align(Alignment.Center),
+                horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                // In compact mode with inline caption, traffic lights lead the top bar (Mac only)
-                if (compact && inlineCaption && DesktopPlatform.isMac) {
-                    Box(
-                        Modifier
-                            .fillMaxHeight()
-                            .padding(start = 16.dp, end = 10.dp),
-                        contentAlignment = Alignment.CenterStart,
-                    ) {
-                        DesktopWindowButtons()
-                    }
-                }
-
-                // 1. LEFT POD: Brand, Navigation & Tactile Transport Pod
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
+                // Circular Home button (Spotify style)
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF1F1F1F))
+                        .clickable(onClick = onNavigateHome),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    Image(
-                        painter = painterResource(Res.drawable.logo_mark),
-                        contentDescription = "Raaga",
-                        modifier = Modifier.size(width = 26.dp, height = 22.dp),
-                        contentScale = ContentScale.Fit,
+                    Icon(
+                        RaagaIcons.Home,
+                        contentDescription = DesktopStrings["home", "Home"],
+                        tint = Color.White,
+                        modifier = Modifier.size(22.dp),
                     )
-                    Spacer(Modifier.width(10.dp))
-                    DesktopToolbarButton(onClick = onBack, enabled = canGoBack, size = 32.dp) {
-                        Icon(
-                            Icons.AutoMirrored.Rounded.ArrowBack,
-                            DesktopStrings["back", "Back"],
-                            tint = if (canGoBack) Color.White else Color.White.copy(alpha = 0.30f),
-                            modifier = Modifier.size(19.dp),
-                        )
-                    }
-
-                    if (!compact) {
-                        Spacer(Modifier.width(8.dp))
-                        // Tactile Liquid Glass Transport Cluster
-                        val transportShape = RoundedCornerShape(percent = 50)
-                        val transportRim = Brush.verticalGradient(
-                            listOf(
-                                Color.White.copy(alpha = 0.55f),
-                                Color.White.copy(alpha = 0.16f),
-                                Color.White.copy(alpha = 0.05f),
-                                Color.White.copy(alpha = 0.16f),
-                            ),
-                        )
-                        val transportSheen = Brush.verticalGradient(
-                            listOf(
-                                Color.White.copy(alpha = 0.14f),
-                                Color.White.copy(alpha = 0.04f),
-                                Color.White.copy(alpha = 0.01f),
-                                Color.White.copy(alpha = 0.04f),
-                            ),
-                        )
-                        Row(
-                            modifier = Modifier
-                                .shadow(4.dp, transportShape, spotColor = Color.Black.copy(alpha = 0.20f))
-                                .clip(transportShape)
-                                .background(transportSheen)
-                                .border(1.dp, transportRim, transportShape)
-                                .padding(horizontal = 6.dp, vertical = 3.dp),
-                            horizontalArrangement = Arrangement.spacedBy(2.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            // Shuffle
-                            DesktopToolbarButton(onClick = { onShuffleChange(!shuffle) }, size = 30.dp) {
-                                Icon(
-                                    RaagaIcons.Shuffle,
-                                    DesktopStrings["shuffle", "Shuffle"],
-                                    tint = if (shuffle) DesktopAccent else Color.White.copy(alpha = 0.50f),
-                                    modifier = Modifier.size(16.dp),
-                                )
-                            }
-                            // Previous
-                            DesktopToolbarButton(onClick = onPrevious, enabled = previousEnabled, size = 30.dp) {
-                                Icon(
-                                    Icons.Rounded.FastRewind,
-                                    DesktopStrings["widget_previous", "Previous"],
-                                    tint = if (previousEnabled) Color.White else Color.White.copy(alpha = 0.30f),
-                                    modifier = Modifier.size(19.dp),
-                                )
-                            }
-                            // Hero Circular Play/Pause Glass Button
-                            Box(
-                                modifier = Modifier
-                                    .size(34.dp)
-                                    .shadow(
-                                        elevation = 3.dp,
-                                        shape = CircleShape,
-                                        spotColor = Color.Black.copy(alpha = 0.25f),
-                                    )
-                                    .clip(CircleShape)
-                                    .then(
-                                        if (isPlaying) {
-                                            Modifier.background(Color.White)
-                                        } else {
-                                            Modifier
-                                                .background(
-                                                    Brush.verticalGradient(
-                                                        listOf(
-                                                            Color.White.copy(alpha = 0.26f),
-                                                            Color.White.copy(alpha = 0.10f),
-                                                        ),
-                                                    ),
-                                                )
-                                                .border(
-                                                    1.dp,
-                                                    Brush.verticalGradient(
-                                                        listOf(
-                                                            Color.White.copy(alpha = 0.65f),
-                                                            Color.White.copy(alpha = 0.20f),
-                                                        ),
-                                                    ),
-                                                    CircleShape,
-                                                )
-                                        }
-                                    )
-                                    .clickable(onClick = onPlayPause),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                if (isLoading) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(16.dp),
-                                        color = if (isPlaying) Color.Black else Color.White,
-                                        strokeWidth = 2.dp,
-                                    )
-                                } else {
-                                    Icon(
-                                        if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                                        if (isPlaying) "Pause" else "Play",
-                                        tint = if (isPlaying) Color.Black else Color.White,
-                                        modifier = Modifier.size(20.dp),
-                                    )
-                                }
-                            }
-                            // Next
-                            DesktopToolbarButton(onClick = onNext, size = 30.dp) {
-                                Icon(
-                                    Icons.Rounded.FastForward,
-                                    DesktopStrings["widget_next", "Next"],
-                                    tint = Color.White,
-                                    modifier = Modifier.size(19.dp),
-                                )
-                            }
-                            // Repeat
-                            DesktopToolbarButton(onClick = { onRepeatModeChange(repeatMode.next()) }, size = 30.dp) {
-                                val isRepeatActive = repeatMode != DesktopRepeatMode.OFF
-                                val tint = if (isRepeatActive) DesktopAccent else Color.White.copy(alpha = 0.50f)
-                                if (repeatMode == DesktopRepeatMode.ONE) {
-                                    Text(
-                                        "1",
-                                        color = tint,
-                                        fontWeight = FontWeight.Bold,
-                                        style = MaterialTheme.typography.labelMedium,
-                                        modifier = Modifier.semantics { contentDescription = "Repeat one" },
-                                    )
-                                } else {
-                                    Icon(
-                                        RaagaIcons.Repeat,
-                                        "Repeat ${repeatMode.label()}",
-                                        tint = tint,
-                                        modifier = Modifier.size(16.dp),
-                                    )
-                                }
-                            }
-                        }
-                    }
                 }
 
-                // 2. CENTER HERO: "Liquid Glass Dynamic Island"
-                if (!compact) {
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(horizontal = 16.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        val islandShape = RoundedCornerShape(20.dp)
-                        val islandRim = Brush.verticalGradient(
-                            listOf(
-                                Color.White.copy(alpha = 0.85f),
-                                Color.White.copy(alpha = 0.28f),
-                                Color.White.copy(alpha = 0.06f),
-                                Color.White.copy(alpha = 0.20f),
-                            ),
+                Spacer(Modifier.width(10.dp))
+
+                // Centered Pill Search Input "What do you want to play?"
+                val searchPillShape = RoundedCornerShape(percent = 50)
+                var searchFocused by remember { mutableStateOf(false) }
+
+                Box(
+                    modifier = Modifier
+                        .widthIn(min = 280.dp, max = 500.dp)
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .clip(searchPillShape)
+                        .background(Color(0xFF1F1F1F))
+                        .border(
+                            width = 1.dp,
+                            color = if (searchFocused) Color.White else Color.Transparent,
+                            shape = searchPillShape,
                         )
-                        val islandSheen = Brush.verticalGradient(
-                            listOf(
-                                Color.White.copy(alpha = 0.16f),
-                                Color.White.copy(alpha = 0.03f),
-                                Color.White.copy(alpha = 0.01f),
-                                Color.White.copy(alpha = 0.05f),
-                            ),
-                        )
-
-                        Surface(
-                            modifier = Modifier
-                                .widthIn(min = 340.dp, max = 520.dp)
-                                .fillMaxWidth()
-                                .height(48.dp)
-                                .shadow(
-                                    elevation = 10.dp,
-                                    shape = islandShape,
-                                    spotColor = Color.Black.copy(alpha = 0.22f),
-                                    ambientColor = Color.Transparent,
-                                )
-                                .clip(islandShape)
-                                .then(
-                                    if (haze != null && !reduceDynamicBlur) {
-                                        Modifier.hazeEffect(state = haze) {
-                                            blurEnabled = true
-                                            backgroundColor = Color.Transparent
-                                            blurRadius = 24.dp
-                                            noiseFactor = 0f
-                                            tints = listOf(
-                                                HazeTint(Color.White.copy(alpha = 0.03f)),
-                                            )
-                                        }
-                                    } else {
-                                        Modifier.background(
-                                            Brush.verticalGradient(
-                                                listOf(
-                                                    Color.White.copy(alpha = 0.14f),
-                                                    Color.White.copy(alpha = 0.04f),
-                                                    Color.White.copy(alpha = 0.02f),
-                                                    Color.White.copy(alpha = 0.06f),
-                                                ),
-                                            ),
-                                        )
-                                    }
-                                )
-                                .background(islandSheen)
-                                .border(1.dp, islandRim, islandShape)
-                                .clickable(onClick = onOpenNowPlaying),
-                            color = Color.Transparent,
-                            tonalElevation = 0.dp,
-                        ) {
-                            Box(Modifier.fillMaxSize()) {
-                                if (song == null) {
-                                    Row(
-                                        Modifier.fillMaxSize().padding(horizontal = 16.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.Center,
-                                    ) {
-                                        Icon(
-                                            RaagaIcons.MusicNote,
-                                            DesktopStrings["playback_channel_name", "Now playing"],
-                                            tint = Color.White.copy(alpha = 0.45f),
-                                            modifier = Modifier.size(18.dp),
-                                        )
-                                        Spacer(Modifier.width(8.dp))
-                                        Text(
-                                            "Raaga",
-                                            color = Color.White.copy(alpha = 0.65f),
-                                            style = MaterialTheme.typography.bodyMedium.copy(
-                                                fontWeight = FontWeight.Medium,
-                                            ),
-                                        )
-                                    }
-                                } else {
-                                    Row(
-                                        Modifier
-                                            .fillMaxSize()
-                                            .padding(start = 6.dp, end = 12.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        DesktopArtwork(
-                                            song.thumbnailUrl,
-                                            Modifier
-                                                .size(36.dp)
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .border(0.5.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(8.dp)),
-                                            px = ROW_ART_PX,
-                                        )
-                                        Column(
-                                            Modifier
-                                                .weight(1f)
-                                                .padding(horizontal = 10.dp),
-                                            horizontalAlignment = Alignment.CenterHorizontally,
-                                            verticalArrangement = Arrangement.Center,
-                                        ) {
-                                            Text(
-                                                song.title,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                                style = MaterialTheme.typography.bodyMedium.copy(
-                                                    fontWeight = FontWeight.SemiBold,
-                                                    fontSize = 12.5.sp,
-                                                ),
-                                                color = Color.White,
-                                            )
-                                                Text(
-                                                    song.artist,
-                                                    color = Color.White.copy(alpha = 0.60f),
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis,
-                                                    style = MaterialTheme.typography.bodySmall.copy(
-                                                        fontSize = 11.sp,
-                                                    ),
-                                                )
-                                        }
-                                        Box(
-                                            modifier = Modifier.size(30.dp),
-                                            contentAlignment = Alignment.Center,
-                                        ) {
-                                            if (isPlaying) {
-                                                DesktopMiniEqualizer(color = Color.White.copy(alpha = 0.80f))
-                                            } else {
-                                                Icon(
-                                                    RaagaIcons.MusicNote,
-                                                    contentDescription = null,
-                                                    tint = Color.White.copy(alpha = 0.35f),
-                                                    modifier = Modifier.size(15.dp),
-                                                )
-                                            }
-                                        }
-                                    }
-
-                                    // Sleek inset progress scrubber along the bottom edge, clearing the artwork
-                                    Box(
-                                        Modifier
-                                            .align(Alignment.BottomCenter)
-                                            .fillMaxWidth()
-                                            .padding(start = 48.dp, end = 14.dp, bottom = 2.5.dp)
-                                            .height(2.dp)
-                                            .clip(RoundedCornerShape(1.dp))
-                                            .background(Color.White.copy(alpha = 0.10f)),
-                                    ) {
-                                        val base = currentProgress.coerceIn(0f, 1f)
-                                        val fraction = base + (1f - base) * mixPulse.cover
-                                        Box(
-                                            Modifier
-                                                .fillMaxHeight()
-                                                .fillMaxWidth(fraction)
-                                                .clip(RoundedCornerShape(1.dp))
-                                                .background(Color.White.copy(alpha = mixPulse.alpha(0.75f))),
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    Spacer(Modifier.weight(1f))
-                }
-
-                // 3. RIGHT UTILITIES: Volume Capsule & Action Pods
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                        .clickable { searchFocusRequester.requestFocus() }
+                        .padding(horizontal = 14.dp),
+                    contentAlignment = Alignment.CenterStart,
                 ) {
-                    val utilityShape = RoundedCornerShape(percent = 50)
-                    val utilityRim = Brush.verticalGradient(
-                        listOf(
-                            Color.White.copy(alpha = 0.55f),
-                            Color.White.copy(alpha = 0.16f),
-                            Color.White.copy(alpha = 0.05f),
-                            Color.White.copy(alpha = 0.16f),
-                        ),
-                    )
-                    val utilitySheen = Brush.verticalGradient(
-                        listOf(
-                            Color.White.copy(alpha = 0.14f),
-                            Color.White.copy(alpha = 0.04f),
-                            Color.White.copy(alpha = 0.01f),
-                            Color.White.copy(alpha = 0.04f),
-                        ),
-                    )
-
-                    // Volume Capsule with Fluid Inflation & Morphing Speaker
-                    val volInteraction = remember { MutableInteractionSource() }
-                    val volHovered by volInteraction.collectIsHoveredAsState()
-                    val animatedSliderWidth by animateDpAsState(
-                        targetValue = if (volHovered) 104.dp else 72.dp,
-                        animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioNoBouncy,
-                            stiffness = Spring.StiffnessMediumLow,
-                        ),
-                        label = "volSliderWidth",
-                    )
-                    var lastNonZeroVolume by remember { mutableFloatStateOf(0.7f) }
-                    if (volume > 0f) {
-                        lastNonZeroVolume = volume
-                    }
-                    val speakerInteraction = remember { MutableInteractionSource() }
-                    val isSpeakerPressed by speakerInteraction.collectIsPressedAsState()
-                    val speakerScale by animateFloatAsState(
-                        targetValue = if (isSpeakerPressed) 0.84f else 1f,
-                        animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioNoBouncy,
-                            stiffness = Spring.StiffnessMediumLow,
-                        ),
-                        label = "speakerScale",
-                    )
-
                     Row(
-                        modifier = Modifier
-                            .shadow(4.dp, utilityShape, spotColor = Color.Black.copy(alpha = 0.20f))
-                            .clip(utilityShape)
-                            .hoverable(volInteraction)
-                            .background(utilitySheen)
-                            .border(1.dp, utilityRim, utilityShape)
-                            .padding(horizontal = 10.dp, vertical = 5.dp),
+                        modifier = Modifier.fillMaxSize(),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        val volIcon = when {
-                            volume <= 0.001f -> Icons.AutoMirrored.Rounded.VolumeOff
-                            volume < 0.5f -> Icons.AutoMirrored.Rounded.VolumeDown
-                            else -> Icons.AutoMirrored.Rounded.VolumeUp
-                        }
-                        Box(
-                            modifier = Modifier
-                                .size(20.dp)
-                                .graphicsLayer {
-                                    scaleX = speakerScale
-                                    scaleY = speakerScale
-                                }
-                                .clip(CircleShape)
-                                .clickable(
-                                    interactionSource = speakerInteraction,
-                                    indication = null,
-                                    onClick = {
-                                        if (volume > 0f) {
-                                            lastNonZeroVolume = volume
-                                            onVolumeChange(0f)
+                        Icon(
+                            imageVector = RaagaIcons.Search,
+                            contentDescription = "Search",
+                            tint = Color.White.copy(alpha = if (searchFocused) 0.95f else 0.65f),
+                            modifier = Modifier.size(20.dp),
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Box(modifier = Modifier.weight(1f)) {
+                            if (query.isEmpty()) {
+                                Text(
+                                    text = "What do you want to play?",
+                                    color = Color.White.copy(alpha = 0.45f),
+                                    fontSize = 14.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            BasicTextField(
+                                value = query,
+                                onValueChange = onQueryChange,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .focusRequester(searchFocusRequester)
+                                    .onFocusChanged { searchFocused = it.isFocused }
+                                    .onPreviewKeyEvent { event ->
+                                        if (event.type == KeyEventType.KeyDown && event.key == Key.Enter) {
+                                            onSearch()
+                                            true
                                         } else {
-                                            onVolumeChange(if (lastNonZeroVolume > 0f) lastNonZeroVolume else 0.7f)
+                                            false
                                         }
                                     },
+                                singleLine = true,
+                                textStyle = MaterialTheme.typography.bodyMedium.copy(
+                                    color = Color.White,
+                                    fontSize = 14.sp,
                                 ),
+                                cursorBrush = SolidColor(Color.White),
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                                keyboardActions = KeyboardActions(onSearch = { onSearch() }),
+                            )
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .desktopHoverWash()
+                                .clickable(onClick = onNavigateExplore),
                             contentAlignment = Alignment.Center,
                         ) {
                             Icon(
-                                volIcon,
-                                DesktopStrings["d_volume", "Volume"],
-                                tint = Color.White.copy(alpha = if (volume <= 0.001f) 0.45f else 0.75f),
-                                modifier = Modifier.size(16.dp),
-                            )
-                        }
-                        Spacer(Modifier.width(7.dp))
-                        DesktopThinSlider(
-                            value = volume,
-                            onValueChange = onVolumeChange,
-                            idleHeight = 4.dp,
-                            activeHeight = 7.dp,
-                            modifier = Modifier.width(animatedSliderWidth),
-                        )
-                    }
-
-                    // Action Controls Pod (Connect, Output, Lyrics, Queue)
-                    Row(
-                        modifier = Modifier
-                            .shadow(4.dp, utilityShape, spotColor = Color.Black.copy(alpha = 0.20f))
-                            .clip(utilityShape)
-                            .background(utilitySheen)
-                            .border(1.dp, utilityRim, utilityShape)
-                            .padding(horizontal = 4.dp, vertical = 3.dp),
-                        horizontalArrangement = Arrangement.spacedBy(2.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-
-
-                        DesktopToolbarButton(onClick = onOpenAudioOutput, size = 30.dp) {
-                            Icon(
-                                Icons.Rounded.Headphones,
-                                DesktopStrings["audio_output", "Audio output"],
+                                imageVector = RaagaIcons.Explore,
+                                contentDescription = "Explore",
                                 tint = Color.White.copy(alpha = 0.65f),
-                                modifier = Modifier.size(17.dp),
-                            )
-                        }
-
-                        // Lyrics Button with tactile active liquid glass pod
-                        val isLyricsOpen = sidePanel == DesktopSidePanel.LYRICS
-                        Box(
-                            modifier = Modifier
-                                .size(30.dp)
-                                .clip(CircleShape)
-                                .then(
-                                    if (isLyricsOpen) {
-                                        Modifier
-                                            .background(
-                                                Brush.verticalGradient(
-                                                    listOf(
-                                                        Color.White.copy(alpha = 0.26f),
-                                                        Color.White.copy(alpha = 0.10f),
-                                                    ),
-                                                ),
-                                            )
-                                            .border(
-                                                1.dp,
-                                                Brush.verticalGradient(
-                                                    listOf(
-                                                        Color.White.copy(alpha = 0.65f),
-                                                        Color.White.copy(alpha = 0.20f),
-                                                    ),
-                                                ),
-                                                CircleShape,
-                                            )
-                                    } else {
-                                        Modifier.desktopHoverWash()
-                                    }
-                                )
-                                .clickable(onClick = onOpenLyrics),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(
-                                RaagaIcons.LyricsQuote,
-                                DesktopStrings["lyrics", "Lyrics"],
-                                tint = if (isLyricsOpen) Color.White else Color.White.copy(alpha = 0.65f),
-                                modifier = Modifier.size(17.dp),
-                            )
-                        }
-
-                        // Queue Button with tactile active liquid glass pod
-                        val isQueueOpen = sidePanel == DesktopSidePanel.QUEUE
-                        Box(
-                            modifier = Modifier
-                                .size(30.dp)
-                                .clip(CircleShape)
-                                .then(
-                                    if (isQueueOpen) {
-                                        Modifier
-                                            .background(
-                                                Brush.verticalGradient(
-                                                    listOf(
-                                                        Color.White.copy(alpha = 0.26f),
-                                                        Color.White.copy(alpha = 0.10f),
-                                                    ),
-                                                ),
-                                            )
-                                            .border(
-                                                1.dp,
-                                                Brush.verticalGradient(
-                                                    listOf(
-                                                        Color.White.copy(alpha = 0.65f),
-                                                        Color.White.copy(alpha = 0.20f),
-                                                    ),
-                                                ),
-                                                CircleShape,
-                                            )
-                                    } else {
-                                        Modifier.desktopHoverWash()
-                                    }
-                                )
-                                .clickable(onClick = onOpenQueue),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(
-                                RaagaIcons.Queue,
-                                DesktopStrings["queue", "Queue"],
-                                tint = if (isQueueOpen) Color.White else Color.White.copy(alpha = 0.65f),
-                                modifier = Modifier.size(17.dp),
+                                modifier = Modifier.size(18.dp),
                             )
                         }
                     }
+                }
+            }
 
-                    // Account Button
-                    DesktopAccountButton(avatar = accountAvatar, onClick = onOpenAccounts)
+            // 3. RIGHT: Notification, User Avatar & Window Controls
+            Row(
+                modifier = Modifier.align(Alignment.CenterEnd),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                var profileMenuOpen by remember { mutableStateOf(false) }
+                var updatesFlyoutOpen by remember { mutableStateOf(false) }
 
-                    // Modern Borderless Window Controls (─ ▢ ✕)
-                    if (DesktopPlatform.drawsOwnWindowFrame && !DesktopPlatform.isMac) {
-                        Spacer(Modifier.width(10.dp))
-                        Box(
-                            Modifier
-                                .width(1.dp)
-                                .height(18.dp)
-                                .background(Color.White.copy(alpha = 0.12f)),
+                // Notifications Bell & "Your Updates" Flyout
+                Box {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF1F1F1F))
+                            .clickable { updatesFlyoutOpen = !updatesFlyoutOpen },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = RaagaIcons.Clock,
+                            contentDescription = "Notifications",
+                            tint = Color.White.copy(alpha = 0.85f),
+                            modifier = Modifier.size(18.dp),
                         )
-                        Spacer(Modifier.width(4.dp))
-                        DesktopWindowButtons()
                     }
+
+                    DropdownMenu(
+                        expanded = updatesFlyoutOpen,
+                        onDismissRequest = { updatesFlyoutOpen = false },
+                        modifier = Modifier
+                            .width(260.dp)
+                            .background(Color(0xFF282828)),
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            Text(
+                                text = "Your Updates",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF333333)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Check,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(24.dp),
+                                )
+                            }
+                            Text(
+                                text = "You're all caught up",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            Text(
+                                text = "Watch this space for news on your followers, playlists, events and more.",
+                                color = Color.White.copy(alpha = 0.65f),
+                                fontSize = 12.sp,
+                                lineHeight = 16.sp,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            )
+                        }
+                    }
+                }
+
+                // User Avatar Button & Profile Dropdown Menu
+                Box {
+                    DesktopAccountButton(
+                        avatar = accountAvatar,
+                        onClick = { profileMenuOpen = !profileMenuOpen },
+                    )
+
+                    DropdownMenu(
+                        expanded = profileMenuOpen,
+                        onDismissRequest = { profileMenuOpen = false },
+                        modifier = Modifier
+                            .width(200.dp)
+                            .background(Color(0xFF282828)),
+                    ) {
+                        DropdownMenuItem(
+                            text = {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text("Account", color = Color.White, fontSize = 13.5.sp)
+                                    Icon(
+                                        Icons.AutoMirrored.Rounded.OpenInNew,
+                                        contentDescription = null,
+                                        tint = Color.White.copy(alpha = 0.70f),
+                                        modifier = Modifier.size(15.dp),
+                                    )
+                                }
+                            },
+                            onClick = {
+                                profileMenuOpen = false
+                                onOpenAccounts()
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Profile", color = Color.White, fontSize = 13.5.sp) },
+                            onClick = {
+                                profileMenuOpen = false
+                                onOpenAccounts()
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Recents", color = Color.White, fontSize = 13.5.sp) },
+                            onClick = {
+                                profileMenuOpen = false
+                                onNavigateHistory()
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text("Support", color = Color.White, fontSize = 13.5.sp)
+                                    Icon(
+                                        Icons.AutoMirrored.Rounded.OpenInNew,
+                                        contentDescription = null,
+                                        tint = Color.White.copy(alpha = 0.70f),
+                                        modifier = Modifier.size(15.dp),
+                                    )
+                                }
+                            },
+                            onClick = {
+                                profileMenuOpen = false
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text("Download", color = Color.White, fontSize = 13.5.sp)
+                                    Icon(
+                                        Icons.AutoMirrored.Rounded.OpenInNew,
+                                        contentDescription = null,
+                                        tint = Color.White.copy(alpha = 0.70f),
+                                        modifier = Modifier.size(15.dp),
+                                    )
+                                }
+                            },
+                            onClick = {
+                                profileMenuOpen = false
+                            },
+                        )
+                        HorizontalDivider(
+                            color = Color.White.copy(alpha = 0.12f),
+                            modifier = Modifier.padding(vertical = 4.dp),
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Settings", color = Color.White, fontSize = 13.5.sp) },
+                            onClick = {
+                                profileMenuOpen = false
+                                onOpenSettings()
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Log out", color = Color.White, fontSize = 13.5.sp) },
+                            onClick = {
+                                profileMenuOpen = false
+                                onOpenAccounts()
+                            },
+                        )
+                    }
+                }
+
+                if (DesktopPlatform.drawsOwnWindowFrame && !DesktopPlatform.isMac) {
+                    Spacer(Modifier.width(6.dp))
+                    Box(
+                        Modifier
+                            .width(1.dp)
+                            .height(18.dp)
+                            .background(Color.White.copy(alpha = 0.12f)),
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    DesktopWindowButtons()
                 }
             }
         }
@@ -5095,294 +4954,557 @@ private fun DesktopSidebar(
     accountPlaylists: List<ShelfItem>,
     localPlaylists: List<DesktopPlaylist>,
     openedCollectionId: String?,
-    query: String,
-    onQueryChange: (String) -> Unit,
-    onSearch: () -> Unit,
+    likedCount: Int,
     onDestinationSelected: (DesktopDestination) -> Unit,
     onOpenAccountPlaylist: (ShelfItem) -> Unit,
     onOpenLocalPlaylist: (DesktopPlaylist) -> Unit,
     onOpenSettings: () -> Unit,
-    /** Search was picked: the sidebar's box is the page's field, so it takes the focus. */
-    focusSearch: Boolean,
-    onSearchFocused: () -> Unit,
 ) {
-    val searchFocusRequester = remember { FocusRequester() }
-    LaunchedEffect(focusSearch) {
-        if (focusSearch) {
-            runCatching { searchFocusRequester.requestFocus() }
-            onSearchFocused()
-        }
-    }
-    val windowInfo = LocalWindowInfo.current
-    var searchFocused by remember { mutableStateOf(false) }
-    var restoreSearchFocus by remember { mutableStateOf(false) }
+    var libraryCollapsed by remember { mutableStateOf(false) }
+    var selectedFilter by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(windowInfo.isWindowFocused) {
-        if (!windowInfo.isWindowFocused) {
-            restoreSearchFocus = searchFocused
-        } else if (restoreSearchFocus) {
-            // Let the desktop window finish its activation before asking Compose to put the native
-            // text input target back in focus.
-            yield()
-            searchFocusRequester.requestFocus()
-            restoreSearchFocus = false
-        }
-    }
-
-    val titleBarEnabled by DesktopTitleBarSetting.enabled.collectAsState()
-    val inlineCaption = DesktopPlatform.drawsOwnWindowFrame && !titleBarEnabled
-
-    val haze = LocalDesktopHaze.current
-    val reduceDynamicBlur by DesktopAppearanceSettings.reduceDynamicBlur.collectAsState()
-    val sidebarShape = RoundedCornerShape(24.dp)
-
-    // Pure Optical Water Droplet Meniscus Border with sharp top specular highlight
-    val glassRim = Brush.verticalGradient(
-        listOf(
-            Color.White.copy(alpha = 0.85f),
-            Color.White.copy(alpha = 0.28f),
-            Color.White.copy(alpha = 0.06f),
-            Color.White.copy(alpha = 0.22f),
-        ),
-    )
-
-    // Genuine Transparent Water Droplet Sheen - crystal transmission, zero dark slate
-    val glassSheen = Brush.verticalGradient(
-        listOf(
-            Color.White.copy(alpha = 0.16f),
-            Color.White.copy(alpha = 0.03f),
-            Color.White.copy(alpha = 0.01f),
-            Color.White.copy(alpha = 0.05f),
-        ),
-    )
+    val sidebarShape = RoundedCornerShape(8.dp)
 
     Box(
         modifier = Modifier
-            .width(256.dp)
-            .fillMaxHeight()
-            .padding(start = 14.dp, top = 12.dp, bottom = 14.dp, end = 6.dp),
+            .width(if (libraryCollapsed) 72.dp else 280.dp)
+            .fillMaxHeight(),
     ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .shadow(
-                    elevation = 12.dp,
-                    shape = sidebarShape,
-                    spotColor = Color.Black.copy(alpha = 0.28f),
-                    ambientColor = Color.Transparent,
-                )
                 .clip(sidebarShape)
-                .then(
-                    if (haze != null && !reduceDynamicBlur) {
-                        Modifier.hazeEffect(state = haze) {
-                            blurEnabled = true
-                            backgroundColor = Color.Transparent
-                            blurRadius = 24.dp
-                            noiseFactor = 0f
-                            tints = listOf(
-                                HazeTint(Color.White.copy(alpha = 0.03f)),
-                            )
-                        }
-                    } else {
-                        Modifier.background(
-                            Brush.verticalGradient(
-                                listOf(
-                                    Color.White.copy(alpha = 0.14f),
-                                    Color.White.copy(alpha = 0.04f),
-                                    Color.White.copy(alpha = 0.02f),
-                                    Color.White.copy(alpha = 0.06f),
-                                )
-                            )
+                .background(Color(0xFF121212))
+                .border(1.dp, Color.White.copy(alpha = 0.08f), sidebarShape),
+        ) {
+            if (libraryCollapsed) {
+                // Collapsed Rail (Screenshot 1)
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(vertical = 12.dp, horizontal = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .desktopHoverWash()
+                            .clickable { libraryCollapsed = false },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = RaagaIcons.Library,
+                            contentDescription = "Expand Your Library",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp),
                         )
                     }
-                )
-                .background(glassSheen)
-                .border(1.dp, glassRim, sidebarShape),
-        ) {
-            Column(Modifier.fillMaxSize()) {
-                // The sidebar runs to the top of the window, so its head is the window's caption: the
-                // three buttons, and room to take hold of the window by (macOS only).
-                if (inlineCaption && DesktopPlatform.isMac) {
-                    DesktopTitleBarDragArea(Modifier.fillMaxWidth().height(SIDEBAR_CAPTION_HEIGHT)) {
-                        Box(
-                            Modifier
-                                .fillMaxSize()
-                                .padding(start = 16.dp),
-                            contentAlignment = Alignment.CenterStart,
-                        ) {
-                            DesktopWindowButtons()
-                        }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .desktopHoverWash()
+                            .clickable { /* add */ },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = RaagaIcons.Plus,
+                            contentDescription = "Create playlist",
+                            tint = Color.White.copy(alpha = 0.70f),
+                            modifier = Modifier.size(20.dp),
+                        )
                     }
-                }
-                Column(
-                    Modifier
-                        .fillMaxSize()
-                        .padding(
-                            start = 10.dp,
-                            end = 10.dp,
-                            top = if (inlineCaption && DesktopPlatform.isMac) 4.dp else 14.dp,
-                            bottom = 12.dp,
-                        ),
-                ) {
-                    DesktopSearchField(
-                        query = query,
-                        onQueryChange = onQueryChange,
-                        onSearch = onSearch,
-                        focusRequester = searchFocusRequester,
-                        onFocusChanged = { searchFocused = it },
-                    )
+
+                    Spacer(Modifier.height(14.dp))
+
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(Color(0xFF450AF5), Color(0xFF8E8EE5)),
+                                )
+                            )
+                            .clickable { onDestinationSelected(DesktopDestination.LIBRARY) },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = RaagaIcons.HeartFilled,
+                            contentDescription = "Liked Songs",
+                            tint = Color.White,
+                            modifier = Modifier.size(22.dp),
+                        )
+                    }
+
                     Spacer(Modifier.height(10.dp))
-                    val isLibraryScope = destination == DesktopDestination.LIBRARY ||
-                        destination == DesktopDestination.HISTORY ||
-                        destination == DesktopDestination.DOWNLOADS ||
-                        destination == DesktopDestination.LOCAL_MUSIC ||
-                        openedCollectionId != null
-                    LiquidGlassSegmentedControl(
-                        items = listOf("Raaga", "Library"),
-                        selectedIndex = if (isLibraryScope) 1 else 0,
-                        onItemSelected = { index ->
-                            if (index == 0) {
-                                if (isLibraryScope) {
-                                    onDestinationSelected(DesktopDestination.LISTEN_NOW)
-                                }
-                            } else {
-                                if (!isLibraryScope) {
-                                    onDestinationSelected(DesktopDestination.LIBRARY)
-                                }
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    LiquidGlassVerticalSegmentedNavigation(
-                        items = listOf(
-                            LiquidGlassNavItem(
-                                icon = RaagaIcons.Home,
-                                label = DesktopStrings["home", "Home"],
-                                selected = destination == DesktopDestination.LISTEN_NOW,
-                                onClick = { onDestinationSelected(DesktopDestination.LISTEN_NOW) },
-                            ),
-                            LiquidGlassNavItem(
-                                icon = RaagaIcons.Explore,
-                                label = "Explore",
-                                selected = destination == DesktopDestination.EXPLORE,
-                                onClick = { onDestinationSelected(DesktopDestination.EXPLORE) },
-                            ),
-                            LiquidGlassNavItem(
-                                icon = RaagaIcons.Library,
-                                label = "Library",
-                                selected = destination == DesktopDestination.LIBRARY,
-                                onClick = { onDestinationSelected(DesktopDestination.LIBRARY) },
-                            ),
-                            LiquidGlassNavItem(
-                                icon = RaagaIcons.Search,
-                                label = "Search",
-                                selected = destination == DesktopDestination.SEARCH,
-                                onClick = { onDestinationSelected(DesktopDestination.SEARCH) },
-                            ),
-                        ),
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    HorizontalDivider(
-                        color = Color.White.copy(alpha = 0.08f),
-                        thickness = 0.5.dp,
-                        modifier = Modifier.padding(horizontal = 4.dp),
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    DesktopSidebarItem(RaagaIcons.Clock, "History", destination == DesktopDestination.HISTORY) {
-                        onDestinationSelected(DesktopDestination.HISTORY)
-                    }
-                    Spacer(Modifier.height(3.dp))
-                    val queued by DesktopDownloadQueue.active.collectAsState()
-                    DesktopSidebarItem(
-                        RaagaIcons.Download,
-                        if (queued.isEmpty()) "Downloads" else "Downloads · ${queued.size}",
-                        destination == DesktopDestination.DOWNLOADS,
-                    ) {
-                        onDestinationSelected(DesktopDestination.DOWNLOADS)
-                    }
-                    Spacer(Modifier.height(3.dp))
-                    DesktopSidebarItem(RaagaIcons.Library, "Local Music", destination == DesktopDestination.LOCAL_MUSIC) {
-                        onDestinationSelected(DesktopDestination.LOCAL_MUSIC)
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    HorizontalDivider(
-                        color = Color.White.copy(alpha = 0.08f),
-                        thickness = 0.5.dp,
-                        modifier = Modifier.padding(horizontal = 4.dp),
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        "PLAYLISTS",
-                        modifier = Modifier.padding(start = 10.dp, top = 2.dp, bottom = 6.dp),
-                        color = Color.White.copy(alpha = 0.40f),
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontSize = 10.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp,
-                        ),
-                    )
+
                     LazyColumn(
-                        modifier = Modifier.fillMaxWidth().weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(3.dp),
-                        contentPadding = PaddingValues(bottom = 8.dp),
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        items(accountPlaylists, key = { "account:${it.browseId}" }) { playlist ->
-                            DesktopSidebarItem(
-                                Icons.AutoMirrored.Rounded.PlaylistPlay,
-                                playlist.title,
-                                openedCollectionId == playlist.browseId,
-                            ) { onOpenAccountPlaylist(playlist) }
-                        }
-                        items(localPlaylists, key = { "local:${it.id}" }) { playlist ->
-                            DesktopSidebarItem(
-                                Icons.AutoMirrored.Rounded.PlaylistPlay,
-                                playlist.title,
-                                openedCollectionId == playlist.id,
-                            ) { onOpenLocalPlaylist(playlist) }
-                        }
-                        if (accountPlaylists.isEmpty() && localPlaylists.isEmpty()) {
-                            item {
-                                Text(
-                                    "Your playlists will appear here",
-                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 8.dp),
-                                    color = DesktopSecondary.copy(alpha = 0.68f),
-                                    style = MaterialTheme.typography.bodySmall,
+                        items(accountPlaylists.take(6), key = { "col-acc:${it.browseId}" }) { item ->
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .clickable { onOpenAccountPlaylist(item) },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                DesktopArtwork(
+                                    url = item.thumbnailUrl,
+                                    modifier = Modifier.fillMaxSize(),
+                                    px = 96,
                                 )
                             }
                         }
                     }
-                    HorizontalDivider(
-                        color = Color.White.copy(alpha = 0.09f),
-                        thickness = 0.5.dp,
-                        modifier = Modifier.padding(horizontal = 4.dp),
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .desktopHoverWash()
+                            .clickable(onClick = onOpenSettings),
+                        contentAlignment = Alignment.Center,
                     ) {
-                        Box(modifier = Modifier.weight(1f)) {
-                            DesktopSidebarItem(Icons.Rounded.Settings, "Settings", settingsOpen) {
-                                onOpenSettings()
-                            }
+                        Icon(
+                            imageVector = Icons.Rounded.Settings,
+                            contentDescription = "Settings",
+                            tint = Color.White.copy(alpha = 0.70f),
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                }
+            } else {
+                // Expanded "Your Library" Panel (Screenshots 2, 3, 4, 5)
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(12.dp),
+                ) {
+                    // Header
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Row(
+                            modifier = Modifier.clickable { libraryCollapsed = true },
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                imageVector = RaagaIcons.Library,
+                                contentDescription = "Collapse Your Library",
+                                tint = Color.White.copy(alpha = 0.75f),
+                                modifier = Modifier.size(22.dp),
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            Text(
+                                text = "Your Library",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                            )
                         }
+                        Spacer(Modifier.weight(1f))
+                        IconButton(
+                            onClick = { /* create playlist */ },
+                            modifier = Modifier.size(32.dp),
+                        ) {
+                            Icon(
+                                imageVector = RaagaIcons.Plus,
+                                contentDescription = "Create playlist",
+                                tint = Color.White.copy(alpha = 0.70f),
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                        IconButton(
+                            onClick = { libraryCollapsed = true },
+                            modifier = Modifier.size(32.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                contentDescription = "Collapse",
+                                tint = Color.White.copy(alpha = 0.70f),
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(10.dp))
+
+                    // Filter Chips Row
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        val playlistsActive = selectedFilter == "Playlists"
                         Box(
                             modifier = Modifier
-                                .size(38.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .desktopHoverWash()
-                                .clickable {
-                                    DesktopExternalLinks.open("https://discord.gg/yGV2HqhSk")
-                                },
+                                .clip(RoundedCornerShape(percent = 50))
+                                .background(if (playlistsActive) Color.White else Color(0xFF282828))
+                                .clickable { selectedFilter = if (playlistsActive) null else "Playlists" }
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
                             contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = "Playlists",
+                                color = if (playlistsActive) Color.Black else Color.White,
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.Medium,
+                            )
+                        }
+
+                        val artistsActive = selectedFilter == "Artists"
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(percent = 50))
+                                .background(if (artistsActive) Color.White else Color(0xFF282828))
+                                .clickable { selectedFilter = if (artistsActive) null else "Artists" }
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = "Artists",
+                                color = if (artistsActive) Color.Black else Color.White,
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.Medium,
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(10.dp))
+
+                    // Search & Recents Sort Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .desktopHoverWash(),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = RaagaIcons.Search,
+                                contentDescription = "Search in library",
+                                tint = Color.White.copy(alpha = 0.70f),
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Recents",
+                                color = Color.White.copy(alpha = 0.70f),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Icon(
+                                imageVector = Icons.Rounded.Sort,
+                                contentDescription = "Sort",
+                                tint = Color.White.copy(alpha = 0.70f),
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    // Scrollable Library List
+                    LazyColumn(
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        // Pinned Liked Songs item
+                        if (selectedFilter != "Artists") {
+                            item(key = "pinned:liked_songs") {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .clickable { onDestinationSelected(DesktopDestination.LIKED_SONGS) }
+                                        .padding(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(48.dp)
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(
+                                                Brush.linearGradient(
+                                                    listOf(Color(0xFF450AF5), Color(0xFF8E8EE5)),
+                                                )
+                                            ),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Icon(
+                                            imageVector = RaagaIcons.HeartFilled,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(22.dp),
+                                        )
+                                    }
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "Liked Songs",
+                                            color = Color.White,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 13.5.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = RaagaIcons.Pin,
+                                                contentDescription = "Pinned",
+                                                tint = Color(0xFF1DB954),
+                                                modifier = Modifier.size(11.dp),
+                                            )
+                                            Spacer(Modifier.width(4.dp))
+                                            Text(
+                                                text = "Playlist • $likedCount songs",
+                                                color = Color.White.copy(alpha = 0.60f),
+                                                fontSize = 12.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Playlists
+                        if (selectedFilter != "Artists") {
+                            items(accountPlaylists, key = { "account:${it.browseId}" }) { playlist ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .clickable { onOpenAccountPlaylist(playlist) }
+                                        .padding(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(48.dp)
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(Color(0xFF282828)),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        if (playlist.thumbnailUrl != null) {
+                                            DesktopArtwork(playlist.thumbnailUrl, Modifier.fillMaxSize(), px = 96)
+                                        } else {
+                                            Icon(
+                                                Icons.AutoMirrored.Rounded.PlaylistPlay,
+                                                null,
+                                                tint = Color.White.copy(alpha = 0.7f),
+                                                modifier = Modifier.size(22.dp),
+                                            )
+                                        }
+                                    }
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = playlist.title,
+                                            color = if (openedCollectionId == playlist.browseId) Color(0xFF1DB954) else Color.White,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 13.5.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                        Text(
+                                            text = "Playlist • Raaga",
+                                            color = Color.White.copy(alpha = 0.60f),
+                                            fontSize = 12.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    }
+                                }
+                            }
+                            items(localPlaylists, key = { "local:${it.id}" }) { playlist ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .clickable { onOpenLocalPlaylist(playlist) }
+                                        .padding(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(48.dp)
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(Color(0xFF282828)),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Icon(
+                                            Icons.AutoMirrored.Rounded.PlaylistPlay,
+                                            null,
+                                            tint = Color.White.copy(alpha = 0.7f),
+                                            modifier = Modifier.size(22.dp),
+                                        )
+                                    }
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = playlist.title,
+                                            color = if (openedCollectionId == playlist.id) Color(0xFF1DB954) else Color.White,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 13.5.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                        Text(
+                                            text = "Playlist • Custom",
+                                            color = Color.White.copy(alpha = 0.60f),
+                                            fontSize = 12.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Local music item
+                        item(key = "local_music") {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .clickable { onDestinationSelected(DesktopDestination.LOCAL_MUSIC) }
+                                    .padding(6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(Color(0xFF282828)),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Icon(
+                                        Icons.Rounded.Folder,
+                                        null,
+                                        tint = Color.White.copy(alpha = 0.7f),
+                                        modifier = Modifier.size(22.dp),
+                                    )
+                                }
+                                Spacer(Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Local Music",
+                                        color = if (destination == DesktopDestination.LOCAL_MUSIC) Color(0xFF1DB954) else Color.White,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 13.5.sp,
+                                    )
+                                    Text(
+                                        text = "Folder • Files",
+                                        color = Color.White.copy(alpha = 0.60f),
+                                        fontSize = 12.sp,
+                                    )
+                                }
+                            }
+                        }
+
+                        // Downloads item
+                        item(key = "downloads") {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .clickable { onDestinationSelected(DesktopDestination.DOWNLOADS) }
+                                    .padding(6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(Color(0xFF282828)),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Icon(
+                                        Icons.Rounded.Download,
+                                        null,
+                                        tint = Color.White.copy(alpha = 0.7f),
+                                        modifier = Modifier.size(22.dp),
+                                    )
+                                }
+                                Spacer(Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Downloads",
+                                        color = if (destination == DesktopDestination.DOWNLOADS) Color(0xFF1DB954) else Color.White,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 13.5.sp,
+                                    )
+                                    Text(
+                                        text = "Offline Music",
+                                        color = Color.White.copy(alpha = 0.60f),
+                                        fontSize = 12.sp,
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+                    HorizontalDivider(
+                        color = Color.White.copy(alpha = 0.08f),
+                        thickness = 0.5.dp,
+                    )
+                    Spacer(Modifier.height(8.dp))
+
+                    // Bottom Row: Settings & Discord
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .clickable { onOpenSettings() }
+                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                Icons.Rounded.Settings,
+                                contentDescription = "Settings",
+                                tint = if (settingsOpen) Color(0xFF1DB954) else Color.White.copy(alpha = 0.70f),
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "Settings",
+                                color = if (settingsOpen) Color(0xFF1DB954) else Color.White.copy(alpha = 0.75f),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                            )
+                        }
+
+                        IconButton(
+                            onClick = { DesktopExternalLinks.open("https://discord.gg/yGV2HqhSk") },
+                            modifier = Modifier.size(32.dp),
                         ) {
                             Icon(
                                 RaagaIcons.Discord,
                                 contentDescription = "Discord Community",
                                 tint = Color(0xFF5865F2),
-                                modifier = Modifier.size(19.dp),
+                                modifier = Modifier.size(18.dp),
                             )
                         }
                     }
@@ -5399,107 +5521,436 @@ private fun DesktopSidebarItem(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
-    val itemShape = RoundedCornerShape(12.dp)
-    val interaction = remember { MutableInteractionSource() }
-    val hovered by interaction.collectIsHoveredAsState()
-    val isPressed by interaction.collectIsPressedAsState()
-    val pressScale by animateFloatAsState(
-        targetValue = if (isPressed) 0.97f else 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioNoBouncy,
-            stiffness = Spring.StiffnessMediumLow,
-        ),
-        label = "sidebarItemPressScale",
-    )
-    val hoverAlpha by animateFloatAsState(
-        targetValue = if (hovered && !selected) 0.07f else 0f,
-        animationSpec = tween(140),
-        label = "sidebarHover",
-    )
-
-    // Pure Apple Water Droplet Meniscus: Crystal liquid body with 4-stop directional specular rim
-    val activeCapsuleFill = Brush.verticalGradient(
-        listOf(
-            Color.White.copy(alpha = 0.16f), // top surface tension
-            Color.White.copy(alpha = 0.04f), // crystal clear water center
-            Color.White.copy(alpha = 0.09f), // bottom refraction
-        ),
-    )
-    val activeCapsuleSheen = Brush.verticalGradient(
-        0.0f to Color.White.copy(alpha = 0.38f),
-        0.42f to Color.White.copy(alpha = 0.05f),
-        1.0f to Color.Transparent,
-    )
-    val activeCapsuleBorder = Brush.verticalGradient(
-        listOf(
-            Color.White.copy(alpha = 0.90f), // razor sharp meniscus crest reflection
-            Color.White.copy(alpha = 0.35f),
-            Color.White.copy(alpha = 0.06f),
-            Color.White.copy(alpha = 0.22f), // bottom internal refraction
-        ),
-    )
-
+    val itemShape = RoundedCornerShape(8.dp)
     Row(
         Modifier
             .fillMaxWidth()
             .heightIn(min = 40.dp)
-            .graphicsLayer {
-                scaleX = pressScale
-                scaleY = pressScale
-            }
-            .then(
-                if (selected) {
-                    Modifier.shadow(
-                        elevation = 3.dp,
-                        shape = itemShape,
-                        spotColor = Color.Black.copy(alpha = 0.14f),
-                        ambientColor = Color.Transparent,
-                    )
-                } else {
-                    Modifier
-                }
-            )
             .clip(itemShape)
-            .hoverable(interaction)
-            .then(
-                if (selected) {
-                    Modifier
-                        .background(activeCapsuleFill)
-                        .background(activeCapsuleSheen)
-                        .border(1.dp, activeCapsuleBorder, itemShape)
-                } else if (hoverAlpha > 0.001f) {
-                    Modifier
-                        .background(Color.White.copy(alpha = hoverAlpha))
-                        .border(0.5.dp, Color.White.copy(alpha = hoverAlpha * 1.5f), itemShape)
-                } else {
-                    Modifier
-                },
-            )
-            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+            .background(if (selected) Color.White.copy(alpha = 0.12f) else Color.Transparent)
+            .clickable(onClick = onClick)
             .padding(horizontal = 11.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
             imageVector = icon,
             contentDescription = label,
-            tint = if (selected) Color.White else Color.White.copy(alpha = if (hovered) 0.95f else 0.65f),
+            tint = if (selected) Color(0xFF1DB954) else Color.White.copy(alpha = 0.65f),
             modifier = Modifier.size(19.dp),
         )
-
         Spacer(Modifier.width(12.dp))
-
         Text(
             text = label,
-            color = if (selected) Color.White else Color.White.copy(alpha = if (hovered) 1f else 0.78f),
+            color = if (selected) Color(0xFF1DB954) else Color.White.copy(alpha = 0.78f),
             style = MaterialTheme.typography.bodyMedium.copy(
                 fontSize = 13.5.sp,
                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                letterSpacing = 0.1.sp,
             ),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
+    }
+}
+
+@Composable
+private fun DesktopPlayerBar(
+    song: Song?,
+    isPlaying: Boolean,
+    isLoading: Boolean,
+    previousEnabled: Boolean,
+    progress: Float,
+    durationMs: Long,
+    positionMs: Long,
+    volume: Float,
+    shuffle: Boolean,
+    repeatMode: DesktopRepeatMode,
+    isLiked: Boolean,
+    onToggleLike: () -> Unit,
+    onPlayPause: () -> Unit,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    onShuffleChange: (Boolean) -> Unit,
+    onRepeatModeChange: (DesktopRepeatMode) -> Unit,
+    onSeek: (Float) -> Unit,
+    onVolumeChange: (Float) -> Unit,
+    sidePanel: DesktopSidePanel?,
+    onToggleSidePanel: (DesktopSidePanel) -> Unit,
+    onOpenAudioOutput: () -> Unit,
+    activeRemoteDevice: String?,
+    onOpenNowPlayingSheet: () -> Unit,
+    isExpanded: Boolean = false,
+    onToggleExpand: () -> Unit = {},
+) {
+    val currentProgress by rememberUpdatedState(progress)
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(82.dp)
+            .background(Color.Black)
+            .border(0.5.dp, Color.White.copy(alpha = 0.08f), RectangleShape),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // 1. LEFT SECTION: Track Info & Heart Button
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .heightIn(max = 56.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (song != null) {
+                    DesktopArtwork(
+                        url = song.thumbnailUrl,
+                        modifier = Modifier
+                            .size(56.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .clickable(onClick = onOpenNowPlayingSheet),
+                        px = ROW_ART_PX,
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 8.dp),
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        Text(
+                            text = song.title,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.5.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.clickable(onClick = onOpenNowPlayingSheet),
+                        )
+                        Spacer(Modifier.height(3.dp))
+                        Text(
+                            text = song.artist,
+                            color = Color.White.copy(alpha = 0.65f),
+                            fontSize = 11.5.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    IconButton(
+                        onClick = onToggleLike,
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Icon(
+                            imageVector = if (isLiked) RaagaIcons.HeartFilled else RaagaIcons.Heart,
+                            contentDescription = if (isLiked) "Liked" else "Like",
+                            tint = if (isLiked) Color(0xFF1DB954) else Color.White.copy(alpha = 0.65f),
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                } else {
+                    Text(
+                        text = "Raaga Desktop",
+                        color = Color.White.copy(alpha = 0.35f),
+                        fontSize = 13.sp,
+                    )
+                }
+            }
+
+            // 2. CENTER SECTION: Transport Controls & Scrubber
+            Column(
+                modifier = Modifier
+                    .widthIn(min = 360.dp, max = 560.dp)
+                    .fillMaxHeight(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                // Controls Row
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    // Shuffle Button
+                    IconButton(
+                        onClick = { onShuffleChange(!shuffle) },
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Icon(
+                            imageVector = RaagaIcons.Shuffle,
+                            contentDescription = "Shuffle",
+                            tint = if (shuffle) Color(0xFF1DB954) else Color.White.copy(alpha = 0.60f),
+                            modifier = Modifier.size(16.dp),
+                        )
+                    }
+
+                    // Previous Button
+                    IconButton(
+                        onClick = onPrevious,
+                        enabled = previousEnabled,
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.FastRewind,
+                            contentDescription = "Previous",
+                            tint = if (previousEnabled) Color.White else Color.White.copy(alpha = 0.30f),
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+
+                    // Hero Circular Play/Pause Button (Spotify Solid White Circle)
+                    val playInteraction = remember { MutableInteractionSource() }
+                    val isPlayPressed by playInteraction.collectIsPressedAsState()
+                    val playScale by animateFloatAsState(
+                        targetValue = if (isPlayPressed) 0.92f else 1f,
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioNoBouncy,
+                            stiffness = Spring.StiffnessMedium,
+                        ),
+                        label = "playScale",
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .graphicsLayer {
+                                scaleX = playScale
+                                scaleY = playScale
+                            }
+                            .clip(CircleShape)
+                            .background(Color.White)
+                            .clickable(
+                                interactionSource = playInteraction,
+                                indication = null,
+                                onClick = onPlayPause,
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = Color.Black,
+                                strokeWidth = 2.dp,
+                            )
+                        } else {
+                            Icon(
+                                imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                                contentDescription = if (isPlaying) "Pause" else "Play",
+                                tint = Color.Black,
+                                modifier = Modifier.size(22.dp),
+                            )
+                        }
+                    }
+
+                    // Next Button
+                    IconButton(
+                        onClick = onNext,
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.FastForward,
+                            contentDescription = "Next",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+
+                    // Repeat Button
+                    IconButton(
+                        onClick = { onRepeatModeChange(repeatMode.next()) },
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        val isRepeatActive = repeatMode != DesktopRepeatMode.OFF
+                        val tint = if (isRepeatActive) Color(0xFF1DB954) else Color.White.copy(alpha = 0.60f)
+                        if (repeatMode == DesktopRepeatMode.ONE) {
+                            Text(
+                                "1",
+                                color = tint,
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.labelMedium,
+                            )
+                        } else {
+                            Icon(
+                                imageVector = RaagaIcons.Repeat,
+                                contentDescription = "Repeat",
+                                tint = tint,
+                                modifier = Modifier.size(16.dp),
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(4.dp))
+
+                // Scrubber Row with elapsed time, Spotify green progress slider, and total duration
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        text = formatTime(positionMs),
+                        color = Color.White.copy(alpha = 0.60f),
+                        fontSize = 11.sp,
+                    )
+
+                    DesktopThinSlider(
+                        value = currentProgress,
+                        onValueChange = onSeek,
+                        activeColor = Color(0xFF1DB954),
+                        inactiveColor = Color(0xFF4D4D4D),
+                        idleHeight = 4.dp,
+                        activeHeight = 6.dp,
+                        modifier = Modifier.weight(1f),
+                    )
+
+                    Text(
+                        text = formatTime(durationMs),
+                        color = Color.White.copy(alpha = 0.60f),
+                        fontSize = 11.sp,
+                    )
+                }
+            }
+
+            // 3. RIGHT SECTION: Utility Buttons & Volume Slider
+            Row(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // Now Playing View Toggle
+                val isNowPlayingOpen = sidePanel == DesktopSidePanel.NOW_PLAYING
+                IconButton(
+                    onClick = { onToggleSidePanel(DesktopSidePanel.NOW_PLAYING) },
+                    modifier = Modifier.size(32.dp),
+                ) {
+                    Icon(
+                        imageVector = RaagaIcons.MusicNote,
+                        contentDescription = "Now playing view",
+                        tint = if (isNowPlayingOpen) Color(0xFF1DB954) else Color.White.copy(alpha = 0.65f),
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+
+                // Lyrics Toggle
+                val isLyricsOpen = sidePanel == DesktopSidePanel.LYRICS
+                IconButton(
+                    onClick = { onToggleSidePanel(DesktopSidePanel.LYRICS) },
+                    modifier = Modifier.size(32.dp),
+                ) {
+                    Icon(
+                        imageVector = RaagaIcons.LyricsQuote,
+                        contentDescription = "Lyrics",
+                        tint = if (isLyricsOpen) Color(0xFF1DB954) else Color.White.copy(alpha = 0.65f),
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+
+                // Queue Toggle
+                val isQueueOpen = sidePanel == DesktopSidePanel.QUEUE
+                IconButton(
+                    onClick = { onToggleSidePanel(DesktopSidePanel.QUEUE) },
+                    modifier = Modifier.size(32.dp),
+                ) {
+                    Icon(
+                        imageVector = RaagaIcons.Queue,
+                        contentDescription = "Queue",
+                        tint = if (isQueueOpen) Color(0xFF1DB954) else Color.White.copy(alpha = 0.65f),
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+
+                // Audio Output Button (Headphones)
+                val isAudioOutputOpen = sidePanel == DesktopSidePanel.AUDIO_OUTPUT
+                IconButton(
+                    onClick = onOpenAudioOutput,
+                    modifier = Modifier.size(32.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Headphones,
+                        contentDescription = "Audio output",
+                        tint = if (isAudioOutputOpen) Color(0xFF1DB954) else Color.White.copy(alpha = 0.65f),
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+
+                // Jam (Listen Together) Toggle
+                val isJamOpen = sidePanel == DesktopSidePanel.JAM
+                IconButton(
+                    onClick = { onToggleSidePanel(DesktopSidePanel.JAM) },
+                    modifier = Modifier.size(32.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Groups,
+                        contentDescription = "Raaga Jam",
+                        tint = if (isJamOpen) Color(0xFF1DB954) else Color.White.copy(alpha = 0.65f),
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+
+                Spacer(Modifier.width(4.dp))
+
+                // Volume Slider
+                var lastNonZeroVolume by remember { mutableFloatStateOf(0.7f) }
+                if (volume > 0f) lastNonZeroVolume = volume
+
+                val volIcon = when {
+                    volume <= 0.001f -> Icons.AutoMirrored.Rounded.VolumeOff
+                    volume < 0.5f -> Icons.AutoMirrored.Rounded.VolumeDown
+                    else -> Icons.AutoMirrored.Rounded.VolumeUp
+                }
+
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .clickable {
+                            if (volume > 0f) {
+                                lastNonZeroVolume = volume
+                                onVolumeChange(0f)
+                            } else {
+                                onVolumeChange(if (lastNonZeroVolume > 0f) lastNonZeroVolume else 0.7f)
+                            }
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = volIcon,
+                        contentDescription = "Volume",
+                        tint = Color.White.copy(alpha = 0.70f),
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+
+                Spacer(Modifier.width(6.dp))
+
+                DesktopThinSlider(
+                    value = volume,
+                    onValueChange = onVolumeChange,
+                    activeColor = Color.White,
+                    inactiveColor = Color(0xFF4D4D4D),
+                    idleHeight = 4.dp,
+                    activeHeight = 6.dp,
+                    modifier = Modifier.width(88.dp),
+                )
+
+                Spacer(Modifier.width(6.dp))
+
+                // Expand / Collapse Fullscreen Player Button
+                IconButton(
+                    onClick = onToggleExpand,
+                    enabled = song != null,
+                    modifier = Modifier.size(32.dp),
+                ) {
+                    Icon(
+                        imageVector = if (isExpanded) Icons.Rounded.FullscreenExit else Icons.Rounded.Fullscreen,
+                        contentDescription = if (isExpanded) "Collapse player" else "Expand player",
+                        tint = if (song != null) Color.White.copy(alpha = if (isExpanded) 1f else 0.70f) else Color.White.copy(alpha = 0.30f),
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -5515,109 +5966,7 @@ private fun DesktopBottomChrome(
     onNext: () -> Unit,
     onOpenConnectDevice: () -> Unit = {},
 ) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 10.dp, vertical = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        if (compact && song != null) {
-            DesktopMiniPlayer(
-                song = song,
-                isPlaying = isPlaying,
-                onExpand = onExpand,
-                onPlayPause = onPlayPause,
-                onNext = onNext,
-                onOpenConnectDevice = onOpenConnectDevice,
-            )
-        }
-        DesktopFloatingNavigation(destination, onDestinationSelected)
-    }
-}
-
-@Composable
-private fun DesktopFloatingNavigation(
-    destination: DesktopDestination,
-    onDestinationSelected: (DesktopDestination) -> Unit,
-) {
-    val tabs = listOf(
-        DesktopDestination.LISTEN_NOW to (RaagaIcons.Play to "Play"),
-        DesktopDestination.EXPLORE to (RaagaIcons.Explore to "Explore"),
-        DesktopDestination.LIBRARY to (RaagaIcons.Library to "Library"),
-        DesktopDestination.SEARCH to (RaagaIcons.Search to "Search"),
-    )
-    val selected = tabs.firstOrNull { it.first == destination }?.first ?: DesktopDestination.LIBRARY
-    val shape = RoundedCornerShape(percent = 50)
-    Surface(
-        modifier = Modifier
-            .widthIn(max = 440.dp)
-            .fillMaxWidth()
-            .clip(shape)
-            .desktopBarGlass(shape),
-        shape = shape,
-        color = Color.Transparent,
-        tonalElevation = 0.dp,
-    ) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(6.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            tabs.forEach { (item, iconAndLabel) ->
-                val isSelected = item == selected
-                Column(
-                    Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(percent = 50))
-                        .background(if (isSelected) DesktopAccent.copy(alpha = 0.18f) else Color.Transparent)
-                        .clickable { onDestinationSelected(item) }
-                        .padding(vertical = 8.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Icon(iconAndLabel.first, iconAndLabel.second, tint = if (isSelected) DesktopAccent else DesktopSecondary, modifier = Modifier.size(20.dp))
-                    Text(iconAndLabel.second, color = if (isSelected) Color.White else DesktopSecondary, style = MaterialTheme.typography.labelSmall)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun DesktopMiniPlayer(
-    song: Song,
-    isPlaying: Boolean,
-    onExpand: () -> Unit,
-    onPlayPause: () -> Unit,
-    onNext: () -> Unit,
-    onOpenConnectDevice: () -> Unit = {},
-) {
-    val shape = RoundedCornerShape(percent = 50)
-    Row(
-        Modifier
-            .widthIn(max = 440.dp)
-            .fillMaxWidth()
-            .clip(shape)
-            .desktopBarGlass(shape)
-            .clickable(onClick = onExpand)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        DesktopArtwork(song.thumbnailUrl, Modifier.size(40.dp).clip(RoundedCornerShape(8.dp)), px = ROW_ART_PX)
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f)) {
-            Text(song.title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold)
-            Text(song.artist, color = DesktopSecondary, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-
-        IconButton(onClick = onPlayPause) {
-            Icon(if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (isPlaying) "Pause" else "Play", tint = Color.White)
-        }
-        IconButton(onClick = onNext) {
-            Icon(Icons.Rounded.FastForward, DesktopStrings["widget_next", "Next"], tint = Color.White)
-        }
-    }
+    // Retained for compatibility
 }
 
 @Composable
@@ -5702,26 +6051,15 @@ private fun DesktopFrame(
     containerColor: Color,
     modifier: Modifier = Modifier,
     blurRadius: Dp = 0.dp,
-    /**
-     * The open page's own colours, painted across the whole window rather than only the content
-     * area, so the title bar, top bar and sidebar take their tint from the page they are framing
-     * instead of staying a flat slab beside it.
-     */
-    /** Receives true when its solid base should be left clear for the system material. */
     backdrop: @Composable (transparentBase: Boolean) -> Unit,
     topBar: @Composable (Boolean) -> Unit,
     sidebar: @Composable () -> Unit,
     bottomBar: @Composable (Boolean) -> Unit,
-    /** The column on the far side of the page — the lyrics or the queue, when one is open. */
     trailing: @Composable () -> Unit = {},
     overlay: @Composable () -> Unit = {},
     content: @Composable (PaddingValues) -> Unit,
 ) {
-    // Held out here rather than inside the constraints box.
     val haze = remember { HazeState() }
-    // With a system material active, the window stays clear under its chrome. The app-background
-    // preference decides whether the page and side column also stay clear or retain their solid
-    // gray ground.
     val material by DesktopWindowBackdrop.active.collectAsState()
     val appBackground by DesktopWindowBackdrop.appBackground.collectAsState()
     val glass = material != DesktopBackdrop.OFF
@@ -5733,141 +6071,62 @@ private fun DesktopFrame(
             modifier
                 .fillMaxSize()
                 .then(if (roundCorners) Modifier.clip(RoundedCornerShape(10.dp)) else Modifier)
-                .then(if (glass) Modifier else Modifier.background(containerColor)),
+                .background(Color.Black),
         ) {
-            // Both sources of the same state: the chrome blurs the backdrop behind it, and the
-            // floating bottom bar blurs the page scrolling under it.
             Box(Modifier.fillMaxSize().hazeSource(haze)) { backdrop(if (glass) materialBehindApp else false) }
             Column(Modifier.fillMaxSize()) {
-                // Above everything, and outside the box the rest of the window is drawn in (macOS only).
                 if (DesktopPlatform.isMac) {
                     DesktopTitleBar()
+                }
+                BoxWithConstraints(Modifier.fillMaxWidth()) {
+                    val compact = maxWidth < 980.dp
+                    topBar(compact)
                 }
                 Box(Modifier.fillMaxWidth().weight(1f)) {
                     BoxWithConstraints(Modifier.fillMaxSize()) {
                         val compact = maxWidth < 980.dp
-                        // The sidebar runs the full height of the window, its head the window's
-                        // caption; the player's bar and the page share the column beside it.
-                        Row(Modifier.fillMaxSize()) {
+                        Row(
+                            Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 8.dp, vertical = 2.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
                             if (!compact) sidebar()
-                            Column(Modifier.weight(1f).fillMaxHeight()) {
-                            topBar(compact)
-                            Row(Modifier.fillMaxWidth().weight(1f)) {
-                                Box(
-                                    Modifier
-                                        .weight(1f)
-                                        .fillMaxHeight()
-                                        .clipToBounds()
-                                        .then(
-                                            if (glass && !materialBehindApp) {
-                                                Modifier.background(containerColor)
-                                            } else {
-                                                Modifier
-                                            },
-                                        ),
-                                ) {
-                                    Box(Modifier.fillMaxSize().hazeSource(haze)) {
-                                        if (glass) backdrop(materialBehindApp)
-                                        content(
-                                            PaddingValues(
-                                                start = 0.dp,
-                                                end = 0.dp,
-                                                // Room for the bar that floats over this, so the
-                                                // last row can still be scrolled clear of it.
-                                                bottom = if (compact) 128.dp else 16.dp,
-                                            ),
-                                        )
-                                    }
-                                    if (compact) {
-                                        Box(Modifier.align(Alignment.BottomCenter)) { bottomBar(true) }
-                                    }
-                                }
-                                Box(
-                                    Modifier.fillMaxHeight(),
-                                ) { trailing() }
+                            Box(
+                                Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color(0xFF121212)),
+                            ) {
+                                content(
+                                    PaddingValues(
+                                        start = 0.dp,
+                                        end = 0.dp,
+                                        bottom = 16.dp,
+                                    ),
+                                )
                             }
-                            }
+                            trailing()
                         }
                     }
-                    overlay()
+                }
+                BoxWithConstraints(Modifier.fillMaxWidth()) {
+                    val compact = maxWidth < 980.dp
+                    bottomBar(compact)
                 }
             }
+            overlay()
         }
     }
 }
-
-/**
- * What [DesktopFrame] paints behind the window.
- *
- * [artworkUrl] is the page's lead artwork when it has one, and the mesh built from it is laid under
- * ink so a page of text stays readable over it.
- */
 @Composable
 private fun DesktopPageBackdrop(artworkUrl: String?, transparentBase: Boolean) {
     Box(
         Modifier
             .fillMaxSize()
-            .then(if (transparentBase) Modifier else Modifier.background(DesktopBackground)),
-    ) {
-        if (artworkUrl != null) {
-            DesktopMesh(artworkUrl)
-            Box(
-                Modifier.fillMaxSize().background(
-                    Brush.verticalGradient(
-                        listOf(
-                            Color.Black.copy(alpha = 0.20f),
-                            Color.Black.copy(alpha = 0.45f),
-                            Color.Black.copy(alpha = 0.65f),
-                        ),
-                    ),
-                ),
-            )
-        } else {
-            // Luminous ambient Aurora mesh: provides rich optical refraction for water droplet liquid glass
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(
-                                Color(0xFF131B2E),
-                                Color(0xFF0F172A),
-                                DesktopBackground,
-                            ),
-                        ),
-                    ),
-            ) {
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .drawBehind {
-                            drawCircle(
-                                brush = Brush.radialGradient(
-                                    listOf(
-                                        Color(0xFF38BDF8).copy(alpha = 0.14f),
-                                        Color(0xFF6366F1).copy(alpha = 0.08f),
-                                        Color.Transparent,
-                                    ),
-                                    center = Offset(size.width * 0.15f, size.height * 0.25f),
-                                    radius = size.width * 0.45f,
-                                ),
-                            )
-                            drawCircle(
-                                brush = Brush.radialGradient(
-                                    listOf(
-                                        Color(0xFF818CF8).copy(alpha = 0.10f),
-                                        Color(0xFF0EA5E9).copy(alpha = 0.05f),
-                                        Color.Transparent,
-                                    ),
-                                    center = Offset(size.width * 0.50f, size.height * 0.10f),
-                                    radius = size.width * 0.50f,
-                                ),
-                            )
-                        },
-                )
-            }
-        }
-    }
+            .background(Color.Black),
+    )
 }
 
 /** What the mesh is averaged from — coarse by design. */
@@ -6544,17 +6803,14 @@ private enum class DesktopSettingsSection {
     SOURCES,
     AUDIO_QUALITY,
     DOWNLOADS,
-    OUTPUT_PRECISION,
     AUDIO_OUTPUT,
     PLAYBACK,
-    DESKTOP_PLAYBACK,
     APPEARANCE,
     LYRICS,
     LOCAL_MUSIC,
     STORAGE,
     MISCELLANEOUS,
     LANGUAGE,
-    ADVANCED,
 }
 
 /**
@@ -6639,6 +6895,7 @@ private fun DesktopSettingsScreen(
     onMoveSource: (DesktopSourceConfig, Int) -> Unit,
     onTestSource: (DesktopSourceConfig) -> Unit,
     onOpenIntegrations: () -> Unit,
+    onOpenDiscordToken: () -> Unit = {},
     onOpenLicenses: () -> Unit,
     onCheckForUpdates: (() -> Unit)? = null,
 ) {
@@ -6680,23 +6937,29 @@ private fun DesktopSettingsScreen(
                 ) {
             DesktopSettingsSection.entries.forEach { section ->
             if (section == DesktopSettingsSection.PLAYBACK) item {
-                    SettingsGroup(DesktopStrings["playback", "Playback"]) {
+                SettingsGroup(DesktopStrings["playback", "Playback"]) {
+                    SettingsToggle(
+                        DesktopStrings["autoplay", "Autoplay"],
+                        DesktopStrings["d_keep_the_music_going_with_similar_songs", "Keep the music going with similar songs"],
+                        autoplay,
+                        onAutoplayChange,
+                    )
                     if (!automix) {
                         if (settingsRowVisible(DesktopStrings["crossfade", "Crossfade"])) {
-                        Column(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
-                            Text(DesktopStrings["crossfade", "Crossfade"], style = MaterialTheme.typography.bodyLarge)
-                            Text(
-                                if (crossfadeSeconds == 0) "Off" else "${crossfadeSeconds}s",
-                                color = DesktopSecondary,
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                            DesktopBareSlider(
-                                value = crossfadeSeconds.toFloat(),
-                                onValueChange = { onCrossfadeSecondsChange(it.toInt()) },
-                                valueRange = 0f..12f,
-                                steps = 11,
-                            )
-                        }
+                            Column(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
+                                Text(DesktopStrings["crossfade", "Crossfade"], style = MaterialTheme.typography.bodyLarge)
+                                Text(
+                                    if (crossfadeSeconds == 0) "Off" else "${crossfadeSeconds}s",
+                                    color = DesktopSecondary,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                                DesktopBareSlider(
+                                    value = crossfadeSeconds.toFloat(),
+                                    onValueChange = { onCrossfadeSecondsChange(it.toInt()) },
+                                    valueRange = 0f..12f,
+                                    steps = 11,
+                                )
+                            }
                         }
                     }
                     SettingsToggle(
@@ -6743,22 +7006,6 @@ private fun DesktopSettingsScreen(
                         skipSilence,
                         onSkipSilenceChange,
                     )
-                    SettingsToggle(
-                        DesktopStrings["spatial_audio", "Spatial audio"],
-                        DesktopStrings["spatial_audio_subtitle", "Widens stereo tracks for a more immersive feel"],
-                        spatialAudio,
-                        onSpatialAudioChange,
-                    )
-                    SettingsToggle(
-                        DesktopStrings["dolby_atmos", "Dolby Atmos"],
-                        if (DesktopCodecs.supportsDolbyAtmos) {
-                            "Prefer an add-on's immersive mix and decode E-AC-3 with FFmpeg"
-                        } else {
-                            DesktopStrings["dolby_atmos_unavailable", "This device can't play Atmos, so these songs play in their usual version"]
-                        },
-                        dolbyAtmos && DesktopCodecs.supportsDolbyAtmos,
-                        { if (DesktopCodecs.supportsDolbyAtmos) onDolbyAtmosChange(it) },
-                    )
                     SettingsNavigationRow(
                         title = DesktopStrings["equalizer", "Equalizer"],
                         subtitle = if (eqOn) {
@@ -6768,50 +7015,6 @@ private fun DesktopSettingsScreen(
                         },
                         onClick = onOpenEqualizer,
                     )
-                }
-            }
-            if (section == DesktopSettingsSection.DESKTOP_PLAYBACK) item {
-                SettingsGroup(DesktopStrings["d_desktop_playback", "Desktop playback"]) {
-                    SettingsToggle(
-                        DesktopStrings["autoplay", "Autoplay"],
-                        DesktopStrings["d_keep_the_music_going_with_similar_songs", "Keep the music going with similar songs"],
-                        autoplay,
-                        onAutoplayChange,
-                    )
-                    SettingsToggle(
-                        DesktopStrings["shuffle", "Shuffle"],
-                        DesktopStrings["d_mix_the_order_of_the_current_queue", "Mix the order of the current queue"],
-                        shuffle,
-                        onShuffleChange,
-                    )
-                    SettingsRow(
-                        RaagaIcons.Repeat,
-                        DesktopStrings["d_repeat", "Repeat"],
-                        "${repeatMode.label()} · Tap to change",
-                    ) { onRepeatModeChange(repeatMode.next()) }
-                    SettingsRow(
-                        Icons.Rounded.Tune,
-                        DesktopStrings["d_playback_speed", "Playback speed"],
-                        "${"%.2f".format(playbackSpeed)}×",
-                    ) {
-                        val next = when {
-                            playbackSpeed < 0.76f -> 1.0f
-                            playbackSpeed < 1.01f -> 1.25f
-                            playbackSpeed < 1.26f -> 1.5f
-                            playbackSpeed < 1.51f -> 2.0f
-                            else -> 0.5f
-                        }
-                        onPlaybackSpeedChange(next)
-                    }
-                    SettingsRow(
-                        Icons.Rounded.Bedtime,
-                        "Sleep timer",
-                        when {
-                            sleepRemainingMs != null -> "${formatSleepTimer(sleepRemainingMs)} until playback pauses"
-                            sleepAfterTrack -> "Pausing when this song ends"
-                            else -> "Pause playback after a while"
-                        },
-                    ) { onSleepTimerCycle() }
                 }
             }
             if (section == DesktopSettingsSection.LYRICS) item {
@@ -6879,48 +7082,40 @@ private fun DesktopSettingsScreen(
             if (section == DesktopSettingsSection.STORAGE) item {
                 SettingsGroup(DesktopStrings["storage", "Storage"]) {
                     var limitMb by remember { mutableStateOf(DesktopMediaCache.limitMb()) }
-                    var cleared by remember { mutableStateOf<String?>(null) }
+                    var cleared by remember { mutableStateOf(false) }
                     if (settingsRowVisible(DesktopStrings["song_cache_limit", "Song cache limit"])) {
-                    Column(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
-                        Text(DesktopStrings["song_cache_limit", "Song cache limit"], style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            if (limitMb > DesktopMediaCache.WARNING_MB) {
-                                "Keeps up to ${formatCacheSize(limitMb)} of downloaded audio on disk. " +
-                                    "This can take a noticeable share of your free space."
-                            } else {
-                                "Keeps downloaded audio on disk for instant seeking and replays"
-                            },
-                            color = DesktopSecondary,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                        DesktopBareSlider(
-                            value = limitMb.toFloat(),
-                            onValueChange = { limitMb = it.roundToInt() },
-                            onValueChangeFinished = { DesktopMediaCache.setLimitMb(limitMb) },
-                            valueRange = DesktopMediaCache.MIN_LIMIT_MB.toFloat()..
-                                DesktopMediaCache.MAX_LIMIT_MB.toFloat(),
-                            steps = 18,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        Text(formatCacheSize(limitMb), color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
-                    }
+                        Column(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
+                            Text(DesktopStrings["song_cache_limit", "Song cache limit"], style = MaterialTheme.typography.bodyLarge)
+                            Text(
+                                if (limitMb > DesktopMediaCache.WARNING_MB) {
+                                    "Keeps up to ${formatCacheSize(limitMb)} of downloaded audio on disk. " +
+                                        "This can take a noticeable share of your free space."
+                                } else {
+                                    "Keeps downloaded audio on disk for instant seeking and replays"
+                                },
+                                color = DesktopSecondary,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                            DesktopBareSlider(
+                                value = limitMb.toFloat(),
+                                onValueChange = { limitMb = it.roundToInt() },
+                                onValueChangeFinished = { DesktopMediaCache.setLimitMb(limitMb) },
+                                valueRange = DesktopMediaCache.MIN_LIMIT_MB.toFloat()..
+                                    DesktopMediaCache.MAX_LIMIT_MB.toFloat(),
+                                steps = 18,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            Text(formatCacheSize(limitMb), color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
+                        }
                     }
                     SettingsRow(
                         Icons.Rounded.DeleteSweep,
-                        "Clear song cache",
-                        cleared ?: "Frees space used by downloaded audio",
+                        "Clear cache",
+                        if (cleared) "All cached songs and artwork cleared" else "Frees disk space used by cached songs and album artwork",
                     ) {
                         DesktopMediaCache.clear()
-                        cleared = "Song cache cleared"
-                    }
-                    var imagesCleared by remember { mutableStateOf(false) }
-                    SettingsRow(
-                        Icons.Rounded.DeleteSweep,
-                        "Clear image cache",
-                        if (imagesCleared) "Image cache cleared" else "Frees space used by album artwork",
-                    ) {
                         DesktopArtworkCache.clear()
-                        imagesCleared = true
+                        cleared = true
                     }
                 }
             }
@@ -6965,21 +7160,6 @@ private fun DesktopSettingsScreen(
                         reduceDynamicBlur,
                         DesktopAppearanceSettings::setReduceDynamicBlur,
                     )
-                    // Window furniture belongs beside the visual settings it changes, rather than
-                    // interrupting playback controls. These rows remain Windows-only.
-                    if (DesktopPlatform.drawsOwnWindowFrame) {
-                        val titleBar by DesktopTitleBarSetting.enabled.collectAsState()
-                        SettingsToggle(
-                            DesktopStrings["d_title_bar", "Title bar"],
-                            DesktopStrings[
-                                "d_a_slim_bar_above_the_toolbar",
-                                "A slim bar above the toolbar with the window's own buttons. " +
-                                    "Off, the window has no title bar at all.",
-                            ],
-                            titleBar,
-                            DesktopTitleBarSetting::set,
-                        )
-                    }
                     if (DesktopWindowBackdrop.available) {
                         val backdropChoice by DesktopWindowBackdrop.selected.collectAsState()
                         val backdropActive by DesktopWindowBackdrop.active.collectAsState()
@@ -7021,16 +7201,6 @@ private fun DesktopSettingsScreen(
                                 )
                             }
                         }
-                        val appBackground by DesktopWindowBackdrop.appBackground.collectAsState()
-                        SettingsToggle(
-                            DesktopStrings["d_app_background", "App background"],
-                            DesktopStrings[
-                                "d_app_background_subtitle",
-                                "Use the window material instead of a solid gray background",
-                            ],
-                            appBackground,
-                            DesktopWindowBackdrop::setAppBackground,
-                        )
                         val ambientBackdrop by DesktopAppearanceSettings.ambientBackdrop.collectAsState()
                         SettingsToggle(
                             DesktopStrings["d_ambient_backdrop", "Ambient artwork glow"],
@@ -7047,12 +7217,6 @@ private fun DesktopSettingsScreen(
                         DesktopStrings["full_screen_cover_art_subtitle", "Runs the cover to the edges of the player instead of a square sleeve"],
                         fullBleedArtwork,
                         onFullBleedArtworkChange,
-                    )
-                    SettingsToggle(
-                        DesktopStrings["legacy_mesh_gradient", "Legacy mesh gradient"],
-                        DesktopStrings["d_use_the_older_blob_backdrop_behind_the_player", "Use the older blob backdrop behind the player"],
-                        legacyMeshGradient,
-                        onLegacyMeshGradientChange,
                     )
                     SettingsToggle(
                         DesktopStrings["d_animated_canvas", "Animated canvas"],
@@ -7152,33 +7316,6 @@ private fun DesktopSettingsScreen(
                     ) { onOpenAudioOutput() }
                 }
             }
-            if (section == DesktopSettingsSection.OUTPUT_PRECISION) item {
-                SettingsGroup(DesktopStrings["d_output_precision", "Output precision"]) {
-                    if (settingsRowVisible(DesktopStrings["d_output_precision", "Output precision"])) {
-                    Column(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            listOf("PCM_16" to "16-bit PCM", "FLOAT_32" to "32-bit float").forEach { (value, label) ->
-                                FilterChip(
-                                    colors = desktopChipColors(),
-                                    selected = outputPrecision == value,
-                                    onClick = { onOutputPrecisionChange(value) },
-                                    label = { Text(label) },
-                                )
-                            }
-                        }
-                        Spacer(Modifier.height(8.dp))
-                        // What was asked for and what the device agreed to are not the same
-                        // question, and a setting that silently did not take is worse than one that
-                        // says so.
-                        Text(
-                            "Playing at $outputSummary",
-                            color = DesktopSecondary,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                    }
-                }
-            }
             if (section == DesktopSettingsSection.DOWNLOADS) item {
                 SettingsGroup(DesktopStrings["download_channel_name", "Downloads"]) {
                     if (settingsRowVisible(DesktopStrings["download_channel_name", "Downloads"])) {
@@ -7243,14 +7380,45 @@ private fun DesktopSettingsScreen(
                 }
             }
             if (section == DesktopSettingsSection.ACCOUNT) item {
-                // One row rather than the four groups this used to be. Every
-                // integration option Android has lives behind it; inline, the
-                // list was longer than the rest of Settings put together.
+                SettingsGroup("Discord Rich Presence") {
+                    val discordEnabled by DesktopDiscordRpc.enabled.collectAsState()
+                    val localDiscord by DesktopDiscordRpc.localClient.collectAsState()
+                    val discordUsername by DesktopDiscordRpc.username.collectAsState()
+                    val discordToken by DesktopDiscordRpc.token.collectAsState()
+                    val discordSubtitle = when {
+                        !discordEnabled -> "Disabled"
+                        discordToken.isNotBlank() -> "Connected as @$discordUsername (Web & Android style)"
+                        localDiscord -> "Connected via Discord desktop app"
+                        else -> "Enabled — will display activity when Discord is open"
+                    }
+                    SettingsToggle(
+                        title = "Show what I am playing",
+                        subtitle = discordSubtitle,
+                        checked = discordEnabled,
+                        onCheckedChange = DesktopDiscordRpc::setEnabled,
+                    )
+                    SettingsRow(
+                        icon = RaagaIcons.Discord,
+                        title = if (discordToken.isNotBlank()) "Discord Account: @$discordUsername" else "Connect Discord Account (Token)",
+                        subtitle = if (discordToken.isNotBlank()) {
+                            "Connected with token (Web & Android style) • Tap to change or disconnect"
+                        } else {
+                            "Sign in with your Discord token for Web & Android rich presence"
+                        },
+                        onClick = onOpenDiscordToken,
+                    )
+                    SettingsRow(
+                        icon = RaagaIcons.Discord,
+                        title = "Configure Discord Rich Presence",
+                        subtitle = "Customize status, activity verb, song title formatting, buttons & preview",
+                        onClick = onOpenIntegrations,
+                    )
+                }
                 SettingsGroup(DesktopStrings["d_account", "Account"]) {
                     SettingsRow(
                         Icons.Rounded.Share,
                         DesktopStrings["account_integrations", "Account & integrations"],
-                        DesktopStrings["d_discord_rich_presence_last_fm_and_listenbrainz", "Discord rich presence, Last.fm and ListenBrainz"],
+                        "Spotify sync, Last.fm and ListenBrainz scrobbling",
                         onOpenIntegrations,
                     )
                 }
@@ -7268,16 +7436,6 @@ private fun DesktopSettingsScreen(
                         "Mobile App",
                         "Download Raaga for Android on raaga.me",
                         onClick = { DesktopExternalLinks.open("https://raaga.me") },
-                    )
-                }
-            }
-            if (section == DesktopSettingsSection.ADVANCED) item {
-                SettingsGroup(DesktopStrings["advanced_options", "Advanced options"]) {
-                    SettingsToggle(
-                        DesktopStrings["show_nerd_stats", "Show stats for nerds"],
-                        DesktopStrings["show_nerd_stats_subtitle", "Codec, bitrate and sample rate on the player"],
-                        showNerdStats,
-                        onShowNerdStatsChange,
                     )
                 }
             }
