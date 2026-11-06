@@ -23,6 +23,15 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material3.Icon
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
@@ -92,6 +101,28 @@ internal fun DesktopPlayerSheet(
                 ),
         ) {
             content(windowWidth, windowHeight)
+            // Tactile Collapse Button at Top-Left (Chevron Down)
+            Box(
+                Modifier
+                    .align(Alignment.TopStart)
+                    .padding(start = 24.dp, top = 16.dp)
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.50f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onDismiss,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.KeyboardArrowDown,
+                    contentDescription = "Collapse player",
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp),
+                )
+            }
             // The handle the landscape player draws at its top edge, made to do
             // on a click what it promises for a drag.
             Box(
