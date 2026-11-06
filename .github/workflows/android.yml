@@ -118,8 +118,16 @@ jobs:
           tv/build/outputs/apk/prod/release/*universal*.apk
         name: "Raaga ${{ github.ref_name }}"
         body: |
-          ### Raaga ${{ github.ref_name }}
+          ### Raaga ${{ github.ref_name }} — Universal Major Release
 
-          Notice: If you saw two app icons after updating, we apologize! Please keep your original app as it now updates properly in-place. Join our Discord for any help: https://discord.gg/yGV2HqhSk
+          > 💬 **Join Our Community:** Connect with developers, request features, and get live updates on [Discord](https://discord.gg/yGV2HqhSk).
+
+          #### Highlights & New Features:
+          - **Mouse Scroll Volume Control**: Scroll wheel and smooth trackpad volume adjustments on the bottom playback bar, volume sliders, and expanded album art.
+          - **Landscape Expanded Player Revamp**: Player actions row aligned directly underneath the cover art with harmonious vertical centering.
+          - **Streamlined Desktop Settings**: Consolidated cache management, modernized layout, clean playback settings, and Discord Gateway KizzyRPC broadcasting.
+          - **High-Fidelity Artwork Rendering**: Mitchell-Netravali high-resolution filtering across Home, Search, Explore, and Player Queue artwork.
+          - **Spotify Table View & Audio Output Routing**: Spotify-style playlist tracks table layout and fast audio device switching with optical slider control.
+          - **Cross-Platform Availability**: Installers and OTA updates available for Android, Windows, macOS, Linux, and Web at https://raaga.me.
         make_latest: "true"
         generate_release_notes: false

@@ -34,7 +34,7 @@ buildscript {
 }
 
 extra["raagaVersionCode"] = 41
-extra["raagaVersionName"] = "1.9.9"
+extra["raagaVersionName"] = "2.0.0"
 extra["raagaBetaSuffix"] = ""
 
 plugins {
