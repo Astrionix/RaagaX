@@ -29,20 +29,19 @@ internal object DesktopWindowBackdrop {
      * Whether this window can carry a material: Windows 11 and the native frame. Decided once, at
      * start, because it decides whether the window is created transparent.
      */
-    val available: Boolean =
-        (DesktopPlatform.isWindows && DesktopPlatform.drawsOwnWindowFrame) ||
-        DesktopPlatform.isMac
+    // Disabled for 100% solid, opaque, edge-to-edge window surfaces (no glass/transparency)
+    val available: Boolean = false
 
     private val _selected = MutableStateFlow(
-        runCatching { DesktopBackdrop.valueOf(DesktopPersistence().string(KEY, DesktopBackdrop.MICA.name)) }
-            .getOrDefault(DesktopBackdrop.MICA),
+        runCatching { DesktopBackdrop.valueOf(DesktopPersistence().string(KEY, DesktopBackdrop.OFF.name)) }
+            .getOrDefault(DesktopBackdrop.OFF),
     )
 
     /** What Settings shows and writes. */
     val selected: StateFlow<DesktopBackdrop> = _selected
 
     private val _appBackground = MutableStateFlow(
-        DesktopPersistence().boolean(KEY_APP_BACKGROUND, true),
+        false,
     )
 
     /** Whether the selected material replaces the app's solid gray page background too. */
