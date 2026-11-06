@@ -34,6 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.graphics.FilterQuality
 import coil3.compose.AsyncImage
 import com.music.raaga.sharedui.resources.*
 import com.music.raaga.data.listentogether.PartyMember
@@ -117,6 +118,7 @@ private fun MemberDrawerRow(member: PartyMember, isYou: Boolean) {
                 AsyncImage(
                     model = member.avatarUrl,
                     contentDescription = null,
+                    filterQuality = FilterQuality.High,
                     modifier = Modifier.size(40.dp).clip(CircleShape),
                 )
             } else {
