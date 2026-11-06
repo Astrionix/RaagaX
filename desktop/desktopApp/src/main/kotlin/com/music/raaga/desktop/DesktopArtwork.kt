@@ -9,6 +9,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.layout.ContentScale
@@ -76,7 +77,7 @@ fun DesktopArtwork(
         Box(modifier.background(Color(0xFF2B2B35)))
     } else {
         Image(
-            painter = BitmapPainter(bitmap!!),
+            painter = BitmapPainter(bitmap!!, filterQuality = FilterQuality.High),
             contentDescription = contentDescription,
             contentScale = contentScale,
             modifier = modifier,
