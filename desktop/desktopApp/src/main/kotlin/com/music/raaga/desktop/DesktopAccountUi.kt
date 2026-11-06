@@ -64,27 +64,10 @@ internal fun DesktopAccountButton(
 ) {
     Box(
         Modifier
-            .size(34.dp)
-            .shadow(3.dp, CircleShape, spotColor = Color.Black.copy(alpha = 0.20f))
+            .size(36.dp)
             .clip(CircleShape)
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        Color.White.copy(alpha = 0.16f),
-                        Color.White.copy(alpha = 0.05f),
-                    ),
-                ),
-            )
-            .border(
-                1.dp,
-                Brush.verticalGradient(
-                    listOf(
-                        Color.White.copy(alpha = 0.55f),
-                        Color.White.copy(alpha = 0.16f),
-                    ),
-                ),
-                CircleShape,
-            )
+            .background(Color(0xFF1F1F1F))
+            .border(1.5.dp, Color(0xFF1DB954), CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -92,9 +75,8 @@ internal fun DesktopAccountButton(
             DesktopArtwork(
                 avatar,
                 Modifier
-                    .size(26.dp)
-                    .clip(CircleShape)
-                    .border(1.dp, Color.White.copy(alpha = 0.18f), CircleShape),
+                    .size(30.dp)
+                    .clip(CircleShape),
                 contentScale = ContentScale.Crop,
                 px = 96,
             )
@@ -102,8 +84,8 @@ internal fun DesktopAccountButton(
             Icon(
                 Icons.Rounded.Person,
                 DesktopStrings["accounts", "Accounts"],
-                tint = Color.White.copy(alpha = 0.85f),
-                modifier = Modifier.size(16.dp),
+                tint = Color.White.copy(alpha = 0.90f),
+                modifier = Modifier.size(18.dp),
             )
         }
     }
