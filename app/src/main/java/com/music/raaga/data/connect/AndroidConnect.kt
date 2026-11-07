@@ -308,7 +308,20 @@ object AndroidConnect {
             scope.launch {
                 val c = controller ?: return@launch
                 when (cmd.action) {
-                    "PLAY" -> c.play()
+                    "PLAY" -> {
+                        if (cmd.positionMs != null && cmd.positionMs > 0L) {
+                            val serverNow = System.currentTimeMillis() + cmd.clockOffsetMs
+                            val sendTime = if (cmd.timestampMs > 0L) cmd.timestampMs else serverNow
+                            val elapsed = (serverNow - sendTime).coerceAtLeast(0L)
+                            val compensatedPosition = cmd.positionMs + elapsed
+                            val currentPos = c.currentPosition
+                            val driftMs = kotlin.math.abs(compensatedPosition - currentPos)
+                            if (driftMs > 250L) {
+                                c.seekTo(compensatedPosition)
+                            }
+                        }
+                        c.play()
+                    }
                     "PAUSE" -> c.pause()
                     "TOGGLE" -> {
                         if (c.isPlaying) c.pause() else c.play()
