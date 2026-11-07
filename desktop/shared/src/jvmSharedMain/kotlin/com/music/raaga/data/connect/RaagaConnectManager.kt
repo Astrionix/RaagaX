@@ -1,6 +1,7 @@
 package com.music.raaga.data.connect
 
 import com.music.raaga.data.MonotonicClock
+import com.music.raaga.data.TrackLog
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -78,7 +79,45 @@ class RaagaConnectManager(
     private val pendingClockSyncDeferred = ConcurrentHashMap<Long, CompletableDeferred<ConnectClockSyncResponse>>()
     @Volatile
     private var lastCalibratedClockOffsetMs: Long = 0L
-    private var commandSeq = 0L
+    private val localSeq = java.util.concurrent.atomic.AtomicLong(0L)
+    @Volatile
+    private var lastAppliedCommandSeq: Long = 0L
+    @Volatile
+    private var lastAppliedStatusSeq: Long = 0L
+
+    private fun handleIncomingControl(cmd: ConnectControlCommand) {
+        if (cmd.seq > 0L && cmd.seq <= lastAppliedCommandSeq) {
+            TrackLog.d("RaagaConnect", "Stale control frame discarded: action=${cmd.action}, seq=${cmd.seq} <= lastApplied=$lastAppliedCommandSeq")
+            return
+        }
+        if (cmd.seq > 0L) {
+            lastAppliedCommandSeq = cmd.seq
+        }
+        onRemoteControlCommand(cmd)
+    }
+
+    private fun buildControlCommand(
+        action: String,
+        targetDeviceId: String,
+        positionMs: Long? = null,
+        volume: Float? = null,
+        playbackSpeed: Float? = null,
+    ): ConnectControlCommand {
+        val now = System.currentTimeMillis() + lastCalibratedClockOffsetMs
+        return ConnectControlCommand(
+            action = action,
+            positionMs = positionMs,
+            volume = volume,
+            playbackSpeed = playbackSpeed,
+            targetDeviceId = targetDeviceId,
+            commandId = UUID.randomUUID().toString(),
+            seq = localSeq.incrementAndGet(),
+            senderDeviceId = deviceId,
+            syncKey = RaagaPairingStore.getSyncKey(),
+            timestampMs = now,
+            clockOffsetMs = lastCalibratedClockOffsetMs,
+        )
+    }
 
     private val server = RaagaConnectServer(
         getStatus = {
@@ -91,6 +130,9 @@ class RaagaConnectManager(
                 protocolVersion = 2,
                 activeSpeakerDeviceId = if (!isRemoteController && localStatus.isPlaying) deviceId else null,
                 anchorMonotonicMs = MonotonicClock.nowMs(),
+                seq = localSeq.get(),
+                timestampMs = System.currentTimeMillis() + lastCalibratedClockOffsetMs,
+                clockOffsetMs = lastCalibratedClockOffsetMs,
             )
         },
         onTransfer = { transfer ->
@@ -98,7 +140,7 @@ class RaagaConnectManager(
             onPlaybackTransferredToMe(transfer)
         },
         onControl = { cmd ->
-            onRemoteControlCommand(cmd)
+            handleIncomingControl(cmd)
         },
         onHandoffPrepare = { packet ->
             onHandoffPrepareRequested?.invoke(packet)
@@ -141,7 +183,7 @@ class RaagaConnectManager(
                 if (cmd.action == "QUERY_STATUS") {
                     broadcastLocalStatusToCloud()
                 } else {
-                    onRemoteControlCommand(cmd)
+                    handleIncomingControl(cmd)
                     scope.launch {
                         delay(200)
                         broadcastLocalStatusToCloud()
@@ -150,12 +192,19 @@ class RaagaConnectManager(
             }
         },
         onStatusReceived = { status ->
-            val active = _activeRemoteDevice.value
-            if (active != null && (active.id == status.deviceId || status.deviceId.isBlank())) {
-                lastRemoteStatusReceivedAt = System.currentTimeMillis()
-                val dur = if (status.durationMs > 0L) status.durationMs else parseDurationTextToMs(status.track?.durationText)
-                _remoteStatus.value = status.copy(durationMs = dur)
-                checkAndCorrectDrift(status)
+            if (status.seq > 0L && status.seq <= lastAppliedStatusSeq) {
+                TrackLog.d("RaagaConnect", "Stale status frame discarded: seq=${status.seq} <= $lastAppliedStatusSeq")
+            } else {
+                if (status.seq > 0L) {
+                    lastAppliedStatusSeq = status.seq
+                }
+                val active = _activeRemoteDevice.value
+                if (active != null && (active.id == status.deviceId || status.deviceId.isBlank())) {
+                    lastRemoteStatusReceivedAt = System.currentTimeMillis()
+                    val dur = if (status.durationMs > 0L) status.durationMs else parseDurationTextToMs(status.track?.durationText)
+                    _remoteStatus.value = status.copy(durationMs = dur)
+                    checkAndCorrectDrift(status)
+                }
             }
         },
         onPairRequestReceived = { req ->
@@ -505,6 +554,9 @@ class RaagaConnectManager(
             deviceType = deviceType,
             durationMs = dur,
             anchorMonotonicMs = MonotonicClock.nowMs(),
+            seq = localSeq.incrementAndGet(),
+            timestampMs = System.currentTimeMillis() + lastCalibratedClockOffsetMs,
+            clockOffsetMs = lastCalibratedClockOffsetMs,
         )
         supabaseRelay.sendStatus(fullStatus)
     }
@@ -813,14 +865,7 @@ class RaagaConnectManager(
             }
 
             // 2. Pause remote device
-            val pauseCmd = ConnectControlCommand(
-                action = "PAUSE",
-                targetDeviceId = target.id,
-                commandId = UUID.randomUUID().toString(),
-                seq = ++commandSeq,
-                senderDeviceId = deviceId,
-                syncKey = RaagaPairingStore.getSyncKey(),
-            )
+            val pauseCmd = buildControlCommand("PAUSE", target.id)
             if (target.isCloud) {
                 supabaseRelay.sendControl(target.id, pauseCmd)
             } else {
@@ -847,14 +892,7 @@ class RaagaConnectManager(
     fun sendPlay() {
         val target = _activeRemoteDevice.value ?: return
         scope.launch {
-            val cmd = ConnectControlCommand(
-                action = "PLAY",
-                targetDeviceId = target.id,
-                commandId = UUID.randomUUID().toString(),
-                seq = ++commandSeq,
-                senderDeviceId = deviceId,
-                syncKey = RaagaPairingStore.getSyncKey(),
-            )
+            val cmd = buildControlCommand("PLAY", target.id)
             if (target.isCloud) {
                 supabaseRelay.sendControl(target.id, cmd)
             } else {
@@ -872,14 +910,7 @@ class RaagaConnectManager(
     fun sendPause() {
         val target = _activeRemoteDevice.value ?: return
         scope.launch {
-            val cmd = ConnectControlCommand(
-                action = "PAUSE",
-                targetDeviceId = target.id,
-                commandId = UUID.randomUUID().toString(),
-                seq = ++commandSeq,
-                senderDeviceId = deviceId,
-                syncKey = RaagaPairingStore.getSyncKey(),
-            )
+            val cmd = buildControlCommand("PAUSE", target.id)
             if (target.isCloud) {
                 supabaseRelay.sendControl(target.id, cmd)
             } else {
@@ -903,14 +934,7 @@ class RaagaConnectManager(
     fun sendNext() {
         val target = _activeRemoteDevice.value ?: return
         scope.launch {
-            val cmd = ConnectControlCommand(
-                action = "NEXT",
-                targetDeviceId = target.id,
-                commandId = UUID.randomUUID().toString(),
-                seq = ++commandSeq,
-                senderDeviceId = deviceId,
-                syncKey = RaagaPairingStore.getSyncKey(),
-            )
+            val cmd = buildControlCommand("NEXT", target.id)
             if (target.isCloud) {
                 supabaseRelay.sendControl(target.id, cmd)
             } else {
@@ -927,14 +951,7 @@ class RaagaConnectManager(
     fun sendPrev() {
         val target = _activeRemoteDevice.value ?: return
         scope.launch {
-            val cmd = ConnectControlCommand(
-                action = "PREV",
-                targetDeviceId = target.id,
-                commandId = UUID.randomUUID().toString(),
-                seq = ++commandSeq,
-                senderDeviceId = deviceId,
-                syncKey = RaagaPairingStore.getSyncKey(),
-            )
+            val cmd = buildControlCommand("PREV", target.id)
             if (target.isCloud) {
                 supabaseRelay.sendControl(target.id, cmd)
             } else {
@@ -953,15 +970,7 @@ class RaagaConnectManager(
     fun sendSeek(positionMs: Long) {
         val target = _activeRemoteDevice.value ?: return
         scope.launch {
-            val cmd = ConnectControlCommand(
-                action = "SEEK",
-                positionMs = positionMs,
-                targetDeviceId = target.id,
-                commandId = UUID.randomUUID().toString(),
-                seq = ++commandSeq,
-                senderDeviceId = deviceId,
-                syncKey = RaagaPairingStore.getSyncKey(),
-            )
+            val cmd = buildControlCommand("SEEK", target.id, positionMs = positionMs)
             if (target.isCloud) {
                 supabaseRelay.sendControl(target.id, cmd)
             } else {
@@ -979,15 +988,7 @@ class RaagaConnectManager(
     fun sendPlaybackSpeed(speed: Float) {
         val target = _activeRemoteDevice.value ?: return
         scope.launch {
-            val cmd = ConnectControlCommand(
-                action = "SPEED",
-                playbackSpeed = speed,
-                targetDeviceId = target.id,
-                commandId = UUID.randomUUID().toString(),
-                seq = ++commandSeq,
-                senderDeviceId = deviceId,
-                syncKey = RaagaPairingStore.getSyncKey(),
-            )
+            val cmd = buildControlCommand("SPEED", target.id, playbackSpeed = speed)
             if (target.isCloud) {
                 supabaseRelay.sendControl(target.id, cmd)
             } else {
@@ -1005,15 +1006,7 @@ class RaagaConnectManager(
         volumeJob?.cancel()
         volumeJob = scope.launch {
             delay(50)
-            val cmd = ConnectControlCommand(
-                action = "VOLUME",
-                volume = volume,
-                targetDeviceId = target.id,
-                commandId = UUID.randomUUID().toString(),
-                seq = ++commandSeq,
-                senderDeviceId = deviceId,
-                syncKey = RaagaPairingStore.getSyncKey(),
-            )
+            val cmd = buildControlCommand("VOLUME", target.id, volume = volume)
             if (target.isCloud) {
                 supabaseRelay.sendControl(target.id, cmd)
             } else {
@@ -1095,12 +1088,7 @@ class RaagaConnectManager(
         }
         supabaseRelay.sendControl(
             target.id,
-            ConnectControlCommand(
-                action = "QUERY_STATUS",
-                targetDeviceId = target.id,
-                commandId = UUID.randomUUID().toString(),
-                seq = ++commandSeq,
-            ),
+            buildControlCommand("QUERY_STATUS", target.id),
         )
     }
 
