@@ -36,6 +36,9 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -85,6 +88,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.LaunchedEffect
@@ -3739,7 +3743,41 @@ private fun RaagaApp(
                     }
                 }
 
-                if (glassActive) Column(
+                val isInsideSubScreen = (showSettings && activeSettingsCategory != null) ||
+                    showAccountScrobbling || showSources || showListenTogether || showEqualizer || showHistory
+
+                if (isInsideSubScreen) {
+                    miniPlayerSong?.let { song ->
+                        Column(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .widthIn(max = FLOATING_BAR_MAX_WIDTH)
+                                .fillMaxWidth()
+                                .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets(bottom = 12.dp)))
+                                .padding(horizontal = 16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            QueueActionNoticeHost(queueNotice)
+                            MiniPlayer(
+                                song = song,
+                                isPlaying = miniPlayerIsPlaying,
+                                isLoading = playPauseBusy,
+                                hazeState = hazeState,
+                                onPlayPause = { togglePlayPause() },
+                                onNext = {
+                                    if (activeRemoteDevice != null) AndroidConnect.manager.sendNext() else controller?.seekToNextMediaItem()
+                                },
+                                onPrevious = {
+                                    if (activeRemoteDevice != null) AndroidConnect.manager.sendPrevious() else controller?.seekToPrevious()
+                                },
+                                onExpand = { showNowPlaying = true },
+                                controlsLocked = controlsLocked,
+                                onBlockedControl = showHostOnlyNotice,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    }
+                } else if (glassActive) Column(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .widthIn(max = FLOATING_BAR_MAX_WIDTH)
