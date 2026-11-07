@@ -293,8 +293,8 @@ private val GAP_ROW_SPACING = 16.dp
  * only past that does the panel let go. The last entry stands for everything
  * further out, which is most of the list.
  */
-private val LINE_FALLOFF_ALPHA = floatArrayOf(1f, 0.8f, 0.7f, 0.58f, 0.46f)
-private val LINE_FALLOFF_BLUR = arrayOf(0.dp, 1.dp, 1.dp, 1.7.dp, 2.4.dp)
+private val LINE_FALLOFF_ALPHA = floatArrayOf(1f, 0.72f, 0.55f, 0.42f, 0.35f)
+private val LINE_FALLOFF_BLUR = arrayOf(0.dp, 1.5.dp, 2.2.dp, 3.2.dp, 4.0.dp)
 
 /**
  * The shape of the page the lyrics are going to fill.
@@ -1824,7 +1824,8 @@ internal fun LyricsPanel(
                 )
                 }
             } else {
-                val alignEnd = duet && line.alignment == LyricAlignment.End
+                val isRtl = isRtlText(line.text)
+                val alignEnd = (duet && line.alignment == LyricAlignment.End) || isRtl
                 val style = if (isSynced) {
                     MaterialTheme.typography.headlineLarge.copy(
                         fontSize = 34.sp,
@@ -2747,4 +2748,16 @@ internal fun rememberLyricsTranslation(
         toggleTranslation = toggleTranslation,
         toggleRomanization = toggleRomanization,
     )
+}
+
+internal fun isRtlText(text: String): Boolean {
+    for (i in text.indices) {
+        val dir = Character.getDirectionality(text[i])
+        if (dir == Character.DIRECTIONALITY_RIGHT_TO_LEFT ||
+            dir == Character.DIRECTIONALITY_RIGHT_TO_LEFT_ARABIC
+        ) {
+            return true
+        }
+    }
+    return false
 }
