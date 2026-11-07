@@ -431,6 +431,8 @@ private fun BottomBarItem(
         label = "tabTint",
     )
 
+    val compactNavIconsOnly by AppSettings.compactNavIconsOnly.collectAsStateWithLifecycle()
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier
@@ -442,7 +444,7 @@ private fun BottomBarItem(
                 if (!selected) haptics.play(Haptic.Select)
                 onClick()
             }
-            .padding(vertical = TAB_VERTICAL_PADDING),
+            .padding(vertical = if (compactNavIconsOnly) 6.dp else TAB_VERTICAL_PADDING),
     ) {
         Icon(
             imageVector = tab.icon,
@@ -455,13 +457,15 @@ private fun BottomBarItem(
                     scaleY = scale
                 },
         )
-        Spacer(Modifier.height(TAB_ICON_LABEL_GAP))
-        Text(
-            text = tab.label,
-            style = tabLabelStyle(),
-            color = tint,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        if (!compactNavIconsOnly) {
+            Spacer(Modifier.height(TAB_ICON_LABEL_GAP))
+            Text(
+                text = tab.label,
+                style = tabLabelStyle(),
+                color = tint,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
