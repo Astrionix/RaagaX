@@ -1963,6 +1963,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
+     * Granular partial refresh: updates only the Recents shelf in the home feed
+     * without invalidating or re-rendering other shelves or resetting scroll position.
+     */
+    fun refreshRecentsOnly() {
+        if (!_signedIn.value) return
+        viewModelScope.launch {
+            val identity = listenerKey()
+            YtMusicRepository.homeRecentlyPlayed().onSuccess { shelf ->
+                if (identity == listenerKey() && shelf != null) {
+                    publishHomeShelves(listOf(shelf), prepend = true)
+                }
+            }
+        }
+    }
+
+    /**
      * One of the parallel first-page requests has finished. Ignored once a newer
      * load has taken over, which has already reset the count for its own fan-out.
      */
