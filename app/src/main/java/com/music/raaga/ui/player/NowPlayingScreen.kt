@@ -101,6 +101,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.remember
@@ -727,9 +728,13 @@ fun NowPlayingScreen(
     var showAudioOutput by remember { mutableStateOf(false) }
     var showLyricsProviders by remember { mutableStateOf(false) }
 
+    var lastSavedPodcastPos by remember(song.videoId) { mutableLongStateOf(0L) }
     LaunchedEffect(song.videoId, position.positionMs) {
         if (position.positionMs > 5_000L && durationMs > 60_000L) {
-            PodcastEpisodeStore.savePosition(song.videoId, position.positionMs, durationMs)
+            if (kotlin.math.abs(position.positionMs - lastSavedPodcastPos) >= 5_000L) {
+                lastSavedPodcastPos = position.positionMs
+                PodcastEpisodeStore.savePosition(song.videoId, position.positionMs, durationMs)
+            }
         }
     }
     // Gated on the Bluetooth permission the first time — see [rememberOutputPicker].

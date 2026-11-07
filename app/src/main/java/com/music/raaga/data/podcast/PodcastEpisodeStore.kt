@@ -40,6 +40,8 @@ object PodcastEpisodeStore {
      */
     fun savePosition(episodeId: String, positionMs: Long, totalDurationMs: Long = 0L) {
         if (!::prefs.isInitialized || episodeId.isBlank()) return
+        val current = _positions.value[episodeId]
+        if (current != null && kotlin.math.abs(current - positionMs) < 2_000L) return
         val isCompleted = (totalDurationMs > 0 && (totalDurationMs - positionMs) <= 15_000L)
         prefs.edit()
             .putLong(KEY_PREFIX_POS + episodeId, positionMs)
