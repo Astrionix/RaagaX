@@ -1063,6 +1063,12 @@ object StreamResolver {
      * so read-ahead would have no way to know when it was finished. Resolving
      * is memoised, so asking costs nothing beyond the first time.
      */
+    fun isLiveUrl(url: String): Boolean {
+        val parsed = url.toHttpUrlOrNull() ?: return false
+        return parsed.queryParameter("live") == "1" ||
+            parsed.queryParameter("source") == "yt_live_broadcast"
+    }
+
     suspend fun contentLength(videoId: String): Long? =
         resolve(videoId).toHttpUrlOrNull()?.queryParameter("clen")?.toLongOrNull()
 
