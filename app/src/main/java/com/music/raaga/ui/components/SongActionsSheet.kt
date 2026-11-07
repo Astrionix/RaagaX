@@ -1,6 +1,10 @@
 package com.music.raaga.ui.components
 
 import com.music.raaga.R
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material3.Surface
+import kotlin.math.roundToInt
 
 import android.net.Uri
 import androidx.compose.foundation.background
@@ -81,6 +85,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.music.raaga.data.model.LikeStatus
@@ -201,6 +206,7 @@ fun SongActionsSheet(
 ) {
     var pickingSleepTimer by remember { mutableStateOf(false) }
     var showingSongInfo by remember(song.videoId) { mutableStateOf(false) }
+    var showingMixView by remember { mutableStateOf(false) }
     // Read from the thumbnail the row that opened this sheet was already
     // showing, not a larger copy of it: the tint is a blur and a handful of
     // swatches, neither of which a bigger image improves, and going back for
@@ -231,6 +237,81 @@ fun SongActionsSheet(
 
         SheetTrackHeader(song, subtitleColor = palette.onBackgroundVariant)
         HorizontalDivider(thickness = 0.5.dp, color = palette.divider)
+
+        val automixMeta by AppSettings.automixMetadata.collectAsStateWithLifecycle()
+        if (automixMeta != null) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = palette.accent.copy(alpha = 0.12f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, palette.accent.copy(alpha = 0.35f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .clickable { showingMixView = !showingMixView },
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Rounded.AutoAwesome,
+                                contentDescription = null,
+                                tint = palette.accent,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = stringResource(R.string.automix_overview),
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                color = palette.accent,
+                            )
+                        }
+                        Text(
+                            text = automixMeta!!.style,
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                            color = palette.onBackgroundVariant,
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        val tempoText = if (automixMeta!!.tempoA != null && automixMeta!!.tempoB != null) {
+                            "${automixMeta!!.tempoA!!.roundToInt()} BPM ➔ ${automixMeta!!.tempoB!!.roundToInt()} BPM"
+                        } else {
+                            "Intelligent Beat-Match"
+                        }
+                        Text(
+                            text = tempoText,
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                            color = palette.onBackground,
+                        )
+                        val durationSec = (automixMeta!!.transitionDurationMs / 1000).coerceAtLeast(1)
+                        Text(
+                            text = "${durationSec}s transition window",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = palette.onBackgroundVariant,
+                        )
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = if (showingMixView) "Hide Live DJ Mix View ▲" else "Tap to view Live DJ Mix Waveform ▼",
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold),
+                        color = palette.accent,
+                    )
+                }
+            }
+            AutomixMixViewPopup(
+                visible = showingMixView,
+                onDismiss = { showingMixView = false },
+            )
+            HorizontalDivider(thickness = 0.5.dp, color = palette.divider)
+        }
 
         // Leads the list whenever it's available: which recording is playing
         // is the one question that has to be answered before any of the rows
