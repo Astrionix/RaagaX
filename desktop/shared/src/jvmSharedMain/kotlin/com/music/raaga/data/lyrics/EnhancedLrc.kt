@@ -14,7 +14,7 @@ package com.music.raaga.data.lyrics
 object EnhancedLrc {
 
     private val LINE = Regex("""^\[(\d{1,3}):(\d{2})[.:](\d{2,3})](.*)$""")
-    private val WORD = Regex("""<(\d{1,3}):(\d{2})[.:](\d{2,3})>([^<]*)""")
+    private val WORD = Regex("""<(?:(\d{1,3}):(\d{2})[.:](\d{2,3})|(\d+))>([^<]*)""")
 
     /** Empty when [lrc] carries no word stamps — the caller can then fall back. */
     fun parse(lrc: String): List<LyricLine> {
@@ -49,7 +49,8 @@ object EnhancedLrc {
             val runs = row.words.mapIndexed { i, match ->
                 val wordStart = stamp(match)
                 val wordEnd = row.words.getOrNull(i + 1)?.let { stamp(it) } ?: lineEnd
-                TimedRun(wordStart, wordEnd, decodeEntities(match.groupValues[4]))
+                val wordText = decodeEntities(if (match.groupValues[5].isNotEmpty()) match.groupValues[5] else match.groupValues[4])
+                TimedRun(wordStart, wordEnd, wordText)
             }
             val words = wordsFromRuns(runs)
             if (words.isEmpty()) return@mapIndexedNotNull null
@@ -63,8 +64,20 @@ object EnhancedLrc {
 
     private class Row(val timeMs: Long, val words: List<MatchResult>, val plain: String)
 
-    private fun stamp(match: MatchResult): Long =
-        stamp(match.groupValues[1], match.groupValues[2], match.groupValues[3])
+    private fun stamp(match: MatchResult): Long {
+        val min = match.groupValues[1]
+        val sec = match.groupValues[2]
+        val frac = match.groupValues[3]
+        if (min.isNotEmpty() && sec.isNotEmpty()) {
+            return stamp(min, sec, frac)
+        }
+        val rawMs = match.groupValues[4]
+        if (rawMs.isNotEmpty()) {
+            val num = rawMs.toLongOrNull() ?: 0L
+            return if (num < 100000 && rawMs.length <= 4) num * 10L else num
+        }
+        return 0L
+    }
 
     private fun stamp(minutes: String, seconds: String, fraction: String): Long {
         // Two digits mean centiseconds, three mean milliseconds.
