@@ -9,6 +9,7 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.isSupported
 import androidx.compose.ui.graphics.layer.drawLayer
+import com.music.raaga.data.settings.AppSettings
 
 /**
  * Whether the player's glyphs and secondary text are blended into the backdrop
@@ -26,11 +27,15 @@ internal const val CHROME_FULL_ALPHA = 0.73f
 /** How far below its plain strength blended content is drawn, so more of the backdrop comes through. */
 private const val CHROME_ALPHA_DROP = 0.15f
 
-/** White at [alpha], or that less [CHROME_ALPHA_DROP] while the blend is on. */
+/** White at [alpha], or plain `#FFFFFF` when blend effects are disabled. */
 @Composable
 @ReadOnlyComposable
 internal fun chromeWhite(alpha: Float): Color =
-    Color.White.copy(alpha = if (LocalPlayerChrome.current) alpha - CHROME_ALPHA_DROP else alpha)
+    if (AppSettings.disableBlendEffects.value) {
+        Color.White
+    } else {
+        Color.White.copy(alpha = if (LocalPlayerChrome.current) alpha - CHROME_ALPHA_DROP else alpha)
+    }
 
 /**
  * What [vibrantChrome] content is drawn in: a neutral ink, so the hue is all the backdrop's.
@@ -54,7 +59,7 @@ private const val VIBRANT_CHROME_FLOOR = 0.12f
  * stays solid white under it: the effect is in content drawn below full strength.
  */
 fun Modifier.additiveChrome(enabled: Boolean): Modifier =
-    if (!enabled) {
+    if (!enabled || AppSettings.disableBlendEffects.value) {
         this
     } else {
         drawWithCache {
@@ -72,8 +77,8 @@ fun Modifier.additiveChrome(enabled: Boolean): Modifier =
  * Where the platform has no dodge the ink is added instead, as [additiveChrome].
  */
 internal fun Modifier.vibrantChrome(enabled: Boolean): Modifier =
-    if (!enabled || !BlendMode.ColorDodge.isSupported()) {
-        additiveChrome(enabled)
+    if (!enabled || AppSettings.disableBlendEffects.value || !BlendMode.ColorDodge.isSupported()) {
+        additiveChrome(enabled && !AppSettings.disableBlendEffects.value)
     } else {
         drawWithCache {
             val floor = obtainGraphicsLayer().apply {
@@ -89,4 +94,3 @@ internal fun Modifier.vibrantChrome(enabled: Boolean): Modifier =
             }
         }
     }
-
