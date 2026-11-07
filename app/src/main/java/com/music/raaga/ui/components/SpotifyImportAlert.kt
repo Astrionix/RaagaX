@@ -33,6 +33,19 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Icon
+import com.music.raaga.download.Downloads
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import java.util.Locale
 import com.music.raaga.R
 import com.music.raaga.data.model.PlaylistPrivacy
 import com.music.raaga.data.model.Song
@@ -69,10 +82,32 @@ fun SpotifyImportAlert(
     var status by remember { mutableStateOf<String?>(null) }
     var failed by remember { mutableStateOf(false) }
     var unmatched by remember { mutableStateOf<List<SpotifyImportTrack>?>(null) }
+    var selectedLanguage by remember { mutableStateOf("All") }
+    var downloadAllAfterImport by remember { mutableStateOf(false) }
+
+    val languages = listOf("All", "English", "Hindi", "Telugu", "Tamil", "Punjabi", "Spanish", "Korean", "Japanese")
+
+    fun matchesLanguage(song: Song, lang: String): Boolean {
+        if (lang == "All") return true
+        val text = "${song.title} ${song.artist}".lowercase(Locale.ROOT)
+        return when (lang) {
+            "Hindi" -> text.any { it in '\u0900'..'\u097F' } || text.contains("hindi")
+            "Telugu" -> text.any { it in '\u0C00'..'\u0C7F' } || text.contains("telugu")
+            "Tamil" -> text.any { it in '\u0B80'..'\u0BFF' } || text.contains("tamil")
+            "Punjabi" -> text.any { it in '\u0A00'..'\u0A7F' } || text.contains("punjabi")
+            "Korean" -> text.any { it in '\uAC00'..'\uD7AF' }
+            "Japanese" -> text.any { it in '\u3040'..'\u30FF' } || text.any { it in '\u4E00'..'\u9FAF' }
+            "Spanish" -> text.contains("español") || text.contains("spanish")
+            "English" -> text.all { it.code < 128 }
+            else -> true
+        }
+    }
 
     fun start() {
-        val id = SpotifyImporter.extractPlaylistId(link)
-        if (id == null) {
+        val trimmed = link.trim()
+        val isJson = trimmed.startsWith("[") && trimmed.endsWith("]")
+        val id = if (!isJson) SpotifyImporter.extractPlaylistId(link) else null
+        if (!isJson && id == null) {
             status = context.getString(R.string.spotify_import_invalid)
             failed = true
             return
@@ -82,12 +117,28 @@ fun SpotifyImportAlert(
         status = context.getString(R.string.spotify_import_fetching)
         scope.launch {
             try {
-                val (name, tracks) = SpotifyImporter.fetchPlaylistTracks(id)
+                val (name, tracks) = if (isJson) {
+                    val list = Json.parseToJsonElement(trimmed).jsonArray.mapNotNull { el ->
+                        val obj = el.jsonObject
+                        val title = obj["title"]?.jsonPrimitive?.content ?: obj["name"]?.jsonPrimitive?.content
+                        val artist = obj["artist"]?.jsonPrimitive?.content ?: obj["artists"]?.jsonPrimitive?.content
+                        if (!title.isNullOrBlank() && !artist.isNullOrBlank()) {
+                            SpotifyImportTrack(title = title, artist = artist)
+                        } else null
+                    }
+                    "Imported Playlist" to list
+                } else {
+                    SpotifyImporter.fetchPlaylistTracks(id!!)
+                }
                 val (songs, missed) = SpotifyImporter.resolveToSongs(tracks) { done, total ->
                     status = context.getString(R.string.spotify_import_matching, done, total)
                 }
-                if (songs.isEmpty()) error(context.getString(R.string.spotify_import_none))
-                onImported(name, privacy, songs)
+                val filteredSongs = if (selectedLanguage == "All") songs else songs.filter { matchesLanguage(it, selectedLanguage) }
+                if (filteredSongs.isEmpty()) error(context.getString(R.string.spotify_import_none))
+                onImported(name, privacy, filteredSongs)
+                if (downloadAllAfterImport) {
+                    filteredSongs.forEach { Downloads.enqueue(context, it, name) }
+                }
                 if (missed.isEmpty()) onDismiss() else unmatched = missed
             } catch (e: CancellationException) {
                 throw e
@@ -168,6 +219,70 @@ fun SpotifyImportAlert(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { if (link.isNotBlank() && !working) start() }),
                 )
+                Text(
+                    text = "Filter by Language",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 10.dp, bottom = 6.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    languages.forEach { lang ->
+                        val selected = lang == selectedLanguage
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(percent = 50))
+                                .background(
+                                    if (selected) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.surfaceVariant,
+                                )
+                                .clickable(enabled = !working) { selectedLanguage = lang }
+                                .padding(horizontal = 10.dp, vertical = 5.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = lang,
+                                style = MaterialTheme.typography.labelMedium.copy(fontSize = 11.sp),
+                                color = if (selected) MaterialTheme.colorScheme.onPrimary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 10.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(enabled = !working) { downloadAllAfterImport = !downloadAllAfterImport }
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Download,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = if (downloadAllAfterImport) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        text = "Download / Cache All Tracks",
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                        color = if (downloadAllAfterImport) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Checkbox(
+                        checked = downloadAllAfterImport,
+                        onCheckedChange = { if (!working) downloadAllAfterImport = it },
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
                 if (signedIn) {
                     Text(
                         text = stringResource(R.string.who_can_see_it),
