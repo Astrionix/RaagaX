@@ -33,6 +33,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.music.raaga.data.settings.AppSettings
+import com.music.raaga.data.podcast.PodcastEpisodeStore
 import com.music.raaga.download.Downloads
 import com.music.raaga.ui.haptics.Haptic
 import com.music.raaga.ui.haptics.rememberHaptics
@@ -734,6 +735,28 @@ private fun SongRowContent(
                 tint = activeTint,
                 modifier = Modifier.size(20.dp),
             )
+        }
+        val savedPodcastPos = remember(song.videoId) { PodcastEpisodeStore.getPosition(song.videoId) }
+        val isPodcastCompleted = remember(song.videoId) { PodcastEpisodeStore.isCompleted(song.videoId) }
+        if (savedPodcastPos > 0L) {
+            val mins = (savedPodcastPos / 1000) / 60
+            val secs = (savedPodcastPos / 1000) % 60
+            Spacer(Modifier.width(6.dp))
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(
+                        if (isPodcastCompleted) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                        else MaterialTheme.colorScheme.secondaryContainer,
+                    )
+                    .padding(horizontal = 4.dp, vertical = 2.dp),
+            ) {
+                Text(
+                    text = if (isPodcastCompleted) "Played" else "%d:%02d".format(mins, secs),
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                    color = if (isPodcastCompleted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+            }
         }
         song.durationText?.let {
             Spacer(Modifier.width(8.dp))
