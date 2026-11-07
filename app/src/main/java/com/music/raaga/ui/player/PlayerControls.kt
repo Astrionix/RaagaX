@@ -201,6 +201,9 @@ internal fun PlaybackOriginCaption(
  * The seek bar, with elapsed and remaining either side under it and
  * [centerLabel] — the quality badge — between them.
  */
+/** How far [PlayerScrubber] draws its times above the slot they are laid out in. */
+internal val SCRUBBER_LABEL_LIFT = 9.dp
+
 @Composable
 internal fun PlayerScrubber(
     /**
@@ -230,21 +233,22 @@ internal fun PlayerScrubber(
                 .fillMaxWidth()
                 // The slider's touch target extends well past the drawn bar,
                 // so pull the labels back up under it.
-                .offset(y = (-9).dp),
+                .offset(y = -SCRUBBER_LABEL_LIFT),
         ) {
+            val timeColor = chromeWhite(0.55f)
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().additiveChrome(LocalPlayerChrome.current),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Text(
                     text = formatTime((shown * durationMs).toLong()),
                     style = MaterialTheme.typography.labelMedium,
-                    color = Color.White.copy(alpha = 0.55f),
+                    color = timeColor,
                 )
                 Text(
                     text = "-" + formatTime(durationMs - (shown * durationMs).toLong()),
                     style = MaterialTheme.typography.labelMedium,
-                    color = Color.White.copy(alpha = 0.55f),
+                    color = timeColor,
                 )
             }
             // Pinned to the box's own centre rather than squeezed into the gap
@@ -489,11 +493,12 @@ internal fun VolumeRow(
             },
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        val chrome = LocalPlayerChrome.current
         Icon(
             Icons.AutoMirrored.Rounded.VolumeDown,
             contentDescription = null,
-            tint = Color.White.copy(alpha = 0.5f),
-            modifier = Modifier.size(20.dp),
+            tint = if (chrome) VibrantChromeInk else chromeWhite(0.5f),
+            modifier = Modifier.size(20.dp).vibrantChrome(chrome),
         )
         Spacer(Modifier.width(10.dp))
         ThinSlider(
@@ -508,8 +513,8 @@ internal fun VolumeRow(
         Icon(
             Icons.AutoMirrored.Rounded.VolumeUp,
             contentDescription = null,
-            tint = Color.White.copy(alpha = 0.5f),
-            modifier = Modifier.size(20.dp),
+            tint = if (chrome) VibrantChromeInk else chromeWhite(0.5f),
+            modifier = Modifier.size(20.dp).vibrantChrome(chrome),
         )
     }
 }
@@ -588,6 +593,7 @@ internal fun PlayerActionRow(
                             haptic = if (shuffleEnabled) Haptic.ToggleOff else Haptic.ToggleOn,
                             tapWindowMs = SHUFFLE_TAP_WINDOW_MS,
                             width = PILL_SEGMENT_WIDTH_TRIPLE,
+                        vibrant = true,
                         )
                         PillDivider()
                         PillSegment(
@@ -606,6 +612,7 @@ internal fun PlayerActionRow(
                                 else -> Haptic.Select
                             },
                             width = PILL_SEGMENT_WIDTH_TRIPLE,
+                        vibrant = true,
                         )
                         PillDivider()
                         PillSegment(
@@ -618,6 +625,7 @@ internal fun PlayerActionRow(
                             haptic = if (autoplayEnabled) Haptic.ToggleOff else Haptic.ToggleOn,
                             tapWindowMs = AUTOPLAY_TAP_WINDOW_MS,
                             width = PILL_SEGMENT_WIDTH_TRIPLE,
+                        vibrant = true,
                         )
                     }
                 } else {
@@ -974,6 +982,8 @@ private fun PillSegment(
     tapWindowMs: Long = 0L,
     /** Per-segment override — see [OutputPartyPill]'s three-up capsule. */
     width: Dp = PILL_SEGMENT_WIDTH,
+    /** See [BottomGlyph], where the same flag means the same thing. */
+    vibrant: Boolean = false,
 ) {
     val haptics = rememberHaptics()
     val lastTap = remember { mutableLongStateOf(-tapWindowMs) }
@@ -1212,6 +1222,8 @@ private fun rememberPartyBadge(): PartyBadge {
         .value
 }
 
+private val BOTTOM_ICON_SIZE = 26.dp
+
 @Composable
 private fun BottomGlyph(
     icon: ImageVector?,
@@ -1220,60 +1232,42 @@ private fun BottomGlyph(
     highlighted: Boolean = false,
     haptic: Haptic = Haptic.Tap,
     label: String? = null,
-    /**
-     * Shortest gap between taps that both reach [onClick]. A tap inside the
-     * window of the last one is dropped whole — haptic included, so a swallowed
-     * tap doesn't buzz as though something happened. The default lets every tap
-     * through: only the glyphs whose work is too heavy to repeat at finger speed
-     * ask for a window.
-     */
+    iconSize: Dp = BOTTOM_ICON_SIZE,
     tapWindowMs: Long = 0L,
+    vibrant: Boolean = false,
 ) {
     val haptics = rememberHaptics()
-    // Read only from the click handler, never during composition, so writing it
-    // costs no recomposition. Starts a full window in the past so the first tap
-    // is never the one that gets swallowed.
     val lastTap = remember { mutableLongStateOf(-tapWindowMs) }
-    val liquidActiveBackground = remember {
-        Brush.verticalGradient(
-            colors = listOf(
-                Color.White.copy(alpha = 0.24f),
-                Color.White.copy(alpha = 0.12f),
-            ),
-        )
-    }
-    val liquidActiveBorder = remember {
-        Brush.verticalGradient(
-            colors = listOf(
-                Color.White.copy(alpha = 0.40f),
-                Color.White.copy(alpha = 0.12f),
-                Color.White.copy(alpha = 0.22f),
-            ),
-        )
-    }
-        val tileColor = Color.White.copy(alpha = BOTTOM_ACTIVE_TILE_ALPHA)
+    val tileColor = chromeWhite(BOTTOM_ACTIVE_TILE_ALPHA)
+    val tileChrome = LocalPlayerChrome.current
     Box(
         modifier = Modifier
             .size(BOTTOM_ACTION_SIZE)
             .then(
                 if (highlighted) {
-                    Modifier
-                        .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                    (
+                        if (tileChrome) {
+                            Modifier.additiveChrome(true)
+                        } else {
+                            Modifier.graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                        }
+                    )
                         .drawWithContent {
                             drawContent()
                             val side = BOTTOM_ACTIVE_TILE_SIZE.toPx()
-                            val corner = BOTTOM_ACTIVE_TILE_CORNER.toPx()
+                            val left = (size.width - side) / 2f
+                            val top = (size.height - side) / 2f
                             drawRoundRect(
                                 color = tileColor,
-                                topLeft = Offset((size.width - side) / 2f, (size.height - side) / 2f),
+                                topLeft = Offset(left, top),
                                 size = Size(side, side),
-                                cornerRadius = CornerRadius(corner, corner),
+                                cornerRadius = CornerRadius(side / 2f, side / 2f),
                                 blendMode = BlendMode.SrcOut,
                             )
                         }
                 } else {
                     Modifier
-                },
+                }
             )
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
@@ -1289,13 +1283,19 @@ private fun BottomGlyph(
             .semantics { this.contentDescription = contentDescription },
         contentAlignment = Alignment.Center,
     ) {
-        val tint = Color.White.copy(alpha = if (highlighted) 1f else 0.80f)
+        val chrome = LocalPlayerChrome.current && !highlighted
+        val tint = if (vibrant && chrome) {
+            VibrantChromeInk
+        } else {
+            if (highlighted) Color.White else chromeWhite(0.75f)
+        }
+        val glyphChrome = if (vibrant) Modifier.vibrantChrome(chrome) else Modifier.additiveChrome(chrome)
         if (icon != null) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
                 tint = tint,
-                modifier = Modifier.size(26.dp),
+                modifier = Modifier.size(iconSize).then(glyphChrome),
             )
         } else if (label != null) {
             Text(
@@ -1303,12 +1303,12 @@ private fun BottomGlyph(
                 color = tint,
                 fontSize = 19.sp,
                 fontWeight = FontWeight.Bold,
+                modifier = glyphChrome,
             )
         }
     }
 }
 
-/** A credit that links somewhere, when [browseId] is known. */
 internal fun Modifier.opensPage(browseId: String?, onOpen: (String) -> Unit): Modifier =
     if (browseId == null) {
         this
@@ -1652,7 +1652,7 @@ private fun LosslessLabel(
                 style = MaterialTheme.typography.labelMedium.copy(
                     fontSize = (MaterialTheme.typography.labelMedium.fontSize.value + 1).sp,
                 ),
-                color = Color.White.copy(alpha = 0.45f),
+                color = chromeWhite(0.45f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )

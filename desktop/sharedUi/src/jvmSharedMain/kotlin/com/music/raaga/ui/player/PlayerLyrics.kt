@@ -477,13 +477,13 @@ internal fun LyricsStatusWithChange(
 ) {
     val haptics = rememberHaptics()
     Row(
-        modifier = modifier,
+        modifier = modifier.additiveChrome(LocalPlayerChrome.current),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             text = status,
             style = MaterialTheme.typography.titleMedium,
-            color = Color.White.copy(alpha = 0.55f),
+            color = chromeWhite(0.55f),
             textDecoration = if (onStatusClick != null) TextDecoration.Underline else null,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -1261,10 +1261,11 @@ internal fun TranslationToggleButton(
     onClick: () -> Unit,
 ) {
     val active = showingTranslation || state is LyricsTranslationUiState.Loading
+    val chrome = LocalPlayerChrome.current
     val tint = when {
-        !enabled || state is LyricsTranslationUiState.SameLanguage -> Color.White.copy(alpha = 0.42f)
-        active -> Color.White
-        else -> Color.White.copy(alpha = 0.78f)
+        !enabled || state is LyricsTranslationUiState.SameLanguage -> chromeWhite(0.42f)
+        active -> Color.White.copy(alpha = if (chrome) CHROME_FULL_ALPHA else 1f)
+        else -> chromeWhite(0.78f)
     }
     val discAlpha by animateFloatAsState(
         targetValue = if (active) 0.34f else 0.18f,
@@ -1274,6 +1275,7 @@ internal fun TranslationToggleButton(
         modifier = Modifier
             .size(34.dp)
             .clip(CircleShape)
+            .additiveChrome(chrome)
             .background(Color.White.copy(alpha = discAlpha))
             .clickable(
                 enabled = enabled,
@@ -1312,10 +1314,11 @@ internal fun RomanizationToggleButton(
     onClick: () -> Unit,
 ) {
     val active = showingRomanization || state is LyricsTranslationUiState.Loading
+    val chrome = LocalPlayerChrome.current
     val tint = when {
-        !enabled || state is LyricsTranslationUiState.SameLanguage -> Color.White.copy(alpha = 0.42f)
-        active -> Color.White
-        else -> Color.White.copy(alpha = 0.78f)
+        !enabled || state is LyricsTranslationUiState.SameLanguage -> chromeWhite(0.42f)
+        active -> Color.White.copy(alpha = if (chrome) CHROME_FULL_ALPHA else 1f)
+        else -> chromeWhite(0.78f)
     }
     val discAlpha by animateFloatAsState(
         targetValue = if (active) 0.34f else 0.18f,
@@ -1325,6 +1328,7 @@ internal fun RomanizationToggleButton(
         modifier = Modifier
             .size(34.dp)
             .clip(CircleShape)
+            .additiveChrome(chrome)
             .background(Color.White.copy(alpha = discAlpha))
             .clickable(
                 enabled = enabled,

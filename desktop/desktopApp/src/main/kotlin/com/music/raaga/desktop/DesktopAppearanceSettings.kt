@@ -1,5 +1,6 @@
 package com.music.raaga.desktop
 
+import com.music.raaga.data.settings.PlayerTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -16,14 +17,34 @@ internal object DesktopAppearanceSettings {
 
     private val _reduceAnimation = flag(KEY_REDUCE_ANIMATION, false)
     private val _reduceDynamicBlur = flag(KEY_REDUCE_DYNAMIC_BLUR, false)
+    private val _disableBlendEffects = flag(KEY_DISABLE_BLEND_EFFECTS, false)
     private val _hideVolumeBar = flag(KEY_HIDE_VOLUME_BAR, false)
     private val _ambientBackdrop = flag(KEY_AMBIENT_BACKDROP, false)
+    private val _playerTheme = MutableStateFlow(
+        runCatching {
+            val persistence = DesktopPersistence()
+            val savedTheme = persistence.string(KEY_PLAYER_THEME, "")
+            if (savedTheme.isNotBlank()) {
+                PlayerTheme.valueOf(savedTheme)
+            } else if (persistence.boolean("legacy_mesh_gradient", false)) {
+                PlayerTheme.LEGACY
+            } else {
+                PlayerTheme.DEFAULT
+            }
+        }.getOrDefault(PlayerTheme.DEFAULT)
+    )
 
     /** Freezes the main player's gradient instead of drifting. */
     val reduceAnimation: StateFlow<Boolean> = _reduceAnimation
 
     /** Swaps frosted glass for solid fills across the app. */
     val reduceDynamicBlur: StateFlow<Boolean> = _reduceDynamicBlur
+
+    /** Draws player icons, text and menus in plain white instead of tinting with artwork. */
+    val disableBlendEffects: StateFlow<Boolean> = _disableBlendEffects
+
+    /** What the main player stands on below the artwork. */
+    val playerTheme: StateFlow<PlayerTheme> = _playerTheme
 
     /** Removes the volume slider from the main player. */
     val hideVolumeBar: StateFlow<Boolean> = _hideVolumeBar
@@ -34,6 +55,15 @@ internal object DesktopAppearanceSettings {
     fun setReduceAnimation(value: Boolean) = write(KEY_REDUCE_ANIMATION, value, _reduceAnimation)
 
     fun setReduceDynamicBlur(value: Boolean) = write(KEY_REDUCE_DYNAMIC_BLUR, value, _reduceDynamicBlur)
+
+    fun setDisableBlendEffects(value: Boolean) = write(KEY_DISABLE_BLEND_EFFECTS, value, _disableBlendEffects)
+
+    fun setPlayerTheme(value: PlayerTheme) {
+        val persistence = DesktopPersistence()
+        persistence.saveString(KEY_PLAYER_THEME, value.name)
+        persistence.saveBoolean("legacy_mesh_gradient", value == PlayerTheme.LEGACY)
+        _playerTheme.value = value
+    }
 
     fun setHideVolumeBar(value: Boolean) = write(KEY_HIDE_VOLUME_BAR, value, _hideVolumeBar)
 
@@ -46,6 +76,8 @@ internal object DesktopAppearanceSettings {
 
     internal const val KEY_REDUCE_ANIMATION = "reduce_animation"
     internal const val KEY_REDUCE_DYNAMIC_BLUR = "reduce_dynamic_blur"
+    internal const val KEY_DISABLE_BLEND_EFFECTS = "disable_blend_effects"
+    internal const val KEY_PLAYER_THEME = "player_theme"
     internal const val KEY_HIDE_VOLUME_BAR = "hide_volume_bar"
     internal const val KEY_AMBIENT_BACKDROP = "ambient_backdrop"
 }

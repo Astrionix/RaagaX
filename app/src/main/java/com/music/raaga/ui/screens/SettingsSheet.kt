@@ -181,6 +181,7 @@ import com.music.raaga.data.settings.AudioQuality
 import com.music.raaga.data.settings.DownloadQuality
 import com.music.raaga.data.settings.NowPlayingBlurStyle
 import com.music.raaga.data.settings.ThemeMode
+import com.music.raaga.data.settings.PlayerTheme
 import com.music.raaga.data.settings.AppFont
 import com.music.raaga.ui.theme.AccentRed
 import com.music.raaga.ui.theme.previewFamilyFor
@@ -292,6 +293,8 @@ fun SettingsScreen(
     val listenTogetherButton by AppSettings.showListenTogetherButton.collectAsStateWithLifecycle()
     val reduceAnimation by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
+    val disableBlendEffects by AppSettings.disableBlendEffects.collectAsStateWithLifecycle()
+    val playerTheme by AppSettings.playerTheme.collectAsStateWithLifecycle()
     val liquidGlass by AppSettings.liquidGlass.collectAsStateWithLifecycle()
     val liquidGlassSupported = isGlassSupported()
     val lyricsBlur by AppSettings.lyricsBlur.collectAsStateWithLifecycle()
@@ -1400,6 +1403,22 @@ fun SettingsScreen(
                     onClick = { AppSettings.setReduceDynamicBlur(!reduceDynamicBlur) },
                 )
             }
+            val disableBlendEffectsTitle = stringResource(R.string.disable_blend_effects)
+            row(disableBlendEffectsTitle, "blend", "blending", "colour", "color", "tint", "player", "menu") {
+                SettingsRow(
+                    icon = Icons.Rounded.Gradient,
+                    title = disableBlendEffectsTitle,
+                    subtitle = stringResource(R.string.disable_blend_effects_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = disableBlendEffects,
+                            onCheckedChange = AppSettings::setDisableBlendEffects,
+                            colors = settingsSwitchColors(),
+                        )
+                    },
+                    onClick = { AppSettings.setDisableBlendEffects(!disableBlendEffects) },
+                )
+            }
             val liquidGlassTitle = stringResource(R.string.liquid_glass)
             row(liquidGlassTitle, "glass", "blur") {
                 SettingsRow(
@@ -1446,20 +1465,18 @@ fun SettingsScreen(
                     )
                 }
             }
-            val legacyMeshGradientTitle = stringResource(R.string.legacy_mesh_gradient)
-            row(legacyMeshGradientTitle, "background", "player", "mesh", "gradient") {
+            val playerThemeTitle = stringResource(R.string.player_theme)
+            row(playerThemeTitle, "background", "player", "mesh", "gradient", "legacy", "simple", "blur") {
                 SettingsRow(
                     icon = Icons.Rounded.Gradient,
-                    title = legacyMeshGradientTitle,
-                    subtitle = stringResource(R.string.legacy_mesh_gradient_subtitle),
-                    trailing = {
-                        Switch(
-                            checked = legacyMeshGradient,
-                            onCheckedChange = AppSettings::setLegacyMeshGradient,
-                            colors = settingsSwitchColors(),
-                        )
-                    },
-                    onClick = { AppSettings.setLegacyMeshGradient(!legacyMeshGradient) },
+                    title = playerThemeTitle,
+                    subtitle = playerTheme.description(),
+                )
+                SegmentedControl(
+                    options = PlayerTheme.entries.map { it.localizedLabel() },
+                    selectedIndex = PlayerTheme.entries.indexOf(playerTheme),
+                    onSelect = { AppSettings.setPlayerTheme(PlayerTheme.entries[it]) },
+                    modifier = Modifier.padding(start = ROW_INSET, end = ROW_INSET, bottom = 14.dp),
                 )
             }
             val blurStyleTitle = stringResource(R.string.now_playing_blur_style)
@@ -2620,6 +2637,24 @@ private fun ThemeMode.localizedLabel(): String = stringResource(
         ThemeMode.SYSTEM -> R.string.system
         ThemeMode.LIGHT -> R.string.light
         ThemeMode.DARK -> R.string.dark
+    },
+)
+
+@Composable
+private fun PlayerTheme.localizedLabel(): String = stringResource(
+    when (this) {
+        PlayerTheme.DEFAULT -> R.string.player_theme_default
+        PlayerTheme.LEGACY -> R.string.player_theme_legacy
+        PlayerTheme.SIMPLE -> R.string.player_theme_simple
+    },
+)
+
+@Composable
+private fun PlayerTheme.description(): String = stringResource(
+    when (this) {
+        PlayerTheme.DEFAULT -> R.string.player_theme_default_subtitle
+        PlayerTheme.LEGACY -> R.string.player_theme_legacy_subtitle
+        PlayerTheme.SIMPLE -> R.string.player_theme_simple_subtitle
     },
 )
 

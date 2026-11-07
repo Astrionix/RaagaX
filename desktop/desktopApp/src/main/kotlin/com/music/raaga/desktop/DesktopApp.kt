@@ -317,6 +317,7 @@ import com.music.raaga.data.model.isSameTrackAs
 import com.music.raaga.data.model.withoutRepeatsOf
 import com.music.raaga.data.settings.AutomixPerformanceMode
 import com.music.raaga.data.settings.LastPlayerScreen
+import com.music.raaga.data.settings.PlayerTheme
 import com.music.raaga.data.settings.SmartAnalysis
 import com.music.raaga.data.settings.TrackAnalysisState
 import com.music.raaga.data.settings.TransitionWindow
@@ -7169,6 +7170,45 @@ private fun DesktopSettingsScreen(
                         reduceDynamicBlur,
                         DesktopAppearanceSettings::setReduceDynamicBlur,
                     )
+                    val disableBlendEffects by DesktopAppearanceSettings.disableBlendEffects.collectAsState()
+                    SettingsToggle(
+                        DesktopStrings["disable_blend_effects", "Disable blend effects"],
+                        DesktopStrings[
+                            "disable_blend_effects_subtitle",
+                            "Shows player icons, text and dark menus in plain white instead of tinting them with the artwork",
+                        ],
+                        disableBlendEffects,
+                        DesktopAppearanceSettings::setDisableBlendEffects,
+                    )
+                    val playerTheme by DesktopAppearanceSettings.playerTheme.collectAsState()
+                    val playerThemeTitle = DesktopStrings["player_theme", "Player theme"]
+                    val playerThemeSubtitle = when (playerTheme) {
+                        PlayerTheme.DEFAULT -> DesktopStrings["player_theme_default_subtitle", "The cover's own colours carry on below it"]
+                        PlayerTheme.LEGACY -> DesktopStrings["player_theme_legacy_subtitle", "Brings back the drifting colour blobs behind the player from v1.5"]
+                        PlayerTheme.SIMPLE -> DesktopStrings["player_theme_simple_subtitle", "A soft blur of the cover behind the whole player"]
+                    }
+                    if (settingsRowVisible(playerThemeTitle, playerThemeSubtitle)) {
+                        Column(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
+                            Text(playerThemeTitle, fontWeight = FontWeight.Medium)
+                            Text(playerThemeSubtitle, color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
+                            Spacer(Modifier.height(10.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                PlayerTheme.entries.forEach { option ->
+                                    val label = when (option) {
+                                        PlayerTheme.DEFAULT -> DesktopStrings["player_theme_default", "Default"]
+                                        PlayerTheme.LEGACY -> DesktopStrings["player_theme_legacy", "Legacy"]
+                                        PlayerTheme.SIMPLE -> DesktopStrings["player_theme_simple", "Simple"]
+                                    }
+                                    FilterChip(
+                                        colors = desktopChipColors(),
+                                        selected = playerTheme == option,
+                                        onClick = { DesktopAppearanceSettings.setPlayerTheme(option) },
+                                        label = { Text(label) },
+                                    )
+                                }
+                            }
+                        }
+                    }
                     if (DesktopWindowBackdrop.available) {
                         val backdropChoice by DesktopWindowBackdrop.selected.collectAsState()
                         val backdropActive by DesktopWindowBackdrop.active.collectAsState()

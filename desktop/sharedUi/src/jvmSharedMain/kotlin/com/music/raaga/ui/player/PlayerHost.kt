@@ -11,6 +11,7 @@ import com.music.raaga.data.lyrics.LyricsSource
 import com.music.raaga.data.model.Song
 import com.music.raaga.data.settings.AudioQuality
 import com.music.raaga.data.settings.LastPlayerScreen
+import com.music.raaga.data.settings.PlayerTheme
 import com.music.raaga.data.settings.SmartAnalysis
 import com.music.raaga.data.settings.MixBlend
 import com.music.raaga.data.settings.TransitionWindow
@@ -97,6 +98,14 @@ interface PlayerHost {
     fun CastDialog(hazeState: HazeState, onDismiss: () -> Unit) = Unit
 
     /**
+     * The ⋯ menu's frost for the player's drawers and popups — see
+     * [PlayerFrost]. Null where the platform can't draw it, and the drawers
+     * fall back to the player's haze.
+     */
+    @Composable
+    fun rememberPlayerFrost(): PlayerFrost? = null
+
+    /**
      * Whether lines can be put on a share card here. False hides the pick mode
      * altogether rather than offering a mode with nowhere to put its result.
      */
@@ -147,7 +156,8 @@ interface PlayerSettingsSource {
     val hideSongStatus: StateFlow<Boolean>
     val hideVolumeBar: StateFlow<Boolean>
     val lastPlayerScreen: StateFlow<LastPlayerScreen>
-    val legacyMeshGradient: StateFlow<Boolean>
+    val playerTheme: StateFlow<PlayerTheme>
+    val legacyMeshGradient: StateFlow<Boolean> get() = MutableStateFlow(playerTheme.value == PlayerTheme.LEGACY)
     val lyricsBlur: StateFlow<Boolean>
     val lyricsOffsetMs: StateFlow<Int>
     val lyricsSourceOrder: StateFlow<List<LyricsSource>>
@@ -156,6 +166,8 @@ interface PlayerSettingsSource {
     val prioritizeSpotifyCanvas: StateFlow<Boolean>
     val reduceAnimation: StateFlow<Boolean>
     val reduceDynamicBlur: StateFlow<Boolean>
+    /** Turns [LocalPlayerChrome] off: glyphs and text over the artwork in plain white. */
+    val disableBlendEffects: StateFlow<Boolean>
     val showNerdStats: StateFlow<Boolean>
     val smartAnalysis: StateFlow<SmartAnalysis>
     val smartFadeEnabled: StateFlow<Boolean>

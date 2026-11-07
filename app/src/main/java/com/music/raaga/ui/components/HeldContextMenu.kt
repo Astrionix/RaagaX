@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.music.raaga.data.settings.AppSettings
+import com.music.raaga.ui.player.additiveChrome
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import dev.chrisbanes.haze.materials.HazeMaterials
@@ -131,11 +132,14 @@ fun <T : Any> HeldContextMenu(
     BackHandler(enabled = open, onBack = onDismiss)
 
     val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val plain by AppSettings.disableBlendEffects.collectAsStateWithLifecycle()
     // Plain white or black at half strength, so the blur shows through as
     // frost rather than the surface greys reading as a flat slab over it. With
     // no blur behind there is nothing for that to frost, so the plate firms up
     // to stay legible over the bare scrim.
-    val plate = (if (dark) Color.Black else Color.White).copy(alpha = if (reduceDynamicBlur) 0.85f else 0.5f)
+    val plate = (if (dark) Color.Black else Color.White).copy(
+        alpha = if (reduceDynamicBlur) 0.85f else if (!dark) 0.5f else if (plain) 0.65f else 0.5f
+    )
     val hairline = if (dark) Color.White.copy(alpha = 0.10f) else Color.Black.copy(alpha = 0.06f)
     // The scrim does less work when the blur is there to push the page back,
     // and more when it is the only thing doing it.
@@ -222,7 +226,9 @@ fun <T : Any> HeldContextMenu(
                     .background(plate)
                     .border(0.5.dp, hairline, menuShape),
             ) {
-                actions(menuItem)
+                Column(Modifier.additiveChrome(dark && !plain)) {
+                    actions(menuItem)
+                }
             }
         },
     ) { measurables, constraints ->

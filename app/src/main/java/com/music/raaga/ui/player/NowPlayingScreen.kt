@@ -1,5 +1,14 @@
 package com.music.raaga.ui.player
 
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.snapshots.Snapshot
+import kotlinx.coroutines.flow.collectLatest
+import androidx.compose.ui.graphics.ImageBitmap
+
+import androidx.compose.animation.core.VectorConverter
+import androidx.compose.ui.unit.isSpecified
+import com.music.raaga.data.settings.PlayerTheme
+
 import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.unit.constrainWidth
 import androidx.compose.ui.unit.offset
@@ -288,6 +297,71 @@ private const val SUBVIEW_STATUS_SCRIM_MIN_ALPHA = 0.40f
  * over well inside the gap, which leaves the backdrop still for most of it.
  */
 private const val MESH_REFRESH_MS = 3_000L
+
+/** How long the mesh's seam takes to reach a clip's edge, in step with the clip's own fade. */
+private const val MESH_SEAM_MOVE_MS = 320
+
+/**
+ * The widest portrait clip that still gets [PortraitClipScrim]. Narrower than a
+ * 3:4 cover, which stops above the controls and has the mesh to stand on there.
+ */
+private const val PORTRAIT_SCRIM_MAX_ASPECT = 0.7f
+
+private val PortraitClipScrim = Brush.verticalGradient(
+    0f to Color.Transparent,
+    0.40f to Color.Transparent,
+    1f to Color.Black.copy(alpha = 0.70f),
+)
+
+/**
+ * The default theme's backdrop — see [ArtworkMeshBackdrop] — in a scope of its
+ * own: a clip's new frame every few seconds, and the seam moving, reach only
+ * this rather than the whole of the player.
+ */
+@Composable
+private fun PlayerMeshBackdrop(
+    trackKey: String,
+    imageUrl: String?,
+    canvasFrame: () -> Bitmap?,
+    seamTarget: () -> Dp,
+    alpha: () -> Float,
+) {
+    val mesh = key(trackKey) { rememberArtworkMesh(imageUrl, canvasFrame(), ART_PX) }
+    val currentSeamTarget by rememberUpdatedState(seamTarget)
+    val seam = remember { Animatable(Snapshot.withoutReadObservation { seamTarget() }, Dp.VectorConverter) }
+    // Glides to a clip's edge as the clip fades in, and is put straight where
+    // the first measure says: nothing should be seen settling as the player opens.
+    LaunchedEffect(seam) {
+        snapshotFlow { currentSeamTarget() }.collectLatest { target ->
+            if (seam.value == 0.dp || target == 0.dp) {
+                seam.snapTo(target)
+            } else {
+                seam.animateTo(target, tween(MESH_SEAM_MOVE_MS, easing = FastOutSlowInEasing))
+            }
+        }
+    }
+    ArtworkMeshBackdrop(
+        mesh = mesh,
+        seam = { seam.value },
+        modifier = Modifier.graphicsLayer { this.alpha = alpha() },
+    )
+}
+
+/** The legacy theme's backdrop, in a scope of its own for the same reason. */
+@Composable
+private fun LegacyMeshBackdrop(
+    imageUrl: String?,
+    canvasFrame: () -> Bitmap?,
+    trackKey: String,
+    modifier: Modifier,
+) {
+    MeshGradientBackground(
+        palette = rememberArtworkColors(imageUrl, canvasFrame()),
+        trackKey = trackKey,
+        modifier = modifier,
+    )
+}
+
 
 /** The player's side margin. Scrollable panels reach back across it. */
 internal val PLAYER_GUTTER = 30.dp
@@ -711,25 +785,21 @@ fun NowPlayingScreen(
     val stillCovered by remember(canvas?.url) {
         derivedStateOf { canvasCover.floatValue > 0.999f }
     }
-    // v1.5's backdrop, kept behind a switch — see [AppSettings.legacyMeshGradient].
-    val legacyMesh by AppSettings.legacyMeshGradient.collectAsStateWithLifecycle()
+    val disableBlendEffects by AppSettings.disableBlendEffects.collectAsStateWithLifecycle()
+    // What the main player stands on — see [PlayerTheme].
+    val playerTheme by AppSettings.playerTheme.collectAsStateWithLifecycle()
     val blurStyle by AppSettings.nowPlayingBlurStyle.collectAsStateWithLifecycle()
-    // The backdrop's colours, taken off the artwork's own arrangement rather
-    // than quantised out of it — see [ArtworkMesh].
-    //
-    // Only read for the backdrop that uses it. Each of these keeps a decode and
-    // a pixel readback of its own on every track change, and the two answer the
-    // same picture in two different ways, so whichever is not on screen is pure
-    // cost — the legacy path pays [rememberArtworkColors] instead.
-    // Asked of every non-Spotify clip — see CanvasArtworkPlayer's
-    // refreshFrameEveryMs. Spotify now occupies the full phone screen and has no
-    // frame-derived backdrop to re-tint; other providers retain that treatment.
-    //
-    // Often enough that the backdrop moves with the clip rather than catching up
-    // with it every few seconds. What keeps that affordable is the size of each
-    // read, not the number of them: the frame comes back at `frameCapturePx`
-    // rather than full-bleed, and is averaged on a stride off the main thread.
-    val meshRefreshMs = MESH_REFRESH_MS
+    // Both meshes follow a playing clip's colours. The blurred still cover has
+    // nothing to re-tint, and each read is a GPU readback.
+    val tintsOffClip = playerTheme != PlayerTheme.SIMPLE
+    // How often those colours are re-read — see CanvasArtworkPlayer's
+    // refreshFrameEveryMs.
+    val meshRefreshMs = MESH_REFRESH_MS.takeIf { tintsOffClip }
+    // The lyric slot above the scrubber: the tallest line it holds — titleMedium's
+    // own line box — and the 4dp each of them is padded by above and below.
+    val lyricSlotHeight = with(density) {
+        MaterialTheme.typography.titleMedium.lineHeight.takeIf { it.isSpecified }?.toDp() ?: 24.dp
+    } + 8.dp
 
     val scrub = rememberPlayerScrub(song.videoId, position, durationMs)
     // Read by the scrubber itself — see [PlayerScrubber.shown].
@@ -1173,8 +1243,7 @@ fun NowPlayingScreen(
     }
     // Portrait clips always use the existing artwork mesh, even if the user
     // selected another backdrop for ordinary artwork. Only computed when actually rendered.
-    val artMesh = if (blurStyle != NowPlayingBlurStyle.LEGACY && !canvasFirstPortrait) null else
-        key(song.videoId) { rememberArtworkMesh(remoteArt, canvasFrame, ART_PX) }
+
     // Whether the banner is the presentation at all: full-bleed is on, and there
     // is something to blow out. The collapse is deliberately *not* part of this
     // — see [heroVisible].
@@ -1466,7 +1535,7 @@ fun NowPlayingScreen(
     val fullArtworkBlurImage = rememberFullArtworkBlurImage(
         imageUrl = remoteArt,
         artPx = ART_PX,
-        prepare = landscape || tabletArtworkBackdrop || lyricsOpen || queueOpen ||
+        prepare = playerTheme == PlayerTheme.SIMPLE || landscape || tabletArtworkBackdrop || lyricsOpen || queueOpen ||
             playerPrewarmStage >= 1,
     )
     // One movable Image node, not two backdrop call sites. Compose carries it
@@ -1482,6 +1551,20 @@ fun NowPlayingScreen(
         }
     }
 
+    val currentLyricsOffsetOpen by rememberUpdatedState(lyricsOffsetOpen)
+    val overlayOpen = remember {
+        derivedStateOf {
+            showSocialJamSheet || showAudioOutput || showLyricsProviders ||
+                showAudioPipeline || showMixView || lyricsShareRequest != null || currentLyricsOffsetOpen
+        }
+    }
+    FrostedPlayerFrame(
+        modifier = modifier,
+        chrome = !disableBlendEffects,
+        live = spotifyCanvasPresentation,
+        overlayOpen = { overlayOpen.value },
+        overlays = playerOverlays,
+    ) {
     if (landscape) {
         // Paused always wins outright over a scrub in progress — see
         // [ARTWORK_PAUSE_SHRINK_SCALE].
@@ -1498,7 +1581,7 @@ fun NowPlayingScreen(
         val transitionWindow by AppSettings.smartTransitionWindow.collectAsStateWithLifecycle()
         val panelOpen = lyricsOpen || queueOpen
 
-        Box(modifier = modifier.fillMaxSize()) {
+        Box(modifier = Modifier.fillMaxSize()) {
             LandscapePlayerLayout(
                 pane = when {
                     lyricsOpen -> PlayerPane.Lyrics
@@ -1702,12 +1785,11 @@ fun NowPlayingScreen(
                     )
                 },
             )
-            playerOverlays()
         }
-        return
+        return@FrostedPlayerFrame
     }
 
-    Box(modifier = modifier.fillMaxSize().onSizeChanged { playerBounds = it }.background(Color.Black)) {
+    Box(modifier = Modifier.fillMaxSize().onSizeChanged { playerBounds = it }.background(Color.Black)) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -1728,62 +1810,48 @@ fun NowPlayingScreen(
         // retained layers' alpha changes when a panel opens, so the full-cover
         // blur is neither rebuilt nor switched in on a hard frame boundary.
         // The tablet has no mirrored main-player treatment to crossfade from.
+        val legacyMeshBackdrop = !tabletArtworkBackdrop && !spotifyCanvasPresentation &&
+            playerTheme == PlayerTheme.LEGACY
+        val artworkMeshBackdrop = !tabletArtworkBackdrop && playerTheme == PlayerTheme.DEFAULT
         val fullArtworkBackdropAlpha by animateFloatAsState(
             targetValue = if (
-                (tabletArtworkBackdrop || lyricsOpen || queueOpen) &&
-                (tabletArtworkBackdrop || fullArtworkBlurImage != null)
+                !legacyMeshBackdrop &&
+                (tabletArtworkBackdrop || fullArtworkBlurImage != null) &&
+                (!spotifyCanvasPresentation || lyricsOpen || queueOpen) &&
+                (!artworkMeshBackdrop || lyricsOpen || queueOpen)
             ) 1f else 0f,
             animationSpec = tween(durationMillis = 360, easing = FastOutSlowInEasing),
             label = "fullArtworkBackdropCrossfade",
         )
-        if (!tabletArtworkBackdrop && !spotifyCanvasPresentation) {
-            if (canvasFirstPortrait) {
-                ArtworkMeshBackdrop(
-                    mesh = artMesh,
-                    seam = renderedCanvasBottom,
-                    modifier = Modifier.graphicsLayer { alpha = 1f - fullArtworkBackdropAlpha },
-                )
-            } else if (legacyMesh) {
-                // v1.5's backdrop, restored verbatim: no seam, because the blobs
-                // are not anchored to anything on screen — they fill the player and
-                // the artwork simply sits on top of them. Keyed on the track, so
-                // they drift when the player opens and on every skip, then rest.
-                // Position ticks recompose this screen twice a second and must not
-                // drag a full-screen blur along with them, which is why the palette
-                // is passed as one immutable value.
-                MeshGradientBackground(
-                    palette = rememberArtworkColors(remoteArt, canvasFrame),
-                    trackKey = song.videoId,
-                    modifier = Modifier.graphicsLayer { alpha = 1f - fullArtworkBackdropAlpha },
+        if (legacyMeshBackdrop) {
+            LegacyMeshBackdrop(
+                imageUrl = remoteArt,
+                canvasFrame = { canvasFrame },
+                trackKey = song.videoId,
+                modifier = Modifier.graphicsLayer { alpha = 1f - fullArtworkBackdropAlpha },
+            )
+        }
+        if (artworkMeshBackdrop) {
+            if (blurStyle == NowPlayingBlurStyle.NEW && !canvasFirstPortrait) {
+                AmbientArtworkBlurBackdrop(
+                    imageUrl = remoteArt,
+                    canvasFrame = canvasFrame,
+                    modifier = Modifier.graphicsLayer {
+                        alpha = if (spotifyCanvasPresentation || fullArtworkBackdropAlpha >= 1f) 0f else 1f
+                    },
                 )
             } else {
-                // When Legacy mesh gradient switch is OFF:
-                // Uses the selected blur mode (defaults to NEW Dynamic Ambient Blur)
-                when (blurStyle) {
-                    NowPlayingBlurStyle.LEGACY -> {
-                        ArtworkMeshBackdrop(
-                            mesh = artMesh,
-                            seam = if (heroMode) heroHeight else 0.dp,
-                            modifier = Modifier.graphicsLayer { alpha = 1f - fullArtworkBackdropAlpha },
-                        )
-                    }
-                    NowPlayingBlurStyle.OLD -> {
-                        MeshGradientBackground(
-                            palette = rememberArtworkColors(remoteArt, canvasFrame),
-                            trackKey = song.videoId,
-                            modifier = Modifier.graphicsLayer { alpha = 1f - fullArtworkBackdropAlpha },
-                        )
-                    }
-                    NowPlayingBlurStyle.NEW -> {
-                        // New full-screen ambient artwork Gaussian blur with layered
-                        // blue, violet, and magenta dynamic atmospheric lighting.
-                        AmbientArtworkBlurBackdrop(
-                            imageUrl = remoteArt,
-                            canvasFrame = canvasFrame,
-                            modifier = Modifier.graphicsLayer { alpha = 1f - fullArtworkBackdropAlpha },
-                        )
-                    }
-                }
+                PlayerMeshBackdrop(
+                    trackKey = song.videoId,
+                    imageUrl = remoteArt,
+                    canvasFrame = { canvasFrame },
+                    seamTarget = {
+                        if (canvasFirstPortrait) renderedCanvasBottom else if (heroMode) heroHeight else 0.dp
+                    },
+                    alpha = {
+                        if (spotifyCanvasPresentation || fullArtworkBackdropAlpha >= 1f) 0f else 1f
+                    },
+                )
             }
         }
         fullArtworkBlurContent(
@@ -1968,19 +2036,13 @@ fun NowPlayingScreen(
                 .background(topScrimBrush)
         )
 
-        if (canvasFirstPortrait && canvasRendered) {
-            // The image remains visible through the controls; a plain scrim
-            // protects text and touch targets without erasing the video.
+        if (artworkMeshBackdrop && canvasFirstPortrait && canvasAspect < PORTRAIT_SCRIM_MAX_ASPECT) {
             Box(
                 Modifier.matchParentSize()
-                    .graphicsLayer { alpha = canvasCover.floatValue }
-                    .background(
-                        Brush.verticalGradient(
-                            0f to Color.Transparent,
-                            0.40f to Color.Transparent,
-                            1f to Color.Black.copy(alpha = 0.70f),
-                        ),
-                    ),
+                    .graphicsLayer {
+                        alpha = canvasCover.floatValue * (1f - 2f * p()).coerceIn(0f, 1f)
+                    }
+                    .background(PortraitClipScrim),
             )
         }
 
@@ -2732,9 +2794,11 @@ fun NowPlayingScreen(
                         // it.
                         Crossfade(
                             targetState = song.title to song.artist,
+                            modifier = Modifier.additiveChrome(LocalPlayerChrome.current),
                             animationSpec = tween(durationMillis = 300),
                             label = "playerCredits",
                         ) {
+                            val artistColor = chromeWhite(0.55f)
                             Column {
                                 MarqueeText(
                                     text = song.title,
@@ -2744,7 +2808,7 @@ fun NowPlayingScreen(
                                     color = Color.White,
                                     enabled = scrolls,
                                     leading = if (song.isExplicit == true) {
-                                        { ExplicitBadge(color = Color.White) }
+                                        { ExplicitBadge(color = artistColor) }
                                     } else {
                                         null
                                     },
@@ -2763,7 +2827,7 @@ fun NowPlayingScreen(
                                         fontWeight = FontWeight.W500,
                                         fontSize = 20.sp,
                                     ),
-                                    color = Color.White.copy(alpha = 0.55f),
+                                    color = artistColor,
                                     enabled = scrolls,
                                     // A title that's also scrolling gets to go first —
                                     // starting together reads as clutter, so the artist
@@ -3093,26 +3157,27 @@ fun NowPlayingScreen(
                 }
             }
 
-            // The transport rides midway between the two blocks it separates:
-            // the scrubber above it, and the volume bar and toggle row below.
-            // When the volume bar is hidden, shift the transport controls (play,
-            // prev, next) down towards the actions row by absorbing the volume row
-            // height above it so it stays comfortably within thumb reach.
-            val topTransportGap = if (hideVolumeBar) (8.dp + VOLUME_ROW_HEIGHT) else 8.dp
-            Spacer(Modifier.height(topTransportGap + controlSpread / 2))
-
-            TransportRow(
-                isPlaying = isPlaying,
-                isLoading = isLoading || audioVersionSwitching,
-                previousEnabled = !controlsLocked &&
-                    (hasPrevious || pastRestartPoint),
-                nextEnabled = !controlsLocked && hasNext,
-                onPrevious = onPrevious,
-                onPlayPause = onPlayPause,
-                onNext = onNext,
-            )
-
+            val transport: @Composable () -> Unit = {
+                TransportRow(
+                    isPlaying = isPlaying,
+                    isLoading = isLoading || audioVersionSwitching,
+                    previousEnabled = !controlsLocked &&
+                        (hasPrevious || pastRestartPoint),
+                    nextEnabled = !controlsLocked && hasNext,
+                    onPrevious = onPrevious,
+                    onPlayPause = onPlayPause,
+                    onNext = onNext,
+                )
+            }
             if (!hideVolumeBar) {
+                // The transport rides midway between the two blocks it
+                // separates: the scrubber above it, and the volume bar and
+                // toggle row below, which sit close enough together to read
+                // as one. Both of its own gaps take half the spread, so on a
+                // tall screen it holds the centre rather than drifting up
+                // under the seek bar.
+                Spacer(Modifier.height(8.dp + controlSpread / 2))
+                transport()
                 Spacer(Modifier.height(12.dp + controlSpread / 2))
                 VolumeRow(
                     value = { volume.level.value },
@@ -3123,7 +3188,11 @@ fun NowPlayingScreen(
                 // Balance that invisible inset with the caption gap below the icons.
                 Spacer(Modifier.height(6.dp))
             } else {
-                Spacer(Modifier.height(18.dp + controlSpread / 2))
+                val run = 8.dp + 12.dp + 6.dp + controlSpread + VOLUME_ROW_HEIGHT
+                val lift = SCRUBBER_LABEL_LIFT / 2
+                Spacer(Modifier.height(run / 2 - lift))
+                transport()
+                Spacer(Modifier.height(run / 2 + lift))
             }
 
             playerActions()
@@ -3134,7 +3203,7 @@ fun NowPlayingScreen(
             }
         }
         }
-        playerOverlays()
+    }
     }
 }
 

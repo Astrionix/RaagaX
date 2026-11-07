@@ -299,6 +299,13 @@ fun rememberArtworkMesh(
 @Composable
 fun ArtworkMeshBackdrop(
     mesh: ArtworkMesh?,
+    seam: () -> Dp,
+    modifier: Modifier = Modifier,
+) = ArtworkMeshBackdrop(mesh = mesh, modifier = modifier, seam = seam())
+
+@Composable
+fun ArtworkMeshBackdrop(
+    mesh: ArtworkMesh?,
     modifier: Modifier = Modifier,
     /**
      * How far down the surface the artwork's bottom edge sits. Zero for a

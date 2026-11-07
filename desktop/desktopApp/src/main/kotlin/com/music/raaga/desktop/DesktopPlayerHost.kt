@@ -13,6 +13,7 @@ import com.music.raaga.data.model.Song
 import com.music.raaga.data.settings.AudioQuality
 import com.music.raaga.data.settings.LastPlayerScreen
 import com.music.raaga.data.settings.MixBlend
+import com.music.raaga.data.settings.PlayerTheme
 import com.music.raaga.data.settings.SmartAnalysis
 import com.music.raaga.data.settings.TransitionWindow
 import com.music.raaga.ui.player.AudioOutputDevice
@@ -192,6 +193,8 @@ internal object DesktopPlayerSettings : PlayerSettingsSource {
         runCatching { LastPlayerScreen.valueOf(persistence.string(KEY_LAST_SCREEN, "MAIN")) }
             .getOrDefault(LastPlayerScreen.MAIN),
     )
+    override val playerTheme: StateFlow<PlayerTheme> get() = DesktopAppearanceSettings.playerTheme
+    override val disableBlendEffects: StateFlow<Boolean> get() = DesktopAppearanceSettings.disableBlendEffects
     override val legacyMeshGradient = MutableStateFlow(false)
     override val lyricsBlur = MutableStateFlow(true)
     override val lyricsOffsetMs = MutableStateFlow(
