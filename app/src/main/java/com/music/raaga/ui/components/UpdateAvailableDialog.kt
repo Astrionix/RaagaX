@@ -27,8 +27,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -166,6 +172,44 @@ fun UpdateAvailableDialog(
                     color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.Center,
                 )
+
+                // Community Discord & Cross-Platform Callout Banner
+                Box(
+                    modifier = Modifier
+                        .padding(top = 10.dp)
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f))
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    val linkStyles = TextLinkStyles(
+                        style = SpanStyle(
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.SemiBold,
+                            textDecoration = TextDecoration.Underline,
+                        ),
+                    )
+                    Text(
+                        text = buildAnnotatedString {
+                            append("Join our ")
+                            withLink(LinkAnnotation.Url("https://discord.gg/yGV2HqhSk", linkStyles)) {
+                                append("Discord")
+                            }
+                            append(" and visit ")
+                            withLink(LinkAnnotation.Url("https://raaga.me", linkStyles)) {
+                                append("raaga.me")
+                            }
+                            append(" for Web, TV & Desktop!")
+                        },
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontSize = 11.5.sp,
+                            lineHeight = 15.sp,
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
+                        textAlign = TextAlign.Center,
+                    )
+                }
 
                 // The download's progress, drawn as a thin fill across a
                 // hairline track — same weight as [AlertRule], so it reads as
