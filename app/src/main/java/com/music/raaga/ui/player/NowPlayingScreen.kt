@@ -16,6 +16,9 @@ import androidx.compose.ui.unit.constrain
 import androidx.compose.ui.unit.Constraints
 import com.music.raaga.playback.PlaybackPosition
 import com.music.raaga.ui.components.copyOnLongPress
+import com.music.raaga.ui.components.AddonQualityPickerSheet
+import com.music.raaga.data.podcast.PodcastEpisodeStore
+import androidx.compose.runtime.saveable.rememberSaveable
 import com.music.raaga.R
 
 import android.graphics.Bitmap
@@ -83,6 +86,7 @@ import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material.icons.rounded.FastForward
 import androidx.compose.material.icons.rounded.FastRewind
 import androidx.compose.material.icons.rounded.MoreHoriz
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -151,6 +155,7 @@ import com.music.raaga.ui.LyricsProviderState
 import com.music.raaga.ui.components.optimizedHazeEffect
 import com.music.raaga.ui.components.rememberRemoteArtworkUrl
 import com.music.raaga.ui.components.AudioPipelineDialog
+import com.music.raaga.ui.components.LiveAudioPipelineSheet
 import com.music.raaga.ui.haptics.Haptic
 import com.music.raaga.ui.haptics.rememberHaptics
 import com.music.raaga.ui.icons.RaagaIcons
@@ -716,10 +721,17 @@ fun NowPlayingScreen(
     var showSocialJamSheet by remember { mutableStateOf(false) }
     var socialJamInitialTab by remember { mutableStateOf(ConnectJamTab.JAM) }
     var showAudioPipeline by remember { mutableStateOf(false) }
+    var showQualityPickerSheet by remember { mutableStateOf(false) }
     var showMixView by remember { mutableStateOf(false) }
     var lyricsShareRequest by remember { mutableStateOf<LyricsShareRequest?>(null) }
     var showAudioOutput by remember { mutableStateOf(false) }
     var showLyricsProviders by remember { mutableStateOf(false) }
+
+    LaunchedEffect(song.videoId, position.positionMs) {
+        if (position.positionMs > 5_000L && durationMs > 60_000L) {
+            PodcastEpisodeStore.savePosition(song.videoId, position.positionMs, durationMs)
+        }
+    }
     // Gated on the Bluetooth permission the first time — see [rememberOutputPicker].
     val openAudioOutput = rememberOutputPicker {
         showAudioOutput = true
@@ -1476,10 +1488,15 @@ fun NowPlayingScreen(
                 onDismiss = { showLyricsProviders = false },
             )
         }
+        if (showQualityPickerSheet) {
+            AddonQualityPickerSheet(
+                onDismiss = { showQualityPickerSheet = false },
+                onOpenPipeline = { showAudioPipeline = true },
+            )
+        }
         if (showAudioPipeline) {
-            AudioPipelineDialog(
-                hazeState = drawerHaze,
-                isPlaying = isPlaying,
+            LiveAudioPipelineSheet(
+                visible = showAudioPipeline,
                 onDismiss = { showAudioPipeline = false },
             )
         }
@@ -1555,7 +1572,7 @@ fun NowPlayingScreen(
     val overlayOpen = remember {
         derivedStateOf {
             showSocialJamSheet || showAudioOutput || showLyricsProviders ||
-                showAudioPipeline || showMixView || lyricsShareRequest != null || currentLyricsOffsetOpen
+                showAudioPipeline || showQualityPickerSheet || showMixView || lyricsShareRequest != null || currentLyricsOffsetOpen
         }
     }
     FrostedPlayerFrame(
@@ -1679,7 +1696,7 @@ fun NowPlayingScreen(
                                 PlaybackQualityLabel(
                                     song = song,
                                     isLoading = isLoading,
-                                    onClick = { showAudioPipeline = true },
+                                    onClick = { showQualityPickerSheet = true },
                                     modifier = Modifier
                                         .align(Alignment.Center)
                                         .padding(horizontal = 8.dp),
@@ -2869,9 +2886,25 @@ fun NowPlayingScreen(
                         Spacer(Modifier.width(8.dp))
                     }
                     CircleGlyph(
-                        icon = if (showRevertCue) Icons.AutoMirrored.Rounded.Undo else Icons.Rounded.MoreHoriz,
-                        contentDescription = stringResource(R.string.more),
-                        onClick = onOpenMenu,
+                        icon = when {
+                            lyricsOpen -> Icons.Rounded.Share
+                            showRevertCue -> Icons.AutoMirrored.Rounded.Undo
+                            else -> Icons.Rounded.MoreHoriz
+                        },
+                        contentDescription = stringResource(
+                            if (lyricsOpen) R.string.lyrics_share_title else R.string.more,
+                        ),
+                        onClick = if (lyricsOpen) {
+                            {
+                                if (!lyricsPicker.picking) {
+                                    val startLine = lyrics?.indexOfFirst { it.text.isNotBlank() }?.coerceAtLeast(0) ?: 0
+                                    lyricsPicker.pick(startLine)
+                                }
+                                lyricsPicker.share()
+                            }
+                        } else {
+                            onOpenMenu
+                        },
                     )
                 }
 
@@ -3145,7 +3178,7 @@ fun NowPlayingScreen(
                     PlaybackQualityLabel(
                         song = song,
                         isLoading = isLoading,
-                        onClick = { showAudioPipeline = true },
+                        onClick = { showQualityPickerSheet = true },
                         modifier = Modifier.padding(horizontal = 4.dp),
                     )
                     if (mixBlend != null || (transitionWindow != null && !scrub.scrubbing)) {
@@ -3365,3 +3398,5 @@ private fun AutomixBadge(
         )
     }
 }
+
+
