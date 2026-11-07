@@ -1448,10 +1448,10 @@ object AppSettings {
     }
 
     /**
-     * Shows one-time welcome announcement for the Connect & Windows app feature.
+     * Shows one-time festive Diwali greeting on app launch.
      */
-    fun shouldShowConnectAnnouncement(): Boolean {
-        val key = "has_shown_duplicate_app_notice_v199"
+    fun shouldShowDiwaliGreeting(): Boolean {
+        val key = "has_shown_diwali_greeting_2026"
         val shown = prefs.getBoolean(key, false)
         if (!shown) {
             prefs.edit().putBoolean(key, true).apply()

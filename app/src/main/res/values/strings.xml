@@ -182,6 +182,7 @@
     <string name="select_all">Select all</string>
     <string name="password">Password</string>
     <string name="username">Username</string>
+    <string name="diwali_announcement">🪔 Happy Diwali! Wishing you and your family a joyous festival of lights filled with peace, prosperity, and wonderful music! ✨</string>
     <string name="login_failed">Login failed</string>
     <string name="song_cache_cleared">Song cache cleared</string>
     <string name="image_cache_cleared">Image cache cleared</string>

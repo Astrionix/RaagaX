@@ -318,10 +318,10 @@ class MainActivity : AppCompatActivity() {
         }
         com.music.raaga.data.spotify.SpotifyAuthManager.consumeIntent(intent)
         com.music.raaga.data.LibrarySongAggregator.syncOfflineSongs(this)
-        if (AppSettings.shouldShowConnectAnnouncement()) {
+        if (AppSettings.shouldShowDiwaliGreeting()) {
             Toast.makeText(
                 applicationContext,
-                "Notice: If you saw two app icons after updating, we apologize! Please keep your original app as it now updates properly in-place. Join our Discord for any help: discord.gg/yGV2HqhSk",
+                getString(R.string.diwali_announcement),
                 Toast.LENGTH_LONG
             ).show()
         }

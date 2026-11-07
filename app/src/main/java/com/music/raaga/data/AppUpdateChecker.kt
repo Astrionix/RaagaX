@@ -92,7 +92,7 @@ object AppUpdateChecker {
                 val tag = release["tag_name"]?.jsonPrimitive?.contentOrNull ?: return@firstNotNullOfOrNull null
                 val url = release["html_url"]?.jsonPrimitive?.contentOrNull ?: return@firstNotNullOfOrNull null
                 val notes = release["body"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
-                    ?: "Raaga 2.0.0: Mouse scroll volume, revamped landscape player, clean settings, and Discord RPC. Discord: https://discord.gg/yGV2HqhSk"
+                    ?: "🪔 Happy Diwali from Raaga! Enjoy high-fidelity audio, seamless 120Hz playback, and festive music. ✨"
                 val latest = tag.removePrefix("v")
                 val apkUrl = apkAssetUrl(release) ?: return@firstNotNullOfOrNull null
                 if (!isNewer(latest, BuildConfig.VERSION_NAME) && !force) return@firstNotNullOfOrNull null
