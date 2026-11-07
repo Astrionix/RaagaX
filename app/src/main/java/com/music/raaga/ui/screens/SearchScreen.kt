@@ -68,6 +68,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import coil3.compose.AsyncImage
+import com.music.raaga.data.model.EntityType
 import com.music.raaga.data.model.BrowseItem
 import com.music.raaga.data.model.BrowseType
 import com.music.raaga.data.model.ROW_ART_PX
@@ -246,7 +247,14 @@ fun SearchScreen(
                 results == null -> if (history.isEmpty()) {
                     item { MessageState(stringResource(R.string.search_empty)) }
                 } else {
-                    recentSearches(history, onHistoryClick, onHistoryRemove, onHistoryClear)
+                    recentSearches(
+                        history = history,
+                        onClick = onHistoryClick,
+                        onRemove = onHistoryRemove,
+                        onClear = onHistoryClear,
+                        onSongSwipe = onSongSwipe,
+                        onSongLongPress = onSongLongPress,
+                    )
                 }
                 results is UiState.Loading -> songListSkeleton(circular = filter == SearchFilter.ARTISTS)
                 results is UiState.Error -> item { MessageState(results.message) }
@@ -630,6 +638,8 @@ private fun LazyListScope.recentSearches(
     onClick: (SearchHistoryEntity) -> Unit,
     onRemove: (String) -> Unit,
     onClear: () -> Unit,
+    onSongSwipe: ((Song) -> Unit)? = null,
+    onSongLongPress: ((Song) -> Unit)? = null,
 ) {
     item(key = "recent:header") {
         Row(
@@ -656,11 +666,31 @@ private fun LazyListScope.recentSearches(
         }
     }
     items(history, key = { "recent:${it.id}" }) { entity ->
-        RecentSearchEntityRow(
-            entity = entity,
-            onClick = { onClick(entity) },
-            onRemove = { onRemove(entity.id) },
-        )
+        val song = if (entity.entityType == EntityType.TRACK) {
+            Song(
+                videoId = entity.id,
+                title = entity.title,
+                artist = entity.subtitle,
+                thumbnailUrl = entity.artworkUrl,
+            )
+        } else null
+
+        val rowContent = @Composable {
+            RecentSearchEntityRow(
+                entity = entity,
+                onClick = { onClick(entity) },
+                onRemove = { onRemove(entity.id) },
+                onLongClick = song?.let { s -> onSongLongPress?.let { { it(s) } } },
+            )
+        }
+
+        if (song != null && onSongSwipe != null) {
+            SwipeToQueueBox(onSwipeToQueue = { onSongSwipe(song) }) {
+                rowContent()
+            }
+        } else {
+            rowContent()
+        }
     }
 }
 
@@ -668,16 +698,18 @@ private fun LazyListScope.recentSearches(
  * Spotify-style entity row: square thumbnail, bold title, subtitle with type,
  * and a removal button. Tapping navigates to the entity or plays it directly.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun RecentSearchEntityRow(
     entity: SearchHistoryEntity,
     onClick: () -> Unit,
     onRemove: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .padding(start = PAGE_GUTTER, end = 8.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
