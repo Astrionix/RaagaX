@@ -2,11 +2,14 @@ package com.music.raaga.playback
 
 import kotlin.random.Random
 
+/** Default sliding window size for queue loading. */
+const val WINDOW_SIZE = 50
+
 /** Number of CONTEXT tracks to expose ahead of the currently playing track. */
-const val WINDOW_AHEAD = 25
+const val WINDOW_AHEAD = 50
 
 /** Refill the materialized CONTEXT window when fewer than this many are ahead. */
-const val WINDOW_LOW_WATER = 12
+const val WINDOW_LOW_WATER = 10
 
 /** Short name for the upcoming-window refill threshold. */
 const val LOW_WATER = WINDOW_LOW_WATER
