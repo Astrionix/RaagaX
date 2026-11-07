@@ -42,6 +42,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -113,7 +114,7 @@ fun ReplayScreen(
     onShare: () -> Unit,
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
-    listState: LazyListState = rememberLazyListState(),
+    listState: LazyListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() },
     landingPage: ReplayStoryPage = ReplayStoryPage.INTRO,
 ) {
     val context = LocalContext.current
@@ -303,6 +304,7 @@ private fun PeriodPicker(
     val today = remember { LocalDate.now() }
     val currentYear = today.year
 
+    val isWeek = selected == ReplayPeriod.THIS_WEEK
     val isMonthly = selected is ReplayPeriod.MONTH || selected == ReplayPeriod.THIS_MONTH
     val isYear = selected == ReplayPeriod.THIS_YEAR || (selected is ReplayPeriod.YEAR && selected.year == currentYear)
     val isAllTime = selected == ReplayPeriod.ALL_TIME
@@ -327,6 +329,23 @@ private fun PeriodPicker(
                 .padding(3.dp),
             horizontalArrangement = Arrangement.spacedBy(2.dp),
         ) {
+            val weekBg by animateColorAsState(
+                if (isWeek) textColor.copy(alpha = 0.92f) else Color.Transparent,
+                tween(160),
+                label = "periodWeekChip"
+            )
+            Text(
+                text = "Week",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.W700,
+                color = if (isWeek) if (dark) Color.Black else Color.White else textColor.copy(alpha = 0.75f),
+                modifier = Modifier
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(weekBg)
+                    .clickable { onSelect(ReplayPeriod.THIS_WEEK) }
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+            )
+
             val yearBg by animateColorAsState(
                 if (isYear) textColor.copy(alpha = 0.92f) else Color.Transparent,
                 tween(160),
@@ -657,6 +676,44 @@ private fun Habits(summary: ReplaySummary, dark: Boolean) {
             StatTile(stringResource(R.string.songs), summary.distinctSongs.toString(), dark, Modifier.weight(1f))
             StatTile(stringResource(R.string.artists), summary.distinctArtists.toString(), dark, Modifier.weight(1f))
             StatTile(stringResource(R.string.albums), summary.distinctAlbums.toString(), dark, Modifier.weight(1f))
+        }
+        val streak = remember { com.music.raaga.data.stats.ListeningStats.currentStreak() }
+        if (streak > 0) {
+            val streakColor = if (dark) Color.White else Color.Black
+            Spacer(Modifier.height(10.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color(0xFFFF9100).copy(alpha = 0.15f))
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(text = "🔥", fontSize = 20.sp)
+                    Spacer(Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            text = "Listening Streak",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFFF9100),
+                        )
+                        Text(
+                            text = "Keep listening every day to build your streak",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = streakColor.copy(alpha = 0.7f),
+                        )
+                    }
+                }
+                Text(
+                    text = "$streak days",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color(0xFFFF9100),
+                )
+            }
         }
         summary.peakHour?.let {
             Spacer(Modifier.height(10.dp))
