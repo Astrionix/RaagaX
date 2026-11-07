@@ -100,6 +100,8 @@ class RaagaApplication : Application(), SingletonImageLoader.Factory {
             SearchHistory.init(this@RaagaApplication)
             Downloads.init(this@RaagaApplication)
             ListeningStats.init(this@RaagaApplication)
+            com.music.raaga.data.podcast.PodcastEpisodeStore.init(this@RaagaApplication)
+            com.music.raaga.auth.ProfilePinSecurity.init(this@RaagaApplication)
             ArtistFacts.init(this@RaagaApplication)
             AudioCache.init(this@RaagaApplication)
             com.music.raaga.playback.audio.LosslessOutput.init(this@RaagaApplication)
