@@ -315,6 +315,48 @@ object ListeningStats {
         }.sorted()
     }
 
+    /** Total play count for a track across all history. */
+    fun playCountFor(videoId: String): Int {
+        if (!ready || videoId.isBlank()) return 0
+        return synchronized(lock) {
+            val fromOpen = open?.tracks?.get(videoId)?.plays ?: 0
+            val fromDisk = months().sumOf { ym ->
+                read(ym.toString())?.tracks?.find { it.id == videoId }?.plays ?: 0
+            }
+            maxOf(fromOpen, fromDisk)
+        }
+    }
+
+    /** Consecutive days listened in a row. */
+    fun currentStreak(today: LocalDate = LocalDate.now()): Int {
+        if (!ready) return 0
+        return synchronized(lock) {
+            var streak = 0
+            var checkDate = today
+            val todayDay = checkDate.dayOfMonth
+            val playedToday = (open?.days?.get(todayDay) ?: 0L) > 0L
+            if (!playedToday) {
+                checkDate = checkDate.minusDays(1)
+            }
+            while (true) {
+                val ym = YearMonth.from(checkDate)
+                val day = checkDate.dayOfMonth
+                val playedMs = if (open?.key == ym.toString()) {
+                    open?.days?.get(day) ?: 0L
+                } else {
+                    read(ym.toString())?.days?.get(day) ?: 0L
+                }
+                if (playedMs > 0L) {
+                    streak++
+                    checkDate = checkDate.minusDays(1)
+                } else {
+                    break
+                }
+            }
+            streak
+        }
+    }
+
     private fun read(key: String): StoredBucket? {
         val file = File(directory, "$key.json")
         if (!file.exists()) return null
@@ -755,6 +797,12 @@ sealed class ReplayPeriod : java.io.Serializable {
     abstract fun covers(month: YearMonth, today: LocalDate): Boolean
     abstract fun label(today: LocalDate): String
 
+    object THIS_WEEK : ReplayPeriod() {
+        override val chip: String = "This week"
+        override fun covers(month: YearMonth, today: LocalDate): Boolean = month == YearMonth.from(today)
+        override fun label(today: LocalDate): String = "This week"
+    }
+
     object THIS_MONTH : ReplayPeriod() {
         override val chip: String = "This month"
         override fun covers(month: YearMonth, today: LocalDate): Boolean = month == YearMonth.from(today)
@@ -791,7 +839,7 @@ sealed class ReplayPeriod : java.io.Serializable {
     }
 
     companion object {
-        val entries: List<ReplayPeriod> get() = listOf(THIS_YEAR, ALL_TIME)
+        val entries: List<ReplayPeriod> get() = listOf(THIS_WEEK, THIS_MONTH, THIS_YEAR, ALL_TIME)
     }
 }
 
