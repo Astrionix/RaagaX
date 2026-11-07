@@ -64,6 +64,9 @@ object QueueShuffle {
         AppSettings.setShuffleEnabled(true)
     }
 
+    private fun cryptoRandom(): kotlin.random.Random =
+        kotlin.random.Random(java.security.SecureRandom().nextLong())
+
     /**
      * The order a queue should go in when it is started while shuffle is on:
      * the track the user picked leads, the rest follow at random. The order it
@@ -73,8 +76,9 @@ object QueueShuffle {
         original = songs.map { it.queueEntryId ?: it.videoId }
         val rest = songs.filterIndexed { i, _ -> i != startIndex }
         val userQueue = rest.filter { it.queueTier == QueueTier.USER_QUEUE }
-        val context = rest.filter { it.queueTier == QueueTier.CONTEXT }.shuffled()
-        val autoplay = rest.filter { it.queueTier == QueueTier.AUTOPLAY }.shuffled()
+        val rng = cryptoRandom()
+        val context = rest.filter { it.queueTier == QueueTier.CONTEXT }.shuffled(rng)
+        val autoplay = rest.filter { it.queueTier == QueueTier.AUTOPLAY }.shuffled(rng)
         return listOf(songs[startIndex]) + userQueue + context + autoplay
     }
 
@@ -114,7 +118,7 @@ object QueueShuffle {
      * and reads exactly like the first tap was ignored.
      */
     private fun shuffledSection(indices: List<Int>): List<Int> =
-        avoidIdentityShuffle(indices, indices.shuffled())
+        avoidIdentityShuffle(indices, indices.shuffled(cryptoRandom()))
 
     internal fun avoidIdentityShuffle(original: List<Int>, shuffled: List<Int>): List<Int> {
         if (original.size <= 1 || shuffled != original) return shuffled
