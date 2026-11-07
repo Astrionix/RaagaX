@@ -84,6 +84,9 @@ import com.music.raaga.ui.components.recentlyPlayedSkeleton
 import com.music.raaga.ui.components.heroCardWidth
 import com.music.raaga.ui.components.thumbnailBorder
 import com.music.raaga.ui.components.trackColumnWidth
+import com.music.raaga.data.stats.ListeningStats
+import com.music.raaga.data.stats.ReplayPeriod
+import androidx.compose.runtime.produceState
 import com.music.raaga.ui.player.MeshGradientBackground
 import com.music.raaga.ui.player.MeshPalette
 
@@ -105,10 +108,49 @@ private fun isMixedForYouShelf(title: String): Boolean {
         trimmed.contains("Mixed for you", ignoreCase = true)
 }
 
-internal fun orderHomeShelves(shelves: List<HomeShelf>): List<HomeShelf> {
-    val recents = shelves.filter { isRecentsShelf(it.title) }
-    val mixedForYou = shelves.filter { isMixedForYouShelf(it.title) }
-    val others = shelves.filterNot { isRecentsShelf(it.title) || isMixedForYouShelf(it.title) }
+private fun isVideoShelf(title: String): Boolean {
+    val trimmed = title.trim()
+    return trimmed.contains("video", ignoreCase = true) ||
+        trimmed.contains("live performance", ignoreCase = true)
+}
+
+private fun isTopPicksShelf(title: String): Boolean {
+    val trimmed = title.trim()
+    return isMixedForYouShelf(title) ||
+        trimmed.contains("top pick", ignoreCase = true) ||
+        trimmed.contains("quick pick", ignoreCase = true)
+}
+
+private fun isMoodsShelf(title: String): Boolean {
+    val trimmed = title.trim()
+    return trimmed.contains("mood", ignoreCase = true) ||
+        trimmed.contains("genre", ignoreCase = true) ||
+        trimmed.contains("energy boost", ignoreCase = true)
+}
+
+internal fun orderHomeShelves(
+    shelves: List<HomeShelf>,
+    showRecents: Boolean = AppSettings.showHomeRecents.value,
+    showVideos: Boolean = AppSettings.showHomeVideos.value,
+    showTopPicks: Boolean = AppSettings.showHomeTopPicks.value,
+    showMoods: Boolean = AppSettings.showHomeMoods.value,
+    topPicksShelf: HomeShelf? = null,
+): List<HomeShelf> {
+    val filtered = shelves.filter { shelf ->
+        when {
+            isRecentsShelf(shelf.title) -> showRecents
+            isVideoShelf(shelf.title) -> showVideos
+            isTopPicksShelf(shelf.title) -> showTopPicks
+            isMoodsShelf(shelf.title) -> showMoods
+            else -> true
+        }
+    }
+    val recents = if (showRecents) filtered.filter { isRecentsShelf(it.title) } else emptyList()
+    val mixedForYou = if (showTopPicks) {
+        val existing = filtered.filter { isMixedForYouShelf(it.title) }
+        if (topPicksShelf != null) listOf(topPicksShelf) + existing else existing
+    } else emptyList()
+    val others = filtered.filterNot { isRecentsShelf(it.title) || isMixedForYouShelf(it.title) }
     return recents + mixedForYou + others
 }
 private const val RECENT_TRACKS_PER_COLUMN = 4
@@ -142,6 +184,65 @@ fun HomeScreen(
     recentlyPlayedLoading: Boolean = false,
 ) {
     val recentsViewType by AppSettings.homeRecentsViewType.collectAsStateWithLifecycle()
+    val showRecents by AppSettings.showHomeRecents.collectAsStateWithLifecycle()
+    val showVideos by AppSettings.showHomeVideos.collectAsStateWithLifecycle()
+    val showTopPicks by AppSettings.showHomeTopPicks.collectAsStateWithLifecycle()
+    val showMoods by AppSettings.showHomeMoods.collectAsStateWithLifecycle()
+    val squareVideoThumbnails by AppSettings.squareVideoThumbnails.collectAsStateWithLifecycle()
+
+    val topPicksShelf by produceState<HomeShelf?>(initialValue = null, showTopPicks) {
+        if (!showTopPicks) {
+            value = null
+            return@produceState
+        }
+        val summary = runCatching { ListeningStats.summary(ReplayPeriod.THIS_WEEK) }.getOrNull()
+            ?: runCatching { ListeningStats.summary(ReplayPeriod.THIS_MONTH) }.getOrNull()
+        val items = mutableListOf<ShelfItem>()
+        val topArtists = summary?.artists?.take(3).orEmpty()
+        for (artist in topArtists) {
+            items.add(
+                ShelfItem(
+                    title = "${artist.title} Radio",
+                    subtitle = "Artist Station",
+                    thumbnailUrl = artist.artworkUrl,
+                    videoId = null,
+                    browseId = artist.browseId ?: "artist_station_${artist.title}",
+                )
+            )
+        }
+        items.add(
+            ShelfItem(
+                title = "Your Daily Mix",
+                subtitle = "Made for You",
+                thumbnailUrl = topArtists.firstOrNull()?.artworkUrl,
+                videoId = null,
+                browseId = "FEmusic_liked",
+            )
+        )
+        items.add(
+            ShelfItem(
+                title = "New Releases",
+                subtitle = "Fresh Tracks",
+                thumbnailUrl = null,
+                videoId = null,
+                browseId = "FEmusic_new_releases",
+            )
+        )
+        items.add(
+            ShelfItem(
+                title = "Focus & Mood",
+                subtitle = "Curated Vibe",
+                thumbnailUrl = null,
+                videoId = null,
+                browseId = "FEmusic_moods_and_genres",
+            )
+        )
+        value = HomeShelf(
+            title = "Top Picks for You",
+            subtitle = "Curated from your listening habits",
+            items = items,
+        )
+    }
 
     PullToRefresh(
         refreshing = refreshing,
@@ -192,7 +293,14 @@ fun HomeScreen(
                     // Recently Played lands, every real shelf must retain its
                     // compact-card layout instead of briefly becoming a hero.
                     itemsIndexedShelves(
-                        shelves = orderHomeShelves(state.data),
+                        shelves = orderHomeShelves(
+                            shelves = state.data,
+                            showRecents = showRecents,
+                            showVideos = showVideos,
+                            showTopPicks = showTopPicks,
+                            showMoods = showMoods,
+                            topPicksShelf = topPicksShelf,
+                        ),
                         onItemClick = onItemClick,
                         onItemLongPress = onItemLongPress,
                         firstIsHero = !recentlyPlayedLoading,
@@ -751,13 +859,14 @@ internal fun HeroCard(
         ),
         label = "heroCardPress",
     )
+    val squareVideos by AppSettings.squareVideoThumbnails.collectAsStateWithLifecycle()
     Box(
         modifier = modifier
             .graphicsLayer {
                 scaleX = pressScale
                 scaleY = pressScale
             }
-            .aspectRatio(HERO_CARD_RATIO)
+            .aspectRatio(if (squareVideos) 1f else HERO_CARD_RATIO)
             .clip(RoundedCornerShape(18.dp))
             .thumbnailBorder(RoundedCornerShape(18.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant)
