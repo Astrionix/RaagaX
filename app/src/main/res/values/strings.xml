@@ -433,9 +433,15 @@
     <string name="legacy_mesh_gradient_subtitle">Brings back the drifting colour blobs behind the player from v1.5</string>
     <string name="liquid_glass_mode">Liquid Glass mode</string>
     <string name="liquid_glass_mode_subtitle">Adjust blur complexity: Full real-time glass, lightweight frost for performance, or solid fill</string>
+    <string name="liquid_glass_full">Full</string>
+    <string name="liquid_glass_performance">Performance</string>
+    <string name="liquid_glass_off">Off</string>
     <string name="liquid_glass_mode_full">Full (Real-time Glass)</string>
     <string name="liquid_glass_mode_performance">Performance (Frost Tint)</string>
     <string name="liquid_glass_mode_off">Off (Solid Fill)</string>
+    <string name="liquid_glass_mode_full_desc">Real-time glass refraction and dynamic backdrop blur (Android 12+)</string>
+    <string name="liquid_glass_mode_performance_desc">Lightweight frost tint for locked 60/120 FPS performance</string>
+    <string name="liquid_glass_mode_off_desc">Solid opaque fill without glass shaders or blur</string>
     <string name="compact_nav_icons_only">Icons-only navigation bar</string>
     <string name="compact_nav_icons_only_subtitle">Hide tab labels and streamline the floating bar height</string>
     <string name="content_preferences">Home Feed &amp; Content</string>

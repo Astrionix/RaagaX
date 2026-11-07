@@ -181,6 +181,7 @@ import com.music.raaga.data.settings.AudioQuality
 import com.music.raaga.data.settings.DownloadQuality
 import com.music.raaga.data.settings.ThemeMode
 import com.music.raaga.data.settings.PlayerTheme
+import com.music.raaga.data.settings.LiquidGlassMode
 import com.music.raaga.data.settings.AppFont
 import com.music.raaga.ui.theme.AccentRed
 import com.music.raaga.ui.theme.previewFamilyFor
@@ -1515,59 +1516,23 @@ fun SettingsScreen(
                 )
             }
             val liquidGlassTitle = stringResource(R.string.liquid_glass)
-            row(liquidGlassTitle, "glass", "blur") {
+            row(liquidGlassTitle, "glass", "blur", "liquid glass mode", "performance glass", "shader") {
                 SettingsRow(
                     icon = Icons.Rounded.AutoAwesome,
                     title = liquidGlassTitle,
-                    subtitle = stringResource(
-                        if (liquidGlassSupported) {
-                            R.string.liquid_glass_subtitle
-                        } else {
-                            R.string.liquid_glass_unavailable
-                        },
-                    ),
-                    enabled = liquidGlassSupported,
-                    trailing = {
-                        Switch(
-                            checked = liquidGlass,
-                            onCheckedChange = AppSettings::setLiquidGlass,
-                            enabled = liquidGlassSupported,
-                            colors = settingsSwitchColors(),
-                        )
+                    subtitle = if (!liquidGlassSupported) {
+                        stringResource(R.string.liquid_glass_unavailable)
+                    } else {
+                        liquidGlassMode.description()
                     },
-                    onClick = { AppSettings.setLiquidGlass(!liquidGlass) },
+                    enabled = liquidGlassSupported,
                 )
-            }
-            if (liquidGlassSupported && liquidGlass) {
-                val glassModeTitle = stringResource(R.string.liquid_glass_mode)
-                row(glassModeTitle, "liquid glass mode", "performance glass", "shader", divided = false) {
-                    SettingsRow(
-                        icon = Icons.Rounded.Tune,
-                        title = glassModeTitle,
-                        subtitle = when (liquidGlassMode) {
-                            com.music.raaga.data.settings.LiquidGlassMode.FULL -> stringResource(R.string.liquid_glass_mode_full)
-                            com.music.raaga.data.settings.LiquidGlassMode.PERFORMANCE -> stringResource(R.string.liquid_glass_mode_performance)
-                            com.music.raaga.data.settings.LiquidGlassMode.OFF -> stringResource(R.string.liquid_glass_mode_off)
-                        },
-                    )
+                if (liquidGlassSupported) {
                     SegmentedControl(
-                        options = listOf(
-                            stringResource(R.string.liquid_glass_mode_full),
-                            stringResource(R.string.liquid_glass_mode_performance),
-                            stringResource(R.string.liquid_glass_mode_off),
-                        ),
-                        selectedIndex = when (liquidGlassMode) {
-                            com.music.raaga.data.settings.LiquidGlassMode.FULL -> 0
-                            com.music.raaga.data.settings.LiquidGlassMode.PERFORMANCE -> 1
-                            com.music.raaga.data.settings.LiquidGlassMode.OFF -> 2
-                        },
+                        options = LiquidGlassMode.entries.map { it.localizedLabel() },
+                        selectedIndex = LiquidGlassMode.entries.indexOf(liquidGlassMode),
                         onSelect = { index ->
-                            val mode = when (index) {
-                                0 -> com.music.raaga.data.settings.LiquidGlassMode.FULL
-                                1 -> com.music.raaga.data.settings.LiquidGlassMode.PERFORMANCE
-                                else -> com.music.raaga.data.settings.LiquidGlassMode.OFF
-                            }
-                            AppSettings.setLiquidGlassMode(mode)
+                            AppSettings.setLiquidGlassMode(LiquidGlassMode.entries[index])
                         },
                         modifier = Modifier.padding(start = ROW_INSET, end = ROW_INSET, bottom = 14.dp),
                     )
@@ -2914,6 +2879,24 @@ private fun PlayerTheme.description(): String = stringResource(
         PlayerTheme.DEFAULT -> R.string.player_theme_default_subtitle
         PlayerTheme.LEGACY -> R.string.player_theme_legacy_subtitle
         PlayerTheme.SIMPLE -> R.string.player_theme_simple_subtitle
+    },
+)
+
+@Composable
+private fun LiquidGlassMode.localizedLabel(): String = stringResource(
+    when (this) {
+        LiquidGlassMode.FULL -> R.string.liquid_glass_full
+        LiquidGlassMode.PERFORMANCE -> R.string.liquid_glass_performance
+        LiquidGlassMode.OFF -> R.string.liquid_glass_off
+    },
+)
+
+@Composable
+private fun LiquidGlassMode.description(): String = stringResource(
+    when (this) {
+        LiquidGlassMode.FULL -> R.string.liquid_glass_mode_full_desc
+        LiquidGlassMode.PERFORMANCE -> R.string.liquid_glass_mode_performance_desc
+        LiquidGlassMode.OFF -> R.string.liquid_glass_mode_off_desc
     },
 )
 
