@@ -211,10 +211,10 @@ object SourceResolver {
      * gets its hearing.
      */
     suspend fun substituteForYouTube(target: TrackMatcher.Target): SourceStream? {
-        // Video rows always use YouTube's own stream unless the listener
-        // explicitly converts the current item in the player. A module match
-        // is another recording and can be a wrong song altogether.
-        if (target.title.isBlank() || target.isVideo) return null
+        // When preferMusicOnly is enabled, video tracks are routed to official audio streams
+        // instead of falling back immediately to YouTube video overhead.
+        if (target.title.isBlank()) return null
+        if (target.isVideo && !AppSettings.preferMusicOnly.value) return null
         val active = SourceRegistry.activeForPlayback()
         val youtube = active.firstOrNull { it.kind == SourceKind.YOUTUBE } ?: return null
         val request = requestForNow()
@@ -857,6 +857,16 @@ object SourceResolver {
                 )
             } ?: return null
             var matches = TrackMatcher.ranked(candidates, target)
+            matches = matches.filter { candidate ->
+                val res = StreamValidationInterceptor.validateCandidate(
+                    target = target,
+                    candidateTitle = candidate.title,
+                    candidateArtist = candidate.artist,
+                    candidateDurationSec = TrackMatcher.secondsOf(candidate.durationText),
+                    isVideo = candidate.isVideo,
+                )
+                res is ValidationResult.Passed
+            }
             if (requireSharedArtist) {
                 matches = matches.filter { TrackMatcher.sharesArtist(target.artist, it.artist) }
             }
@@ -998,6 +1008,11 @@ object SourceResolver {
                 durationSec = TrackMatcher.secondsOf(match.durationText),
                 sourceConfigId = source.configId,
             )
+            val validation = StreamValidationInterceptor.validateStream(target, stream, stream.durationSec)
+            if (validation is ValidationResult.Rejected) {
+                TrackLog.w(TAG, "Stream rejected by interceptor for '${match.title}': ${validation.reason}")
+                continue
+            }
             val served = stream.format
             if (!wantsLossless || served.isLossless == true || served.isDolbyAtmos || served.statesNothingLossy) {
                 TrackLog.d(
