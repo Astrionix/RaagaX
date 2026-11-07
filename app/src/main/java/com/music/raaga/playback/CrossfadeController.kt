@@ -11,6 +11,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import com.music.raaga.data.listentogether.ListenTogether
 import com.music.raaga.data.settings.AppSettings
+import com.music.raaga.data.settings.AutomixMetadata
 import com.music.raaga.data.settings.MixBlend
 import com.music.raaga.data.settings.SmartAnalysis
 import com.music.raaga.data.settings.TrackAnalysisState
@@ -811,7 +812,8 @@ class CrossfadeController(
             // happen, and the flag a mix that is no longer running; both would
             // otherwise sit on screen for as long as the party lasts.
             AppSettings.smartTransitionWindow.value = null
-            AppSettings.smartMixInProgress.value = false
+        AppSettings.automixMetadata.value = null
+                AppSettings.smartMixInProgress.value = false
             return
         }
         // Nothing to transition *into*, so any analysis state left over from the
@@ -819,7 +821,8 @@ class CrossfadeController(
         // claiming both songs are measured.
         if (!player.hasNextMediaItem()) {
             AppSettings.smartTransitionWindow.value = null
-            return
+        AppSettings.automixMetadata.value = null
+                return
         }
 
         val duration = player.duration
@@ -845,7 +848,8 @@ class CrossfadeController(
             // planned for this pair before the loop went on, at a point the
             // playhead now runs past on every lap without anything happening.
             AppSettings.smartTransitionWindow.value = null
-            return
+        AppSettings.automixMetadata.value = null
+                return
         }
 
         // Automix is its own on/off, independent of the manual crossfade
@@ -907,7 +911,8 @@ class CrossfadeController(
         // of a transition involving a video row.
         if (currentItem.isVideoOrigin || nextItem.isVideoOrigin) {
             AppSettings.smartTransitionWindow.value = null
-            AppSettings.smartMixInProgress.value = false
+        AppSettings.automixMetadata.value = null
+                AppSettings.smartMixInProgress.value = false
             return
         }
         val nextDuration = nextItemDurationMs(nextIndex, nextItem)
@@ -1003,6 +1008,23 @@ class CrossfadeController(
             TransitionWindow(
                 start = (plan.transitionStart * 1000.0 / duration).toFloat().coerceIn(0f, 1f),
                 end = (plan.transitionEnd * 1000.0 / duration).toFloat().coerceIn(0f, 1f),
+            )
+        } else {
+            null
+        }
+        AppSettings.automixMetadata.value = if (markable) {
+            AutomixMetadata(
+                outroFadeOutStartMs = (plan.transitionStart * 1000).roundToLong(),
+                outroFadeOutEndMs = (plan.transitionEnd * 1000).roundToLong(),
+                introFadeInStartMs = (plan.incomingCueTime * 1000).roundToLong(),
+                introFadeInEndMs = (plan.incomingCueTime * 1000).roundToLong() + plan.fadeMs,
+                transitionDurationMs = plan.fadeMs,
+                style = plan.transitionStyle.name,
+                tempoA = currentAnalysis.bpm.toFloat(),
+                tempoB = nextAnalysis.bpm.toFloat(),
+                nextTrackTitle = nextItem.mediaMetadata.title?.toString(),
+                nextTrackArtist = nextItem.mediaMetadata.artist?.toString(),
+                nextTrackThumbnail = nextItem.mediaMetadata.artworkUri?.toString(),
             )
         } else {
             null
@@ -1467,6 +1489,7 @@ class CrossfadeController(
         // The bar fills to the end through the first half of the blend, which
         // would run straight over the marker for the transition now under way.
         AppSettings.smartTransitionWindow.value = null
+        AppSettings.automixMetadata.value = null
         phase = Phase.FADING
     }
 
@@ -2726,7 +2749,7 @@ class CrossfadeController(
          * transition that arrives before its incoming track is ready is one that
          * gets dropped.
          */
-        const val ARM_LEAD_MS = 4_000L
+        const val ARM_LEAD_MS = 15_000L
 
         /**
          * The earliest, in wall-clock ms before the next item starts, that
