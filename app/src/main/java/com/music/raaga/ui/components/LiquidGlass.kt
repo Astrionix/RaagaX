@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalDensity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.music.raaga.data.settings.AppSettings
+import com.music.raaga.data.settings.LiquidGlassMode
 import com.music.raaga.ui.components.backdrop.Backdrop
 import com.music.raaga.ui.components.backdrop.backdrops.LayerBackdrop
 import com.music.raaga.ui.components.backdrop.drawBackdrop
@@ -100,8 +101,11 @@ internal val GLASS_EDGE_COLOR = Color.White.copy(alpha = 0.10f)
  * arbitrary artwork, and it is what Echo's own glass nav bar uses.
  */
 @Composable
-fun glassContentColor(): Color =
-    if (MaterialTheme.colorScheme.surface.luminance() > 0.5f) Color.Black else Color.White
+fun glassContentColor(): Color {
+    val disableBlend by AppSettings.disableBlendEffects.collectAsStateWithLifecycle()
+    if (disableBlend) return Color.White
+    return if (MaterialTheme.colorScheme.surface.luminance() > 0.5f) Color.Black else Color.White
+}
 
 /**
  * Selected-tab indicator colour for a glass surface: white in both themes.
@@ -159,6 +163,47 @@ fun Modifier.lightweightLiquidGlass(
             },
         )
         .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
+}
+
+/**
+ * Unified Apple Music-style Liquid Glass Surface container.
+ * Supports:
+ * - FULL: Real-time dynamic backdrop blur + saturation boost
+ * - PERFORMANCE: Lightweight frost tint + highlight rim (zero GPU lag)
+ * - OFF: Solid dark fill
+ */
+@Composable
+fun LiquidGlassSurface(
+    shape: CornerBasedShape,
+    modifier: Modifier = Modifier,
+    mode: LiquidGlassMode = AppSettings.liquidGlassMode.collectAsStateWithLifecycle().value,
+    fallbackColor: Color = MaterialTheme.colorScheme.surface,
+    content: @Composable () -> Unit,
+) {
+    val containerModifier = when (mode) {
+        LiquidGlassMode.FULL -> {
+            if (isGlassSupported()) {
+                Modifier.liquidGlass(shape = shape)
+            } else {
+                Modifier.lightweightLiquidGlass(shape = shape, fallbackColor = fallbackColor)
+            }
+        }
+        LiquidGlassMode.PERFORMANCE -> {
+            Modifier.lightweightLiquidGlass(shape = shape, fallbackColor = fallbackColor)
+        }
+        LiquidGlassMode.OFF -> {
+            Modifier
+                .clip(shape)
+                .background(fallbackColor, shape)
+                .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
+        }
+    }
+
+    androidx.compose.foundation.layout.Box(
+        modifier = modifier.then(containerModifier),
+    ) {
+        content()
+    }
 }
 
 /**
