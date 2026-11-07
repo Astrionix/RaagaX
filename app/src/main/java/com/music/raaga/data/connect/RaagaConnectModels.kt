@@ -104,6 +104,8 @@ data class ConnectControlCommand(
     val sessionId: String? = null,
     val senderDeviceId: String = "",
     val syncKey: String? = null,
+    val timestampMs: Long = 0L,
+    val clockOffsetMs: Long = 0L,
 )
 
 @Serializable
@@ -130,6 +132,9 @@ data class ConnectDeviceStatus(
     val protocolVersion: Int = 2,
     val sessionId: String? = null,
     val activeSpeakerDeviceId: String? = null,
+    val seq: Long = 0L,
+    val timestampMs: Long = 0L,
+    val clockOffsetMs: Long = 0L,
 )
 
 @Serializable
