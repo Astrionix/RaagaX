@@ -51,6 +51,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.layout.navigationBarsPadding
+import com.music.raaga.data.NerdStats
+import com.music.raaga.data.model.ROW_ART_PX
+import com.music.raaga.data.stats.ListeningStats
+import java.util.Locale
 import com.music.raaga.R
 import com.music.raaga.data.SongInfo
 import com.music.raaga.data.SongInfoRepository
@@ -61,7 +72,6 @@ import com.music.raaga.ui.haptics.Haptic
 import com.music.raaga.ui.haptics.rememberHaptics
 import com.music.raaga.ui.theme.ArtworkPalette
 import kotlinx.coroutines.launch
-import java.util.Locale
 
 private val INFO_BODY_MAX_HEIGHT = 360.dp
 
@@ -380,6 +390,17 @@ internal fun BehindTheMusicPage(
             if (!views.isNullOrBlank()) {
                 InfoMetaRow(stringResource(R.string.song_info_views), views)
             }
+            val personalPlays = ListeningStats.playCountFor(song.videoId)
+            if (personalPlays > 0) {
+                InfoMetaRow("Personal Plays", "$personalPlays listens")
+            }
+            val nerd = NerdStats.current.value
+            if (nerd != null) {
+                val codec = nerd.mimeType?.substringAfterLast("/")?.uppercase(Locale.ROOT) ?: "OPUS"
+                val bitrate = nerd.bitrateKbps?.let { "$it kbps" } ?: "VBR"
+                val sampleRate = nerd.sampleRateHz?.let { "%.1f kHz".format(it / 1000f) } ?: "48.0 kHz"
+                InfoMetaRow("Live Stream", "$codec • $bitrate • $sampleRate")
+            }
 
             if (info?.failed == true) {
                 Spacer(Modifier.height(12.dp))
@@ -538,5 +559,55 @@ private fun InfoMetaRow(label: String, value: String) {
             textAlign = TextAlign.End,
             modifier = Modifier.weight(1f),
         )
+    }
+}
+
+/**
+ * Slide-up drawer in the player displaying release date, album/label metadata,
+ * live stream stats, and total personal play count for the current track.
+ */
+@Composable
+fun SongInfoDrawer(
+    visible: Boolean,
+    song: com.music.raaga.data.model.Song,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(tween(200)) + slideInVertically(tween(260)) { it },
+        exit = fadeOut(tween(160)) + slideOutVertically(tween(200)) { it },
+        modifier = modifier,
+    ) {
+        val palette = com.music.raaga.ui.theme.rememberArtworkPalette(song.thumbnailUrl, artPx = ROW_ART_PX)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xB3000000))
+                .clickable(onClick = onDismiss),
+            contentAlignment = Alignment.BottomCenter,
+        ) {
+            androidx.compose.material3.Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(enabled = false, onClick = {})
+                    .navigationBarsPadding(),
+                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                color = MaterialTheme.colorScheme.surface,
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp)
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    BehindTheMusicPage(
+                        song = song,
+                        palette = palette,
+                        onBack = onDismiss,
+                    )
+                }
+            }
+        }
     }
 }
