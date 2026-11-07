@@ -179,7 +179,6 @@ import com.music.raaga.R
 import com.music.raaga.data.sources.DeviceCodecs
 import com.music.raaga.data.settings.AudioQuality
 import com.music.raaga.data.settings.DownloadQuality
-import com.music.raaga.data.settings.NowPlayingBlurStyle
 import com.music.raaga.data.settings.ThemeMode
 import com.music.raaga.data.settings.PlayerTheme
 import com.music.raaga.data.settings.AppFont
@@ -202,6 +201,7 @@ enum class SettingsCategory(
     AUDIO_QUALITY(R.string.audio_quality),
     DOWNLOADS(R.string.downloads),
     PLAYBACK(R.string.playback),
+    CONTENT_PREFERENCES(R.string.content_preferences),
     APPEARANCE(R.string.appearance),
     PERFORMANCE(R.string.performance),
     LOCAL_MUSIC(R.string.local_music),
@@ -296,15 +296,29 @@ fun SettingsScreen(
     val disableBlendEffects by AppSettings.disableBlendEffects.collectAsStateWithLifecycle()
     val playerTheme by AppSettings.playerTheme.collectAsStateWithLifecycle()
     val liquidGlass by AppSettings.liquidGlass.collectAsStateWithLifecycle()
+    val liquidGlassMode by AppSettings.liquidGlassMode.collectAsStateWithLifecycle()
+    val compactNavIconsOnly by AppSettings.compactNavIconsOnly.collectAsStateWithLifecycle()
     val liquidGlassSupported = isGlassSupported()
     val lyricsBlur by AppSettings.lyricsBlur.collectAsStateWithLifecycle()
+
+    val showHomeRecents by AppSettings.showHomeRecents.collectAsStateWithLifecycle()
+    val showHomeVideos by AppSettings.showHomeVideos.collectAsStateWithLifecycle()
+    val showHomeTopPicks by AppSettings.showHomeTopPicks.collectAsStateWithLifecycle()
+    val showHomeMoods by AppSettings.showHomeMoods.collectAsStateWithLifecycle()
+    val squareVideoThumbnails by AppSettings.squareVideoThumbnails.collectAsStateWithLifecycle()
+
+    val releaseHardwareOnPause by AppSettings.releaseHardwareOnPause.collectAsStateWithLifecycle()
+    val peakLimiterEnabled by AppSettings.peakLimiterEnabled.collectAsStateWithLifecycle()
+    val directSourceStream by AppSettings.directSourceStream.collectAsStateWithLifecycle()
+    val strictTrackMatching by AppSettings.strictTrackMatching.collectAsStateWithLifecycle()
+    val raagaConnectAutoDiscovery by AppSettings.raagaConnectAutoDiscovery.collectAsStateWithLifecycle()
+    var showResetConfirmDialog by remember { mutableStateOf(false) }
 
     val animatedCanvas by AppSettings.animatedCanvas.collectAsStateWithLifecycle()
     val canvasOverCellular by AppSettings.canvasOverCellular.collectAsStateWithLifecycle()
     val spotifyCanvasEnabled by AppSettings.spotifyCanvasEnabled.collectAsStateWithLifecycle()
     val fullBleedArtwork by AppSettings.fullBleedArtwork.collectAsStateWithLifecycle()
     val legacyMeshGradient by AppSettings.legacyMeshGradient.collectAsStateWithLifecycle()
-    val nowPlayingBlurStyle by AppSettings.nowPlayingBlurStyle.collectAsStateWithLifecycle()
     val adaptiveTrackInfo by AppSettings.adaptiveTrackInfo.collectAsStateWithLifecycle()
     val lyricsPreview by AppSettings.lyricsPreview.collectAsStateWithLifecycle()
     val syncedLyrics by AppSettings.syncedLyrics.collectAsStateWithLifecycle()
@@ -390,7 +404,6 @@ fun SettingsScreen(
 
     var picking by remember { mutableStateOf<QualityTarget?>(null) }
     var pickingDownloadQuality by remember { mutableStateOf(false) }
-    var pickingBlurStyle by remember { mutableStateOf(false) }
     var pickingAutoDownloadPlaylists by remember { mutableStateOf(false) }
     var pickingAutomixPerformance by remember { mutableStateOf(false) }
     var showBitPerfectChoice by remember { mutableStateOf(false) }
@@ -482,6 +495,9 @@ fun SettingsScreen(
     // last one was scrolled to means nothing in it.
     val scrollState = rememberSaveable(saver = ScrollState.Saver) { ScrollState(0) }
     var isFirstSearchComposition by remember { mutableStateOf(true) }
+    var rootSettingsScrollPosition by rememberSaveable { androidx.compose.runtime.mutableIntStateOf(0) }
+    var previousSettingsCategory by remember { mutableStateOf<SettingsCategory?>(null) }
+
     LaunchedEffect(searchQuery) {
         if (isFirstSearchComposition && searchQuery.isEmpty()) {
             // Skip the initial composition during Activity recreation:
@@ -492,8 +508,17 @@ fun SettingsScreen(
             scrollState.scrollTo(0)
         }
     }
+
     LaunchedEffect(activeCategory) {
-        scrollState.scrollTo(0)
+        if (activeCategory != null && previousSettingsCategory == null) {
+            // Drilling down into a subcategory: save main scroll position and reset to top
+            rootSettingsScrollPosition = scrollState.value
+            scrollState.scrollTo(0)
+        } else if (activeCategory == null && previousSettingsCategory != null) {
+            // Returning from subcategory: restore exact main settings scroll position
+            scrollState.scrollTo(rootSettingsScrollPosition)
+        }
+        previousSettingsCategory = activeCategory
     }
 
     Column(
@@ -583,6 +608,13 @@ fun SettingsScreen(
                     title = stringResource(R.string.appearance),
                     subtitle = "Theme, liquid glass, animated canvas, lyrics blur",
                     onClick = { onActiveCategoryChange(SettingsCategory.APPEARANCE) },
+                )
+                RowDivider()
+                SettingsRow(
+                    icon = Icons.Rounded.SmartDisplay,
+                    title = stringResource(R.string.content_preferences),
+                    subtitle = stringResource(R.string.content_preferences_subtitle),
+                    onClick = { onActiveCategoryChange(SettingsCategory.CONTENT_PREFERENCES) },
                 )
                 RowDivider()
                 SettingsRow(
@@ -684,7 +716,38 @@ fun SettingsScreen(
                         } catch (_: Exception) {}
                     },
                 )
+                RowDivider()
+                SettingsRow(
+                    icon = Icons.Rounded.DeleteSweep,
+                    title = stringResource(R.string.reset_to_defaults),
+                    subtitle = stringResource(R.string.reset_to_defaults_subtitle),
+                    onClick = { showResetConfirmDialog = true },
+                )
             }
+        }
+
+        if (showResetConfirmDialog) {
+            AlertDialog(
+                onDismissRequest = { showResetConfirmDialog = false },
+                title = { Text(stringResource(R.string.reset_to_defaults)) },
+                text = { Text(stringResource(R.string.reset_to_defaults_confirm)) },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showResetConfirmDialog = false
+                            com.music.raaga.data.settings.SettingsRepository.resetToDefaults()
+                            Toast.makeText(context, context.getString(R.string.reset_to_defaults_done), Toast.LENGTH_SHORT).show()
+                        }
+                    ) {
+                        Text(stringResource(R.string.reset_to_defaults_action), color = MaterialTheme.colorScheme.error)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showResetConfirmDialog = false }) {
+                        Text(stringResource(R.string.cancel))
+                    }
+                }
+            )
         }
 
         // The row that used to sit at the top of this group was called
@@ -1208,6 +1271,38 @@ fun SettingsScreen(
                     onClick = onEqualizer,
                 )
             }
+            val releaseHardwareTitle = stringResource(R.string.release_hardware_on_pause)
+            row(releaseHardwareTitle, "audio sink", "hardware lock", "pause", "dac", "battery") {
+                SettingsRow(
+                    icon = Icons.Rounded.Tune,
+                    title = releaseHardwareTitle,
+                    subtitle = stringResource(R.string.release_hardware_on_pause_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = releaseHardwareOnPause,
+                            onCheckedChange = AppSettings::setReleaseHardwareOnPause,
+                            colors = settingsSwitchColors(),
+                        )
+                    },
+                    onClick = { AppSettings.setReleaseHardwareOnPause(!releaseHardwareOnPause) },
+                )
+            }
+            val peakLimiterTitle = stringResource(R.string.peak_limiter)
+            row(peakLimiterTitle, "peak limiter", "clipping", "anti-distortion", "equalizer") {
+                SettingsRow(
+                    icon = Icons.Rounded.GraphicEq,
+                    title = peakLimiterTitle,
+                    subtitle = stringResource(R.string.peak_limiter_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = peakLimiterEnabled,
+                            onCheckedChange = AppSettings::setPeakLimiterEnabled,
+                            colors = settingsSwitchColors(),
+                        )
+                    },
+                    onClick = { AppSettings.setPeakLimiterEnabled(!peakLimiterEnabled) },
+                )
+            }
         }
     }
 
@@ -1443,6 +1538,57 @@ fun SettingsScreen(
                     onClick = { AppSettings.setLiquidGlass(!liquidGlass) },
                 )
             }
+            if (liquidGlassSupported && liquidGlass) {
+                val glassModeTitle = stringResource(R.string.liquid_glass_mode)
+                row(glassModeTitle, "liquid glass mode", "performance glass", "shader", divided = false) {
+                    SettingsRow(
+                        icon = Icons.Rounded.Tune,
+                        title = glassModeTitle,
+                        subtitle = when (liquidGlassMode) {
+                            com.music.raaga.data.settings.LiquidGlassMode.FULL -> stringResource(R.string.liquid_glass_mode_full)
+                            com.music.raaga.data.settings.LiquidGlassMode.PERFORMANCE -> stringResource(R.string.liquid_glass_mode_performance)
+                            com.music.raaga.data.settings.LiquidGlassMode.OFF -> stringResource(R.string.liquid_glass_mode_off)
+                        },
+                    )
+                    SegmentedControl(
+                        options = listOf(
+                            stringResource(R.string.liquid_glass_mode_full),
+                            stringResource(R.string.liquid_glass_mode_performance),
+                            stringResource(R.string.liquid_glass_mode_off),
+                        ),
+                        selectedIndex = when (liquidGlassMode) {
+                            com.music.raaga.data.settings.LiquidGlassMode.FULL -> 0
+                            com.music.raaga.data.settings.LiquidGlassMode.PERFORMANCE -> 1
+                            com.music.raaga.data.settings.LiquidGlassMode.OFF -> 2
+                        },
+                        onSelect = { index ->
+                            val mode = when (index) {
+                                0 -> com.music.raaga.data.settings.LiquidGlassMode.FULL
+                                1 -> com.music.raaga.data.settings.LiquidGlassMode.PERFORMANCE
+                                else -> com.music.raaga.data.settings.LiquidGlassMode.OFF
+                            }
+                            AppSettings.setLiquidGlassMode(mode)
+                        },
+                        modifier = Modifier.padding(start = ROW_INSET, end = ROW_INSET, bottom = 14.dp),
+                    )
+                }
+            }
+            val compactNavTitle = stringResource(R.string.compact_nav_icons_only)
+            row(compactNavTitle, "bottom bar", "navigation", "icons only", "labels") {
+                SettingsRow(
+                    icon = Icons.Rounded.Apps,
+                    title = compactNavTitle,
+                    subtitle = stringResource(R.string.compact_nav_icons_only_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = compactNavIconsOnly,
+                            onCheckedChange = AppSettings::setCompactNavIconsOnly,
+                            colors = settingsSwitchColors(),
+                        )
+                    },
+                    onClick = { AppSettings.setCompactNavIconsOnly(!compactNavIconsOnly) },
+                )
+            }
             // Left out where the player won't honour it: a window too wide for
             // the player to fill and too narrow to stand a page beside it keeps
             // the sleeve either way. A docked pane is a phone's width, so it does
@@ -1477,15 +1623,6 @@ fun SettingsScreen(
                     selectedIndex = PlayerTheme.entries.indexOf(playerTheme),
                     onSelect = { AppSettings.setPlayerTheme(PlayerTheme.entries[it]) },
                     modifier = Modifier.padding(start = ROW_INSET, end = ROW_INSET, bottom = 14.dp),
-                )
-            }
-            val blurStyleTitle = stringResource(R.string.now_playing_blur_style)
-            row(blurStyleTitle, "background", "player", "blur", "mesh", "gradient", "ambient") {
-                SettingsRow(
-                    icon = Icons.Rounded.BlurOn,
-                    title = blurStyleTitle,
-                    subtitle = stringResource(nowPlayingBlurStyle.titleRes),
-                    onClick = { pickingBlurStyle = true },
                 )
             }
             val adaptiveTrackInfoTitle = stringResource(R.string.adaptive_track_info)
@@ -1669,6 +1806,95 @@ fun SettingsScreen(
                         onClick = onTranslationLanguage,
                     )
                 }
+            }
+        }
+    }
+
+    if (searchQuery.isNotBlank() || activeCategory == SettingsCategory.CONTENT_PREFERENCES) {
+        SearchableSettingsGroup(
+            search,
+            header = if (searchQuery.isNotBlank()) stringResource(R.string.content_preferences) else null,
+            topSpacing = 8.dp,
+        ) {
+            val showRecentsTitle = stringResource(R.string.show_home_recents)
+            row(showRecentsTitle, "recents", "home", "history", "shelf") {
+                SettingsRow(
+                    icon = Icons.Rounded.History,
+                    title = showRecentsTitle,
+                    subtitle = stringResource(R.string.show_home_recents_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = showHomeRecents,
+                            onCheckedChange = AppSettings::setShowHomeRecents,
+                            colors = settingsSwitchColors(),
+                        )
+                    },
+                    onClick = { AppSettings.setShowHomeRecents(!showHomeRecents) },
+                )
+            }
+            val showVideosTitle = stringResource(R.string.show_home_videos)
+            row(showVideosTitle, "videos", "music videos", "home", "shelf") {
+                SettingsRow(
+                    icon = Icons.Rounded.SmartDisplay,
+                    title = showVideosTitle,
+                    subtitle = stringResource(R.string.show_home_videos_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = showHomeVideos,
+                            onCheckedChange = AppSettings::setShowHomeVideos,
+                            colors = settingsSwitchColors(),
+                        )
+                    },
+                    onClick = { AppSettings.setShowHomeVideos(!showHomeVideos) },
+                )
+            }
+            val showTopPicksTitle = stringResource(R.string.show_home_top_picks)
+            row(showTopPicksTitle, "top picks", "quick picks", "recommendations", "home") {
+                SettingsRow(
+                    icon = Icons.Rounded.AutoAwesome,
+                    title = showTopPicksTitle,
+                    subtitle = stringResource(R.string.show_home_top_picks_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = showHomeTopPicks,
+                            onCheckedChange = AppSettings::setShowHomeTopPicks,
+                            colors = settingsSwitchColors(),
+                        )
+                    },
+                    onClick = { AppSettings.setShowHomeTopPicks(!showHomeTopPicks) },
+                )
+            }
+            val showMoodsTitle = stringResource(R.string.show_home_moods)
+            row(showMoodsTitle, "moods", "genres", "energy", "home", "shelf") {
+                SettingsRow(
+                    icon = Icons.Rounded.Waves,
+                    title = showMoodsTitle,
+                    subtitle = stringResource(R.string.show_home_moods_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = showHomeMoods,
+                            onCheckedChange = AppSettings::setShowHomeMoods,
+                            colors = settingsSwitchColors(),
+                        )
+                    },
+                    onClick = { AppSettings.setShowHomeMoods(!showHomeMoods) },
+                )
+            }
+            val squareThumbsTitle = stringResource(R.string.square_video_thumbnails)
+            row(squareThumbsTitle, "video thumbnail", "square", "aspect ratio", "1:1") {
+                SettingsRow(
+                    icon = Icons.Rounded.Image,
+                    title = squareThumbsTitle,
+                    subtitle = stringResource(R.string.square_video_thumbnails_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = squareVideoThumbnails,
+                            onCheckedChange = AppSettings::setSquareVideoThumbnails,
+                            colors = settingsSwitchColors(),
+                        )
+                    },
+                    onClick = { AppSettings.setSquareVideoThumbnails(!squareVideoThumbnails) },
+                )
             }
         }
     }
@@ -2172,6 +2398,54 @@ fun SettingsScreen(
                     onClick = { AppSettings.setShowListenTogetherButton(!listenTogetherButton) },
                 )
             }
+            val directSourceTitle = stringResource(R.string.direct_source_stream)
+            row(directSourceTitle, "direct source", "stream", "no switching", "addon") {
+                SettingsRow(
+                    icon = Icons.Rounded.Tune,
+                    title = directSourceTitle,
+                    subtitle = stringResource(R.string.direct_source_stream_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = directSourceStream,
+                            onCheckedChange = AppSettings::setDirectSourceStream,
+                            colors = settingsSwitchColors(),
+                        )
+                    },
+                    onClick = { AppSettings.setDirectSourceStream(!directSourceStream) },
+                )
+            }
+            val strictMatchingTitle = stringResource(R.string.strict_track_matching)
+            row(strictMatchingTitle, "strict matching", "duration gate", "similarity", "anti-preview") {
+                SettingsRow(
+                    icon = Icons.Rounded.Check,
+                    title = strictMatchingTitle,
+                    subtitle = stringResource(R.string.strict_track_matching_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = strictTrackMatching,
+                            onCheckedChange = AppSettings::setStrictTrackMatching,
+                            colors = settingsSwitchColors(),
+                        )
+                    },
+                    onClick = { AppSettings.setStrictTrackMatching(!strictTrackMatching) },
+                )
+            }
+            val connectDiscoveryTitle = stringResource(R.string.raaga_connect_auto_discovery)
+            row(connectDiscoveryTitle, "connect", "auto discovery", "remote", "broadcast", "lan") {
+                SettingsRow(
+                    icon = Icons.Rounded.Public,
+                    title = connectDiscoveryTitle,
+                    subtitle = stringResource(R.string.raaga_connect_auto_discovery_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = raagaConnectAutoDiscovery,
+                            onCheckedChange = AppSettings::setRaagaConnectAutoDiscovery,
+                            colors = settingsSwitchColors(),
+                        )
+                    },
+                    onClick = { AppSettings.setRaagaConnectAutoDiscovery(!raagaConnectAutoDiscovery) },
+                )
+            }
         }
     }
 
@@ -2237,21 +2511,6 @@ fun SettingsScreen(
                         QualityTarget.CELLULAR -> AppSettings.setAudioQualityCellular(quality)
                     }
                     picking = null
-                },
-            )
-        }
-    }
-
-    if (pickingBlurStyle) {
-        ModalBottomSheet(
-            onDismissRequest = { pickingBlurStyle = false },
-            containerColor = MaterialTheme.colorScheme.background,
-        ) {
-            NowPlayingBlurStyleSheet(
-                selected = nowPlayingBlurStyle,
-                onSelect = { style ->
-                    AppSettings.setNowPlayingBlurStyle(style)
-                    pickingBlurStyle = false
                 },
             )
         }
@@ -3158,77 +3417,6 @@ private fun AutomixPerformanceSheet(
  * cost me", and the answer is charged once. Same widget, different question, so
  * the numbers beside the options are in different units on purpose.
  */
-@Composable
-private fun NowPlayingBlurStyleSheet(
-    selected: NowPlayingBlurStyle,
-    onSelect: (NowPlayingBlurStyle) -> Unit,
-) {
-    val haptics = LocalHapticFeedback.current
-    Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
-        Row(
-            modifier = Modifier.padding(start = 22.dp, end = 22.dp, bottom = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.BlurOn,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.size(22.dp),
-            )
-            Spacer(Modifier.width(14.dp))
-            Column {
-                Text(
-                    text = stringResource(R.string.now_playing_blur_style),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
-                Text(
-                    text = stringResource(R.string.now_playing_blur_style_subtitle),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline)
-
-        NowPlayingBlurStyle.entries.forEach { style ->
-            val chosen = style == selected
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable {
-                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        onSelect(style)
-                    }
-                    .padding(horizontal = 22.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        text = stringResource(style.titleRes),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onBackground,
-                    )
-                    Text(
-                        text = stringResource(style.subtitleRes),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                if (chosen) {
-                    Spacer(Modifier.width(12.dp))
-                    Icon(
-                        Icons.Rounded.Check,
-                        contentDescription = stringResource(R.string.selected),
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(22.dp),
-                    )
-                }
-            }
-        }
-    }
-}
-
 @Composable
 private fun DownloadQualitySheet(
     selected: DownloadQuality,
