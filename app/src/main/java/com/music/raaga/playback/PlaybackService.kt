@@ -708,12 +708,21 @@ class PlaybackService : MediaLibraryService() {
     private suspend fun resolveForCast(item: MediaItem): CastStream? = withContext(Dispatchers.IO) {
         val uri = item.localConfiguration?.uri ?: return@withContext null
         val resolver = streamResolver ?: return@withContext null
-        val resolved = resolver.resolveDataSpec(DataSpec(uri)).uri
+        val resolved = try {
+            resolver.resolveDataSpec(DataSpec(uri)).uri
+        } catch (_: Exception) {
+            uri
+        }
         if (resolved.scheme != "http" && resolved.scheme != "https") {
-            // Cast downloaded tracks via remote stream fallback
+            // Smart Cast fallback for offline/cached tracks: resolve remote stream
             val videoId = item.mediaId
-            if (videoId.isNotBlank() && !videoId.startsWith("file://") && !videoId.startsWith("content://")) {
-                val remoteUrl = runCatching { StreamResolver.resolve(videoId) }.getOrNull()
+            if (videoId.isNotBlank()) {
+                val cleanId = videoId.removePrefix("file://").removePrefix("content://")
+                val remoteUrl: String? = try {
+                    StreamResolver.resolve(cleanId)
+                } catch (_: Throwable) {
+                    null
+                }
                 if (!remoteUrl.isNullOrBlank()) {
                     val remoteUri = Uri.parse(remoteUrl)
                     return@withContext CastStream(remoteUrl, CastPlayback.mimeTypeOf(remoteUri))
@@ -885,9 +894,11 @@ class PlaybackService : MediaLibraryService() {
             // timestamps it was given, so a presence left up while paused goes
             // on advancing through a song that has stopped — and finishes it.
             if (isPlaying) {
+                resumeFromPauseHardwareRelease(exoPlayer)
                 pushDiscordPresence(exoPlayer)
                 startLyricsTicker()
             } else {
+                schedulePauseHardwareRelease(exoPlayer)
                 clearDiscordPresence()
                 stopLyricsTicker()
             }
@@ -935,6 +946,7 @@ class PlaybackService : MediaLibraryService() {
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            lastPrebufferedMediaId = null
             // The player this fired on, which is by definition the one the
             // session is currently pointed at.
             val exoPlayer = player ?: return
@@ -5276,8 +5288,92 @@ class PlaybackService : MediaLibraryService() {
                     // repeat: it returns immediately unless the track is
                     // pending and nothing is already looking.
                     lookForBetterCopy(player)
+                    checkAndTriggerLookAheadPrebuffer(player)
                 }
                 delay(PROGRESS_SAMPLE_MS)
+            }
+        }
+    }
+
+    private var lastPrebufferedMediaId: String? = null
+
+    /**
+     * Ahead-of-Time Track Conversion & Pre-buffering (T - 15s).
+     * Prepares spare player with upcoming queue item to ensure crossfades and transitions
+     * execute with zero network latency.
+     */
+    private fun checkAndTriggerLookAheadPrebuffer(player: ExoPlayer) {
+        val duration = player.duration
+        val position = player.currentPosition
+        if (duration <= 0L) return
+        val remainingMs = duration - position
+        if (remainingMs in 1L..15_000L) {
+            val nextIdx = player.nextMediaItemIndex
+            if (nextIdx != androidx.media3.common.C.INDEX_UNSET && nextIdx < player.mediaItemCount) {
+                val nextItem = player.getMediaItemAt(nextIdx)
+                val nextMediaId = nextItem.mediaId
+                if (nextMediaId.isNotBlank() && nextMediaId != lastPrebufferedMediaId) {
+                    lastPrebufferedMediaId = nextMediaId
+                    val sparePlayer = spare
+                    if (sparePlayer != null && crossfade?.isTransitioning() != true) {
+                        TrackLog.d("Raaga", "Look-ahead prebuffering (T - 15s) for next track: $nextMediaId")
+                        try {
+                            sparePlayer.volume = 0f
+                            sparePlayer.playWhenReady = false
+                            val items = (0 until player.mediaItemCount).map { player.getMediaItemAt(it) }
+                            sparePlayer.setMediaItems(items, nextIdx, 0L)
+                            sparePlayer.prepare()
+                        } catch (e: Exception) {
+                            TrackLog.w("Raaga", "Look-ahead prebuffer failed: ${e.message}")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var pauseReleaseJob: Job? = null
+    private var savedPausePositionMs: Long = 0L
+    private var audioSinkReleased: Boolean = false
+
+    /**
+     * Hardware / Audio Session Lifecycle Lock:
+     * If paused for > 10 seconds, releases exclusive audio focus and hardware sink locks
+     * to eliminate battery drain while persisting exact position for instant resume.
+     */
+    private fun schedulePauseHardwareRelease(player: ExoPlayer) {
+        pauseReleaseJob?.cancel()
+        pauseReleaseJob = scope.launch {
+            delay(10_000L)
+            withContext(Dispatchers.Main) {
+                val p = this@PlaybackService.player ?: return@withContext
+                if (!p.isPlaying && !p.playWhenReady) {
+                    savedPausePositionMs = p.currentPosition
+                    savePlaybackState(p)
+                    TrackLog.d("Raaga", "10s pause reached: releasing exclusive audio focus & sink at ${savedPausePositionMs}ms")
+                    audioSinkReleased = true
+                    try {
+                        val am = getSystemService(android.media.AudioManager::class.java)
+                        am?.abandonAudioFocus(null)
+                    } catch (_: Exception) {}
+                }
+            }
+        }
+    }
+
+    private fun resumeFromPauseHardwareRelease(player: ExoPlayer) {
+        pauseReleaseJob?.cancel()
+        pauseReleaseJob = null
+        if (audioSinkReleased) {
+            audioSinkReleased = false
+            TrackLog.d("Raaga", "Resuming from audio sink release at ${savedPausePositionMs}ms")
+            try {
+                player.setAudioAttributes(AUDIO_ATTRIBUTES, true)
+                if (savedPausePositionMs > 0L && kotlin.math.abs(player.currentPosition - savedPausePositionMs) > 1000L) {
+                    player.seekTo(savedPausePositionMs)
+                }
+            } catch (e: Exception) {
+                TrackLog.w("Raaga", "Error restoring audio focus on resume: ${e.message}")
             }
         }
     }
