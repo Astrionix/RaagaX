@@ -47,6 +47,7 @@ object QueueBuilder {
         for (candidate in ordered) {
             if (out.size >= limit) break
             if (taken.any { isSameRecording(it, candidate) }) continue
+            if (QueueHistoryStack.contains(candidate.videoId) && ordered.any { !QueueHistoryStack.contains(it.videoId) && !taken.any { t -> isSameRecording(t, it) } }) continue
 
             val artists = artistSet(candidate.artist)
             val key = artists.minOrNull()
