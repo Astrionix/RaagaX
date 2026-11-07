@@ -20,6 +20,7 @@ internal object DesktopAppearanceSettings {
     private val _disableBlendEffects = flag(KEY_DISABLE_BLEND_EFFECTS, false)
     private val _hideVolumeBar = flag(KEY_HIDE_VOLUME_BAR, false)
     private val _ambientBackdrop = flag(KEY_AMBIENT_BACKDROP, false)
+    private val _preferMusicOnlyAudio = flag(KEY_PREFER_MUSIC_ONLY_AUDIO, true)
     private val _playerTheme = MutableStateFlow(
         runCatching {
             val persistence = DesktopPersistence()
@@ -52,6 +53,11 @@ internal object DesktopAppearanceSettings {
     /** Diffuses current artwork colors under the window glass chrome like Apple Music. */
     val ambientBackdrop: StateFlow<Boolean> = _ambientBackdrop
 
+    /** Prefers catalogue pure audio tracks over video overhead. */
+    val preferMusicOnlyAudio: StateFlow<Boolean> = _preferMusicOnlyAudio
+
+    fun setPreferMusicOnlyAudio(value: Boolean) = write(KEY_PREFER_MUSIC_ONLY_AUDIO, value, _preferMusicOnlyAudio)
+
     fun setReduceAnimation(value: Boolean) = write(KEY_REDUCE_ANIMATION, value, _reduceAnimation)
 
     fun setReduceDynamicBlur(value: Boolean) = write(KEY_REDUCE_DYNAMIC_BLUR, value, _reduceDynamicBlur)
@@ -80,4 +86,5 @@ internal object DesktopAppearanceSettings {
     internal const val KEY_PLAYER_THEME = "player_theme"
     internal const val KEY_HIDE_VOLUME_BAR = "hide_volume_bar"
     internal const val KEY_AMBIENT_BACKDROP = "ambient_backdrop"
+    internal const val KEY_PREFER_MUSIC_ONLY_AUDIO = "prefer_music_only_audio"
 }
