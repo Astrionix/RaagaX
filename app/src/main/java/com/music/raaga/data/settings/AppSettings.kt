@@ -265,6 +265,18 @@ enum class PlayerTheme {
     SIMPLE,
 }
 
+/** Shader rendering profile for Liquid Glass surfaces. */
+enum class LiquidGlassMode {
+    /** Real-time backdrop blur, refraction, saturation boost. */
+    FULL,
+
+    /** Pre-computed / static frost tint with highlight edge (locked 60/120 FPS). */
+    PERFORMANCE,
+
+    /** Solid fill, backdrop blur bypassed entirely. */
+    OFF,
+}
+
 /** The surface that was last open inside the expanded player. */
 enum class LastPlayerScreen {
     MAIN,
@@ -557,6 +569,9 @@ object AppSettings {
      * metadata appears immediately while the catalogue match is resolved.
      */
     val preferMusicOnly = MutableStateFlow(false)
+    val preferMusicOnlyAudio: MutableStateFlow<Boolean> get() = preferMusicOnly
+    fun setPreferMusicOnlyAudio(value: Boolean) = setPreferMusicOnly(value)
+    val preferredQualityTier = MutableStateFlow(com.music.raaga.data.sources.StreamQualityTier.HIGH_OPUS)
 
     /** Analyzes audio waveform/envelope to align matching playback moment between versions. */
     val smartVersionAlignment = MutableStateFlow(true)
@@ -572,6 +587,32 @@ object AppSettings {
 
     /** Real backdrop-sampled glass (blur, lens refraction) on the floating nav bar, Android 12+ only. */
     val liquidGlass = MutableStateFlow(false)
+
+    /** Better Performance for Glass / Shader Profile (Full, Performance, Off). */
+    val liquidGlassMode = MutableStateFlow(LiquidGlassMode.FULL)
+
+    /** Streamlined compact navigation bar without text labels. */
+    val compactNavIconsOnly = MutableStateFlow(false)
+    val showNavTabLabels = MutableStateFlow(true)
+
+    /** Home feed section visibility preferences. */
+    val showHomeRecents = MutableStateFlow(true)
+    val showHomeVideos = MutableStateFlow(true)
+    val showHomeTopPicks = MutableStateFlow(true)
+    val showHomeMoods = MutableStateFlow(true)
+    val squareVideoThumbnails = MutableStateFlow(false)
+
+    /** Audio session & hardware management. */
+    val releaseHardwareOnPause = MutableStateFlow(true)
+    val peakLimiterEnabled = MutableStateFlow(true)
+
+    /** Sources and addon quality router preferences. */
+    val directSourceStream = MutableStateFlow(false)
+    val strictTrackMatching = MutableStateFlow(true)
+    val addonQualityPreferences = MutableStateFlow<Map<String, String>>(emptyMap())
+
+    /** Raaga Connect automatic device discovery and sync broadcast. */
+    val raagaConnectAutoDiscovery = MutableStateFlow(true)
 
     /** Blurs unfocused lyric lines, keeping the active line sharp. */
     val lyricsBlur = MutableStateFlow(true)
@@ -1019,6 +1060,7 @@ object AppSettings {
      * a marker that slides around the bar would be worse than no marker.
      */
     val smartTransitionWindow = MutableStateFlow<TransitionWindow?>(null)
+    val automixMetadata = MutableStateFlow<AutomixMetadata?>(null)
     val smartMixBlend = MutableStateFlow<MixBlend?>(null)
     val streamCeilingOverride = MutableStateFlow<AudioQuality?>(null)
 
@@ -1208,6 +1250,38 @@ object AppSettings {
         reduceDynamicBlur.value = prefs.getBoolean(KEY_REDUCE_BLUR, false)
         disableBlendEffects.value = prefs.getBoolean(KEY_DISABLE_BLEND_EFFECTS, false)
         liquidGlass.value = prefs.getBoolean(KEY_LIQUID_GLASS, false)
+        liquidGlassMode.value = runCatching {
+            val savedMode = prefs.getString(KEY_LIQUID_GLASS_MODE, null)
+            if (savedMode != null) LiquidGlassMode.valueOf(savedMode)
+            else if (liquidGlass.value) LiquidGlassMode.FULL else LiquidGlassMode.OFF
+        }.getOrDefault(LiquidGlassMode.FULL)
+        compactNavIconsOnly.value = prefs.getBoolean(KEY_COMPACT_NAV_ICONS_ONLY, false)
+        showNavTabLabels.value = !compactNavIconsOnly.value
+
+        showHomeRecents.value = prefs.getBoolean(KEY_SHOW_HOME_RECENTS, true)
+        showHomeVideos.value = prefs.getBoolean(KEY_SHOW_HOME_VIDEOS, true)
+        showHomeTopPicks.value = prefs.getBoolean(KEY_SHOW_HOME_TOP_PICKS, true)
+        showHomeMoods.value = prefs.getBoolean(KEY_SHOW_HOME_MOODS, true)
+        squareVideoThumbnails.value = prefs.getBoolean(KEY_SQUARE_VIDEO_THUMBNAILS, false)
+
+        releaseHardwareOnPause.value = prefs.getBoolean(KEY_RELEASE_HARDWARE_ON_PAUSE, true)
+        peakLimiterEnabled.value = prefs.getBoolean(KEY_PEAK_LIMITER_ENABLED, true)
+
+        directSourceStream.value = prefs.getBoolean(KEY_DIRECT_SOURCE_STREAM, false)
+        strictTrackMatching.value = prefs.getBoolean(KEY_STRICT_TRACK_MATCHING, true)
+
+        val rawAddonQuality = prefs.getString(KEY_ADDON_QUALITY_PREFERENCES, null)
+        if (!rawAddonQuality.isNullOrBlank()) {
+            addonQualityPreferences.value = rawAddonQuality.split(";")
+                .mapNotNull { entry ->
+                    val parts = entry.split(":")
+                    if (parts.size == 2) parts[0] to parts[1] else null
+                }.toMap()
+        } else {
+            addonQualityPreferences.value = emptyMap()
+        }
+
+        raagaConnectAutoDiscovery.value = prefs.getBoolean(KEY_RAAGA_CONNECT_AUTO_DISCOVERY, true)
         lyricsBlur.value = prefs.getBoolean(KEY_LYRICS_BLUR, true)
         lyricsOffsetMs.value = prefs.getInt(KEY_LYRICS_OFFSET_MS, 0)
             .coerceIn(MIN_LYRICS_OFFSET_MS, MAX_LYRICS_OFFSET_MS)
@@ -1719,6 +1793,111 @@ object AppSettings {
     fun setLiquidGlass(value: Boolean) {
         liquidGlass.value = value
         prefs.edit().putBoolean(KEY_LIQUID_GLASS, value).apply()
+    }
+
+    fun setLiquidGlassMode(mode: LiquidGlassMode) {
+        liquidGlassMode.value = mode
+        prefs.edit().putString(KEY_LIQUID_GLASS_MODE, mode.name).apply()
+        setLiquidGlass(mode != LiquidGlassMode.OFF)
+        setReduceDynamicBlur(mode == LiquidGlassMode.PERFORMANCE || mode == LiquidGlassMode.OFF)
+    }
+
+    fun setCompactNavIconsOnly(value: Boolean) {
+        compactNavIconsOnly.value = value
+        showNavTabLabels.value = !value
+        prefs.edit().putBoolean(KEY_COMPACT_NAV_ICONS_ONLY, value).apply()
+    }
+
+    fun setShowNavTabLabels(value: Boolean) = setCompactNavIconsOnly(!value)
+
+    fun setShowHomeRecents(value: Boolean) {
+        showHomeRecents.value = value
+        prefs.edit().putBoolean(KEY_SHOW_HOME_RECENTS, value).apply()
+    }
+
+    fun setShowHomeVideos(value: Boolean) {
+        showHomeVideos.value = value
+        prefs.edit().putBoolean(KEY_SHOW_HOME_VIDEOS, value).apply()
+    }
+
+    fun setShowHomeTopPicks(value: Boolean) {
+        showHomeTopPicks.value = value
+        prefs.edit().putBoolean(KEY_SHOW_HOME_TOP_PICKS, value).apply()
+    }
+
+    fun setShowHomeMoods(value: Boolean) {
+        showHomeMoods.value = value
+        prefs.edit().putBoolean(KEY_SHOW_HOME_MOODS, value).apply()
+    }
+
+    fun setSquareVideoThumbnails(value: Boolean) {
+        squareVideoThumbnails.value = value
+        prefs.edit().putBoolean(KEY_SQUARE_VIDEO_THUMBNAILS, value).apply()
+    }
+
+    fun setReleaseHardwareOnPause(value: Boolean) {
+        releaseHardwareOnPause.value = value
+        prefs.edit().putBoolean(KEY_RELEASE_HARDWARE_ON_PAUSE, value).apply()
+    }
+
+    fun setPeakLimiterEnabled(value: Boolean) {
+        peakLimiterEnabled.value = value
+        prefs.edit().putBoolean(KEY_PEAK_LIMITER_ENABLED, value).apply()
+    }
+
+    fun setDirectSourceStream(value: Boolean) {
+        directSourceStream.value = value
+        prefs.edit().putBoolean(KEY_DIRECT_SOURCE_STREAM, value).apply()
+    }
+
+    fun setStrictTrackMatching(value: Boolean) {
+        strictTrackMatching.value = value
+        prefs.edit().putBoolean(KEY_STRICT_TRACK_MATCHING, value).apply()
+    }
+
+    fun setAddonQualityPreference(addonId: String, qualityTier: String) {
+        val updated = addonQualityPreferences.value.toMutableMap()
+        updated[addonId] = qualityTier
+        addonQualityPreferences.value = updated
+        val serialized = updated.entries.joinToString(";") { "${it.key}:${it.value}" }
+        prefs.edit().putString(KEY_ADDON_QUALITY_PREFERENCES, serialized).apply()
+    }
+
+    fun setRaagaConnectAutoDiscovery(value: Boolean) {
+        raagaConnectAutoDiscovery.value = value
+        prefs.edit().putBoolean(KEY_RAAGA_CONNECT_AUTO_DISCOVERY, value).apply()
+    }
+
+    /**
+     * Resets all user appearance, content, audio, and source preferences to defaults
+     * without clearing authentication credentials, saved playlists, or download databases.
+     */
+    fun resetToDefaults() {
+        if (!this::prefs.isInitialized) return
+        val protectedKeys = setOf(
+            KEY_ONBOARDING_COMPLETE,
+            "app_language",
+            KEY_LAST_VERSION_CODE,
+            "youtube_account",
+            "youtube_auth_token",
+            "webdav_url",
+            "webdav_username",
+            "webdav_password",
+            "smb_server",
+            "smb_username",
+            "smb_password",
+            "discord_username",
+            "discord_name",
+            "discord_avatar",
+        )
+        val editor = prefs.edit()
+        for (key in prefs.all.keys) {
+            if (key !in protectedKeys) {
+                editor.remove(key)
+            }
+        }
+        editor.apply()
+        readAll()
     }
 
     fun setHighPerformanceMode(value: Boolean) {
@@ -2747,6 +2926,19 @@ object AppSettings {
     private const val KEY_REDUCE_BLUR = "reduce_dynamic_blur"
     private const val KEY_DISABLE_BLEND_EFFECTS = "disable_blend_effects"
     private const val KEY_LIQUID_GLASS = "liquid_glass"
+    private const val KEY_LIQUID_GLASS_MODE = "liquid_glass_mode"
+    private const val KEY_COMPACT_NAV_ICONS_ONLY = "compact_nav_icons_only"
+    private const val KEY_SHOW_HOME_RECENTS = "show_home_recents"
+    private const val KEY_SHOW_HOME_VIDEOS = "show_home_videos"
+    private const val KEY_SHOW_HOME_TOP_PICKS = "show_home_top_picks"
+    private const val KEY_SHOW_HOME_MOODS = "show_home_moods"
+    private const val KEY_SQUARE_VIDEO_THUMBNAILS = "square_video_thumbnails"
+    private const val KEY_RELEASE_HARDWARE_ON_PAUSE = "release_hardware_on_pause"
+    private const val KEY_PEAK_LIMITER_ENABLED = "peak_limiter_enabled"
+    private const val KEY_DIRECT_SOURCE_STREAM = "direct_source_stream"
+    private const val KEY_STRICT_TRACK_MATCHING = "strict_track_matching"
+    private const val KEY_ADDON_QUALITY_PREFERENCES = "addon_quality_preferences"
+    private const val KEY_RAAGA_CONNECT_AUTO_DISCOVERY = "raaga_connect_auto_discovery"
     private const val KEY_LYRICS_BLUR = "lyrics_blur"
     private const val KEY_LYRICS_OFFSET_MS = "lyrics_offset_ms"
     private const val KEY_TRANSLATION_LANGUAGE = "translation_language"
@@ -2938,6 +3130,23 @@ data class SmartAnalysis(
  * transition is planned to occupy.
  */
 data class TransitionWindow(val start: Float, val end: Float)
+
+/**
+ * Preview object exposing upcoming Automix transition window and fade timings.
+ */
+data class AutomixMetadata(
+    val outroFadeOutStartMs: Long,
+    val outroFadeOutEndMs: Long,
+    val introFadeInStartMs: Long,
+    val introFadeInEndMs: Long,
+    val transitionDurationMs: Long,
+    val style: String = "CROSSFADE",
+    val tempoA: Float? = null,
+    val tempoB: Float? = null,
+    val nextTrackTitle: String? = null,
+    val nextTrackArtist: String? = null,
+    val nextTrackThumbnail: String? = null,
+)
 
 /**
  * An Automix blend in flight, as the scrubber draws it: the beat it is running
