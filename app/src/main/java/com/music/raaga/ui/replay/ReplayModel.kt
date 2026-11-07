@@ -55,6 +55,7 @@ class ReplayState(
 val ReplayPeriodSaver = Saver<ReplayPeriod, String>(
     save = { period ->
         when (period) {
+            ReplayPeriod.THIS_WEEK -> "THIS_WEEK"
             ReplayPeriod.THIS_MONTH -> "THIS_MONTH"
             ReplayPeriod.THIS_YEAR -> "THIS_YEAR"
             ReplayPeriod.ALL_TIME -> "ALL_TIME"
@@ -64,6 +65,7 @@ val ReplayPeriodSaver = Saver<ReplayPeriod, String>(
     },
     restore = { str ->
         when {
+            str == "THIS_WEEK" -> ReplayPeriod.THIS_WEEK
             str == "THIS_MONTH" -> ReplayPeriod.THIS_MONTH
             str == "THIS_YEAR" -> ReplayPeriod.THIS_YEAR
             str == "ALL_TIME" -> ReplayPeriod.ALL_TIME
@@ -212,6 +214,7 @@ fun ReplaySummary.storyHeadline(context: Context, page: ReplayStoryPage): List<H
 }
 
 fun ReplayPeriod.localizedChip(context: Context): String = when (this) {
+    ReplayPeriod.THIS_WEEK -> "Week"
     ReplayPeriod.THIS_MONTH -> context.getString(R.string.this_month)
     is ReplayPeriod.MONTH -> this.yearMonth.month.getDisplayName(java.time.format.TextStyle.SHORT, Locale.getDefault())
     ReplayPeriod.THIS_YEAR -> context.getString(R.string.this_year)
@@ -220,6 +223,7 @@ fun ReplayPeriod.localizedChip(context: Context): String = when (this) {
 }
 
 fun ReplaySummary.localizedLabel(context: Context): String = when (period) {
+    ReplayPeriod.THIS_WEEK -> "This week"
     ReplayPeriod.THIS_MONTH -> DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault())
         .format(LocalDate.now())
         .replaceFirstChar { it.titlecase(Locale.getDefault()) }
