@@ -28,3 +28,34 @@ internal fun <T> queueStartingAt(items: List<T>, startIndex: Int): List<T> {
     if (items.isEmpty()) return emptyList()
     return items.drop(startIndex.coerceIn(items.indices))
 }
+
+/** Stack maintaining recently played track IDs for deduplication and navigation. */
+object QueueHistoryStack {
+    private val history = java.util.ArrayDeque<String>()
+
+    @Synchronized
+    fun push(songId: String) {
+        if (songId.isNotBlank()) {
+            history.remove(songId)
+            history.addLast(songId)
+            while (history.size > MAX_QUEUE_HISTORY) {
+                history.removeFirst()
+            }
+        }
+    }
+
+    @Synchronized
+    fun pop(): String? = if (history.isNotEmpty()) history.removeLast() else null
+
+    @Synchronized
+    fun peek(): String? = history.peekLast()
+
+    @Synchronized
+    fun snapshot(): List<String> = history.toList().reversed()
+
+    @Synchronized
+    fun contains(songId: String): Boolean = history.contains(songId)
+
+    @Synchronized
+    fun clear() = history.clear()
+}
