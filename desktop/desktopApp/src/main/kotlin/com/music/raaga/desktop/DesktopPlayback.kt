@@ -3,6 +3,10 @@ package com.music.raaga.desktop
 import com.music.raaga.data.model.Song
 import com.music.raaga.data.NerdStats
 import com.music.raaga.data.innertube.StreamResolver
+import com.music.raaga.data.sources.StreamFormat
+import com.music.raaga.data.sources.StreamValidationInterceptor
+import com.music.raaga.data.sources.TrackMatcher
+import com.music.raaga.data.sources.ValidationResult
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
@@ -181,6 +185,21 @@ internal object DesktopStreamClient {
             }
         }
         DesktopTrackLog.log("  youtube: resolved '${song.title}' through InnerTubeX")
+        val target = TrackMatcher.targetOf(song)
+        val format = StreamFormat(
+            codec = mimeOf(url),
+            kbps = NerdStats.pickedBitrateKbps(song.videoId),
+        )
+        val validation = StreamValidationInterceptor.validateStreamUrl(
+            url = url,
+            format = format,
+            target = target,
+            resolvedDurationSec = target.durationSec,
+        )
+        if (validation is ValidationResult.Rejected) {
+            DesktopTrackLog.log("  stream validation failed: ${validation.reason}")
+            throw IllegalStateException("Stream validation rejected: ${validation.reason}")
+        }
         DesktopStream(
             url = url,
             format = DesktopStreamFormat(
