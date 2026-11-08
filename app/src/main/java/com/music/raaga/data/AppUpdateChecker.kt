@@ -11,6 +11,7 @@ import android.widget.Toast
 import com.music.raaga.R
 import com.music.raaga.BuildConfig
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
@@ -39,6 +40,13 @@ object AppUpdateChecker {
         val apkUrl: String?,
         /** The release's own Markdown body, shown as this update's "what's new". */
         val notes: String?,
+        /**
+         * The GitHub API asset endpoint (https://api.github.com/repos/.../releases/assets/<id>).
+         * When requested with `Accept: application/octet-stream`, GitHub returns an immediate 302
+         * to the direct Azure/S3 storage CDN, completely bypassing regional edge proxy timeouts (HTTP 504)
+         * that frequently occur on `github.com/.../releases/download/`.
+         */
+        val apiUrl: String? = null,
     )
 
     sealed interface CheckResult {
@@ -80,7 +88,7 @@ object AppUpdateChecker {
                 .header("Accept", "application/vnd.github.v3+json")
                 .build()
             val body = Http.client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) null else response.body?.string()
+                if (!response.isSuccessful) null else response.body.string()
             } ?: return@runCatching CheckResult.Error("Network error: failed to fetch release")
 
             val jsonElement = json.parseToJsonElement(body)
@@ -94,9 +102,9 @@ object AppUpdateChecker {
                 val notes = release["body"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
                     ?: "🪔 Happy Diwali from Raaga! Enjoy high-fidelity audio, seamless 120Hz playback, and festive music. ✨"
                 val latest = tag.removePrefix("v")
-                val apkUrl = apkAssetUrl(release) ?: return@firstNotNullOfOrNull null
+                val selected = selectApkAsset(release) ?: return@firstNotNullOfOrNull null
                 if (!isNewer(latest, BuildConfig.VERSION_NAME) && !force) return@firstNotNullOfOrNull null
-                UpdateInfo(latest, url, apkUrl, notes)
+                UpdateInfo(latest, url, selected.browserUrl, notes, selected.apiUrl)
             }
 
             if (candidate != null) {
@@ -121,11 +129,16 @@ object AppUpdateChecker {
         File(context.cacheDir, CACHE_SUBDIR).listFiles()?.forEach { it.delete() }
     }
 
+    private data class SelectedAsset(
+        val browserUrl: String,
+        val apiUrl: String?,
+    )
+
     /**
      * Pick the best `.apk` asset matching the current build's flavor (dev vs prod)
      * and the device's CPU architecture (e.g. arm64-v8a or universal).
      */
-    private fun apkAssetUrl(release: JsonObject): String? = runCatching {
+    private fun selectApkAsset(release: JsonObject): SelectedAsset? = runCatching {
         val assets = release["assets"]?.jsonArray
             ?.mapNotNull { it as? JsonObject }
             ?.filter { asset ->
@@ -163,10 +176,17 @@ object AppUpdateChecker {
             return s
         }
 
-        assets.maxByOrNull { asset ->
+        val best = assets.maxByOrNull { asset ->
             score(asset["name"]?.jsonPrimitive?.contentOrNull.orEmpty())
-        }?.get("browser_download_url")?.jsonPrimitive?.contentOrNull
+        } ?: return null
+
+        val browserUrl = best["browser_download_url"]?.jsonPrimitive?.contentOrNull ?: return null
+        val apiUrl = best["url"]?.jsonPrimitive?.contentOrNull
+        SelectedAsset(browserUrl, apiUrl)
     }.getOrNull()
+
+    /** Retained for compatibility. */
+    fun apkAssetUrl(release: JsonObject): String? = selectApkAsset(release)?.browserUrl
 
     /**
      * Streams the current update's APK into the app cache, reporting progress
@@ -176,7 +196,6 @@ object AppUpdateChecker {
      */
     suspend fun downloadApk(context: Context, updateInfo: UpdateInfo? = null): File? = withContext(Dispatchers.IO) {
         val info = updateInfo ?: _available.value ?: return@withContext null
-        val url = info.apkUrl ?: return@withContext null
         downloadCancelled = false
         _download.value = DownloadState.Downloading(0f)
 
@@ -186,33 +205,110 @@ object AppUpdateChecker {
             dir.listFiles()?.forEach { it.delete() }
             val target = File(dir, "raaga-${info.version}.apk")
 
-            val request = Request.Builder().url(url).build()
-            Http.client.newCall(request).execute().use { response ->
-                check(response.isSuccessful) { "Download failed: HTTP ${response.code}" }
-                val body = response.body ?: error("Empty download body")
-                val total = body.contentLength().takeIf { it > 0 }
+            // Candidate download URLs in priority order:
+            // 1. GitHub API asset endpoint (info.apiUrl) with Accept: application/octet-stream
+            //    Directly receives 302 Found to release-assets.githubusercontent.com (Azure Blob / CDN),
+            //    completely bypassing edge proxy timeouts (HTTP 504) on github.com.
+            // 2. Direct browser download URL (info.apkUrl).
+            val candidates = buildList {
+                if (!info.apiUrl.isNullOrBlank()) {
+                    add(info.apiUrl to true)
+                }
+                if (!info.apkUrl.isNullOrBlank() && info.apkUrl != info.apiUrl) {
+                    add(info.apkUrl to false)
+                }
+            }
 
-                body.byteStream().use { input ->
-                    target.outputStream().use { output ->
-                        val buffer = ByteArray(64 * 1024)
-                        var readTotal = 0L
-                        while (true) {
-                            if (downloadCancelled) {
-                                _download.value = DownloadState.Idle
-                                return@withContext null
+            check(candidates.isNotEmpty()) { "No download URL available for update" }
+
+            val downloadClient = Http.client.newBuilder()
+                .followRedirects(true)
+                .followSslRedirects(true)
+                .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
+
+            var lastError: Throwable? = null
+            var downloadSuccess = false
+
+            for ((url, isApiAsset) in candidates) {
+                if (downloadCancelled) break
+
+                var attempt = 0
+                val maxAttempts = if (isApiAsset) 2 else 3
+                while (attempt < maxAttempts && !downloadCancelled) {
+                    attempt++
+                    try {
+                        val requestBuilder = Request.Builder()
+                            .url(url)
+                            .header("User-Agent", "RaagaX-Android")
+
+                        if (isApiAsset) {
+                            requestBuilder.header("Accept", "application/octet-stream")
+                        }
+
+                        downloadClient.newCall(requestBuilder.build()).execute().use { response ->
+                            if (!response.isSuccessful) {
+                                val code = response.code
+                                // Fast-fail to next candidate if API rate limit is reached
+                                if (isApiAsset && (code == 403 || code == 429)) {
+                                    throw IllegalStateException("API rate limit reached (HTTP $code)")
+                                }
+                                throw IllegalStateException("HTTP $code")
                             }
-                            val read = input.read(buffer)
-                            if (read == -1) break
-                            output.write(buffer, 0, read)
-                            readTotal += read
-                            total?.let {
-                                _download.value =
-                                    DownloadState.Downloading((readTotal.toFloat() / it).coerceIn(0f, 1f))
+
+                            val body = response.body
+                            val total = body.contentLength().takeIf { it > 0 }
+
+                            body.byteStream().use { input ->
+                                target.outputStream().use { output ->
+                                    val buffer = ByteArray(64 * 1024)
+                                    var readTotal = 0L
+                                    while (true) {
+                                        if (downloadCancelled) {
+                                            _download.value = DownloadState.Idle
+                                            target.delete()
+                                            return@withContext null
+                                        }
+                                        val read = input.read(buffer)
+                                        if (read == -1) break
+                                        output.write(buffer, 0, read)
+                                        readTotal += read
+                                        total?.let {
+                                            _download.value =
+                                                DownloadState.Downloading((readTotal.toFloat() / it).coerceIn(0f, 1f))
+                                        }
+                                    }
+                                }
                             }
+                        }
+
+                        if (target.exists() && target.length() > 0L) {
+                            downloadSuccess = true
+                            break
+                        }
+                    } catch (e: Exception) {
+                        lastError = e
+                        if (downloadCancelled) break
+                        android.util.Log.w("AppUpdateChecker", "Download attempt $attempt failed for $url: ${e.message}")
+                        if (isApiAsset && (e.message?.contains("403") == true || e.message?.contains("429") == true)) {
+                            break
+                        }
+                        if (attempt < maxAttempts) {
+                            delay(1000L * attempt)
                         }
                     }
                 }
+
+                if (downloadSuccess) break
             }
+
+            if (!downloadSuccess) {
+                target.delete()
+                val errorMsg = lastError?.message ?: "Failed to download update APK"
+                throw IllegalStateException("Download failed: $errorMsg")
+            }
+
             _download.value = DownloadState.Ready(target)
             target
         }.onFailure { error ->
