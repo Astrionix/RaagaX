@@ -57,15 +57,16 @@ function downloadsFor(published: PublishedExtension | null): Download[] {
       href: published ? downloadUrl(published.files.firefox) : config.extensionFirefoxUrl,
       Icon: FaFirefoxBrowser,
       steps: [
-        'Extract the zip file.',
-        'Open about:debugging#/runtime/this-firefox and choose Load Temporary Add-on.',
-        'Select manifest.json inside that folder.',
-        'Firefox removes temporary add-ons when it quits; a signed version is coming.',
+        'Download and extract the zip file to a folder on your computer.',
+        'In Firefox, open a new tab and navigate to about:debugging#/runtime/this-firefox (click "This Firefox" on the left menu).',
+        'Under Temporary Extensions, click "Load Temporary Add-on..." and select manifest.json inside the extracted folder (or choose the zip file directly).',
+        'Return to this page: the status above will automatically turn to "Installed" (Connection: Page relay).',
+        'Note: Firefox unloads temporary extensions on browser restart; reload via about:debugging when reopening Firefox.',
       ],
       updateSteps: [
-        'Extract the new zip file.',
-        'In about:debugging, choose Load Temporary Add-on and select manifest.json in the new folder.',
-        'Come back to this page: the version above updates on its own.',
+        'Download and extract the new zip file.',
+        'In about:debugging#/runtime/this-firefox, click "Load Temporary Add-on..." and select manifest.json in the new folder (or the zip file directly).',
+        'Return to this page: the version above updates automatically on its own.',
       ],
     },
   ];

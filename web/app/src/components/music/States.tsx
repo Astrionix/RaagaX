@@ -190,7 +190,7 @@ export function NeedsExtension({ what = 'YouTube Music' }: { what?: string }) {
               <StepItem
                 number={1}
                 title="Download & Extract Extension"
-                description="Download the Firefox extension zip package and extract its contents."
+                description="Download the Firefox extension package and extract its contents to a folder."
                 action={
                   <a
                     href={activeHref}
@@ -208,11 +208,12 @@ export function NeedsExtension({ what = 'YouTube Music' }: { what?: string }) {
                 title="Open Firefox Debugging"
                 description={
                   <div className="flex flex-col gap-2">
-                    <span>Open a new tab and paste this URL into your address bar:</span>
+                    <span>Open a new tab in Firefox and go to:</span>
                     <div className="flex items-center justify-between rounded-lg border border-white/5 bg-black/50 px-3 py-1.5">
                       <code className="font-mono text-xs text-key">about:debugging#/runtime/this-firefox</code>
                       <CopyButton text="about:debugging#/runtime/this-firefox" />
                     </div>
+                    <span className="text-[11px] text-tertiary">(or navigate to about:debugging and select "This Firefox" on the left menu)</span>
                   </div>
                 }
               />
@@ -220,13 +221,13 @@ export function NeedsExtension({ what = 'YouTube Music' }: { what?: string }) {
               <StepItem
                 number={3}
                 title="Click Load Temporary Add-on"
-                description="Click Load Temporary Add-on… and select manifest.json inside the extracted extension folder."
+                description="Under Temporary Extensions, click Load Temporary Add-on… and select manifest.json inside the extracted extension folder (or choose the zip file directly)."
               />
 
               <StepItem
                 number={4}
                 title="Ready to Listen!"
-                description="Return to this page to start searching, browsing and streaming your favorite songs without interruptions."
+                description="Return to this tab — Raaga will automatically detect the extension via page relay and unlock YouTube Music, Spotify, and Discord instantly!"
               />
             </>
           )}
