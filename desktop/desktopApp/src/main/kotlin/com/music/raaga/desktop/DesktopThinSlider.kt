@@ -15,6 +15,9 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -22,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,6 +34,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.unit.Dp
@@ -49,33 +55,53 @@ internal fun DesktopThinSlider(
      * to occupy.
      */
     transitionWindow: ClosedFloatingPointRange<Float>? = null,
-    idleHeight: Dp = 7.dp,
-    activeHeight: Dp = 12.dp,
+    idleHeight: Dp = 4.dp,
+    activeHeight: Dp = 6.dp,
     activeColor: Color = Color.White.copy(alpha = 0.92f),
     inactiveColor: Color = Color.White.copy(alpha = 0.26f),
     /** Halfway between the two track colours: visible against unplayed, invisible under played. */
     markerColor: Color = Color.White.copy(alpha = 0.5f),
+    drawThumb: Boolean = true,
+    thumbRadius: Dp = 6.dp,
+    thumbColor: Color = Color.White,
 ) {
     var dragging by remember { mutableStateOf(false) }
+    var dragFraction by remember { mutableStateOf<Float?>(null) }
+    val interactionSource = remember { MutableInteractionSource() }
+    val isHovered by interactionSource.collectIsHoveredAsState()
+    val isElevated = dragging || isHovered
+
+    val currentOnValueChange by rememberUpdatedState(onValueChange)
+    val currentOnValueChangeFinished by rememberUpdatedState(onValueChangeFinished)
+
     val height by animateDpAsState(
-        targetValue = if (dragging) activeHeight else idleHeight,
+        targetValue = if (isElevated) activeHeight else idleHeight,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioNoBouncy,
             stiffness = Spring.StiffnessMediumLow,
         ),
         label = "sliderHeight",
     )
+    val canvasSlotHeight = remember(activeHeight, drawThumb, thumbRadius) {
+        if (drawThumb) maxOf(activeHeight, thumbRadius * 2 + 4.dp) else activeHeight
+    }
 
     Box(
         modifier = modifier
-            // Generous invisible hit target — the visible bar is only ~7dp.
-            .height(activeHeight + 22.dp)
+            // Generous invisible hit target with hover and hand cursor for desktop
+            .height(maxOf(activeHeight + 20.dp, 28.dp))
+            .hoverable(interactionSource)
+            .pointerHoverIcon(PointerIcon.Hand)
             // One gesture loop for both clicks and drags.
             .pointerInput(Unit) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
+                    down.consume()
+                    val width = size.width.toFloat().coerceAtLeast(1f)
+                    var currentFraction = (down.position.x / width).coerceIn(0f, 1f)
                     dragging = true
-                    onValueChange((down.position.x / size.width).coerceIn(0f, 1f))
+                    dragFraction = currentFraction
+                    currentOnValueChange(currentFraction)
 
                     while (true) {
                         val event = awaitPointerEvent()
@@ -85,13 +111,16 @@ internal fun DesktopThinSlider(
                             break
                         }
                         if (pointer.positionChanged()) {
-                            onValueChange((pointer.position.x / size.width).coerceIn(0f, 1f))
+                            currentFraction = (pointer.position.x / width).coerceIn(0f, 1f)
+                            dragFraction = currentFraction
+                            currentOnValueChange(currentFraction)
                             pointer.consume()
                         }
                     }
 
                     dragging = false
-                    onValueChangeFinished?.invoke()
+                    dragFraction = null
+                    currentOnValueChangeFinished?.invoke()
                 }
             },
         contentAlignment = Alignment.Center,
@@ -99,7 +128,7 @@ internal fun DesktopThinSlider(
         Canvas(
             Modifier
                 .fillMaxWidth()
-                .height(activeHeight),
+                .height(canvasSlotHeight),
         ) {
             val barHeight = height.toPx()
             val barTop = (size.height - barHeight) / 2f
@@ -125,13 +154,37 @@ internal fun DesktopThinSlider(
                     )
                 }
             }
-            val filled = size.width * value.coerceIn(0f, 1f)
+            val effectiveFraction = if (dragging && dragFraction != null) dragFraction!! else value
+            val filled = size.width * effectiveFraction.coerceIn(0f, 1f)
             if (filled > 0f && !mixing) {
                 drawRoundRect(
                     color = activeColor,
                     topLeft = Offset(0f, barTop),
                     size = Size(filled.coerceAtLeast(barHeight), barHeight),
                     cornerRadius = radius,
+                )
+            }
+
+            // Circular thumb indicator when hovering or dragging
+            if (drawThumb && isElevated && size.width > 0f) {
+                val rPx = thumbRadius.toPx()
+                val cx = if (size.width >= rPx * 2f) {
+                    filled.coerceIn(rPx, size.width - rPx)
+                } else {
+                    filled
+                }
+                val cy = size.height / 2f
+                // Drop shadow
+                drawCircle(
+                    color = Color.Black.copy(alpha = 0.35f),
+                    radius = rPx + 1.5f,
+                    center = Offset(cx, cy + 1f),
+                )
+                // Solid thumb circle
+                drawCircle(
+                    color = thumbColor,
+                    radius = rPx,
+                    center = Offset(cx, cy),
                 )
             }
         }

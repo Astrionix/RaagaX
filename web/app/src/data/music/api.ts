@@ -78,9 +78,30 @@ export async function fetchCategories(): Promise<CategoryGroup[]> {
   return mapCategories(response.data);
 }
 
-export async function fetchSearch(query: string): Promise<SearchResults> {
+export type SearchFilterType = 'all' | 'playlist' | 'song' | 'album' | 'artist' | 'video';
+
+export async function fetchSearch(query: string, filter?: SearchFilterType): Promise<SearchResults> {
   const yt = await getMusicClient();
-  return mapSearch(await yt.music.search(query));
+  if (filter && filter !== 'all') {
+    return mapSearch(await yt.music.search(query, { type: filter }));
+  }
+  // Unfiltered search: YouTube Music rarely returns playlists in default search.
+  // Querying playlists in parallel ensures playlists are always available in general search.
+  const searchPromise = yt.music.search(query);
+  const playlistPromise = yt.music.search(query, { type: 'playlist' }).catch(() => null);
+  const [searchRes, playlistRes] = await Promise.all([searchPromise, playlistPromise]);
+  const results = mapSearch(searchRes);
+  if (playlistRes && results.playlists.length === 0) {
+    const playlistResults = mapSearch(playlistRes);
+    results.playlists = playlistResults.playlists;
+    if (results.top.length < 6 && results.playlists.length > 0) {
+      const topPl = results.playlists[0];
+      if (topPl && !results.top.some((t) => t.id === topPl.id)) {
+        results.top.push(topPl);
+      }
+    }
+  }
+  return results;
 }
 
 /** YouTube Music's Songs shelf for [query]: what an import or a match is chosen from. */

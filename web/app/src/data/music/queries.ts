@@ -30,6 +30,7 @@ import {
   setTrackLiked,
   type LikeStatus,
   type Paged,
+  type SearchFilterType,
 } from './api';
 import { isLibrarySection, LIKED_MUSIC_PLAYLIST, type LibrarySection } from './library';
 import type { AlbumPage, BrowseLink, BrowsePage, HeaderInfo, PlaylistPage, Shelf, Track } from './types';
@@ -48,8 +49,8 @@ export const exploreQuery = () =>
   queryOptions({ queryKey: ['music', 'explore'], queryFn: fetchExplore, staleTime: STALE });
 export const categoriesQuery = () =>
   queryOptions({ queryKey: ['music', 'categories'], queryFn: fetchCategories, staleTime: 60 * 60_000 });
-export const searchQuery = (query: string) =>
-  queryOptions({ queryKey: ['music', 'search', query], queryFn: () => fetchSearch(query), staleTime: STALE });
+export const searchQuery = (query: string, filter: SearchFilterType = 'all') =>
+  queryOptions({ queryKey: ['music', 'search', query, filter], queryFn: () => fetchSearch(query, filter), staleTime: STALE });
 export const browseQuery = (link: BrowseLink) =>
   queryOptions({ queryKey: ['music', 'browse', link.browseId, link.params], queryFn: () => fetchBrowse(link), staleTime: STALE });
 
@@ -110,9 +111,9 @@ export function useCategories() {
   const { ready } = useYouTubeReady();
   return useQuery({ ...categoriesQuery(), enabled: ready });
 }
-export function useSearch(query: string) {
+export function useSearch(query: string, filter: SearchFilterType = 'all') {
   const { ready } = useYouTubeReady();
-  return useQuery({ ...searchQuery(query), enabled: ready && query.trim().length > 0 });
+  return useQuery({ ...searchQuery(query, filter), enabled: ready && query.trim().length > 0 });
 }
 export function useBrowse(link: BrowseLink) {
   const { ready } = useYouTubeReady();

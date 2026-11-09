@@ -119,7 +119,7 @@ export function PlayerBar() {
           >
             <UpNextIcon size={18} />
           </button>
-          <VolumeControl open={volumeOpen} onOpen={() => setVolumeOpen(true)} className={action} />
+          <VolumeControl open={volumeOpen} onOpen={() => setVolumeOpen(true)} onToggle={() => setVolumeOpen((v) => !v)} className={action} />
         </div>
 
         {/* Compact quick transport on mobile (< sm) */}

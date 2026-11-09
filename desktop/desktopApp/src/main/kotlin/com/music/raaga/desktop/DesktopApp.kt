@@ -3205,9 +3205,9 @@ fun RaagaDesktopApp() {
         }
         if (DesktopListenTogether.state.value.controlsLocked) return
         val duration = playback.durationMs
-        playbackEngine.seekTo(
-            if (duration > 0) target.coerceIn(0L, duration) else target.coerceAtLeast(0L),
-        )
+        val clamped = if (duration > 0) target.coerceIn(0L, duration) else target.coerceAtLeast(0L)
+        playerPosition.report(clamped, System.nanoTime())
+        playbackEngine.seekTo(clamped)
         partySyncHolder[0]?.onLocalIntent()
     }
 
@@ -3359,23 +3359,16 @@ fun RaagaDesktopApp() {
                 },
                 bottomBar = { compact ->
                     val current = effectiveSong
-                    val effectiveProgress = if (activeRemoteDeviceState != null && remoteStatusState != null) {
-                        val dur = if (remoteStatusState!!.durationMs > 0L) {
-                            remoteStatusState!!.durationMs
-                        } else {
-                            com.music.raaga.data.connect.parseDurationTextToMs(remoteStatusState!!.track?.durationText)
-                        }
-                        if (dur > 0L) (playerPosition.positionMs.toFloat() / dur.toFloat()).coerceIn(0f, 1f) else 0f
-                    } else if (playback.durationMs > 0L) {
-                        playback.positionMs.toFloat() / playback.durationMs.toFloat()
-                    } else {
-                        0f
-                    }
                     val effectiveDur = if (activeRemoteDeviceState != null && remoteStatusState != null) {
                         if (remoteStatusState!!.durationMs > 0L) remoteStatusState!!.durationMs
                         else com.music.raaga.data.connect.parseDurationTextToMs(remoteStatusState!!.track?.durationText)
                     } else {
                         playback.durationMs
+                    }
+                    val effectiveProgress = if (effectiveDur > 0L) {
+                        (playerPosition.positionMs.toFloat() / effectiveDur.toFloat()).coerceIn(0f, 1f)
+                    } else {
+                        0f
                     }
                     DesktopPlayerBar(
                         song = current,
@@ -5586,6 +5579,37 @@ private fun DesktopPlayerBar(
     onToggleExpand: () -> Unit = {},
 ) {
     val currentProgress by rememberUpdatedState(progress)
+    var scrubFraction by remember { mutableStateOf<Float?>(null) }
+    var pendingSeekFraction by remember { mutableStateOf<Float?>(null) }
+
+    LaunchedEffect(pendingSeekFraction, positionMs, durationMs) {
+        val target = pendingSeekFraction ?: return@LaunchedEffect
+        if (durationMs <= 0L) {
+            pendingSeekFraction = null
+            return@LaunchedEffect
+        }
+        val targetMs = (target * durationMs.toFloat()).toLong()
+        if (kotlin.math.abs(positionMs - targetMs) < 1200L) {
+            pendingSeekFraction = null
+        }
+    }
+
+    LaunchedEffect(pendingSeekFraction) {
+        if (pendingSeekFraction != null) {
+            delay(2000L)
+            pendingSeekFraction = null
+        }
+    }
+
+    LaunchedEffect(song?.videoId) {
+        scrubFraction = null
+        pendingSeekFraction = null
+    }
+
+    val displayFraction = scrubFraction ?: pendingSeekFraction ?: currentProgress
+    val displayPositionMs = scrubFraction?.let { (it * durationMs.toFloat()).toLong() }
+        ?: pendingSeekFraction?.let { (it * durationMs.toFloat()).toLong() }
+        ?: positionMs
 
     Box(
         modifier = Modifier
@@ -5792,18 +5816,28 @@ private fun DesktopPlayerBar(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Text(
-                        text = formatTime(positionMs),
+                        text = formatTime(displayPositionMs),
                         color = Color.White.copy(alpha = 0.60f),
                         fontSize = 11.sp,
                     )
 
                     DesktopThinSlider(
-                        value = currentProgress,
-                        onValueChange = onSeek,
+                        value = displayFraction,
+                        onValueChange = { frac ->
+                            scrubFraction = frac
+                        },
+                        onValueChangeFinished = {
+                            val target = scrubFraction ?: displayFraction
+                            pendingSeekFraction = target
+                            scrubFraction = null
+                            onSeek(target)
+                        },
                         activeColor = Color(0xFF1DB954),
                         inactiveColor = Color(0xFF4D4D4D),
                         idleHeight = 4.dp,
                         activeHeight = 6.dp,
+                        drawThumb = true,
+                        thumbRadius = 6.dp,
                         modifier = Modifier.weight(1f),
                     )
 
@@ -5940,6 +5974,8 @@ private fun DesktopPlayerBar(
                         inactiveColor = Color(0xFF4D4D4D),
                         idleHeight = 4.dp,
                         activeHeight = 6.dp,
+                        drawThumb = true,
+                        thumbRadius = 5.dp,
                         modifier = Modifier.width(88.dp),
                     )
                 }

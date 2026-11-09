@@ -419,7 +419,7 @@ export function FullScreenPlayer() {
         >
           <UpNextIcon size={18} />
         </button>
-        <VolumeControl open={volumeOpen} onOpen={() => setVolumeOpen(true)} className={chromeButton} iconSize={18} />
+        <VolumeControl open={volumeOpen} onOpen={() => setVolumeOpen(true)} onToggle={() => setVolumeOpen((v) => !v)} className={chromeButton} iconSize={18} />
       </div>
     </div>
   );
