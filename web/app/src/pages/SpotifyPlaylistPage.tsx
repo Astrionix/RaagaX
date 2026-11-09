@@ -132,7 +132,11 @@ export default function SpotifyPlaylistPage() {
           )}
         </div>
       )}
-      <TrackList tracks={filteredRows} variant="playlist" source={context.source} />
+      {searchQuery && filteredRows.length === 0 ? (
+        <EmptyState title="No matching songs" detail={`No songs in this playlist match “${searchQuery}”.`} />
+      ) : (
+        <TrackList tracks={filteredRows} variant="playlist" source={context.source} />
+      )}
       <footer className={detailFooter}>
         <p>From Spotify. Songs are matched to YouTube Music by title, artist and length.</p>
       </footer>

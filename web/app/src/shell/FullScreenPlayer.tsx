@@ -157,6 +157,18 @@ export function FullScreenPlayer() {
   const picked = useRef(false);
   const [idle, setIdle] = useState(false);
   const [volumeOpen, setVolumeOpen] = useState(false);
+  const volumeRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!volumeOpen) return;
+    const handlePointerDown = (e: PointerEvent) => {
+      if (volumeRef.current && !volumeRef.current.contains(e.target as Node)) {
+        setVolumeOpen(false);
+      }
+    };
+    window.addEventListener('pointerdown', handlePointerDown);
+    return () => window.removeEventListener('pointerdown', handlePointerDown);
+  }, [volumeOpen]);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const browserFullScreen = useBrowserFullScreen();
   const close = useRef<HTMLButtonElement>(null);
@@ -404,9 +416,9 @@ export function FullScreenPlayer() {
       </button>
       {/* Up Next, with the speaker beside it: the level slides in over Up Next, as it does in the pill. */}
       <div
+        ref={volumeRef}
         className={`group/actions absolute right-[max(20px,env(safe-area-inset-right,20px))] bottom-[max(20px,env(safe-area-inset-bottom,20px))] z-1 flex items-center [--volume-gap:36px] transition-opacity duration-300${hidden}`}
         data-volume-open={volumeOpen || undefined}
-        onPointerLeave={() => setVolumeOpen(false)}
         onBlur={(event) => {
           if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setVolumeOpen(false);
         }}

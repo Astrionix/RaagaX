@@ -3,7 +3,7 @@ import { Search, X } from 'lucide-react';
 import { useParams } from 'react-router';
 import { DetailHeader, type SortOption } from '@/components/music/DetailHeader';
 import { playList, shuffleList } from '@/components/music/play';
-import { LoadError, LoadMoreError, NeedsExtension } from '@/components/music/States';
+import { EmptyState, LoadError, LoadMoreError, NeedsExtension } from '@/components/music/States';
 import { TrackList } from '@/components/music/TrackList';
 import { usePlaylist, useYouTubeReady } from '@/data/music/queries';
 import { useArtworkColor } from '@/lib/artworkColor';
@@ -117,7 +117,11 @@ export default function PlaylistPage() {
           )}
         </div>
       )}
-      <TrackList tracks={filteredTracks} variant="playlist" onNearEnd={onNearEnd} source={context.source} />
+      {searchQuery && filteredTracks.length === 0 ? (
+        <EmptyState title="No matching songs" detail={`No songs in this playlist match “${searchQuery}”.`} />
+      ) : (
+        <TrackList tracks={filteredTracks} variant="playlist" onNearEnd={onNearEnd} source={context.source} />
+      )}
       {isFetchingNextPage && <div className="flex justify-center py-5 type-callout text-secondary">Loading more songs…</div>}
       {playlist.isFetchNextPageError && <LoadMoreError onRetry={() => void fetchNextPage()} />}
       <footer className={detailFooter}>

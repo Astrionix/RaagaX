@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   BackwardIcon,
   ForwardIcon,
@@ -44,6 +44,18 @@ export function PlayerBar() {
   const repeat = usePlayer((s) => s.repeat);
   const { togglePlay, next, previous, toggleShuffle, cycleRepeat } = usePlayer.getState();
   const [volumeOpen, setVolumeOpen] = useState(false);
+  const volumeRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!volumeOpen) return;
+    const handlePointerDown = (e: PointerEvent) => {
+      if (volumeRef.current && !volumeRef.current.contains(e.target as Node)) {
+        setVolumeOpen(false);
+      }
+    };
+    window.addEventListener('pointerdown', handlePointerDown);
+    return () => window.removeEventListener('pointerdown', handlePointerDown);
+  }, [volumeOpen]);
 
   return (
     // The side panel overlays the page; the pill re-centres in what's left.
@@ -90,9 +102,9 @@ export function PlayerBar() {
 
         {/* Actions on tablet and desktop (>= sm) */}
         <div
+          ref={volumeRef}
           className="group/actions relative hidden sm:flex items-center justify-end gap-[7px] md:gap-[9px]"
           data-volume-open={volumeOpen || undefined}
-          onPointerLeave={() => setVolumeOpen(false)}
           onBlur={(e) => {
             if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setVolumeOpen(false);
           }}
