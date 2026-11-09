@@ -18,13 +18,16 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -45,6 +48,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -334,75 +339,328 @@ private fun DialogActions(
 internal fun DesktopDiscordTokenDialog(onDismiss: () -> Unit) {
     val currentToken by DesktopDiscordRpc.token.collectAsState()
     val currentUsername by DesktopDiscordRpc.username.collectAsState()
-    var token by remember { mutableStateOf(currentToken) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var busy by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-    val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+    var manualToken by remember { mutableStateOf(currentToken) }
+    var showManualInput by remember { mutableStateOf(false) }
+    var manualError by remember { mutableStateOf<String?>(null) }
+    var manualBusy by remember { mutableStateOf(false) }
 
-    fun save() {
-        if (busy || token.isBlank()) return
-        busy = true
-        error = null
-        scope.launch {
-            DesktopDiscordRpc.signIn(token.trim())
-                .onSuccess { onDismiss() }
-                .onFailure { error = "Discord would not accept that token" }
-            busy = false
+    val remoteAuth = remember { DesktopDiscordRemoteAuth() }
+    val remoteState by remoteAuth.state.collectAsState()
+
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(currentToken) {
+        if (currentToken.isBlank()) {
+            remoteAuth.start()
         }
     }
 
-    DesktopDialogPanel(onDismiss = onDismiss, maxWidth = 420) {
+    DisposableEffect(Unit) {
+        onDispose {
+            remoteAuth.cancel()
+        }
+    }
+
+    // When remote auth succeeds, dismiss automatically after 1 second
+    LaunchedEffect(remoteState) {
+        if (remoteState is DiscordRemoteAuthState.Success) {
+            delay(1000)
+            onDismiss()
+        }
+    }
+
+    fun saveManualToken() {
+        if (manualBusy || manualToken.isBlank()) return
+        manualBusy = true
+        manualError = null
+        scope.launch {
+            DesktopDiscordRpc.signIn(manualToken.trim())
+                .onSuccess { onDismiss() }
+                .onFailure { manualError = "Discord would not accept that token" }
+            manualBusy = false
+        }
+    }
+
+    DesktopDialogPanel(onDismiss = onDismiss, maxWidth = 440) {
         DialogHeading(
-            title = DesktopStrings["discord_token", "Discord token"],
-            message = error
+            title = "Discord Account Login",
+            message = manualError
                 ?: if (currentUsername.isNotBlank()) {
-                    "Connected as @$currentUsername (Web & Android style). Enter a new token to switch accounts, or disconnect below."
+                    "Connected as @$currentUsername. Scan below to switch accounts, or enter a token manually."
                 } else {
-                    "Paste your Discord user token for Web & Android style Rich Presence (Listening to Raaga, track name, artist, album art, buttons)."
+                    "Scan the QR code with your Discord mobile app to log in instantly without entering tokens."
                 },
-            isError = error != null,
+            isError = manualError != null,
         )
-        DialogField(
-            value = token,
-            onValueChange = { token = it },
-            placeholder = DesktopStrings["token", "Token"],
-            enabled = !busy,
-            isPassword = true,
-            onSubmit = ::save,
-            modifier = Modifier.focusRequester(focus),
-        )
-        var snippetCopied by remember { mutableStateOf(false) }
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = panelInset(22.dp), vertical = 4.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            TextButton(
-                onClick = {
-                    DesktopExternalLinks.copy(
-                        "(webpackChunkdiscord_app.push([[''],{},e=>{m=[];for(let c in e.c)m.push(e.c[c])}]),m).find(m=>m?.exports?.default?.getToken!==void 0).exports.default.getToken()"
-                    )
-                    snippetCopied = true
-                },
+
+        // QR Code remote auth section
+        if (!showManualInput) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = panelInset(20.dp), vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text(
-                    if (snippetCopied) "Snippet Copied!" else "Copy Token Script",
-                    color = if (snippetCopied) DesktopAccent else DesktopSecondary,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-            TextButton(
-                onClick = { DesktopExternalLinks.open("https://discord.com/app") },
-            ) {
-                Text(
-                    "Open Discord Web",
-                    color = DesktopSecondary,
-                    style = MaterialTheme.typography.bodySmall,
-                )
+                when (val state = remoteState) {
+                    is DiscordRemoteAuthState.Connecting, is DiscordRemoteAuthState.Idle -> {
+                        Box(
+                            modifier = Modifier
+                                .size(180.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFF1E1E22)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                CircularProgressIndicator(
+                                    color = DesktopAccent,
+                                    strokeWidth = 2.5.dp,
+                                    modifier = Modifier.size(28.dp),
+                                )
+                                Text(
+                                    text = "Connecting to Discord…",
+                                    color = DesktopSecondary,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+                        }
+                    }
+
+                    is DiscordRemoteAuthState.Ready -> {
+                        DesktopQrCode(content = state.qrUrl, size = 180.dp)
+                        Spacer(Modifier.height(14.dp))
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFF1E1E22))
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Text(
+                                text = "How to log in:",
+                                color = Color.White,
+                                fontWeight = FontWeight.SemiBold,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                            Text(
+                                text = "1. Open Discord on your phone",
+                                color = DesktopSecondary,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                            Text(
+                                text = "2. Go to Settings  →  Scan QR Code",
+                                color = DesktopSecondary,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                            Text(
+                                text = "3. Point camera at this screen and tap 'Log In'",
+                                color = DesktopSecondary,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    }
+
+                    is DiscordRemoteAuthState.Scanned -> {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(180.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFF1E1E22))
+                                .padding(16.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                CircularProgressIndicator(
+                                    color = Color(0xFF5865F2),
+                                    strokeWidth = 2.5.dp,
+                                    modifier = Modifier.size(32.dp),
+                                )
+                                Text(
+                                    text = "Scanned by @${state.username}!",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                                Text(
+                                    text = "Please tap 'Yes, log me in' on your phone to confirm.",
+                                    color = DesktopSecondary,
+                                    textAlign = TextAlign.Center,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+                        }
+                    }
+
+                    is DiscordRemoteAuthState.Exchanging -> {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(180.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFF1E1E22)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                CircularProgressIndicator(
+                                    color = DesktopAccent,
+                                    strokeWidth = 2.5.dp,
+                                    modifier = Modifier.size(32.dp),
+                                )
+                                Text(
+                                    text = "Authorizing session…",
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                            }
+                        }
+                    }
+
+                    is DiscordRemoteAuthState.Success -> {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(180.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFF1E1E22)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Check,
+                                    contentDescription = null,
+                                    tint = DesktopAccent,
+                                    modifier = Modifier.size(36.dp),
+                                )
+                                Text(
+                                    text = "Connected as @${state.user.name}!",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                            }
+                        }
+                    }
+
+                    is DiscordRemoteAuthState.Error -> {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(180.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFF1E1E22))
+                                .padding(16.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                Text(
+                                    text = state.message,
+                                    color = DesktopDestructive,
+                                    textAlign = TextAlign.Center,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                                TextButton(onClick = { remoteAuth.start() }) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Refresh,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp),
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Reload QR Code", color = DesktopAccent)
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
+
+        // Expandable Manual Token input option
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = panelInset(20.dp), vertical = 4.dp),
+        ) {
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .clickable {
+                        showManualInput = !showManualInput
+                        if (!showManualInput && currentToken.isBlank()) {
+                            remoteAuth.start()
+                        } else if (showManualInput) {
+                            remoteAuth.cancel()
+                        }
+                    }
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = if (showManualInput) "▾ Switch back to QR code login" else "▸ Or enter token manually",
+                    color = DesktopSecondary,
+                    fontSize = 12.sp,
+                )
+            }
+
+            if (showManualInput) {
+                Spacer(Modifier.height(8.dp))
+                DialogField(
+                    value = manualToken,
+                    onValueChange = { manualToken = it },
+                    placeholder = DesktopStrings["token", "Token"],
+                    enabled = !manualBusy,
+                    isPassword = true,
+                    onSubmit = ::saveManualToken,
+                )
+                var snippetCopied by remember { mutableStateOf(false) }
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TextButton(
+                        onClick = {
+                            DesktopExternalLinks.copy(
+                                "(webpackChunkdiscord_app.push([[''],{},e=>{m=[];for(let c in e.c)m.push(e.c[c])}]),m).find(m=>m?.exports?.default?.getToken!==void 0).exports.default.getToken()"
+                            )
+                            snippetCopied = true
+                        },
+                    ) {
+                        Text(
+                            if (snippetCopied) "Snippet Copied!" else "Copy Token Script",
+                            color = if (snippetCopied) DesktopAccent else DesktopSecondary,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    TextButton(
+                        onClick = { DesktopExternalLinks.open("https://discord.com/app") },
+                    ) {
+                        Text(
+                            "Open Discord Web",
+                            color = DesktopSecondary,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+            }
+        }
+
+        // Bottom Actions Row
         Row(
             Modifier.fillMaxWidth().padding(horizontal = panelInset(16.dp), vertical = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -414,7 +672,7 @@ internal fun DesktopDiscordTokenDialog(onDismiss: () -> Unit) {
                         DesktopDiscordRpc.signOut()
                         onDismiss()
                     },
-                    enabled = !busy,
+                    enabled = !manualBusy,
                 ) {
                     Text("Disconnect", color = DesktopDestructive)
                 }
@@ -422,7 +680,7 @@ internal fun DesktopDiscordTokenDialog(onDismiss: () -> Unit) {
                 Spacer(Modifier.width(1.dp))
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (busy) {
+                if (manualBusy) {
                     CircularProgressIndicator(
                         color = DesktopAccent,
                         strokeWidth = 2.dp,
@@ -430,17 +688,19 @@ internal fun DesktopDiscordTokenDialog(onDismiss: () -> Unit) {
                     )
                     Spacer(Modifier.size(12.dp))
                 }
-                TextButton(onClick = onDismiss, enabled = !busy) {
+                TextButton(onClick = onDismiss, enabled = !manualBusy) {
                     Text(DesktopStrings["cancel", "Cancel"], color = DesktopSecondary)
                 }
-                TextButton(
-                    onClick = ::save,
-                    enabled = !busy && token.isNotBlank() && (token != currentToken || currentUsername.isBlank()),
-                ) {
-                    Text(
-                        if (busy) "Checking…" else "Save",
-                        color = if (!busy && token.isNotBlank() && (token != currentToken || currentUsername.isBlank())) DesktopAccent else DesktopSecondary,
-                    )
+                if (showManualInput && manualToken.isNotBlank() && (manualToken != currentToken || currentUsername.isBlank())) {
+                    TextButton(
+                        onClick = ::saveManualToken,
+                        enabled = !manualBusy,
+                    ) {
+                        Text(
+                            if (manualBusy) "Checking…" else "Save",
+                            color = DesktopAccent,
+                        )
+                    }
                 }
             }
         }
