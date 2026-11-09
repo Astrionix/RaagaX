@@ -31,7 +31,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -72,6 +74,17 @@ internal fun DesktopSpotifyTableView(
     contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
     val backdropColor = gradientColors.firstOrNull() ?: Color(0xFF450AF5)
+    var searchQuery by remember(title) { mutableStateOf("") }
+    val filteredSongs = remember(songs, searchQuery) {
+        val q = searchQuery.trim().lowercase()
+        if (q.isBlank()) songs else {
+            songs.filter {
+                it.title.lowercase().contains(q) ||
+                    it.artist.lowercase().contains(q) ||
+                    it.albumName.orEmpty().lowercase().contains(q)
+            }
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -208,7 +221,8 @@ internal fun DesktopSpotifyTableView(
                             .clip(CircleShape)
                             .background(Color(0xFF1DB954))
                             .clickable {
-                                if (songs.isNotEmpty()) onPlaySongs(songs, 0)
+                                val toPlay = if (searchQuery.isNotBlank()) filteredSongs else songs
+                                if (toPlay.isNotEmpty()) onPlaySongs(toPlay, 0)
                             },
                         contentAlignment = Alignment.Center,
                     ) {
@@ -224,7 +238,10 @@ internal fun DesktopSpotifyTableView(
 
                     // Shuffle Button
                     IconButton(
-                        onClick = { onShuffle(songs) },
+                        onClick = {
+                            val toShuffle = if (searchQuery.isNotBlank()) filteredSongs else songs
+                            if (toShuffle.isNotEmpty()) onShuffle(toShuffle)
+                        },
                         modifier = Modifier.size(40.dp),
                     ) {
                         Icon(
@@ -239,7 +256,10 @@ internal fun DesktopSpotifyTableView(
 
                     // Download Button
                     IconButton(
-                        onClick = { songs.forEach { onDownload?.invoke(it) } },
+                        onClick = {
+                            val toDownload = if (searchQuery.isNotBlank()) filteredSongs else songs
+                            toDownload.forEach { onDownload?.invoke(it) }
+                        },
                         modifier = Modifier.size(40.dp),
                     ) {
                         Icon(
@@ -274,6 +294,20 @@ internal fun DesktopSpotifyTableView(
                             modifier = Modifier.size(16.dp),
                         )
                     }
+                }
+            }
+
+            // Search Bar Row (matching web UX)
+            if (songs.isNotEmpty()) {
+                item(key = "header:search") {
+                    DesktopPlaylistSearchBar(
+                        query = searchQuery,
+                        onQueryChange = { searchQuery = it },
+                        totalCount = songs.size,
+                        filteredCount = filteredSongs.size,
+                        modifier = Modifier.padding(bottom = 12.dp),
+                        placeholder = "Search in playlist…",
+                    )
                 }
             }
 
@@ -335,16 +369,22 @@ internal fun DesktopSpotifyTableView(
             }
 
             // 4. Track Table Rows
-            itemsIndexed(songs, key = { index, song -> "${song.videoId}-$index" }) { index, song ->
-                SpotifyTrackRow(
-                    index = index + 1,
-                    song = song,
-                    isLiked = song.videoId in likedIds,
-                    isPlaying = song.videoId == currentSongId,
-                    onPlay = { onPlaySongs(songs, index) },
-                    onToggleLike = { onToggleLike(song) },
-                    onAddToPlaylist = { onAddToPlaylist?.invoke(song) },
-                )
+            if (searchQuery.isNotBlank() && filteredSongs.isEmpty()) {
+                item(key = "empty:search") {
+                    DesktopPlaylistEmptySearch(query = searchQuery)
+                }
+            } else {
+                itemsIndexed(filteredSongs, key = { index, song -> "${song.videoId}-$index" }) { index, song ->
+                    SpotifyTrackRow(
+                        index = index + 1,
+                        song = song,
+                        isLiked = song.videoId in likedIds,
+                        isPlaying = song.videoId == currentSongId,
+                        onPlay = { onPlaySongs(filteredSongs, index) },
+                        onToggleLike = { onToggleLike(song) },
+                        onAddToPlaylist = { onAddToPlaylist?.invoke(song) },
+                    )
+                }
             }
 
             // 5. Spotify Footer Links

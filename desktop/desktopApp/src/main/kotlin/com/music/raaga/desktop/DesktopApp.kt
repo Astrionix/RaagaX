@@ -4341,23 +4341,45 @@ fun RaagaDesktopApp() {
                             topPadding = 0.dp,
                             showField = false,
                         )
-                        destination == DesktopDestination.LIBRARY && libraryShowAll != null -> Column(Modifier.fillMaxSize()) {
-                            // The phone keeps the grid's sort beside it, in the bar above; here it sits
-                            // at the end of the row the way back is on.
-                            Row(
-                                Modifier.fillMaxWidth().padding(top = 8.dp, end = 12.dp),
-                                horizontalArrangement = Arrangement.End,
-                            ) { DesktopLibrarySortMenu() }
-                            LibraryGridPage(
-                                shelf = libraryShowAll!!,
-                                gridState = libraryGridState,
-                                onItemClick = ::openLibraryItem,
-                                onItemLongPress = { item -> if (item.videoId != null) openMenu(item.toSong()) },
-                                contentPadding = PaddingValues(bottom = sharedPagePadding.calculateBottomPadding()),
-                                modifier = Modifier.weight(1f),
-                                onNewPlaylist = { overlays.playlistDialog = true }
-                                    .takeIf { libraryShowAll?.title == PLAYLISTS_SHELF },
-                            )
+                        destination == DesktopDestination.LIBRARY && libraryShowAll != null -> {
+                            val shelf = libraryShowAll!!
+                            val isPlaylists = shelf.title == PLAYLISTS_SHELF
+                            var gridSearchQuery by remember(shelf.title) { mutableStateOf("") }
+                            val filteredShelf = remember(shelf, gridSearchQuery) {
+                                val q = gridSearchQuery.trim().lowercase()
+                                if (q.isBlank()) shelf else {
+                                    shelf.copy(items = shelf.items.filter {
+                                        it.title.lowercase().contains(q) || it.subtitle.lowercase().contains(q)
+                                    })
+                                }
+                            }
+                            Column(Modifier.fillMaxSize()) {
+                                Row(
+                                    Modifier.fillMaxWidth().padding(horizontal = PAGE_GUTTER, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                ) {
+                                    DesktopPlaylistSearchBar(
+                                        query = gridSearchQuery,
+                                        onQueryChange = { gridSearchQuery = it },
+                                        totalCount = shelf.items.size,
+                                        filteredCount = filteredShelf.items.size,
+                                        placeholder = if (isPlaylists) "Search in playlists…" else "Search in ${shelf.title.lowercase()}…",
+                                        modifier = Modifier.weight(1f, fill = false),
+                                    )
+                                    DesktopLibrarySortMenu()
+                                }
+                                LibraryGridPage(
+                                    shelf = filteredShelf,
+                                    gridState = libraryGridState,
+                                    onItemClick = ::openLibraryItem,
+                                    onItemLongPress = { item -> if (item.videoId != null) openMenu(item.toSong()) },
+                                    contentPadding = PaddingValues(bottom = sharedPagePadding.calculateBottomPadding()),
+                                    modifier = Modifier.weight(1f),
+                                    onNewPlaylist = { overlays.playlistDialog = true }
+                                        .takeIf { isPlaylists },
+                                )
+                            }
                         }
                         destination == DesktopDestination.LIKED_SONGS -> {
                             val accountLiked = (libraryState as? UiState.Success)?.data?.likedSongs.orEmpty()
@@ -4965,6 +4987,29 @@ private fun DesktopSidebar(
 ) {
     var libraryCollapsed by remember { mutableStateOf(false) }
     var selectedFilter by remember { mutableStateOf<String?>(null) }
+    var sidebarSearchOpen by remember { mutableStateOf(false) }
+    var sidebarSearchQuery by remember { mutableStateOf("") }
+
+    val filteredAccountPlaylists = remember(accountPlaylists, sidebarSearchQuery) {
+        val q = sidebarSearchQuery.trim().lowercase()
+        if (q.isBlank()) accountPlaylists else {
+            accountPlaylists.filter { it.title.lowercase().contains(q) }
+        }
+    }
+    val filteredLocalPlaylists = remember(localPlaylists, sidebarSearchQuery) {
+        val q = sidebarSearchQuery.trim().lowercase()
+        if (q.isBlank()) localPlaylists else {
+            localPlaylists.filter { it.title.lowercase().contains(q) }
+        }
+    }
+    val showLikedInSidebar = remember(sidebarSearchQuery) {
+        val q = sidebarSearchQuery.trim().lowercase()
+        q.isBlank() || "liked songs".contains(q)
+    }
+    val showLocalMusicInSidebar = remember(sidebarSearchQuery) {
+        val q = sidebarSearchQuery.trim().lowercase()
+        q.isBlank() || "local music".contains(q)
+    }
 
     val sidebarShape = RoundedCornerShape(8.dp)
 
@@ -5294,39 +5339,101 @@ private fun DesktopSidebar(
                     Spacer(Modifier.height(10.dp))
 
                     // Search & Recents Sort Row
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Box(
+                    if (sidebarSearchOpen) {
+                        Row(
                             modifier = Modifier
-                                .size(28.dp)
-                                .clip(CircleShape)
-                                .desktopHoverWash(),
-                            contentAlignment = Alignment.Center,
+                                .fillMaxWidth()
+                                .height(32.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(Color(0xFF282828))
+                                .padding(horizontal = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Icon(
                                 imageVector = RaagaIcons.Search,
-                                contentDescription = "Search in library",
-                                tint = Color.White.copy(alpha = 0.70f),
-                                modifier = Modifier.size(16.dp),
+                                contentDescription = null,
+                                tint = Color.White.copy(alpha = 0.60f),
+                                modifier = Modifier.size(14.dp),
                             )
+                            Spacer(Modifier.width(6.dp))
+                            BasicTextField(
+                                value = sidebarSearchQuery,
+                                onValueChange = { sidebarSearchQuery = it },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                textStyle = MaterialTheme.typography.bodySmall.copy(
+                                    color = Color.White,
+                                    fontSize = 12.sp,
+                                ),
+                                cursorBrush = SolidColor(Color.White),
+                                decorationBox = { inner ->
+                                    if (sidebarSearchQuery.isEmpty()) {
+                                        Text(
+                                            text = "Search in playlists…",
+                                            color = Color.White.copy(alpha = 0.40f),
+                                            fontSize = 12.sp,
+                                        )
+                                    }
+                                    inner()
+                                },
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .clip(CircleShape)
+                                    .clickable {
+                                        if (sidebarSearchQuery.isNotEmpty()) {
+                                            sidebarSearchQuery = ""
+                                        } else {
+                                            sidebarSearchOpen = false
+                                        }
+                                    },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Close,
+                                    contentDescription = "Close",
+                                    tint = Color.White.copy(alpha = 0.70f),
+                                    modifier = Modifier.size(13.dp),
+                                )
+                            }
                         }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "Recents",
-                                color = Color.White.copy(alpha = 0.70f),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium,
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Icon(
-                                imageVector = Icons.Rounded.Sort,
-                                contentDescription = "Sort",
-                                tint = Color.White.copy(alpha = 0.70f),
-                                modifier = Modifier.size(16.dp),
-                            )
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .clip(CircleShape)
+                                    .desktopHoverWash()
+                                    .clickable { sidebarSearchOpen = true },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    imageVector = RaagaIcons.Search,
+                                    contentDescription = "Search in playlists",
+                                    tint = Color.White.copy(alpha = 0.70f),
+                                    modifier = Modifier.size(16.dp),
+                                )
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "Recents",
+                                    color = Color.White.copy(alpha = 0.70f),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium,
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Icon(
+                                    imageVector = Icons.Rounded.Sort,
+                                    contentDescription = "Sort",
+                                    tint = Color.White.copy(alpha = 0.70f),
+                                    modifier = Modifier.size(16.dp),
+                                )
+                            }
                         }
                     }
 
@@ -5338,7 +5445,7 @@ private fun DesktopSidebar(
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         // Pinned Liked Songs item
-                        if (selectedFilter != "Artists") {
+                        if (selectedFilter != "Artists" && showLikedInSidebar) {
                             item(key = "pinned:liked_songs") {
                                 Row(
                                     modifier = Modifier
@@ -5399,7 +5506,7 @@ private fun DesktopSidebar(
 
                         // Playlists
                         if (selectedFilter != "Artists") {
-                            items(accountPlaylists, key = { "account:${it.browseId}" }) { playlist ->
+                            items(filteredAccountPlaylists, key = { "account:${it.browseId}" }) { playlist ->
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -5446,7 +5553,7 @@ private fun DesktopSidebar(
                                     }
                                 }
                             }
-                            items(localPlaylists, key = { "local:${it.id}" }) { playlist ->
+                            items(filteredLocalPlaylists, key = { "local:${it.id}" }) { playlist ->
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -5492,82 +5599,108 @@ private fun DesktopSidebar(
                         }
 
                         // Local music item
-                        item(key = "local_music") {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .clickable { onDestinationSelected(DesktopDestination.LOCAL_MUSIC) }
-                                    .padding(6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Box(
+                        if (showLocalMusicInSidebar) {
+                            item(key = "local_music") {
+                                Row(
                                     modifier = Modifier
-                                        .size(48.dp)
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .background(Color(0xFF282828)),
-                                    contentAlignment = Alignment.Center,
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .clickable { onDestinationSelected(DesktopDestination.LOCAL_MUSIC) }
+                                        .padding(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
                                 ) {
-                                    Icon(
-                                        Icons.Rounded.Folder,
-                                        null,
-                                        tint = Color.White.copy(alpha = 0.7f),
-                                        modifier = Modifier.size(22.dp),
-                                    )
-                                }
-                                Spacer(Modifier.width(12.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "Local Music",
-                                        color = if (destination == DesktopDestination.LOCAL_MUSIC) Color(0xFF1DB954) else Color.White,
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontSize = 13.5.sp,
-                                    )
-                                    Text(
-                                        text = "Folder • Files",
-                                        color = Color.White.copy(alpha = 0.60f),
-                                        fontSize = 12.sp,
-                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .size(48.dp)
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(Color(0xFF282828)),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Icon(
+                                            Icons.Rounded.Folder,
+                                            null,
+                                            tint = Color.White.copy(alpha = 0.7f),
+                                            modifier = Modifier.size(22.dp),
+                                        )
+                                    }
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "Local Music",
+                                            color = if (destination == DesktopDestination.LOCAL_MUSIC) Color(0xFF1DB954) else Color.White,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 13.5.sp,
+                                        )
+                                        Text(
+                                            text = "Folder • Files",
+                                            color = Color.White.copy(alpha = 0.60f),
+                                            fontSize = 12.sp,
+                                        )
+                                    }
                                 }
                             }
                         }
 
                         // Downloads item
-                        item(key = "downloads") {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .clickable { onDestinationSelected(DesktopDestination.DOWNLOADS) }
-                                    .padding(6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Box(
+                        if (sidebarSearchQuery.isBlank() || "downloads".contains(sidebarSearchQuery.trim().lowercase()) || "offline music".contains(sidebarSearchQuery.trim().lowercase())) {
+                            item(key = "downloads") {
+                                Row(
                                     modifier = Modifier
-                                        .size(48.dp)
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .background(Color(0xFF282828)),
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .clickable { onDestinationSelected(DesktopDestination.DOWNLOADS) }
+                                        .padding(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(48.dp)
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(Color(0xFF282828)),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Icon(
+                                            Icons.Rounded.Download,
+                                            null,
+                                            tint = Color.White.copy(alpha = 0.7f),
+                                            modifier = Modifier.size(22.dp),
+                                        )
+                                    }
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "Downloads",
+                                            color = if (destination == DesktopDestination.DOWNLOADS) Color(0xFF1DB954) else Color.White,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 13.5.sp,
+                                        )
+                                        Text(
+                                            text = "Offline Music",
+                                            color = Color.White.copy(alpha = 0.60f),
+                                            fontSize = 12.sp,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Empty search state
+                        if (sidebarSearchQuery.isNotBlank() &&
+                            filteredAccountPlaylists.isEmpty() &&
+                            filteredLocalPlaylists.isEmpty() &&
+                            !showLikedInSidebar &&
+                            !showLocalMusicInSidebar &&
+                            !"downloads".contains(sidebarSearchQuery.trim().lowercase())
+                        ) {
+                            item(key = "sidebar:empty_search") {
+                                Box(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
                                     contentAlignment = Alignment.Center,
                                 ) {
-                                    Icon(
-                                        Icons.Rounded.Download,
-                                        null,
-                                        tint = Color.White.copy(alpha = 0.7f),
-                                        modifier = Modifier.size(22.dp),
-                                    )
-                                }
-                                Spacer(Modifier.width(12.dp))
-                                Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = "Downloads",
-                                        color = if (destination == DesktopDestination.DOWNLOADS) Color(0xFF1DB954) else Color.White,
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontSize = 13.5.sp,
-                                    )
-                                    Text(
-                                        text = "Offline Music",
-                                        color = Color.White.copy(alpha = 0.60f),
-                                        fontSize = 12.sp,
+                                        text = "No playlists found",
+                                        color = Color.White.copy(alpha = 0.50f),
+                                        fontSize = 12.5.sp,
                                     )
                                 }
                             }
@@ -8035,8 +8168,7 @@ private fun DesktopCollectionPage(
             DesktopCollectionSort.DATE_ADDED_ASC -> songs
         }
     }
-    // The phone's "search this list": a filter over the rows already loaded.
-    var searching by remember(collection.browseId) { mutableStateOf(false) }
+    // The in-playlist search query matching the web app UX.
     var listQuery by remember(collection.browseId) { mutableStateOf("") }
     val shownSongs = remember(sortedSongs, listQuery) {
         val needle = listQuery.trim()
@@ -8164,19 +8296,21 @@ private fun DesktopCollectionPage(
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            DesktopCircleButton(RaagaIcons.Shuffle, DesktopStrings["shuffle", "Shuffle"], onClick = { onShuffle(sortedSongs) })
+                            DesktopCircleButton(
+                                RaagaIcons.Shuffle,
+                                DesktopStrings["shuffle", "Shuffle"],
+                                onClick = {
+                                    val toPlay = if (listQuery.isNotBlank()) shownSongs.map { it.value } else sortedSongs
+                                    onShuffle(toPlay)
+                                },
+                            )
                             DesktopPlayPill(
                                 label = DesktopStrings["play", "Play"],
-                                onClick = { if (sortedSongs.isNotEmpty()) onPlaySongs(sortedSongs, 0) },
-                                iconOnly = true,
-                            )
-                            DesktopCircleButton(
-                                if (searching) Icons.Rounded.Close else RaagaIcons.Search,
-                                if (searching) DesktopStrings["close_search", "Close search"] else DesktopStrings["search_this_list", "Search this list"],
                                 onClick = {
-                                    searching = !searching
-                                    if (!searching) listQuery = ""
+                                    val toPlay = if (listQuery.isNotBlank()) shownSongs.map { it.value } else sortedSongs
+                                    if (toPlay.isNotEmpty()) onPlaySongs(toPlay, 0)
                                 },
+                                iconOnly = true,
                             )
                             Box {
                                 DesktopCircleButton(Icons.Rounded.MoreHoriz, DesktopStrings["more", "More"], onClick = { moreOpen = true })
@@ -8266,36 +8400,46 @@ private fun DesktopCollectionPage(
                     }
                 }
             }
-            if (searching) {
-                item(key = "collection-search") {
-                    DesktopSearchField(
+            if (songs.isNotEmpty()) {
+                item(key = "collection-search-bar") {
+                    DesktopPlaylistSearchBar(
                         query = listQuery,
                         onQueryChange = { listQuery = it },
-                        onSearch = {},
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp),
-                        placeholder = DesktopStrings["search_this_list", "Search this list"],
+                        totalCount = songs.size,
+                        filteredCount = shownSongs.size,
+                        modifier = Modifier.padding(bottom = 16.dp),
+                        placeholder = "Search in playlist…",
                     )
                 }
             }
-            itemsIndexed(shownSongs, key = { _, (index, song) -> "${song.videoId}-$index" }) { position, (index, song) ->
-                DesktopCollectionSongRow(
-                    // Striped by place on screen, not track number, so a filtered list still
-                    // alternates.
-                    striped = position % 2 == 1,
-                    song = song,
-                    collectionType = collection.type,
-                    liked = song.videoId in likedIds,
-                    onClick = { _ -> onPlaySongs(sortedSongs, index) },
-                    onToggleLike = onToggleLike,
-                    onDownload = onDownload,
-                    onAddToPlaylist = onAddToPlaylist,
-                    downloaded = song.videoId in downloadedIds,
-                    downloadInProgress = song.videoId in downloadInProgress,
-                    number = index + 1,
-                    onRemove = onRemoveFromPlaylist?.takeIf { song.setVideoId != null },
-                )
+            if (listQuery.isNotBlank() && shownSongs.isEmpty()) {
+                item(key = "collection-empty-search") {
+                    DesktopPlaylistEmptySearch(query = listQuery)
+                }
+            } else {
+                itemsIndexed(shownSongs, key = { _, (index, song) -> "${song.videoId}-$index" }) { position, (index, song) ->
+                    DesktopCollectionSongRow(
+                        // Striped by place on screen, not track number, so a filtered list still
+                        // alternates.
+                        striped = position % 2 == 1,
+                        song = song,
+                        collectionType = collection.type,
+                        liked = song.videoId in likedIds,
+                        onClick = { _ ->
+                            val toPlay = if (listQuery.isNotBlank()) shownSongs.map { it.value } else sortedSongs
+                            onPlaySongs(toPlay, position)
+                        },
+                        onToggleLike = onToggleLike,
+                        onDownload = onDownload,
+                        onAddToPlaylist = onAddToPlaylist,
+                        downloaded = song.videoId in downloadedIds,
+                        downloadInProgress = song.videoId in downloadInProgress,
+                        number = index + 1,
+                        onRemove = onRemoveFromPlaylist?.takeIf { song.setVideoId != null },
+                    )
+                }
             }
-            if (collection.continuation != null) {
+            if (collection.continuation != null && listQuery.isBlank()) {
                 // Reaching this row is what asks for the next page, the way the home feed pages.
                 item(key = "collection-more") {
                     LaunchedEffect(songs.size) { onLoadMore() }

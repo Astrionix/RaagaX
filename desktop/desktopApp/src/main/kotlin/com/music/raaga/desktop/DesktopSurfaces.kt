@@ -1,34 +1,50 @@
 package com.music.raaga.desktop
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
-import androidx.compose.foundation.border
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.music.raaga.ui.icons.RaagaIcons
 import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeEffect
@@ -251,6 +267,127 @@ internal fun DesktopDialogPanel(
                     content()
                 }
             }
+        }
+    }
+}
+
+/**
+ * Clean search field for playlists and collections, matching the web app styling.
+ * Displays a search icon, inline text input, clear button, and optional "X of Y" count.
+ */
+@Composable
+internal fun DesktopPlaylistSearchBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    totalCount: Int,
+    filteredCount: Int,
+    modifier: Modifier = Modifier,
+    placeholder: String = "Search in playlist…",
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        val searchShape = RoundedCornerShape(8.dp)
+        Box(
+            modifier = Modifier
+                .widthIn(max = 320.dp)
+                .fillMaxWidth(0.45f)
+                .height(34.dp)
+                .clip(searchShape)
+                .background(Color(0xFF1F1F1F))
+                .border(0.75.dp, Color.White.copy(alpha = 0.12f), searchShape)
+                .padding(horizontal = 10.dp),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            BasicTextField(
+                value = query,
+                onValueChange = onQueryChange,
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyMedium.copy(color = Color.White, fontSize = 13.sp),
+                cursorBrush = SolidColor(Color.White),
+                decorationBox = { innerTextField ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            imageVector = RaagaIcons.Search,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.60f),
+                            modifier = Modifier.size(15.dp),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Box(Modifier.weight(1f)) {
+                            if (query.isEmpty()) {
+                                Text(
+                                    text = placeholder,
+                                    color = Color.White.copy(alpha = 0.40f),
+                                    fontSize = 13.sp,
+                                    maxLines = 1,
+                                )
+                            }
+                            innerTextField()
+                        }
+                        if (query.isNotEmpty()) {
+                            Box(
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .clip(CircleShape)
+                                    .clickable { onQueryChange("") },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Close,
+                                    contentDescription = "Clear",
+                                    tint = Color.White.copy(alpha = 0.70f),
+                                    modifier = Modifier.size(14.dp),
+                                )
+                            }
+                        }
+                    }
+                },
+            )
+        }
+
+        if (query.isNotBlank()) {
+            Text(
+                text = "$filteredCount of $totalCount",
+                color = Color.White.copy(alpha = 0.60f),
+                style = MaterialTheme.typography.bodySmall,
+                fontSize = 12.sp,
+            )
+        }
+    }
+}
+
+/**
+ * Empty search state when in-playlist query returns no matches.
+ */
+@Composable
+internal fun DesktopPlaylistEmptySearch(
+    query: String,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier.fillMaxWidth().padding(vertical = 48.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = "No matching songs",
+                color = Color.White,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = "No songs in this playlist match “$query”.",
+                color = Color.White.copy(alpha = 0.60f),
+                style = MaterialTheme.typography.bodySmall,
+            )
         }
     }
 }
