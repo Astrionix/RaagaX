@@ -143,7 +143,7 @@ internal class DesktopDiscordRemoteAuth {
 
         httpClient.newWebSocketBuilder()
             .header("Origin", "https://discord.com")
-            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
             .buildAsync(URI.create("wss://remote-auth-gateway.discord.gg/?v=2"), socketListener)
             .join()
     }
@@ -246,13 +246,24 @@ internal class DesktopDiscordRemoteAuth {
     ) {
         runCatching {
             val fp = activeFingerprint
+            val superPropsJson = """{"os":"Windows","browser":"Chrome","device":"","browser_user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36","browser_version":"131.0.0.0","os_version":"10.0.22631","release_channel":"stable","client_build_number":350000,"client_event_source":null}"""
+            val superPropsEncoded = Base64.getEncoder().encodeToString(superPropsJson.toByteArray(Charsets.UTF_8))
+
             val requestBuilder = HttpRequest.newBuilder()
                 .uri(URI.create("https://discord.com/api/v9/users/@me/remote-auth/login"))
                 .header("Content-Type", "application/json")
+                .header("Accept", "*/*")
+                .header("Accept-Language", "en-US,en;q=0.9")
                 .header("Origin", "https://discord.com")
                 .header("Referer", if (!fp.isNullOrBlank()) "https://discord.com/ra/$fp" else "https://discord.com/login")
-                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-                .header("X-Super-Properties", "eyJvcyI6IldpbmRvd3MiLCJicm93c2VyIjoiQ2hyb21lIiwiZGV2aWNlIjoiIiwiYnJvd3Nlcl91c2VyX2FnZW50IjoiTW96aWxsYS81LjAgKFdpbmRvd3MgTlQgMTAuMDsgV2luNjQ7IHg2NCkgQXBwbGVXZWJLaXQvNTM3LjM2IChLSFRNTCwgbGlrZSBHZWNrbykgQ2hyb21lLzEyMC4wLjAuMCBTYWZhcmkvNTM3LjM2IiwiYnJvd3Nlcl92ZXJzaW9uIjoiMTIwLjAuMC4wIiwib3NfdmVyc2lvbiI6IjEwIiwicmVsZWFzZV9jaGFubmVsIjoic3RhYmxlIiwiY2xpZW50X2J1aWxkX251bWJlciI6MjUwMDAwLCJjbGllbnRfZXZlbnRfc291cmNlIjpudWxsfQ==")
+                .header("Sec-Ch-Ua", """"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"""")
+                .header("Sec-Ch-Ua-Mobile", "?0")
+                .header("Sec-Ch-Ua-Platform", "\"Windows\"")
+                .header("Sec-Fetch-Dest", "empty")
+                .header("Sec-Fetch-Mode", "cors")
+                .header("Sec-Fetch-Site", "same-origin")
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+                .header("X-Super-Properties", superPropsEncoded)
                 .POST(HttpRequest.BodyPublishers.ofString("""{"ticket":"$ticket"}"""))
                 .timeout(Duration.ofSeconds(15))
 

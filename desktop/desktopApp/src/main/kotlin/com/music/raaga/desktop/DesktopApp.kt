@@ -7883,11 +7883,13 @@ private fun DesktopSettingsScreen(
                     SettingsRow(
                         glyphIcon = RaagaIcons.Discord,
                         glyphColor = Color(0xFF5865F2),
-                        title = if (discordToken.isNotBlank()) "Discord Account: @$discordUsername" else "Connect Discord Account",
+                        title = if (discordToken.isNotBlank()) "Discord Account: @$discordUsername" else if (localDiscord) "Discord Desktop (Active)" else "Connect Discord Account",
                         subtitle = if (discordToken.isNotBlank()) {
                             "Connected to Discord • Tap to switch account or disconnect"
+                        } else if (localDiscord) {
+                            "Local Discord desktop app connected with zero login required"
                         } else {
-                            "Scan QR code with Discord mobile app to log in instantly"
+                            "Scan QR code or connect in 10s via active browser session"
                         },
                         onClick = onOpenDiscordToken,
                     )

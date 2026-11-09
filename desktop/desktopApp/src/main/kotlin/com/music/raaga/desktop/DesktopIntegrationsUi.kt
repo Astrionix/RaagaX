@@ -340,18 +340,21 @@ internal fun DesktopDiscordTokenDialog(onDismiss: () -> Unit) {
     val currentToken by DesktopDiscordRpc.token.collectAsState()
     val currentUsername by DesktopDiscordRpc.username.collectAsState()
     var manualToken by remember { mutableStateOf(currentToken) }
-    var showManualInput by remember { mutableStateOf(false) }
+    var selectedTab by remember { mutableStateOf(if (currentToken.isNotBlank()) 1 else 0) }
     var manualError by remember { mutableStateOf<String?>(null) }
     var manualBusy by remember { mutableStateOf(false) }
+    var snippetCopied by remember { mutableStateOf(false) }
 
     val remoteAuth = remember { DesktopDiscordRemoteAuth() }
     val remoteState by remoteAuth.state.collectAsState()
 
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(currentToken) {
-        if (currentToken.isBlank()) {
+    LaunchedEffect(selectedTab) {
+        if (selectedTab == 0 && currentToken.isBlank()) {
             remoteAuth.start()
+        } else if (selectedTab != 0) {
+            remoteAuth.cancel()
         }
     }
 
@@ -376,25 +379,68 @@ internal fun DesktopDiscordTokenDialog(onDismiss: () -> Unit) {
         scope.launch {
             DesktopDiscordRpc.signIn(manualToken.trim())
                 .onSuccess { onDismiss() }
-                .onFailure { manualError = "Discord would not accept that token" }
+                .onFailure { manualError = "Discord would not accept that token. Check that it was copied correctly." }
             manualBusy = false
         }
     }
 
-    DesktopDialogPanel(onDismiss = onDismiss, maxWidth = 440) {
+    DesktopDialogPanel(onDismiss = onDismiss, maxWidth = 460) {
         DialogHeading(
             title = "Discord Account Login",
             message = manualError
                 ?: if (currentUsername.isNotBlank()) {
-                    "Connected as @$currentUsername. Scan below to switch accounts, or enter a token manually."
+                    "Connected as @$currentUsername. Choose a sign-in method below to switch accounts."
                 } else {
-                    "Scan the QR code with your Discord mobile app to log in instantly without entering tokens."
+                    "Scan with your Discord mobile app, or connect in 10s with your active browser session."
                 },
             isError = manualError != null,
         )
 
-        // QR Code remote auth section
-        if (!showManualInput) {
+        // Segmented Tab Switcher
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = panelInset(20.dp), vertical = 6.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(Color(0xFF1E1E22))
+                .padding(3.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (selectedTab == 0) Color(0xFF2E2E35) else Color.Transparent)
+                    .clickable { selectedTab = 0 }
+                    .padding(vertical = 7.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "Scan QR Code",
+                    color = if (selectedTab == 0) Color.White else DesktopSecondary,
+                    fontWeight = if (selectedTab == 0) FontWeight.SemiBold else FontWeight.Normal,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (selectedTab == 1) Color(0xFF2E2E35) else Color.Transparent)
+                    .clickable { selectedTab = 1 }
+                    .padding(vertical = 7.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "Browser Token (Fast)",
+                    color = if (selectedTab == 1) Color.White else DesktopSecondary,
+                    fontWeight = if (selectedTab == 1) FontWeight.SemiBold else FontWeight.Normal,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
+
+        // Tab 0: QR Code remote auth section
+        if (selectedTab == 0) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -558,7 +604,6 @@ internal fun DesktopDiscordTokenDialog(onDismiss: () -> Unit) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(180.dp)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(Color(0xFF1E1E22))
                                 .padding(16.dp),
@@ -566,7 +611,7 @@ internal fun DesktopDiscordTokenDialog(onDismiss: () -> Unit) {
                         ) {
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp),
                             ) {
                                 Text(
                                     text = state.message,
@@ -574,6 +619,28 @@ internal fun DesktopDiscordTokenDialog(onDismiss: () -> Unit) {
                                     textAlign = TextAlign.Center,
                                     style = MaterialTheme.typography.bodySmall,
                                 )
+
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color(0xFF5865F2))
+                                        .clickable {
+                                            selectedTab = 1
+                                            DesktopExternalLinks.copy(
+                                                "(webpackChunkdiscord_app.push([[''],{},e=>{m=[];for(let c in e.c)m.push(e.c[c])}]),m).find(m=>m?.exports?.default?.getToken!==void 0).exports.default.getToken()"
+                                            )
+                                            snippetCopied = true
+                                        }
+                                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                                ) {
+                                    Text(
+                                        "Connect via Browser Token (1-Click)",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
+                                }
+
                                 TextButton(onClick = { remoteAuth.start() }) {
                                     Icon(
                                         imageVector = Icons.Rounded.Refresh,
@@ -581,7 +648,7 @@ internal fun DesktopDiscordTokenDialog(onDismiss: () -> Unit) {
                                         modifier = Modifier.size(16.dp),
                                     )
                                     Spacer(Modifier.width(6.dp))
-                                    Text("Reload QR Code", color = DesktopAccent)
+                                    Text("Reload QR Code", color = DesktopSecondary)
                                 }
                             }
                         }
@@ -590,70 +657,110 @@ internal fun DesktopDiscordTokenDialog(onDismiss: () -> Unit) {
             }
         }
 
-        // Expandable Manual Token input option
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = panelInset(20.dp), vertical = 4.dp),
-        ) {
-            Row(
+        // Tab 1: Browser Token input section
+        if (selectedTab == 1) {
+            Column(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .clickable {
-                        showManualInput = !showManualInput
-                        if (!showManualInput && currentToken.isBlank()) {
-                            remoteAuth.start()
-                        } else if (showManualInput) {
-                            remoteAuth.cancel()
+                    .fillMaxWidth()
+                    .padding(horizontal = panelInset(20.dp), vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color(0xFF1E1E22))
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(
+                        text = "Connect from your active browser session (zero QR needed):",
+                        color = Color.White,
+                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Text(
+                        text = "1. In your Discord browser tab, press Ctrl+Shift+I → Console",
+                        color = DesktopSecondary,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (snippetCopied) Color(0xFF2E7D32) else Color(0xFF5865F2))
+                                .clickable {
+                                    DesktopExternalLinks.copy(
+                                        "(webpackChunkdiscord_app.push([[''],{},e=>{m=[];for(let c in e.c)m.push(e.c[c])}]),m).find(m=>m?.exports?.default?.getToken!==void 0).exports.default.getToken()"
+                                    )
+                                    snippetCopied = true
+                                }
+                                .padding(vertical = 7.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = if (snippetCopied) "✓ Script Copied to Clipboard!" else "2. Copy 1-Click Script",
+                                color = Color.White,
+                                fontWeight = FontWeight.SemiBold,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFF2E2E35))
+                                .clickable { DesktopExternalLinks.open("https://discord.com/app") }
+                                .padding(horizontal = 12.dp, vertical = 7.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = "Open Discord",
+                                color = Color.White,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
                         }
                     }
-                    .padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = if (showManualInput) "▾ Switch back to QR code login" else "▸ Or enter token manually",
-                    color = DesktopSecondary,
-                    fontSize = 12.sp,
-                )
-            }
+                    Text(
+                        text = "3. Paste script into Console & press Enter, then paste token below:",
+                        color = DesktopSecondary,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
 
-            if (showManualInput) {
-                Spacer(Modifier.height(8.dp))
                 DialogField(
                     value = manualToken,
                     onValueChange = { manualToken = it },
-                    placeholder = DesktopStrings["token", "Token"],
+                    placeholder = "Paste your user token here…",
                     enabled = !manualBusy,
                     isPassword = true,
                     onSubmit = ::saveManualToken,
                 )
-                var snippetCopied by remember { mutableStateOf(false) }
-                Row(
-                    Modifier.fillMaxWidth().padding(top = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (manualToken.isNotBlank() && !manualBusy) Color(0xFF5865F2) else Color(0xFF3E3E45))
+                        .clickable(enabled = manualToken.isNotBlank() && !manualBusy, onClick = ::saveManualToken)
+                        .padding(vertical = 10.dp),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    TextButton(
-                        onClick = {
-                            DesktopExternalLinks.copy(
-                                "(webpackChunkdiscord_app.push([[''],{},e=>{m=[];for(let c in e.c)m.push(e.c[c])}]),m).find(m=>m?.exports?.default?.getToken!==void 0).exports.default.getToken()"
-                            )
-                            snippetCopied = true
-                        },
-                    ) {
-                        Text(
-                            if (snippetCopied) "Snippet Copied!" else "Copy Token Script",
-                            color = if (snippetCopied) DesktopAccent else DesktopSecondary,
-                            style = MaterialTheme.typography.bodySmall,
+                    if (manualBusy) {
+                        CircularProgressIndicator(
+                            color = Color.White,
+                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(18.dp),
                         )
-                    }
-                    TextButton(
-                        onClick = { DesktopExternalLinks.open("https://discord.com/app") },
-                    ) {
+                    } else {
                         Text(
-                            "Open Discord Web",
-                            color = DesktopSecondary,
-                            style = MaterialTheme.typography.bodySmall,
+                            text = "Connect Account",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.bodyMedium,
                         )
                     }
                 }
@@ -662,7 +769,7 @@ internal fun DesktopDiscordTokenDialog(onDismiss: () -> Unit) {
 
         // Bottom Actions Row
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = panelInset(16.dp), vertical = 12.dp),
+            Modifier.fillMaxWidth().padding(horizontal = panelInset(16.dp), vertical = 10.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -679,29 +786,8 @@ internal fun DesktopDiscordTokenDialog(onDismiss: () -> Unit) {
             } else {
                 Spacer(Modifier.width(1.dp))
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (manualBusy) {
-                    CircularProgressIndicator(
-                        color = DesktopAccent,
-                        strokeWidth = 2.dp,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Spacer(Modifier.size(12.dp))
-                }
-                TextButton(onClick = onDismiss, enabled = !manualBusy) {
-                    Text(DesktopStrings["cancel", "Cancel"], color = DesktopSecondary)
-                }
-                if (showManualInput && manualToken.isNotBlank() && (manualToken != currentToken || currentUsername.isBlank())) {
-                    TextButton(
-                        onClick = ::saveManualToken,
-                        enabled = !manualBusy,
-                    ) {
-                        Text(
-                            if (manualBusy) "Checking…" else "Save",
-                            color = DesktopAccent,
-                        )
-                    }
-                }
+            TextButton(onClick = onDismiss, enabled = !manualBusy) {
+                Text(DesktopStrings["cancel", "Cancel"], color = DesktopSecondary)
             }
         }
     }
