@@ -7865,10 +7865,11 @@ private fun DesktopSettingsScreen(
                     val localDiscord by DesktopDiscordRpc.localClient.collectAsState()
                     val discordUsername by DesktopDiscordRpc.username.collectAsState()
                     val discordToken by DesktopDiscordRpc.token.collectAsState()
+                    val ipcUser by DesktopDiscordRpc.ipcUser.collectAsState()
                     val discordSubtitle = when {
                         !discordEnabled -> "Disabled"
                         discordToken.isNotBlank() -> "Connected as @$discordUsername"
-                        localDiscord -> "Connected via Discord desktop app"
+                        localDiscord -> "Connected as @${ipcUser?.username ?: "Discord Desktop"}"
                         else -> "Enabled — will display activity when Discord is open"
                     }
                     SettingsToggle(
@@ -7883,13 +7884,15 @@ private fun DesktopSettingsScreen(
                     SettingsRow(
                         glyphIcon = RaagaIcons.Discord,
                         glyphColor = Color(0xFF5865F2),
-                        title = if (discordToken.isNotBlank()) "Discord Account: @$discordUsername" else if (localDiscord) "Discord Desktop (Active)" else "Connect Discord Account",
-                        subtitle = if (discordToken.isNotBlank()) {
-                            "Connected to Discord • Tap to switch account or disconnect"
-                        } else if (localDiscord) {
-                            "Local Discord desktop app connected with zero login required"
-                        } else {
-                            "Scan QR code or connect in 10s via active browser session"
+                        title = when {
+                            discordToken.isNotBlank() -> "Discord Account: @$discordUsername"
+                            localDiscord -> "Discord Desktop: @${ipcUser?.username ?: "Connected"}"
+                            else -> "Connect Discord Account"
+                        },
+                        subtitle = when {
+                            discordToken.isNotBlank() -> "Connected to Discord • Tap to switch account or disconnect"
+                            localDiscord -> "Local Discord app connected with zero login required"
+                            else -> "Open Discord on PC or connect via browser session"
                         },
                         onClick = onOpenDiscordToken,
                     )

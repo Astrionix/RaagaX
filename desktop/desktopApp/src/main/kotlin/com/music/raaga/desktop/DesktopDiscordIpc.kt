@@ -1,7 +1,9 @@
 package com.music.raaga.desktop
 
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 import java.io.Closeable
 import java.io.File
 import java.io.RandomAccessFile
@@ -25,9 +27,16 @@ import java.util.UUID
  * Framing is a 32-bit little-endian opcode, a 32-bit little-endian length, and
  * that many bytes of JSON.
  */
+internal data class DesktopDiscordIpcUser(
+    val id: String,
+    val username: String,
+    val avatarUrl: String?,
+)
+
 internal class DesktopDiscordIpc private constructor(
     private val channel: SocketChannel?,
     private val pipe: RandomAccessFile?,
+    val user: DesktopDiscordIpcUser? = null,
 ) : Closeable {
 
     companion object {
@@ -44,16 +53,42 @@ internal class DesktopDiscordIpc private constructor(
          */
         fun connect(applicationId: String): DesktopDiscordIpc? {
             for (candidate in candidates()) {
-                val ipc = runCatching { open(candidate) }.getOrNull() ?: continue
+                val rawIpc = runCatching { open(candidate) }.getOrNull() ?: continue
+                var user: DesktopDiscordIpcUser? = null
                 val ready = runCatching {
-                    ipc.send(OP_HANDSHAKE, """{"v":1,"client_id":"$applicationId"}""")
-                    ipc.read() != null
+                    rawIpc.send(OP_HANDSHAKE, """{"v":1,"client_id":"$applicationId"}""")
+                    val reply = rawIpc.read()
+                    if (reply != null) {
+                        user = parseUser(reply)
+                        true
+                    } else false
                 }.getOrDefault(false)
-                if (ready) return ipc
-                ipc.close()
+                if (ready) {
+                    return if (rawIpc.channel != null) {
+                        DesktopDiscordIpc(rawIpc.channel, null, user)
+                    } else {
+                        DesktopDiscordIpc(null, rawIpc.pipe, user)
+                    }
+                }
+                rawIpc.close()
             }
             return null
         }
+
+        private fun parseUser(jsonStr: String): DesktopDiscordIpcUser? = runCatching {
+            val root = Json.decodeFromString<JsonObject>(jsonStr)
+            val data = root["data"]?.let { if (it is JsonObject) it else null } ?: return@runCatching null
+            val user = data["user"]?.let { if (it is JsonObject) it else null } ?: return@runCatching null
+            val id = (user["id"] as? JsonPrimitive)?.content ?: return@runCatching null
+            val globalName = (user["global_name"] as? JsonPrimitive)?.content
+            val username = (user["username"] as? JsonPrimitive)?.content ?: "Discord User"
+            val displayName = globalName?.takeIf { it.isNotBlank() } ?: username
+            val avatar = (user["avatar"] as? JsonPrimitive)?.content
+            val avatarUrl = if (!avatar.isNullOrBlank()) {
+                "https://cdn.discordapp.com/avatars/$id/$avatar.png?size=128"
+            } else null
+            DesktopDiscordIpcUser(id = id, username = displayName, avatarUrl = avatarUrl)
+        }.getOrNull()
 
         private fun open(path: String): DesktopDiscordIpc =
             if (DesktopPlatform.isWindows) {

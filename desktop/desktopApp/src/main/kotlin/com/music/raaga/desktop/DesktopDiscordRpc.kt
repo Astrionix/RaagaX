@@ -55,6 +55,10 @@ internal object DesktopDiscordRpc {
     /** Whether a Discord on this machine is answering, so no token is needed. */
     val localClient: StateFlow<Boolean> = _localClient
 
+    private val _ipcUser = MutableStateFlow<DesktopDiscordIpcUser?>(null)
+    /** The user signed in to the local Discord client, if available. */
+    val ipcUser: StateFlow<DesktopDiscordIpcUser?> = _ipcUser
+
     /** Looks for a local Discord. Cheap, and the answer changes when one starts. */
     fun refreshLocalClient() {
         scope.launch {
@@ -62,9 +66,11 @@ internal object DesktopDiscordRpc {
             if (found != null) {
                 ipc?.close()
                 ipc = found
+                _ipcUser.value = found.user
                 _localClient.value = true
             } else {
                 _localClient.value = ipc != null
+                if (ipc == null) _ipcUser.value = null
             }
         }
     }
@@ -195,6 +201,7 @@ internal object DesktopDiscordRpc {
                 val found = runCatching { DesktopDiscordIpc.connect(APPLICATION_ID) }.getOrNull()
                 if (found != null) {
                     ipc = found
+                    _ipcUser.value = found.user
                     _localClient.value = true
                 }
             }
