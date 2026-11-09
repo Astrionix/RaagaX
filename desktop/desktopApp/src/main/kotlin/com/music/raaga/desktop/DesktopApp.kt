@@ -7746,7 +7746,7 @@ private fun DesktopSettingsScreen(
                     val discordToken by DesktopDiscordRpc.token.collectAsState()
                     val discordSubtitle = when {
                         !discordEnabled -> "Disabled"
-                        discordToken.isNotBlank() -> "Connected as @$discordUsername (Web & Android style)"
+                        discordToken.isNotBlank() -> "Connected as @$discordUsername"
                         localDiscord -> "Connected via Discord desktop app"
                         else -> "Enabled — will display activity when Discord is open"
                     }
@@ -7758,11 +7758,11 @@ private fun DesktopSettingsScreen(
                     )
                     SettingsRow(
                         icon = RaagaIcons.Discord,
-                        title = if (discordToken.isNotBlank()) "Discord Account: @$discordUsername" else "Connect Discord Account (Token)",
+                        title = if (discordToken.isNotBlank()) "Discord Account: @$discordUsername" else "Connect Discord Account",
                         subtitle = if (discordToken.isNotBlank()) {
-                            "Connected with token (Web & Android style) • Tap to change or disconnect"
+                            "Connected to Discord • Tap to switch account or disconnect"
                         } else {
-                            "Sign in with your Discord token for Web & Android rich presence"
+                            "Scan QR code with Discord mobile app to log in instantly"
                         },
                         onClick = onOpenDiscordToken,
                     )

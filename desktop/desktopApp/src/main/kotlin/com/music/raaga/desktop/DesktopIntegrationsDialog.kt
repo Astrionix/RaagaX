@@ -272,16 +272,16 @@ private fun DiscordSection(
         )
     }
 
-    // Web & Android style token connection: Always accessible so user can connect or manage token
+    // Direct Discord account connection (QR code login or manual token): Always accessible so user can connect or manage account
     PanelGroup(
-        footer = "Connect with your Discord token to broadcast Rich Presence globally across Discord servers, mobile, and web (identical to Raaga on Web & Android).",
+        footer = "Connect your Discord account to broadcast Rich Presence globally across Discord servers, mobile, and web.",
     ) {
         PanelActionRow(
-            title = if (token.isBlank()) "Connect Discord Account (Token)" else "Discord Account: @$username",
+            title = if (token.isBlank()) "Connect Discord Account" else "Discord Account: @$username",
             subtitle = if (token.isBlank()) {
-                "Sign in with token for Web & Android style rich presence"
+                "Scan QR code with Discord mobile app or log in"
             } else {
-                "Connected with token • Click to change or disconnect"
+                "Connected as @$username • Click to manage or disconnect"
             },
             destructive = token.isNotBlank(),
             onClick = onOpenDiscordToken,

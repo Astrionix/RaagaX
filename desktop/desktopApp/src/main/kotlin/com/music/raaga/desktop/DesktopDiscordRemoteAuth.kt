@@ -289,3 +289,4 @@ internal class DesktopDiscordRemoteAuth {
         }
     }
 }
+
