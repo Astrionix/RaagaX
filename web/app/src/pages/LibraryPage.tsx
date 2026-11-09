@@ -95,7 +95,7 @@ export default function LibraryPage() {
       {section === 'recent' && <ReplayCardRow />}
 
       {(rawGrid.length > 0 || rawTracks.length > 0) && (
-        <div className="mx-(--body-gutter) mt-1 mb-4 flex max-w-sm items-center gap-2 rounded-full border border-search-border bg-quinary px-3 py-1.5">
+        <div className="mx-(--body-gutter) mt-1 mb-4 flex max-w-sm items-center gap-2 rounded-lg border border-search-border bg-quinary px-3 py-1.5">
           <Search size={15} strokeWidth={2.2} className="text-secondary" />
           <input
             type="search"

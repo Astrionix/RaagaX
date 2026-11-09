@@ -113,7 +113,7 @@ export default function SpotifyPlaylistPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search in playlist…"
-              className="h-8 w-full rounded-full border border-search-border bg-quinary pr-8 pl-8.5 type-callout text-primary placeholder:text-tertiary focus:border-primary/40 focus:outline-none"
+              className="h-8 w-full rounded-lg border border-search-border bg-quinary pr-8 pl-8.5 type-callout text-primary placeholder:text-tertiary focus:border-primary/40 focus:outline-none"
             />
             {searchQuery && (
               <button

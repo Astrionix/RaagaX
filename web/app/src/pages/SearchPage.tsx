@@ -268,7 +268,7 @@ export default function SearchPage() {
                 <button
                   key={f.id}
                   type="button"
-                  className={`shrink-0 rounded-full px-3.5 py-1 text-[13px] font-medium transition-colors ${
+                  className={`shrink-0 rounded-lg px-3.5 py-1 text-[13px] font-medium transition-colors ${
                     active
                       ? 'bg-pill-bg text-pill shadow-xs'
                       : 'bg-quaternary text-primary hover:bg-quinary'
