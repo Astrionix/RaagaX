@@ -733,7 +733,6 @@ private fun FullLibraryImportCard(
 
 @Composable
 private fun NotConnectedLoginCard(errorMessage: String?) {
-    var showSpdcInput by remember { mutableStateOf(false) }
     var spdcText by remember { mutableStateOf(DesktopSpotifyToken.cookie()) }
     var showClientIdInput by remember { mutableStateOf(false) }
     var clientIdText by remember { mutableStateOf(DesktopSpotifyAuthManager.getStoredClientId()) }
@@ -744,19 +743,19 @@ private fun NotConnectedLoginCard(errorMessage: String?) {
             .clip(RoundedCornerShape(16.dp))
             .background(SpotifyCardBg)
             .border(1.dp, SpotifyBorder, RoundedCornerShape(16.dp))
-            .padding(22.dp),
+            .padding(20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
             modifier = Modifier
-                .size(54.dp)
+                .size(48.dp)
                 .clip(CircleShape)
                 .background(SpotifyGreen.copy(alpha = 0.18f)),
             contentAlignment = Alignment.Center,
         ) {
-            Text("♫", color = SpotifyGreen, fontWeight = FontWeight.Bold, fontSize = 28.sp)
+            Text("♫", color = SpotifyGreen, fontWeight = FontWeight.Bold, fontSize = 24.sp)
         }
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(10.dp))
         Text(
             "Connect Your Spotify Account",
             style = MaterialTheme.typography.titleMedium,
@@ -765,7 +764,7 @@ private fun NotConnectedLoginCard(errorMessage: String?) {
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            "Enable 1-Click Liked Songs Direct Sync and Batch Playlist Import into Raaga",
+            "Sync Liked Songs & batch import your Spotify playlists into Raaga",
             style = MaterialTheme.typography.bodySmall,
             color = DesktopSecondary,
         )
@@ -775,84 +774,81 @@ private fun NotConnectedLoginCard(errorMessage: String?) {
             Text(err, color = DesktopDestructive, style = MaterialTheme.typography.bodySmall)
         }
 
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(16.dp))
 
-        // 1-Click Browser OAuth Button
-        Box(
+        // Method 1: sp_dc Web Cookie Login (Direct & Reliable)
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(12.dp))
-                .background(SpotifyGreen)
-                .clickable { DesktopSpotifyAuthManager.startOAuthLogin() }
-                .padding(vertical = 12.dp),
-            contentAlignment = Alignment.Center,
+                .background(Color.White.copy(alpha = 0.05f))
+                .border(0.5.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
+                .padding(14.dp),
         ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(22.dp)
+                        .clip(CircleShape)
+                        .background(SpotifyGreen),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("1", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                }
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "Connect via Spotify Web Cookie (Recommended)",
+                    color = Color.White,
+                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            Spacer(Modifier.height(6.dp))
             Text(
-                "Log In with Spotify (1-Click OAuth)",
-                color = Color.Black,
-                fontWeight = FontWeight.Bold,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        }
-
-        Spacer(Modifier.height(12.dp))
-
-        // Alternative: sp_dc Web Session
-        TextButton(onClick = { showSpdcInput = !showSpdcInput }) {
-            Text(
-                if (showSpdcInput) "Hide Web Cookie Login" else "Or Connect with sp_dc Web Cookie",
+                "Open open.spotify.com in browser → press F12 → Application → Cookies → copy 'sp_dc':",
                 color = DesktopSecondary,
-                style = MaterialTheme.typography.bodySmall,
+                fontSize = 11.5.sp,
+                lineHeight = 15.sp,
             )
-        }
-
-        AnimatedVisibility(visible = showSpdcInput) {
-            Column(
+            Spacer(Modifier.height(8.dp))
+            BasicTextField(
+                value = spdcText,
+                onValueChange = { spdcText = it },
+                textStyle = MaterialTheme.typography.bodySmall.copy(color = Color.White),
+                cursorBrush = SolidColor(SpotifyGreen),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 8.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(Color.White.copy(alpha = 0.05f))
-                    .padding(12.dp),
-            ) {
-                Text(
-                    "Paste your Spotify sp_dc cookie from open.spotify.com:",
-                    color = DesktopSecondary,
-                    style = MaterialTheme.typography.labelSmall,
-                )
-                Spacer(Modifier.height(8.dp))
-                BasicTextField(
-                    value = spdcText,
-                    onValueChange = { spdcText = it },
-                    textStyle = MaterialTheme.typography.bodySmall.copy(color = Color.White),
-                    cursorBrush = SolidColor(SpotifyGreen),
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color.Black.copy(alpha = 0.35f))
+                    .padding(10.dp),
+            )
+            Spacer(Modifier.height(10.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
                         .clip(RoundedCornerShape(8.dp))
-                        .background(Color.Black.copy(alpha = 0.3f))
-                        .padding(10.dp),
-                )
-                Spacer(Modifier.height(10.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(SpotifyGreen)
-                            .clickable { DesktopSpotifyAuthManager.loginWithSpdc(spdcText) }
-                            .padding(horizontal = 14.dp, vertical = 7.dp),
-                    ) {
-                        Text("Connect Web Session", color = Color.Black, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall)
-                    }
+                        .background(if (spdcText.isNotBlank()) SpotifyGreen else Color.White.copy(alpha = 0.15f))
+                        .clickable(enabled = spdcText.isNotBlank()) { DesktopSpotifyAuthManager.loginWithSpdc(spdcText) }
+                        .padding(horizontal = 16.dp, vertical = 7.dp),
+                ) {
+                    Text(
+                        "Connect Web Session",
+                        color = if (spdcText.isNotBlank()) Color.Black else DesktopSecondary,
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                 }
             }
         }
 
-        // Custom Client ID
+        Spacer(Modifier.height(12.dp))
+
+        // Method 2: 1-Click OAuth with Custom Client ID option
         TextButton(onClick = { showClientIdInput = !showClientIdInput }) {
             Text(
-                if (showClientIdInput) "Hide Client ID" else "Custom Spotify Client ID (Optional)",
-                color = DesktopSecondary.copy(alpha = 0.7f),
-                style = MaterialTheme.typography.labelSmall,
+                if (showClientIdInput) "▲ Hide Spotify Developer App Setup" else "▼ Or Log in with Spotify Developer App (OAuth)",
+                color = DesktopSecondary,
+                style = MaterialTheme.typography.bodySmall,
             )
         }
 
@@ -860,8 +856,18 @@ private fun NotConnectedLoginCard(errorMessage: String?) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 4.dp),
+                    .padding(top = 4.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.White.copy(alpha = 0.04f))
+                    .padding(12.dp),
             ) {
+                Text(
+                    "Spotify requires your own Client ID from developer.spotify.com/dashboard (set Redirect URI to http://127.0.0.1:8888/callback):",
+                    color = DesktopSecondary,
+                    fontSize = 11.sp,
+                    lineHeight = 15.sp,
+                )
+                Spacer(Modifier.height(8.dp))
                 BasicTextField(
                     value = clientIdText,
                     onValueChange = {
@@ -873,9 +879,21 @@ private fun NotConnectedLoginCard(errorMessage: String?) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(8.dp))
-                        .background(Color.Black.copy(alpha = 0.3f))
+                        .background(Color.Black.copy(alpha = 0.35f))
                         .padding(10.dp),
                 )
+                Spacer(Modifier.height(10.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(SpotifyGreen)
+                        .clickable { DesktopSpotifyAuthManager.startOAuthLogin(clientIdText) }
+                        .padding(vertical = 10.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("Start Browser OAuth", color = Color.Black, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall)
+                }
             }
         }
     }
