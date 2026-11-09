@@ -415,7 +415,7 @@ internal fun DesktopDiscordTokenDialog(onDismiss: () -> Unit) {
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = "Scan QR Code",
+                    text = "QR Code",
                     color = if (selectedTab == 0) Color.White else DesktopSecondary,
                     fontWeight = if (selectedTab == 0) FontWeight.SemiBold else FontWeight.Normal,
                     style = MaterialTheme.typography.bodySmall,
@@ -423,7 +423,7 @@ internal fun DesktopDiscordTokenDialog(onDismiss: () -> Unit) {
             }
             Box(
                 modifier = Modifier
-                    .weight(1f)
+                    .weight(1.3f)
                     .clip(RoundedCornerShape(8.dp))
                     .background(if (selectedTab == 1) Color(0xFF2E2E35) else Color.Transparent)
                     .clickable { selectedTab = 1 }
@@ -434,6 +434,22 @@ internal fun DesktopDiscordTokenDialog(onDismiss: () -> Unit) {
                     text = "Browser Token (Fast)",
                     color = if (selectedTab == 1) Color.White else DesktopSecondary,
                     fontWeight = if (selectedTab == 1) FontWeight.SemiBold else FontWeight.Normal,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .weight(1.2f)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (selectedTab == 2) Color(0xFF2E2E35) else Color.Transparent)
+                    .clickable { selectedTab = 2 }
+                    .padding(vertical = 7.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "Discord Desktop",
+                    color = if (selectedTab == 2) Color.White else DesktopSecondary,
+                    fontWeight = if (selectedTab == 2) FontWeight.SemiBold else FontWeight.Normal,
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
@@ -680,6 +696,12 @@ internal fun DesktopDiscordTokenDialog(onDismiss: () -> Unit) {
                         style = MaterialTheme.typography.bodySmall,
                     )
                     Text(
+                        text = "Method A (Console Script):",
+                        color = Color(0xFF5865F2),
+                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Text(
                         text = "1. In your Discord browser tab, press Ctrl+Shift+I → Console",
                         color = DesktopSecondary,
                         style = MaterialTheme.typography.bodySmall,
@@ -703,7 +725,7 @@ internal fun DesktopDiscordTokenDialog(onDismiss: () -> Unit) {
                             contentAlignment = Alignment.Center,
                         ) {
                             Text(
-                                text = if (snippetCopied) "✓ Script Copied to Clipboard!" else "2. Copy 1-Click Script",
+                                text = if (snippetCopied) "✓ Script Copied!" else "Copy 1-Click Script",
                                 color = Color.White,
                                 fontWeight = FontWeight.SemiBold,
                                 style = MaterialTheme.typography.bodySmall,
@@ -725,7 +747,19 @@ internal fun DesktopDiscordTokenDialog(onDismiss: () -> Unit) {
                         }
                     }
                     Text(
-                        text = "3. Paste script into Console & press Enter, then paste token below:",
+                        text = "2. If Console says 'Hold up!': type 'allow pasting' and hit Enter first, then paste the script.",
+                        color = DesktopSecondary,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "Method B (No Script — Network tab):",
+                        color = Color(0xFF5865F2),
+                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Text(
+                        text = "In F12 DevTools → Network tab → filter '/api' → click any chat → copy 'authorization' header value.",
                         color = DesktopSecondary,
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -762,6 +796,87 @@ internal fun DesktopDiscordTokenDialog(onDismiss: () -> Unit) {
                             fontWeight = FontWeight.Bold,
                             style = MaterialTheme.typography.bodyMedium,
                         )
+                    }
+                }
+            }
+        }
+
+        // Tab 2: Discord Desktop App (Zero login, 100% official)
+        if (selectedTab == 2) {
+            val localDiscord by DesktopDiscordRpc.localClient.collectAsState()
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = panelInset(20.dp), vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color(0xFF1E1E22))
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        text = "Official Discord Desktop (Recommended)",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Text(
+                        text = "The safest and official way on PC. When the official Discord Desktop app is running, Raaga connects to it over local IPC with:",
+                        color = DesktopSecondary,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Column(modifier = Modifier.padding(start = 6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("• Zero login, passwords or tokens needed", color = Color(0xFF5865F2), style = MaterialTheme.typography.bodySmall)
+                        Text("• Zero QR code scans or CAPTCHAs", color = Color(0xFF5865F2), style = MaterialTheme.typography.bodySmall)
+                        Text("• 100% official Discord Game SDK support", color = Color(0xFF5865F2), style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+
+                if (localDiscord) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFF2E7D32).copy(alpha = 0.2f))
+                            .padding(12.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Rounded.Check, contentDescription = null, tint = Color(0xFF4CAF50), modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Discord Desktop is active & connected!", color = Color.White, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFF5865F2))
+                                .clickable { DesktopExternalLinks.open("https://discord.com/download") }
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text("Download Discord for PC", color = Color.White, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall)
+                        }
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFF2E2E35))
+                                .clickable { DesktopDiscordRpc.refreshLocalClient() }
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text("Check Connection", color = Color.White, style = MaterialTheme.typography.bodySmall)
+                        }
                     }
                 }
             }
