@@ -64,6 +64,7 @@ internal class DesktopDiscordRemoteAuth {
     private var connectionJob: Job? = null
     private var heartbeatJob: Job? = null
     private var activeSocket: WebSocket? = null
+    @Volatile private var activeFingerprint: String? = null
 
     private val _state = MutableStateFlow<DiscordRemoteAuthState>(DiscordRemoteAuthState.Idle)
     val state: StateFlow<DiscordRemoteAuthState> = _state.asStateFlow()
@@ -180,18 +181,42 @@ internal class DesktopDiscordRemoteAuth {
 
             "pending_remote_init" -> {
                 val fingerprint = payload["fingerprint"]?.jsonPrimitive?.content ?: return
+                activeFingerprint = fingerprint
                 val qrUrl = "https://discord.com/ra/$fingerprint"
                 _state.value = DiscordRemoteAuthState.Ready(qrUrl = qrUrl, fingerprint = fingerprint)
             }
 
             "pending_ticket" -> {
-                val userObj = payload["user"]?.jsonObject
-                val username = userObj?.get("username")?.jsonPrimitive?.content ?: "Discord User"
-                val userId = userObj?.get("id")?.jsonPrimitive?.content
-                val avatarHash = userObj?.get("avatar")?.jsonPrimitive?.content
-                val avatarUrl = if (userId != null && avatarHash != null) {
-                    "https://cdn.discordapp.com/avatars/$userId/$avatarHash.png?size=128"
-                } else null
+                val encPayload = payload["encrypted_user_payload"]?.jsonPrimitive?.content
+                var username = "Discord User"
+                var avatarUrl: String? = null
+
+                if (encPayload != null) {
+                    runCatching {
+                        val encBytes = Base64.getDecoder().decode(encPayload)
+                        val decrypted = decryptOaep(keyPair.private, encBytes)
+                        val userString = String(decrypted, Charsets.UTF_8)
+                        val parts = userString.split(":")
+                        if (parts.size >= 4) {
+                            val userId = parts[0]
+                            val avatarHash = parts[2]
+                            username = parts[3]
+                            if (avatarHash.isNotBlank()) {
+                                avatarUrl = "https://cdn.discordapp.com/avatars/$userId/$avatarHash.png?size=128"
+                            }
+                        }
+                    }
+                } else {
+                    val userObj = payload["user"]?.jsonObject
+                    if (userObj != null) {
+                        username = userObj["username"]?.jsonPrimitive?.content ?: "Discord User"
+                        val userId = userObj["id"]?.jsonPrimitive?.content
+                        val avatarHash = userObj["avatar"]?.jsonPrimitive?.content
+                        if (userId != null && avatarHash != null) {
+                            avatarUrl = "https://cdn.discordapp.com/avatars/$userId/$avatarHash.png?size=128"
+                        }
+                    }
+                }
 
                 _state.value = DiscordRemoteAuthState.Scanned(username = username, avatarUrl = avatarUrl)
             }
@@ -220,18 +245,37 @@ internal class DesktopDiscordRemoteAuth {
         username: String,
     ) {
         runCatching {
-            val request = HttpRequest.newBuilder()
+            val fp = activeFingerprint
+            val requestBuilder = HttpRequest.newBuilder()
                 .uri(URI.create("https://discord.com/api/v9/users/@me/remote-auth/login"))
                 .header("Content-Type", "application/json")
                 .header("Origin", "https://discord.com")
+                .header("Referer", if (!fp.isNullOrBlank()) "https://discord.com/ra/$fp" else "https://discord.com/login")
                 .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                .header("X-Super-Properties", "eyJvcyI6IldpbmRvd3MiLCJicm93c2VyIjoiQ2hyb21lIiwiZGV2aWNlIjoiIiwiYnJvd3Nlcl91c2VyX2FnZW50IjoiTW96aWxsYS81LjAgKFdpbmRvd3MgTlQgMTAuMDsgV2luNjQ7IHg2NCkgQXBwbGVXZWJLaXQvNTM3LjM2IChLSFRNTCwgbGlrZSBHZWNrbykgQ2hyb21lLzEyMC4wLjAuMCBTYWZhcmkvNTM3LjM2IiwiYnJvd3Nlcl92ZXJzaW9uIjoiMTIwLjAuMC4wIiwib3NfdmVyc2lvbiI6IjEwIiwicmVsZWFzZV9jaGFubmVsIjoic3RhYmxlIiwiY2xpZW50X2J1aWxkX251bWJlciI6MjUwMDAwLCJjbGllbnRfZXZlbnRfc291cmNlIjpudWxsfQ==")
                 .POST(HttpRequest.BodyPublishers.ofString("""{"ticket":"$ticket"}"""))
                 .timeout(Duration.ofSeconds(15))
-                .build()
 
-            val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+            if (!fp.isNullOrBlank()) {
+                requestBuilder.header("X-Fingerprint", fp)
+            }
+
+            val response = httpClient.send(requestBuilder.build(), HttpResponse.BodyHandlers.ofString())
+            DesktopTrackLog.log("Discord remote-auth/login response: ${response.statusCode()} ${response.body()}")
+
             if (response.statusCode() !in 200..299) {
-                error("Discord refused the login ticket (HTTP ${response.statusCode()})")
+                val bodyStr = response.body().orEmpty()
+                val parsedMsg = runCatching {
+                    val root = json.decodeFromString<JsonObject>(bodyStr)
+                    val msg = root["message"]?.jsonPrimitive?.content
+                    val captcha = root["captcha_key"] != null || root["captcha_sitekey"] != null
+                    when {
+                        captcha -> "Discord requires a CAPTCHA verification challenge on this network. Please open the Discord desktop app or enter token manually."
+                        !msg.isNullOrBlank() -> msg
+                        else -> null
+                    }
+                }.getOrNull()
+                error(parsedMsg ?: "Discord refused the login ticket (HTTP ${response.statusCode()})")
             }
 
             val bodyJson = json.decodeFromString<JsonObject>(response.body())
