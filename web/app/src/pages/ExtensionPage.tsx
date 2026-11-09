@@ -52,19 +52,19 @@ function downloadsFor(published: PublishedExtension | null): Download[] {
     },
     {
       browser: 'firefox',
-      title: 'Download for Firefox',
+      title: 'Install for Firefox',
       detail: 'Firefox 128 or newer',
       href: published ? downloadUrl(published.files.firefox) : config.extensionFirefoxUrl,
       Icon: FaFirefoxBrowser,
       steps: [
-        'Click "Download for Firefox" above.',
+        'Click "Install for Firefox" above.',
         'Firefox will prompt: "Add Raaga? This extension will have permission to: ...".',
         'Click "Add" (and optionally check "Allow in Private Windows").',
         'Return to this page: the status above will automatically turn to "Installed" (Connection: Page relay).',
         'The extension is digitally signed by Mozilla and permanently installed across all browser restarts.',
       ],
       updateSteps: [
-        'Click "Download for Firefox" above.',
+        'Click "Install for Firefox" above.',
         'Click "Add" when Firefox prompts to update the extension.',
         'Return to this page: the version above updates automatically on its own.',
       ],
@@ -162,7 +162,7 @@ export default function ExtensionPage() {
             <a
               className={`${settingsUi.group} ${settingsUi.download} mt-3`}
               href={forUpdate.href}
-              download={`raaga-extension-${forUpdate.browser}.zip`}
+              download={forUpdate.browser === 'chrome' ? `raaga-extension-chrome.zip` : undefined}
               onClick={() => setUpdating(true)}
             >
               <span className={settingsUi.updateDot} aria-hidden="true" />
@@ -196,7 +196,7 @@ export default function ExtensionPage() {
               key={browser}
               className={settingsUi.download}
               href={href}
-              download={`raaga-extension-${browser}.zip`}
+              download={browser === 'chrome' ? `raaga-extension-${browser}.zip` : undefined}
               onClick={() => setChosen(browser)}
             >
               <Icon size={28} className="text-primary" />

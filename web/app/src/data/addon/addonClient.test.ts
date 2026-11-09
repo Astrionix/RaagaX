@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { AddonClient, maskUrl, normalizeBaseUrl, toPlayableStreamUrl } from './addonClient';
 
 describe('addonClient', () => {
@@ -44,34 +44,121 @@ describe('addonClient', () => {
       expect(client.baseUrl).toBe('https://my-addon.local:8080');
     });
 
-    it('fetches manifest and searches live user addon URL', async () => {
-      const client = new AddonClient('https://eljohnzcaddon.velixir.run/c57e7b0ef2031b2f1fcd/manifest.json');
-      expect(client.baseUrl).toBe('https://eljohnzcaddon.velixir.run/c57e7b0ef2031b2f1fcd');
+    it('fetches manifest and parses metadata properly', async () => {
+      const mockManifest = {
+        id: 'test.addon.music',
+        name: 'Test Music Addon',
+        version: '1.2.0',
+        resources: ['search', 'stream'],
+        allowDownloads: true,
+        settings: [
+          {
+            key: 'quality',
+            type: 'select',
+            title: 'Quality',
+            options: ['lossless', 'high', 'low'],
+            default: 'high',
+          },
+        ],
+      };
 
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementationOnce(async (url) => {
+        expect(String(url)).toBe('https://addon.test/manifest.json');
+        return {
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: async () => mockManifest,
+        } as Response;
+      });
+
+      const client = new AddonClient('https://addon.test');
       const manifest = await client.manifest();
-      expect(manifest.id).toBe('eljohnzc.addon.music');
-      expect(manifest.name).toBe('Eljohnzc Addon');
+      expect(manifest.id).toBe('test.addon.music');
+      expect(manifest.name).toBe('Test Music Addon');
       expect(manifest.resources).toContain('search');
 
-      const searchResults = await client.search('Shape of You', 'LOSSLESS');
-      expect(searchResults.length).toBeGreaterThan(0);
-      expect(searchResults[0]?.title).toBe('Shape of You');
+      fetchSpy.mockRestore();
     });
 
-    it('fetches manifest, searches and streams from bitchord-hires addon', async () => {
-      const client = new AddonClient('https://bitchord-hires-addon.vercel.app/');
-      expect(client.baseUrl).toBe('https://bitchord-hires-addon.vercel.app');
+    it('searches tracks and handles response mapping', async () => {
+      const mockSearch = {
+        results: [
+          {
+            id: 'track-123',
+            title: 'Shape of You',
+            artist: 'Ed Sheeran',
+            album: 'Divide',
+            duration: 233,
+            quality: 'LOSSLESS',
+          },
+        ],
+      };
 
-      const manifest = await client.manifest();
-      expect(manifest.id).toBe('dev.akira.bitchord-hires');
-      expect(manifest.name).toBe('juanjob hi res');
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+        const urlStr = String(url);
+        if (urlStr.endsWith('/manifest.json')) {
+          return {
+            ok: true,
+            status: 200,
+            statusText: 'OK',
+            json: async () => ({ id: 'test.addon', name: 'Test Addon' }),
+          } as Response;
+        }
+        return {
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: async () => mockSearch,
+        } as Response;
+      });
 
-      const searchResults = await client.search('Adele', 'LOSSLESS');
-      expect(searchResults.length).toBeGreaterThan(0);
+      const client = new AddonClient('https://addon.test');
+      const results = await client.search('Shape of You', 'LOSSLESS');
+      expect(results.length).toBe(1);
+      expect(results[0]?.title).toBe('Shape of You');
+      expect(results[0]?.artist).toBe('Ed Sheeran');
 
-      const stream = await client.stream('ia:AdeleKeshelak-slovakFolkSongsFrom1928', 'LOSSLESS');
+      fetchSpy.mockRestore();
+    });
+
+    it('resolves audio stream URL properly', async () => {
+      const mockStream = {
+        url: 'https://cdn.example.com/audio.flac',
+        format: 'flac',
+        bitDepth: 24,
+        sampleRateHz: 96000,
+        bitrateKbps: 2800,
+        quality: 'HI_RES',
+      };
+
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+        const urlStr = String(url);
+        if (urlStr.endsWith('/manifest.json')) {
+          return {
+            ok: true,
+            status: 200,
+            statusText: 'OK',
+            json: async () => ({ id: 'test.addon', name: 'Test Addon' }),
+          } as Response;
+        }
+        return {
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: async () => mockStream,
+        } as Response;
+      });
+
+      const client = new AddonClient('https://addon.test');
+      const stream = await client.stream('track-123', 'LOSSLESS');
       expect(stream).not.toBeNull();
-      expect(stream?.url).toContain('archive.org');
-    }, 15000);
+      expect(stream?.url).toBe('https://cdn.example.com/audio.flac');
+      expect(stream?.format?.bitDepth).toBe(24);
+      expect(stream?.format?.sampleRateHz).toBe(96000);
+      expect(stream?.format?.quality).toBe('HI_RES');
+
+      fetchSpy.mockRestore();
+    });
   });
 });

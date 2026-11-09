@@ -108,12 +108,12 @@ export function inviteUrl(code: string, customServer: string | null): string {
     try {
       const url = new URL(base.startsWith('http') ? base : `http://${base}`);
       if (isLocalAddress(url.hostname)) {
-        return `${INVITE_ORIGIN}/invite/${code.toUpperCase()}?server=${encodeURIComponent(base)}`;
+        return `${WEB_INVITE_ORIGIN}/invite/${code.toUpperCase()}?server=${encodeURIComponent(base)}`;
       }
     } catch {
       // fallback
     }
   }
-  const origin = base && base.toLowerCase() !== INVITE_ORIGIN && base.toLowerCase() !== WEB_INVITE_ORIGIN && base.toLowerCase() !== LEGACY_INVITE_ORIGIN ? base : INVITE_ORIGIN;
+  const origin = base && base.toLowerCase() !== INVITE_ORIGIN && base.toLowerCase() !== WEB_INVITE_ORIGIN && base.toLowerCase() !== LEGACY_INVITE_ORIGIN ? base : WEB_INVITE_ORIGIN;
   return `${origin}/invite/${code.toUpperCase()}`;
 }
