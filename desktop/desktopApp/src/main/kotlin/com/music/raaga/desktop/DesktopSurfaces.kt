@@ -78,7 +78,7 @@ internal val DesktopSettingsPageGutter = 28.dp
  * How wide Settings and its pages run: the width the Settings card had, so a page in a wide window
  * reads as a column of rows rather than rows stretched to the window's edges.
  */
-internal val DesktopSettingsPageWidth = 840.dp
+internal val DesktopSettingsPageWidth = 680.dp
 
 /** A page of Settings: a column down the middle of the page area, as tall as the area. */
 @Composable

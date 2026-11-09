@@ -73,11 +73,14 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.TooltipArea
+import androidx.compose.foundation.VerticalScrollbar
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.defaultScrollbarStyle
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -90,11 +93,13 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.rememberScrollbarAdapter
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
@@ -3879,6 +3884,7 @@ fun RaagaDesktopApp() {
                                     query = settingsQuery,
                                     onQueryChange = { settingsQuery = it },
                                     listState = settingsListState,
+                                    onClose = { overlays.settingsPage = null },
                                     autoplay = autoplay,
                                     onAutoplayChange = ::setAutoplay,
                                     automix = automix,
@@ -4943,6 +4949,7 @@ internal fun DesktopToolbarButton(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun DesktopSidebar(
     destination: DesktopDestination,
@@ -5015,66 +5022,176 @@ private fun DesktopSidebar(
                         )
                     }
 
-                    Spacer(Modifier.height(14.dp))
-
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(
-                                Brush.linearGradient(
-                                    listOf(Color(0xFF450AF5), Color(0xFF8E8EE5)),
-                                )
-                            )
-                            .clickable { onDestinationSelected(DesktopDestination.LIBRARY) },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            imageVector = RaagaIcons.HeartFilled,
-                            contentDescription = "Liked Songs",
-                            tint = Color.White,
-                            modifier = Modifier.size(22.dp),
-                        )
-                    }
-
                     Spacer(Modifier.height(10.dp))
 
-                    LazyColumn(
-                        modifier = Modifier.weight(1f).fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        items(accountPlaylists.take(6), key = { "col-acc:${it.browseId}" }) { item ->
-                            Box(
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .clickable { onOpenAccountPlaylist(item) },
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                DesktopArtwork(
-                                    url = item.thumbnailUrl,
-                                    modifier = Modifier.fillMaxSize(),
-                                    px = 96,
-                                )
-                            }
-                        }
-                    }
-
+                    val collapsedScrollState = rememberLazyListState()
                     Box(
                         modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .desktopHoverWash()
-                            .clickable(onClick = onOpenSettings),
-                        contentAlignment = Alignment.Center,
+                            .weight(1f)
+                            .fillMaxWidth(),
                     ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Settings,
-                            contentDescription = "Settings",
-                            tint = Color.White.copy(alpha = 0.70f),
-                            modifier = Modifier.size(20.dp),
+                        LazyColumn(
+                            state = collapsedScrollState,
+                            modifier = Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            item(key = "col:liked_songs") {
+                                TooltipArea(
+                                    tooltip = {
+                                        Surface(
+                                            shape = RoundedCornerShape(4.dp),
+                                            color = Color(0xFF282828),
+                                            shadowElevation = 4.dp,
+                                        ) {
+                                            Text(
+                                                text = "Liked Songs • $likedCount songs",
+                                                color = Color.White,
+                                                fontSize = 12.sp,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                            )
+                                        }
+                                    },
+                                    delayMillis = 300,
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(48.dp)
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(
+                                                Brush.linearGradient(
+                                                    listOf(Color(0xFF450AF5), Color(0xFF8E8EE5)),
+                                                )
+                                            )
+                                            .clickable { onDestinationSelected(DesktopDestination.LIBRARY) },
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Icon(
+                                            imageVector = RaagaIcons.HeartFilled,
+                                            contentDescription = "Liked Songs",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(22.dp),
+                                        )
+                                    }
+                                }
+                            }
+
+                            items(accountPlaylists, key = { "col-acc:${it.browseId}" }) { item ->
+                                TooltipArea(
+                                    tooltip = {
+                                        Surface(
+                                            shape = RoundedCornerShape(4.dp),
+                                            color = Color(0xFF282828),
+                                            shadowElevation = 4.dp,
+                                        ) {
+                                            Text(
+                                                text = item.title,
+                                                color = Color.White,
+                                                fontSize = 12.sp,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                            )
+                                        }
+                                    },
+                                    delayMillis = 300,
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(48.dp)
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .clickable { onOpenAccountPlaylist(item) },
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        DesktopArtwork(
+                                            url = item.thumbnailUrl,
+                                            modifier = Modifier.fillMaxSize(),
+                                            px = 96,
+                                        )
+                                    }
+                                }
+                            }
+
+                            items(localPlaylists, key = { "col-loc:${it.id}" }) { playlist ->
+                                TooltipArea(
+                                    tooltip = {
+                                        Surface(
+                                            shape = RoundedCornerShape(4.dp),
+                                            color = Color(0xFF282828),
+                                            shadowElevation = 4.dp,
+                                        ) {
+                                            Text(
+                                                text = playlist.title,
+                                                color = Color.White,
+                                                fontSize = 12.sp,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                            )
+                                        }
+                                    },
+                                    delayMillis = 300,
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(48.dp)
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(Color(0xFF282828))
+                                            .clickable { onOpenLocalPlaylist(playlist) },
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Icon(
+                                            Icons.AutoMirrored.Rounded.PlaylistPlay,
+                                            contentDescription = playlist.title,
+                                            tint = Color.White.copy(alpha = 0.7f),
+                                            modifier = Modifier.size(22.dp),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        VerticalScrollbar(
+                            adapter = rememberScrollbarAdapter(collapsedScrollState),
+                            modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight(),
+                            style = defaultScrollbarStyle().copy(
+                                unhoverColor = Color.White.copy(alpha = 0.12f),
+                                hoverColor = Color.White.copy(alpha = 0.35f),
+                                thickness = 3.dp,
+                            ),
                         )
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    TooltipArea(
+                        tooltip = {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = Color(0xFF282828),
+                                shadowElevation = 4.dp,
+                            ) {
+                                Text(
+                                    text = "Settings",
+                                    color = Color.White,
+                                    fontSize = 12.sp,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                )
+                            }
+                        },
+                        delayMillis = 300,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .desktopHoverWash()
+                                .clickable(onClick = onOpenSettings),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Settings,
+                                contentDescription = "Settings",
+                                tint = Color.White.copy(alpha = 0.70f),
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
                     }
                 }
             } else {
@@ -6869,6 +6986,7 @@ private fun DesktopSettingsScreen(
     query: String,
     onQueryChange: (String) -> Unit,
     listState: LazyListState,
+    onClose: () -> Unit = {},
     autoplay: Boolean,
     onAutoplayChange: (Boolean) -> Unit,
     automix: Boolean,
@@ -6958,21 +7076,36 @@ private fun DesktopSettingsScreen(
             Column(Modifier.fillMaxSize()) {
                 val settingsQuery = query
                 Row(
-                    Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 12.dp),
+                    Modifier.fillMaxWidth().padding(top = 18.dp, bottom = 16.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(
-                        DesktopStrings["settings", "Settings"],
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(
+                            onClick = onClose,
+                            modifier = Modifier.size(36.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                contentDescription = "Back",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            DesktopStrings["settings", "Settings"],
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                        )
+                    }
                     DesktopSearchField(
                         query = settingsQuery,
                         onQueryChange = onQueryChange,
                         onSearch = {},
                         placeholder = DesktopStrings["settings_search_hint", "Search settings"],
-                        modifier = Modifier.padding(start = 24.dp).width(280.dp),
+                        modifier = Modifier.padding(start = 16.dp).width(240.dp),
                     )
                 }
                 CompositionLocalProvider(LocalSettingsQuery provides settingsQuery.trim()) {
@@ -8820,33 +8953,41 @@ private fun DesktopEmptyPage(icon: androidx.compose.ui.graphics.vector.ImageVect
     }
 }
 
-/** A titled block of settings rows. */
+/** A titled block of settings rows, styled as an inset card matching the web player settings. */
 @Composable
 private fun SettingsGroup(title: String, content: @Composable () -> Unit) {
     val query = LocalSettingsQuery.current
-    // A group whose own name matches shows whole; otherwise only its matching rows do, and the
-    // heading goes with them when none are left.
     val wholeGroup = query.isBlank() || title.contains(query, ignoreCase = true)
     val matched = remember(query) { androidx.compose.runtime.mutableStateListOf<String>() }
     val visible = wholeGroup || matched.isNotEmpty()
-    // The gap belongs to the group, not to the list: as list spacing, every filtered-out group
-    // still left its 18dp behind and the surviving ones sat under a band of empty space.
-    Column(if (visible) Modifier.padding(bottom = 20.dp) else Modifier) {
-        if (visible) {
-            Text(
-                title.uppercase(),
-                color = DesktopSecondary,
-                style = MaterialTheme.typography.labelSmall,
-                // In line with the rows' own text, now that no card sets them in.
-                modifier = Modifier.padding(top = 10.dp, bottom = 4.dp),
-            )
-        }
-        Column {
-            CompositionLocalProvider(
-                LocalSettingsQuery provides if (wholeGroup) "" else query,
-                LocalSettingsMatches provides matched,
+    if (!visible) return
+    Column(Modifier.fillMaxWidth().padding(bottom = 20.dp)) {
+        Text(
+            text = title.uppercase(),
+            color = Color.White.copy(alpha = 0.60f),
+            fontSize = 11.5.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 0.8.sp,
+            modifier = Modifier.padding(start = 4.dp, bottom = 8.dp),
+        )
+        Surface(
+            shape = RoundedCornerShape(10.dp),
+            color = Color(0xFF1B1B1B),
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(10.dp)),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 2.dp),
             ) {
-                content()
+                CompositionLocalProvider(
+                    LocalSettingsQuery provides if (wholeGroup) "" else query,
+                    LocalSettingsMatches provides matched,
+                ) {
+                    content()
+                }
             }
         }
     }
