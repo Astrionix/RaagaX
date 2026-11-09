@@ -287,6 +287,7 @@ import raaga.desktopapp.generated.resources.Res
 import raaga.desktopapp.generated.resources.logo
 import raaga.desktopapp.generated.resources.logo_mark
 import raaga.desktopapp.generated.resources.ic_logo
+import raaga.desktopapp.generated.resources.header_icon
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
@@ -4612,12 +4613,19 @@ private fun DesktopTopBar(
             Row(
                 modifier = Modifier.align(Alignment.CenterStart),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Image(
-                    painter = painterResource(Res.drawable.logo_mark),
+                    painter = painterResource(Res.drawable.header_icon),
                     contentDescription = "Raaga",
-                    modifier = Modifier.size(26.dp),
+                    modifier = Modifier
+                        .height(28.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = onNavigateHome,
+                        ),
                     contentScale = ContentScale.Fit,
                 )
                 DesktopToolbarButton(
