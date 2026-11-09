@@ -49,7 +49,11 @@ for (const [browser, folder] of Object.entries(builds)) {
   const zipped = zipSync(entries, { level: 9 });
   writeFileSync(join(target, name), zipped);
   writeFileSync(join(target, `raaga-extension-${browser} (${manifest.version}).zip`), zipped);
-  files[browser] = name;
+  if (browser === 'firefox' && readdirSync(target).some((f) => f === 'raaga-extension-firefox.xpi')) {
+    files[browser] = 'raaga-extension-firefox.xpi';
+  } else {
+    files[browser] = name;
+  }
   console.log(`${folder} -> app/public/downloads/${name} (v${version})`);
 }
 
