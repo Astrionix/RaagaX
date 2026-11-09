@@ -4082,6 +4082,7 @@ fun RaagaDesktopApp() {
                                         }
                                     },
                                     onOpenIntegrations = { overlays.settingsPage = DesktopSettingsPage.INTEGRATIONS },
+                                    onOpenSpotify = { overlays.spotifySync = true },
                                     onOpenDiscordToken = { overlays.discordToken = true },
                                     onOpenLicenses = { overlays.settingsPage = DesktopSettingsPage.LICENSES },
                                     onCheckForUpdates = {
@@ -7203,6 +7204,7 @@ private fun DesktopSettingsScreen(
     onMoveSource: (DesktopSourceConfig, Int) -> Unit,
     onTestSource: (DesktopSourceConfig) -> Unit,
     onOpenIntegrations: () -> Unit,
+    onOpenSpotify: () -> Unit = {},
     onOpenDiscordToken: () -> Unit = {},
     onOpenLicenses: () -> Unit,
     onCheckForUpdates: (() -> Unit)? = null,
@@ -7899,11 +7901,31 @@ private fun DesktopSettingsScreen(
                     )
                 }
                 SettingsGroup(DesktopStrings["d_account", "Account"]) {
+                    val spotifyAuth by DesktopSpotifyAuthManager.authState.collectAsState()
+                    val spotifySubtitle = when (val state = spotifyAuth) {
+                        is DesktopSpotifyAuthState.LoggedIn -> "Connected as ${state.displayName} • Liked Songs & Playlists"
+                        is DesktopSpotifyAuthState.LoggingIn -> "Connecting to Spotify in browser…"
+                        else -> "Connect account to sync Liked Songs & import playlists"
+                    }
+                    val spotifyValue = when (val state = spotifyAuth) {
+                        is DesktopSpotifyAuthState.LoggedIn -> state.displayName
+                        is DesktopSpotifyAuthState.LoggingIn -> "Connecting…"
+                        else -> "Connect"
+                    }
+                    SettingsRow(
+                        glyphIcon = RaagaIcons.Spotify,
+                        glyphColor = Color(0xFF1ED760),
+                        title = "Spotify",
+                        subtitle = spotifySubtitle,
+                        value = spotifyValue,
+                        onClick = onOpenSpotify,
+                    )
+                    SettingsDivider()
                     SettingsRow(
                         glyphIcon = Icons.Rounded.Share,
-                        glyphColor = Color(0xFF1ED760),
+                        glyphColor = Color(0xFF636366),
                         title = DesktopStrings["account_integrations", "Account & integrations"],
-                        subtitle = "Spotify sync, Last.fm and ListenBrainz scrobbling",
+                        subtitle = "Discord, Last.fm and ListenBrainz scrobbling",
                         onClick = onOpenIntegrations,
                     )
                 }

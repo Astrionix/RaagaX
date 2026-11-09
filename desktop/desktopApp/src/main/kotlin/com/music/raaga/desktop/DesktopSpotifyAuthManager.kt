@@ -461,6 +461,15 @@ object DesktopSpotifyAuthManager {
         }
     }
 
+    suspend fun forceRefreshToken(): String? = withContext(Dispatchers.IO) {
+        val p = DesktopPersistence()
+        val refreshToken = p.string(KEY_REFRESH_TOKEN, "")
+        if (refreshToken.isNotBlank()) {
+            return@withContext refreshAccessToken(refreshToken)
+        }
+        return@withContext null
+    }
+
     fun disconnect() {
         activeServer?.stop(0)
         activeServer = null

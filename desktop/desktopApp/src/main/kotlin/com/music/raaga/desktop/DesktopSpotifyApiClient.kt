@@ -39,14 +39,44 @@ object DesktopSpotifyApiClient {
     )
 
     private fun getJson(url: String, token: String): String? {
-        val req = HttpRequest.newBuilder(URI.create(url))
-            .timeout(Duration.ofSeconds(15))
-            .header("Authorization", "Bearer $token")
-            .header("Accept", "application/json")
-            .GET()
-            .build()
-        val resp = http.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
-        return if (resp.statusCode() in 200..299) resp.body() else null
+        return try {
+            val req = HttpRequest.newBuilder(URI.create(url))
+                .timeout(Duration.ofSeconds(15))
+                .header("Authorization", "Bearer $token")
+                .header("Accept", "application/json")
+                .GET()
+                .build()
+            val resp = http.send(req, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
+            if (resp.statusCode() in 200..299) {
+                resp.body()
+            } else if (resp.statusCode() == 401) {
+                DesktopTrackLog.log("DesktopSpotifyApiClient: request to $url returned HTTP 401 Unauthorized, refreshing token...")
+                val refreshedToken = kotlinx.coroutines.runBlocking { DesktopSpotifyAuthManager.forceRefreshToken() }
+                if (!refreshedToken.isNullOrBlank()) {
+                    val retryReq = HttpRequest.newBuilder(URI.create(url))
+                        .timeout(Duration.ofSeconds(15))
+                        .header("Authorization", "Bearer $refreshedToken")
+                        .header("Accept", "application/json")
+                        .GET()
+                        .build()
+                    val retryResp = http.send(retryReq, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8))
+                    if (retryResp.statusCode() in 200..299) {
+                        retryResp.body()
+                    } else {
+                        DesktopTrackLog.log("DesktopSpotifyApiClient: retry to $url failed with HTTP ${retryResp.statusCode()}: ${retryResp.body()}")
+                        null
+                    }
+                } else {
+                    null
+                }
+            } else {
+                DesktopTrackLog.log("DesktopSpotifyApiClient: request to $url returned HTTP ${resp.statusCode()}: ${resp.body()}")
+                null
+            }
+        } catch (e: Exception) {
+            DesktopTrackLog.log("DesktopSpotifyApiClient: request to $url error: ${e.message}")
+            null
+        }
     }
 
     /**
