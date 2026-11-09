@@ -291,7 +291,7 @@ class RaagaSupabaseRelay(
         }
         val request = Request.Builder()
             .url(url)
-            .addHeader("User-Agent", "Raaga/2.0.0")
+            .addHeader("User-Agent", "Raaga/2.1.1")
             .build()
 
         webSocket = okHttpClient.newWebSocket(request, object : WebSocketListener() {
