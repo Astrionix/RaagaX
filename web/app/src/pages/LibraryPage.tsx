@@ -39,6 +39,28 @@ export default function LibraryPage() {
       ? () => void library.fetchNextPage()
       : null,
   );
+  const [searchQuery, setSearchQuery] = useState('');
+  const rawGrid = useMemo(() => library.data?.pages.flatMap((page) => page.data.grid) ?? [], [library.data]);
+  const rawTracks = useMemo(() => library.data?.pages.flatMap((page) => page.data.tracks) ?? [], [library.data]);
+
+  const grid = useMemo(() => {
+    if (!searchQuery.trim()) return rawGrid;
+    const q = searchQuery.trim().toLowerCase();
+    return rawGrid.filter(
+      (item) => item.title.toLowerCase().includes(q) || item.subtitle.toLowerCase().includes(q)
+    );
+  }, [rawGrid, searchQuery]);
+
+  const tracks = useMemo(() => {
+    if (!searchQuery.trim()) return rawTracks;
+    const q = searchQuery.trim().toLowerCase();
+    return rawTracks.filter(
+      (t) =>
+        t.title.toLowerCase().includes(q) ||
+        t.artists.some((a) => a.name.toLowerCase().includes(q)) ||
+        (t.album?.name && t.album.name.toLowerCase().includes(q))
+    );
+  }, [rawTracks, searchQuery]);
 
   if (!isLibrarySection(section)) return <Navigate to="/home" replace />;
   const title = LIBRARY_SECTIONS[section].title;
@@ -64,29 +86,6 @@ export default function LibraryPage() {
     );
   }
   if (library.isError && !library.data) return <LoadError error={library.error} onRetry={() => void library.refetch()} />;
-  const [searchQuery, setSearchQuery] = useState('');
-  const rawGrid = library.data?.pages.flatMap((page) => page.data.grid) ?? [];
-  const rawTracks = library.data?.pages.flatMap((page) => page.data.tracks) ?? [];
-
-  const grid = useMemo(() => {
-    if (!searchQuery.trim()) return rawGrid;
-    const q = searchQuery.trim().toLowerCase();
-    return rawGrid.filter(
-      (item) => item.title.toLowerCase().includes(q) || item.subtitle.toLowerCase().includes(q)
-    );
-  }, [rawGrid, searchQuery]);
-
-  const tracks = useMemo(() => {
-    if (!searchQuery.trim()) return rawTracks;
-    const q = searchQuery.trim().toLowerCase();
-    return rawTracks.filter(
-      (t) =>
-        t.title.toLowerCase().includes(q) ||
-        t.artists.some((a) => a.name.toLowerCase().includes(q)) ||
-        (t.album?.name && t.album.name.toLowerCase().includes(q))
-    );
-  }, [rawTracks, searchQuery]);
-
   if (!library.data) return <PlainSkeleton />;
 
   return (

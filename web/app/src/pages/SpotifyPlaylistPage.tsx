@@ -31,6 +31,7 @@ export default function SpotifyPlaylistPage() {
   const rows = useSpotifyRows(id);
   usePageTint(useArtworkColor(info.data?.imageUrl));
   const [sort, setSort] = useState<SortOption>('default');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const sortedRows = useMemo(() => {
     if (sort === 'default') return rows.rows;
@@ -53,6 +54,16 @@ export default function SpotifyPlaylistPage() {
         return rows.rows;
     }
   }, [rows.rows, sort]);
+
+  const filteredRows = useMemo(() => {
+    if (!searchQuery.trim()) return sortedRows;
+    const q = searchQuery.trim().toLowerCase();
+    return sortedRows.filter(
+      (t) =>
+        t.title.toLowerCase().includes(q) ||
+        t.artists.some((a) => a.name.toLowerCase().includes(q))
+    );
+  }, [sortedRows, searchQuery]);
 
   if (extension.state === 'missing') return <NeedsExtension what="your Spotify playlists" />;
   if (!signedIn) return <EmptyState title="Sign in to Spotify" detail="Open Spotify in the sidebar to connect your account." />;
@@ -80,18 +91,6 @@ export default function SpotifyPlaylistPage() {
     library: null,
   };
   const context = { source: { title: info.data.name, type: 'playlist' as const, id: `spotify:${id}` } };
-
-  const [searchQuery, setSearchQuery] = useState('');
-
-  const filteredRows = useMemo(() => {
-    if (!searchQuery.trim()) return sortedRows;
-    const q = searchQuery.trim().toLowerCase();
-    return sortedRows.filter(
-      (t) =>
-        t.title.toLowerCase().includes(q) ||
-        t.artists.some((a) => a.name.toLowerCase().includes(q))
-    );
-  }, [sortedRows, searchQuery]);
 
   return (
     <>
