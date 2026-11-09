@@ -806,4 +806,95 @@ object RaagaIcons {
             }
         }.build()
     }
+
+    /** Spotify brand icon. */
+    val Spotify: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "spotify",
+            defaultWidth = 24.dp, defaultHeight = 24.dp,
+            viewportWidth = 24f, viewportHeight = 24f,
+        ).apply {
+            path(fill = stroke) {
+                moveTo(12f, 2f)
+                curveTo(6.48f, 2f, 2f, 6.48f, 2f, 12f)
+                curveToRelative(0f, 5.52f, 4.48f, 10f, 10f, 10f)
+                curveToRelative(5.52f, 0f, 10f, -4.48f, 10f, -10f)
+                curveTo(22f, 6.48f, 17.52f, 2f, 12f, 2f)
+                close()
+                moveTo(16.58f, 16.59f)
+                curveToRelative(-0.18f, 0.29f, -0.56f, 0.38f, -0.85f, 0.2f)
+                curveToRelative(-2.34f, -1.43f, -5.28f, -1.75f, -8.75f, -0.96f)
+                curveToRelative(-0.33f, 0.08f, -0.66f, -0.13f, -0.73f, -0.46f)
+                curveToRelative(-0.08f, -0.33f, 0.13f, -0.66f, 0.46f, -0.73f)
+                curveToRelative(3.79f, -0.87f, 7.04f, -0.49f, 9.67f, 1.11f)
+                curveToRelative(0.29f, 0.18f, 0.38f, 0.56f, 0.2f, 0.84f)
+                close()
+                moveTo(17.81f, 13.7f)
+                curveToRelative(-0.23f, 0.37f, -0.71f, 0.49f, -1.08f, 0.26f)
+                curveToRelative(-2.68f, -1.65f, -6.76f, -2.12f, -9.93f, -1.16f)
+                curveToRelative(-0.41f, 0.13f, -0.85f, -0.1f, -0.98f, -0.51f)
+                curveToRelative(-0.12f, -0.41f, 0.1f, -0.85f, 0.51f, -0.98f)
+                curveToRelative(3.62f, -1.1f, 8.12f, -0.57f, 11.22f, 1.32f)
+                curveToRelative(0.37f, 0.22f, 0.49f, 0.7f, 0.26f, 1.07f)
+                close()
+                moveTo(17.93f, 10.73f)
+                curveToRelative(-3.21f, -1.91f, -8.51f, -2.08f, -11.57f, -1.15f)
+                curveToRelative(-0.49f, 0.15f, -1.02f, -0.13f, -1.17f, -0.62f)
+                curveToRelative(-0.15f, -0.49f, 0.13f, -1.02f, 0.62f, -1.17f)
+                curveToRelative(3.53f, -1.07f, 9.38f, -0.86f, 13.08f, 1.33f)
+                curveToRelative(0.44f, 0.26f, 0.59f, 0.83f, 0.33f, 1.28f)
+                curveToRelative(-0.26f, 0.44f, -0.84f, 0.58f, -1.29f, 0.33f)
+                close()
+            }
+        }.build()
+    }
+
+    /** YouTube brand icon. */
+    val YouTube: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "youtube",
+            defaultWidth = 24.dp, defaultHeight = 24.dp,
+            viewportWidth = 24f, viewportHeight = 24f,
+        ).apply {
+            path(fill = stroke) {
+                moveTo(23.498f, 6.186f)
+                curveToRelative(-0.276f, -1.037f, -1.089f, -1.85f, -2.126f, -2.126f)
+                curveTo(19.5f, 3.5f, 12f, 3.5f, 12f, 3.5f)
+                reflectiveCurveToRelative(-7.5f, 0f, -9.372f, 0.56f)
+                curveTo(1.591f, 4.336f, 0.778f, 5.149f, 0.502f, 6.186f)
+                curveTo(0f, 8.07f, 0f, 12f, 0f, 12f)
+                reflectiveCurveToRelative(0f, 3.93f, 0.502f, 5.814f)
+                curveToRelative(0.276f, 1.037f, 1.089f, 1.85f, 2.126f, 2.126f)
+                curveTo(4.5f, 20.5f, 12f, 20.5f, 12f, 20.5f)
+                reflectiveCurveToRelative(7.5f, 0f, 9.372f, -0.56f)
+                curveToRelative(1.037f, -0.276f, 1.85f, -1.089f, 2.126f, -2.126f)
+                curveTo(24f, 15.93f, 24f, 12f, 24f, 12f)
+                reflectiveCurveToRelative(0f, -3.93f, -0.502f, -5.814f)
+                close()
+                moveTo(9.545f, 15.568f)
+                verticalLineTo(8.432f)
+                lineTo(15.818f, 12f)
+                lineToRelative(-6.273f, 3.568f)
+                close()
+            }
+        }.build()
+    }
+
+    /** Automix sparkle/stars icon. */
+    val AutoMix: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "automix",
+            defaultWidth = 24.dp, defaultHeight = 24.dp,
+            viewportWidth = 24f, viewportHeight = 24f,
+        ).apply {
+            path(fill = stroke) {
+                moveTo(12f, 2f)
+                curveToRelative(0.4f, 4.4f, 4.4f, 8.4f, 9f, 9f)
+                curveToRelative(-4.6f, 0.6f, -8.6f, 4.6f, -9f, 9f)
+                curveToRelative(-0.4f, -4.4f, -4.4f, -8.4f, -9f, -9f)
+                curveToRelative(4.6f, -0.6f, 8.6f, -4.6f, 9f, -9f)
+                close()
+            }
+        }.build()
+    }
 }

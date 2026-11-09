@@ -163,8 +163,11 @@ import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Fullscreen
 import androidx.compose.material.icons.rounded.FullscreenExit
 import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material.icons.rounded.Language
+import androidx.compose.material.icons.rounded.PhoneAndroid
+import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.NorthWest
@@ -396,14 +399,14 @@ internal fun desktopChipColors() = FilterChipDefaults.filterChipColors(
     selectedLabelColor = Color.Black,
 )
 
-/** Android's switch: a white track with a black knob on, a faint wash off. */
+/** Apple/Web style toggle switch: green track with solid white thumb on, faint wash with white thumb off. */
 @Composable
 internal fun desktopSwitchColors() = SwitchDefaults.colors(
-    checkedTrackColor = Color.White,
-    checkedThumbColor = Color.Black,
+    checkedTrackColor = Color(0xFF34C759),
+    checkedThumbColor = Color.White,
     checkedBorderColor = Color.Transparent,
-    uncheckedTrackColor = Color.White.copy(alpha = 0.10f),
-    uncheckedThumbColor = Color.White.copy(alpha = 0.35f),
+    uncheckedTrackColor = Color.White.copy(alpha = 0.16f),
+    uncheckedThumbColor = Color.White,
     uncheckedBorderColor = Color.Transparent,
 )
 internal val DesktopSecondary = Color(0xFF8E8E93)
@@ -7259,49 +7262,70 @@ private fun DesktopSettingsScreen(
             if (section == DesktopSettingsSection.PLAYBACK) item {
                 SettingsGroup(DesktopStrings["playback", "Playback"]) {
                     SettingsToggle(
-                        DesktopStrings["autoplay", "Autoplay"],
-                        DesktopStrings["d_keep_the_music_going_with_similar_songs", "Keep the music going with similar songs"],
-                        autoplay,
-                        onAutoplayChange,
+                        glyphIcon = RaagaIcons.Infinity,
+                        glyphColor = Color(0xFF34C759),
+                        title = DesktopStrings["autoplay", "Autoplay"],
+                        subtitle = DesktopStrings["d_keep_the_music_going_with_similar_songs", "Keep the music going with similar songs"],
+                        checked = autoplay,
+                        onCheckedChange = onAutoplayChange,
                     )
                     if (!automix) {
                         if (settingsRowVisible(DesktopStrings["crossfade", "Crossfade"])) {
-                            Column(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
-                                Text(DesktopStrings["crossfade", "Crossfade"], style = MaterialTheme.typography.bodyLarge)
-                                Text(
-                                    if (crossfadeSeconds == 0) "Off" else "${crossfadeSeconds}s",
-                                    color = DesktopSecondary,
-                                    style = MaterialTheme.typography.bodySmall,
-                                )
+                            SettingsDivider()
+                            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    DesktopGlyph(icon = Icons.Rounded.GraphicEq, color = Color(0xFF007AFF))
+                                    Spacer(Modifier.width(12.dp))
+                                    Column {
+                                        Text(DesktopStrings["crossfade", "Crossfade"], style = MaterialTheme.typography.bodyMedium, color = Color.White)
+                                        Text(
+                                            if (crossfadeSeconds == 0) "Off" else "${crossfadeSeconds}s",
+                                            color = DesktopSecondary,
+                                            style = MaterialTheme.typography.bodySmall,
+                                        )
+                                    }
+                                }
+                                Spacer(Modifier.height(8.dp))
                                 DesktopBareSlider(
                                     value = crossfadeSeconds.toFloat(),
                                     onValueChange = { onCrossfadeSecondsChange(it.toInt()) },
                                     valueRange = 0f..12f,
                                     steps = 11,
+                                    modifier = Modifier.padding(start = 40.dp),
                                 )
                             }
                         }
                     }
+                    SettingsDivider()
                     SettingsToggle(
-                        DesktopStrings["automix", "Automix [BETA]"],
-                        if (automix) {
+                        glyphIcon = RaagaIcons.AutoMix,
+                        glyphColor = Color(0xFF5856D6),
+                        title = DesktopStrings["automix", "Automix [BETA]"],
+                        subtitle = if (automix) {
                             "Calculates timing and blends transitions from the tracks"
                         } else {
                             "Automatically calculates transition timing without a slider"
                         },
-                        automix,
-                        onAutomixChange,
+                        checked = automix,
+                        onCheckedChange = onAutomixChange,
                     )
-                    if (settingsRowVisible(DesktopStrings["automix_performance", "Automix performance"], DesktopStrings["automix_performance_subtitle", "Sets how much CPU background analysis may use"])) {
-                        Column(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
-                            Text(DesktopStrings["automix_performance", "Automix performance"], fontWeight = FontWeight.Medium)
-                            Text(
-                                DesktopStrings["automix_performance_subtitle", "Sets how much CPU background analysis may use"],
-                                color = DesktopSecondary,
-                                style = MaterialTheme.typography.bodySmall,
-                            )
+                    if (automix && settingsRowVisible(DesktopStrings["automix_performance", "Automix performance"], DesktopStrings["automix_performance_subtitle", "Sets how much CPU background analysis may use"])) {
+                        SettingsDivider()
+                        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 11.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                DesktopGlyph(icon = RaagaIcons.Performance, color = Color(0xFF5856D6))
+                                Spacer(Modifier.width(12.dp))
+                                Column {
+                                    Text(DesktopStrings["automix_performance", "Automix performance"], style = MaterialTheme.typography.bodyMedium, color = Color.White)
+                                    Text(
+                                        DesktopStrings["automix_performance_subtitle", "Sets how much CPU background analysis may use"],
+                                        color = DesktopSecondary,
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
+                                }
+                            }
                             Spacer(Modifier.height(10.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(modifier = Modifier.padding(start = 40.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 AutomixPerformanceMode.entries.forEach { mode ->
                                     FilterChip(
                                         colors = desktopChipColors(),
@@ -7311,22 +7335,29 @@ private fun DesktopSettingsScreen(
                                     )
                                 }
                             }
-                            Spacer(Modifier.height(8.dp))
+                            Spacer(Modifier.height(6.dp))
                             Text(
                                 automixPerformance.detail(),
                                 color = DesktopSecondary,
                                 style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(start = 40.dp),
                             )
                         }
                     }
+                    SettingsDivider()
                     val eqOn by DesktopEqualizerSettings.enabled.collectAsState()
                     SettingsToggle(
-                        DesktopStrings["skip_silence", "Skip silence"],
-                        DesktopStrings["d_shorten_long_gaps_rather_than_playing_them_out", "Shorten long gaps rather than playing them out"],
-                        skipSilence,
-                        onSkipSilenceChange,
+                        glyphIcon = Icons.AutoMirrored.Rounded.VolumeOff,
+                        glyphColor = Color(0xFFFF9500),
+                        title = DesktopStrings["skip_silence", "Skip silence"],
+                        subtitle = DesktopStrings["d_shorten_long_gaps_rather_than_playing_them_out", "Shorten long gaps rather than playing them out"],
+                        checked = skipSilence,
+                        onCheckedChange = onSkipSilenceChange,
                     )
+                    SettingsDivider()
                     SettingsNavigationRow(
+                        glyphIcon = Icons.Rounded.GraphicEq,
+                        glyphColor = Color(0xFFFF2D55),
                         title = DesktopStrings["equalizer", "Equalizer"],
                         subtitle = if (eqOn) {
                             DesktopStrings["equalizer_subtitle", "Tone, seven bands and balance"]
@@ -7340,29 +7371,38 @@ private fun DesktopSettingsScreen(
             if (section == DesktopSettingsSection.LYRICS) item {
                 SettingsGroup(DesktopStrings["open_lyrics", "Lyrics"]) {
                     SettingsToggle(
-                        DesktopStrings["synced_lyrics", "Synced lyrics"],
-                        DesktopStrings["synced_lyrics_subtitle", "Lights up the words on the player as they're sung"],
-                        syncedLyrics,
-                        onSyncedLyricsChange,
+                        glyphIcon = RaagaIcons.Lyrics,
+                        glyphColor = Color(0xFFAF52DE),
+                        title = DesktopStrings["synced_lyrics", "Synced lyrics"],
+                        subtitle = DesktopStrings["synced_lyrics_subtitle", "Lights up the words on the player as they're sung"],
+                        checked = syncedLyrics,
+                        onCheckedChange = onSyncedLyricsChange,
                     )
-                    // Nothing to choose between while the feature is off, and the sources are
-                    // third-party services reached on the listener's connection.
                     if (syncedLyrics) {
+                        SettingsDivider()
                         SettingsToggle(
-                            DesktopStrings["d_blur_unfocused_lyrics", "Blur unfocused lyrics"],
-                            DesktopStrings["d_keeps_the_spotlight_on_the_current_line", "Keeps the spotlight on the current line"],
-                            lyricsBlur,
-                            onLyricsBlurChange,
+                            glyphIcon = Icons.Rounded.Tune,
+                            glyphColor = Color(0xFFAF52DE),
+                            title = DesktopStrings["d_blur_unfocused_lyrics", "Blur unfocused lyrics"],
+                            subtitle = DesktopStrings["d_keeps_the_spotlight_on_the_current_line", "Keeps the spotlight on the current line"],
+                            checked = lyricsBlur,
+                            onCheckedChange = onLyricsBlurChange,
                         )
+                        SettingsDivider()
                         SettingsNavigationRow(
+                            glyphIcon = RaagaIcons.LyricsQuote,
+                            glyphColor = Color(0xFFAF52DE),
                             title = DesktopStrings["lyrics_sources", "Lyrics sources"],
                             subtitle = enabledLyricsSources
                                 .joinToString(", ")
                                 .ifEmpty { "None. Lyrics will not be fetched." },
                             onClick = onOpenLyricsSources,
                         )
+                        SettingsDivider()
                         val translationLanguage by DesktopTranslationSetting.language.collectAsState()
                         SettingsNavigationRow(
+                            glyphIcon = Icons.Rounded.Translate,
+                            glyphColor = Color(0xFF5856D6),
                             title = DesktopStrings["translation_language", "Translation language"],
                             subtitle = DesktopTranslationSetting.describe(translationLanguage),
                             onClick = onOpenTranslationLanguage,
@@ -7376,10 +7416,12 @@ private fun DesktopSettingsScreen(
                     val chosen by DesktopStrings.language.collectAsState()
                     Box {
                         SettingsRow(
-                            Icons.Rounded.Language,
-                            DesktopStrings["app_language", "App language"],
-                            DesktopStrings.languageLabel(),
-                        ) { languageMenuOpen = true }
+                            glyphIcon = Icons.Rounded.Language,
+                            glyphColor = Color(0xFF007AFF),
+                            title = DesktopStrings["app_language", "App language"],
+                            value = DesktopStrings.languageLabel(),
+                            onClick = { languageMenuOpen = true },
+                        )
                         DropdownMenu(languageMenuOpen, onDismissRequest = { languageMenuOpen = false }) {
                             DesktopStrings.available.forEach { language ->
                                 DropdownMenuItem(
@@ -7404,70 +7446,86 @@ private fun DesktopSettingsScreen(
                     var limitMb by remember { mutableStateOf(DesktopMediaCache.limitMb()) }
                     var cleared by remember { mutableStateOf(false) }
                     if (settingsRowVisible(DesktopStrings["song_cache_limit", "Song cache limit"])) {
-                        Column(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
-                            Text(DesktopStrings["song_cache_limit", "Song cache limit"], style = MaterialTheme.typography.bodyLarge)
-                            Text(
-                                if (limitMb > DesktopMediaCache.WARNING_MB) {
-                                    "Keeps up to ${formatCacheSize(limitMb)} of downloaded audio on disk. " +
-                                        "This can take a noticeable share of your free space."
-                                } else {
-                                    "Keeps downloaded audio on disk for instant seeking and replays"
-                                },
-                                color = DesktopSecondary,
-                                style = MaterialTheme.typography.bodySmall,
-                            )
+                        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 11.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                DesktopGlyph(icon = Icons.Rounded.Folder, color = Color(0xFF007AFF))
+                                Spacer(Modifier.width(12.dp))
+                                Column {
+                                    Text(DesktopStrings["song_cache_limit", "Song cache limit"], style = MaterialTheme.typography.bodyMedium, color = Color.White)
+                                    Text(
+                                        if (limitMb > DesktopMediaCache.WARNING_MB) {
+                                            "Keeps up to ${formatCacheSize(limitMb)} of downloaded audio on disk."
+                                        } else {
+                                            "Keeps downloaded audio on disk for instant seeking and replays"
+                                        },
+                                        color = DesktopSecondary,
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.height(8.dp))
                             DesktopBareSlider(
                                 value = limitMb.toFloat(),
                                 onValueChange = { limitMb = it.roundToInt() },
                                 onValueChangeFinished = { DesktopMediaCache.setLimitMb(limitMb) },
-                                valueRange = DesktopMediaCache.MIN_LIMIT_MB.toFloat()..
-                                    DesktopMediaCache.MAX_LIMIT_MB.toFloat(),
+                                valueRange = DesktopMediaCache.MIN_LIMIT_MB.toFloat()..DesktopMediaCache.MAX_LIMIT_MB.toFloat(),
                                 steps = 18,
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier.fillMaxWidth().padding(start = 40.dp),
                             )
-                            Text(formatCacheSize(limitMb), color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
+                            Text(formatCacheSize(limitMb), color = DesktopSecondary, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 40.dp))
                         }
                     }
+                    SettingsDivider()
                     SettingsRow(
-                        Icons.Rounded.DeleteSweep,
-                        "Clear cache",
-                        if (cleared) "All cached songs and artwork cleared" else "Frees disk space used by cached songs and album artwork",
-                    ) {
-                        DesktopMediaCache.clear()
-                        DesktopArtworkCache.clear()
-                        cleared = true
-                    }
+                        glyphIcon = Icons.Rounded.DeleteSweep,
+                        glyphColor = Color(0xFFFF3B30),
+                        title = "Clear cache",
+                        subtitle = if (cleared) "All cached songs and artwork cleared" else "Frees disk space used by cached songs and album artwork",
+                        onClick = {
+                            DesktopMediaCache.clear()
+                            DesktopArtworkCache.clear()
+                            cleared = true
+                        },
+                    )
                 }
             }
             if (section == DesktopSettingsSection.LOCAL_MUSIC) item {
                 SettingsGroup(DesktopStrings["local_music", "Local Music"]) {
                     var folderLabel by remember { mutableStateOf(DesktopLocalMusic.folderLabel()) }
                     SettingsRow(
-                        Icons.Rounded.Folder,
-                        "Local music folder",
-                        folderLabel,
-                    ) {
-                        onChooseLocalMusicFolder { folderLabel = DesktopLocalMusic.folderLabel() }
-                    }
+                        glyphIcon = Icons.Rounded.Folder,
+                        glyphColor = Color(0xFFFF9500),
+                        title = "Local music folder",
+                        subtitle = folderLabel,
+                        onClick = {
+                            onChooseLocalMusicFolder { folderLabel = DesktopLocalMusic.folderLabel() }
+                        },
+                    )
                     if (DesktopLocalMusic.folder() != null) {
+                        SettingsDivider()
                         SettingsRow(
-                            RaagaIcons.Library,
-                            DesktopStrings["use_all_audio_folders", "Use all audio folders"],
-                            DesktopStrings["use_all_audio_folders_subtitle", "Remove the folder limit and scan music across the device"],
-                        ) {
-                            DesktopLocalMusic.setFolder(null)
-                            folderLabel = DesktopLocalMusic.folderLabel()
-                            onLocalMusicFolderChanged()
-                        }
+                            glyphIcon = RaagaIcons.Library,
+                            glyphColor = Color(0xFFFF9500),
+                            title = DesktopStrings["use_all_audio_folders", "Use all audio folders"],
+                            subtitle = DesktopStrings["use_all_audio_folders_subtitle", "Remove the folder limit and scan music across the device"],
+                            onClick = {
+                                DesktopLocalMusic.setFolder(null)
+                                folderLabel = DesktopLocalMusic.folderLabel()
+                                onLocalMusicFolderChanged()
+                            },
+                        )
                     }
+                    SettingsDivider()
                     SettingsToggle(
-                        DesktopStrings["filter_non_music_audio", "Filter non-music audio"],
-                        DesktopStrings[
+                        glyphIcon = Icons.Rounded.Tune,
+                        glyphColor = Color(0xFF8E8E93),
+                        title = DesktopStrings["filter_non_music_audio", "Filter non-music audio"],
+                        subtitle = DesktopStrings[
                             "filter_non_music_audio_subtitle",
                             "Hides clips under 30 seconds, WAV files, voice notes, recordings and system sounds",
                         ],
-                        filterNonMusicAudio,
-                        onFilterNonMusicAudioChange,
+                        checked = filterNonMusicAudio,
+                        onCheckedChange = onFilterNonMusicAudioChange,
                     )
                 }
             }
@@ -7475,21 +7533,27 @@ private fun DesktopSettingsScreen(
                 SettingsGroup(DesktopStrings["appearance", "Appearance"]) {
                     val reduceDynamicBlur by DesktopAppearanceSettings.reduceDynamicBlur.collectAsState()
                     SettingsToggle(
-                        DesktopStrings["reduce_dynamic_blur", "Reduce dynamic blur"],
-                        DesktopStrings["reduce_dynamic_blur_subtitle", "Swaps frosted glass for solid fills across the app"],
-                        reduceDynamicBlur,
-                        DesktopAppearanceSettings::setReduceDynamicBlur,
+                        glyphIcon = Icons.Rounded.Tune,
+                        glyphColor = Color(0xFF8E8E93),
+                        title = DesktopStrings["reduce_dynamic_blur", "Reduce dynamic blur"],
+                        subtitle = DesktopStrings["reduce_dynamic_blur_subtitle", "Swaps frosted glass for solid fills across the app"],
+                        checked = reduceDynamicBlur,
+                        onCheckedChange = DesktopAppearanceSettings::setReduceDynamicBlur,
                     )
+                    SettingsDivider()
                     val disableBlendEffects by DesktopAppearanceSettings.disableBlendEffects.collectAsState()
                     SettingsToggle(
-                        DesktopStrings["disable_blend_effects", "Disable blend effects"],
-                        DesktopStrings[
+                        glyphIcon = Icons.Rounded.Tune,
+                        glyphColor = Color(0xFF5856D6),
+                        title = DesktopStrings["disable_blend_effects", "Disable blend effects"],
+                        subtitle = DesktopStrings[
                             "disable_blend_effects_subtitle",
                             "Shows player icons, text and dark menus in plain white instead of tinting them with the artwork",
                         ],
-                        disableBlendEffects,
-                        DesktopAppearanceSettings::setDisableBlendEffects,
+                        checked = disableBlendEffects,
+                        onCheckedChange = DesktopAppearanceSettings::setDisableBlendEffects,
                     )
+                    SettingsDivider()
                     val playerTheme by DesktopAppearanceSettings.playerTheme.collectAsState()
                     val playerThemeTitle = DesktopStrings["player_theme", "Player theme"]
                     val playerThemeSubtitle = when (playerTheme) {
@@ -7498,11 +7562,17 @@ private fun DesktopSettingsScreen(
                         PlayerTheme.SIMPLE -> DesktopStrings["player_theme_simple_subtitle", "A soft blur of the cover behind the whole player"]
                     }
                     if (settingsRowVisible(playerThemeTitle, playerThemeSubtitle)) {
-                        Column(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
-                            Text(playerThemeTitle, fontWeight = FontWeight.Medium)
-                            Text(playerThemeSubtitle, color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
+                        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 11.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                DesktopGlyph(icon = Icons.Rounded.Album, color = Color(0xFFFF2D55))
+                                Spacer(Modifier.width(12.dp))
+                                Column {
+                                    Text(playerThemeTitle, style = MaterialTheme.typography.bodyMedium, color = Color.White)
+                                    Text(playerThemeSubtitle, color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
                             Spacer(Modifier.height(10.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(modifier = Modifier.padding(start = 40.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 PlayerTheme.entries.forEach { option ->
                                     val label = when (option) {
                                         PlayerTheme.DEFAULT -> DesktopStrings["player_theme_default", "Default"]
@@ -7520,6 +7590,7 @@ private fun DesktopSettingsScreen(
                         }
                     }
                     if (DesktopWindowBackdrop.available) {
+                        SettingsDivider()
                         val backdropChoice by DesktopWindowBackdrop.selected.collectAsState()
                         val backdropActive by DesktopWindowBackdrop.active.collectAsState()
                         val materialTitle = DesktopStrings["d_window_material", "Window material"]
@@ -7528,11 +7599,17 @@ private fun DesktopSettingsScreen(
                             "Sets the material for the sidebar and top bar",
                         ]
                         if (settingsRowVisible(materialTitle, materialSubtitle)) {
-                            Column(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
-                                Text(materialTitle, fontWeight = FontWeight.Medium)
-                                Text(materialSubtitle, color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
+                            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 11.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    DesktopGlyph(icon = Icons.Rounded.Devices, color = Color(0xFF007AFF))
+                                    Spacer(Modifier.width(12.dp))
+                                    Column {
+                                        Text(materialTitle, style = MaterialTheme.typography.bodyMedium, color = Color.White)
+                                        Text(materialSubtitle, color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
+                                    }
+                                }
                                 Spacer(Modifier.height(10.dp))
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(modifier = Modifier.padding(start = 40.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     DesktopBackdrop.entries.forEach { option ->
                                         FilterChip(
                                             colors = desktopChipColors(),
@@ -7557,34 +7634,47 @@ private fun DesktopSettingsScreen(
                                     },
                                     color = DesktopSecondary,
                                     style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.padding(start = 40.dp),
                                 )
                             }
                         }
+                        SettingsDivider()
                         val ambientBackdrop by DesktopAppearanceSettings.ambientBackdrop.collectAsState()
                         SettingsToggle(
-                            DesktopStrings["d_ambient_backdrop", "Ambient artwork glow"],
-                            DesktopStrings[
+                            glyphIcon = RaagaIcons.MusicNote,
+                            glyphColor = Color(0xFFFF9500),
+                            title = DesktopStrings["d_ambient_backdrop", "Ambient artwork glow"],
+                            subtitle = DesktopStrings[
                                 "d_ambient_backdrop_subtitle",
                                 "Diffuse current song artwork colors under the window glass",
                             ],
-                            ambientBackdrop,
-                            DesktopAppearanceSettings::setAmbientBackdrop,
+                            checked = ambientBackdrop,
+                            onCheckedChange = DesktopAppearanceSettings::setAmbientBackdrop,
                         )
                     }
+                    SettingsDivider()
                     SettingsToggle(
-                        DesktopStrings["full_screen_cover_art", "Full-screen cover art"],
-                        DesktopStrings["full_screen_cover_art_subtitle", "Runs the cover to the edges of the player instead of a square sleeve"],
-                        fullBleedArtwork,
-                        onFullBleedArtworkChange,
+                        glyphIcon = Icons.Rounded.Fullscreen,
+                        glyphColor = Color(0xFFFF375F),
+                        title = DesktopStrings["full_screen_cover_art", "Full-screen cover art"],
+                        subtitle = DesktopStrings["full_screen_cover_art_subtitle", "Runs the cover to the edges of the player instead of a square sleeve"],
+                        checked = fullBleedArtwork,
+                        onCheckedChange = onFullBleedArtworkChange,
                     )
+                    SettingsDivider()
                     SettingsToggle(
-                        DesktopStrings["d_animated_canvas", "Animated canvas"],
-                        DesktopStrings["d_show_motion_artwork_when_it_is_available", "Show motion artwork when it is available"],
-                        animatedCanvas,
-                        onAnimatedCanvasChange,
+                        glyphIcon = RaagaIcons.Spotify,
+                        glyphColor = Color(0xFF1ED760),
+                        title = DesktopStrings["d_animated_canvas", "Animated canvas"],
+                        subtitle = DesktopStrings["d_show_motion_artwork_when_it_is_available", "Show motion artwork when it is available"],
+                        checked = animatedCanvas,
+                        onCheckedChange = onAnimatedCanvasChange,
                     )
                     if (animatedCanvas) {
+                        SettingsDivider()
                         SettingsNavigationRow(
+                            glyphIcon = RaagaIcons.Spotify,
+                            glyphColor = Color(0xFF1ED760),
                             title = DesktopStrings["spotify_canvas_setup", "Spotify Canvas setup"],
                             subtitle = if (spotifyCanvasReady) {
                                 "Connected"
@@ -7599,98 +7689,125 @@ private fun DesktopSettingsScreen(
             if (section == DesktopSettingsSection.MISCELLANEOUS) item {
                 SettingsGroup(DesktopStrings["miscellaneous", "Miscellaneous"]) {
                     SettingsToggle(
-                        DesktopStrings["d_dont_repeat_songs_in_current_session", "Don\u2019t repeat songs in current session"],
-                        DesktopStrings["d_autoplay_wont_suggest_a_song_already_played_or_suggested", "AutoPlay won\u2019t suggest a song already played or suggested this session"],
-                        dontRepeatSuggestions,
-                        onDontRepeatSuggestionsChange,
+                        glyphIcon = RaagaIcons.Shuffle,
+                        glyphColor = Color(0xFF34C759),
+                        title = DesktopStrings["d_dont_repeat_songs_in_current_session", "Don\u2019t repeat songs in current session"],
+                        subtitle = DesktopStrings["d_autoplay_wont_suggest_a_song_already_played_or_suggested", "AutoPlay won\u2019t suggest a song already played or suggested this session"],
+                        checked = dontRepeatSuggestions,
+                        onCheckedChange = onDontRepeatSuggestionsChange,
                     )
+                    SettingsDivider()
                     SettingsToggle(
-                        DesktopStrings["d_tray_icon", "Tray icon"],
-                        DesktopStrings[
+                        glyphIcon = Icons.Rounded.Devices,
+                        glyphColor = Color(0xFF5856D6),
+                        title = DesktopStrings["d_tray_icon", "Tray icon"],
+                        subtitle = DesktopStrings[
                             "d_show_raaga_in_the_system_tray_with_playback_controls",
                             "Show Raaga in the system tray, with playback controls",
                         ],
-                        trayIconEnabled,
-                        onTrayIconChange,
+                        checked = trayIconEnabled,
+                        onCheckedChange = onTrayIconChange,
                     )
                     if (trayIconEnabled) {
+                        SettingsDivider()
                         SettingsToggle(
-                            DesktopStrings["d_keep_playing_when_closed", "Keep playing when closed"],
-                            DesktopStrings[
+                            glyphIcon = Icons.Rounded.Headphones,
+                            glyphColor = Color(0xFF8E8E93),
+                            title = DesktopStrings["d_keep_playing_when_closed", "Keep playing when closed"],
+                            subtitle = DesktopStrings[
                                 "d_closing_the_window_leaves_raaga_in_the_tray_instead_o",
                                 "Closing the window leaves Raaga in the tray instead of quitting",
                             ],
-                            closeToTray,
-                            onCloseToTrayChange,
+                            checked = closeToTray,
+                            onCheckedChange = onCloseToTrayChange,
                         )
                     }
+                    SettingsDivider()
                     val hideVolumeBar by DesktopAppearanceSettings.hideVolumeBar.collectAsState()
                     SettingsToggle(
-                        DesktopStrings["hide_volume_bar", "Hide volume bar"],
-                        DesktopStrings["hide_volume_bar_subtitle", "Removes the volume slider from the main player"],
-                        hideVolumeBar,
-                        DesktopAppearanceSettings::setHideVolumeBar,
+                        glyphIcon = Icons.AutoMirrored.Rounded.VolumeDown,
+                        glyphColor = Color(0xFFFF9500),
+                        title = DesktopStrings["hide_volume_bar", "Hide volume bar"],
+                        subtitle = DesktopStrings["hide_volume_bar_subtitle", "Removes the volume slider from the main player"],
+                        checked = hideVolumeBar,
+                        onCheckedChange = DesktopAppearanceSettings::setHideVolumeBar,
                     )
                 }
             }
             if (section == DesktopSettingsSection.AUDIO_QUALITY) item {
                 SettingsGroup(DesktopStrings["audio_quality", "Audio quality"]) {
                     if (settingsRowVisible(DesktopStrings["audio_quality", "Audio quality"])) {
-                    Column(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            DesktopAudioQuality.entries.forEach { rung ->
-                                FilterChip(
-                                    colors = desktopChipColors(),
-                                    selected = audioQuality == rung,
-                                    onClick = { onAudioQualityChange(rung) },
-                                    label = { Text(rung.label) },
-                                )
+                        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 11.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                DesktopGlyph(icon = RaagaIcons.Performance, color = Color(0xFF5AC8FA))
+                                Spacer(Modifier.width(12.dp))
+                                Column {
+                                    Text(DesktopStrings["audio_quality", "Audio quality"], style = MaterialTheme.typography.bodyMedium, color = Color.White)
+                                    Text(
+                                        audioQuality.detail,
+                                        color = DesktopSecondary,
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.height(10.dp))
+                            Row(modifier = Modifier.padding(start = 40.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                DesktopAudioQuality.entries.forEach { rung ->
+                                    FilterChip(
+                                        colors = desktopChipColors(),
+                                        selected = audioQuality == rung,
+                                        onClick = { onAudioQualityChange(rung) },
+                                        label = { Text(rung.label) },
+                                    )
+                                }
                             }
                         }
-                        Spacer(Modifier.height(8.dp))
-                        // A rung is not a bitrate: it decides which kinds of source are allowed to
-                        // answer, so say which.
-                        Text(
-                            audioQuality.detail,
-                            color = DesktopSecondary,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
                     }
                 }
             }
             if (section == DesktopSettingsSection.LISTEN_TOGETHER) item {
                 SettingsGroup(DesktopStrings["listen_together", "Listen together"]) {
                     SettingsNavigationRow(
-                        DesktopStrings["listen_together", "Listen together"],
-                        DesktopStrings["listen_together_create_subtitle", "Start a party and share the code."],
-                    ) { onOpenListenTogether() }
+                        glyphIcon = Icons.Rounded.Groups,
+                        glyphColor = Color(0xFFFA2D48),
+                        title = DesktopStrings["listen_together", "Listen together"],
+                        subtitle = DesktopStrings["listen_together_create_subtitle", "Start a party and share the code."],
+                        onClick = onOpenListenTogether,
+                    )
                 }
             }
             if (section == DesktopSettingsSection.AUDIO_OUTPUT) item {
                 SettingsGroup(DesktopStrings["audio_output", "Audio output"]) {
                     SettingsNavigationRow(
-                        DesktopStrings["pipeline_output_device", "Output device"],
-                        DesktopAudioDevices.label(),
-                    ) { onOpenAudioOutput() }
+                        glyphIcon = Icons.Rounded.Headphones,
+                        glyphColor = Color(0xFFFF9500),
+                        title = DesktopStrings["pipeline_output_device", "Output device"],
+                        subtitle = DesktopAudioDevices.label(),
+                        onClick = onOpenAudioOutput,
+                    )
                 }
             }
             if (section == DesktopSettingsSection.DOWNLOADS) item {
                 SettingsGroup(DesktopStrings["download_channel_name", "Downloads"]) {
                     if (settingsRowVisible(DesktopStrings["download_channel_name", "Downloads"])) {
-                    Row(
-                        Modifier.fillMaxWidth().padding(vertical = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        listOf("STANDARD" to "Standard", "HIGH" to "High", "LOSSLESS" to "Lossless").forEach { (value, label) ->
-                            FilterChip(
-                                colors = desktopChipColors(),
-                                selected = downloadQuality == value,
-                                onClick = { onDownloadQualityChange(value) },
-                                label = { Text(label) },
-                            )
+                        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 11.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                DesktopGlyph(icon = RaagaIcons.Download, color = Color(0xFF32ADE6))
+                                Spacer(Modifier.width(12.dp))
+                                Text(DesktopStrings["download_channel_name", "Downloads"], style = MaterialTheme.typography.bodyMedium, color = Color.White)
+                            }
+                            Spacer(Modifier.height(10.dp))
+                            Row(modifier = Modifier.padding(start = 40.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                listOf("STANDARD" to "Standard", "HIGH" to "High", "LOSSLESS" to "Lossless").forEach { (value, label) ->
+                                    FilterChip(
+                                        colors = desktopChipColors(),
+                                        selected = downloadQuality == value,
+                                        onClick = { onDownloadQualityChange(value) },
+                                        label = { Text(label) },
+                                    )
+                                }
+                            }
                         }
-                    }
                     }
                 }
             }
@@ -7702,6 +7819,7 @@ private fun DesktopSettingsScreen(
                         .map(DesktopSourceConfig::id)
                     sourceConfigs.inSourceOrder().forEachIndexed { index, config ->
                         if (!settingsRowVisible(sourcesHeading, config.displayName)) return@forEachIndexed
+                        if (index > 0) SettingsDivider()
                         DesktopSourceSettingsRow(
                             position = index + 1,
                             config = config,
@@ -7709,9 +7827,7 @@ private fun DesktopSettingsScreen(
                             skippedByQuality = config.enabled && !audioQuality.permits(config.kind),
                             onEdit = if (config.kind.needsServer) {
                                 { editingSource = config }
-                            } else {
-                                null
-                            },
+                            } else null,
                             onToggle = if (config.kind == DesktopSourceKind.YOUTUBE) {
                                 null
                             } else {
@@ -7725,17 +7841,20 @@ private fun DesktopSettingsScreen(
                             } else null,
                         )
                     }
-                    // One entry point, and it creates an addon.
+                    SettingsDivider()
                     SettingsRow(
-                        RaagaIcons.Plus,
-                        "Add a source",
-                        DesktopSourceKind.ADDON.detail,
-                    ) {
-                        editingSource = DesktopSourceConfig(
-                            id = UUID.randomUUID().toString(),
-                            kind = DesktopSourceKind.ADDON,
-                        )
-                    }
+                        glyphIcon = RaagaIcons.Plus,
+                        glyphColor = Color(0xFF2C2C2E),
+                        glyphTint = DesktopAccent,
+                        title = "Add a source",
+                        subtitle = DesktopSourceKind.ADDON.detail,
+                        onClick = {
+                            editingSource = DesktopSourceConfig(
+                                id = UUID.randomUUID().toString(),
+                                kind = DesktopSourceKind.ADDON,
+                            )
+                        },
+                    )
                 }
             }
             if (section == DesktopSettingsSection.ACCOUNT) item {
@@ -7751,13 +7870,17 @@ private fun DesktopSettingsScreen(
                         else -> "Enabled — will display activity when Discord is open"
                     }
                     SettingsToggle(
+                        glyphIcon = RaagaIcons.Discord,
+                        glyphColor = Color(0xFF5865F2),
                         title = "Show what I am playing",
                         subtitle = discordSubtitle,
                         checked = discordEnabled,
                         onCheckedChange = DesktopDiscordRpc::setEnabled,
                     )
+                    SettingsDivider()
                     SettingsRow(
-                        icon = RaagaIcons.Discord,
+                        glyphIcon = RaagaIcons.Discord,
+                        glyphColor = Color(0xFF5865F2),
                         title = if (discordToken.isNotBlank()) "Discord Account: @$discordUsername" else "Connect Discord Account",
                         subtitle = if (discordToken.isNotBlank()) {
                             "Connected to Discord • Tap to switch account or disconnect"
@@ -7766,8 +7889,10 @@ private fun DesktopSettingsScreen(
                         },
                         onClick = onOpenDiscordToken,
                     )
+                    SettingsDivider()
                     SettingsRow(
-                        icon = RaagaIcons.Discord,
+                        glyphIcon = Icons.Rounded.Tune,
+                        glyphColor = Color(0xFF7289DA),
                         title = "Configure Discord Rich Presence",
                         subtitle = "Customize status, activity verb, song title formatting, buttons & preview",
                         onClick = onOpenIntegrations,
@@ -7775,25 +7900,29 @@ private fun DesktopSettingsScreen(
                 }
                 SettingsGroup(DesktopStrings["d_account", "Account"]) {
                     SettingsRow(
-                        Icons.Rounded.Share,
-                        DesktopStrings["account_integrations", "Account & integrations"],
-                        "Spotify sync, Last.fm and ListenBrainz scrobbling",
-                        onOpenIntegrations,
+                        glyphIcon = Icons.Rounded.Share,
+                        glyphColor = Color(0xFF1ED760),
+                        title = DesktopStrings["account_integrations", "Account & integrations"],
+                        subtitle = "Spotify sync, Last.fm and ListenBrainz scrobbling",
+                        onClick = onOpenIntegrations,
                     )
                 }
             }
             if (section == DesktopSettingsSection.MISCELLANEOUS) item {
                 SettingsGroup("Community & Links") {
                     SettingsRow(
-                        RaagaIcons.Discord,
-                        "Discord Community",
-                        "Join the official Raaga Discord server for announcements & support",
+                        glyphIcon = RaagaIcons.Discord,
+                        glyphColor = Color(0xFF5865F2),
+                        title = "Discord Community",
+                        subtitle = "Join the official Raaga Discord server for announcements & support",
                         onClick = { DesktopExternalLinks.open("https://discord.gg/yGV2HqhSk") },
                     )
+                    SettingsDivider()
                     SettingsRow(
-                        Icons.Rounded.Devices,
-                        "Mobile App",
-                        "Download Raaga for Android on raaga.me",
+                        glyphIcon = Icons.Rounded.PhoneAndroid,
+                        glyphColor = Color(0xFF3DDC84),
+                        title = "Mobile App",
+                        subtitle = "Download Raaga for Android on raaga.me",
                         onClick = { DesktopExternalLinks.open("https://raaga.me") },
                     )
                 }
@@ -7944,32 +8073,46 @@ private fun DesktopSourceSettingsRow(
         Modifier
             .fillMaxWidth()
             .desktopRowClickable(enabled = onEdit != null) { onEdit?.invoke() }
-            .padding(vertical = 11.dp),
+            .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             "$position",
             color = DesktopSecondary,
-            modifier = Modifier.width(20.dp).alpha(enabledAlpha),
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.width(18.dp).alpha(enabledAlpha),
         )
-        Icon(
-            when (config.kind) {
-                DesktopSourceKind.ADDON -> Icons.Rounded.Extension
-                DesktopSourceKind.CUSTOM_MODULE, DesktopSourceKind.MODULE -> Icons.Rounded.Extension
-                DesktopSourceKind.JIOSAAVN -> Icons.Rounded.GraphicEq
-                DesktopSourceKind.YOUTUBE -> Icons.Rounded.PlayCircle
-            },
-            contentDescription = null,
-            tint = DesktopAccent,
-            modifier = Modifier.size(21.dp).alpha(enabledAlpha),
+        val sourceIcon = when (config.kind) {
+            DesktopSourceKind.ADDON, DesktopSourceKind.CUSTOM_MODULE, DesktopSourceKind.MODULE -> Icons.Rounded.Extension
+            DesktopSourceKind.JIOSAAVN -> Icons.Rounded.GraphicEq
+            DesktopSourceKind.YOUTUBE -> RaagaIcons.YouTube
+        }
+        val sourceColor = when (config.kind) {
+            DesktopSourceKind.ADDON, DesktopSourceKind.CUSTOM_MODULE, DesktopSourceKind.MODULE -> Color(0xFF636366)
+            DesktopSourceKind.JIOSAAVN -> Color(0xFF00B894)
+            DesktopSourceKind.YOUTUBE -> Color(0xFFFF0033)
+        }
+        DesktopGlyph(
+            icon = sourceIcon,
+            color = sourceColor,
+            modifier = Modifier.alpha(enabledAlpha),
         )
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f).alpha(enabledAlpha)) {
-            Text(config.displayName, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    config.displayName,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Normal,
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
             Text(
                 when {
-                    // The ceiling in force, not the switch, is why this one is being passed over —
-                    // worth saying, or the row reads as enabled and silently unused.
+                    config.kind == DesktopSourceKind.JIOSAAVN && status == null -> "High Quality · 320kbps"
                     skippedByQuality -> "Skipped at this audio quality"
                     status != null -> status
                     !config.isComplete -> "Setup required"
@@ -7998,7 +8141,7 @@ private fun DesktopSourceSettingsRow(
             }
         }
         if (onToggle == null) {
-            Text(DesktopStrings["always_on", "Always on"], color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
+            Text(DesktopStrings["always_on", "Always on"], color = DesktopSecondary, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(end = 4.dp))
         } else {
             Switch(checked = config.enabled, onCheckedChange = onToggle, colors = desktopSwitchColors())
         }
@@ -9105,34 +9248,75 @@ private fun DesktopEmptyPage(icon: androidx.compose.ui.graphics.vector.ImageVect
     }
 }
 
+/**
+ * An integration's or category's colored glyph icon, matching Raaga Web's `settingsUi.integrationIcon`.
+ * 28x28dp with 7dp rounded corners, filled with vibrant brand/category background color.
+ */
+@Composable
+internal fun DesktopGlyph(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    color: Color,
+    tint: Color = Color.White,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .size(28.dp)
+            .clip(RoundedCornerShape(7.dp))
+            .background(color),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(16.dp),
+        )
+    }
+}
+
+/** Inset hairline divider between settings rows, matching Raaga Web's `hairline-[52px]` and `hairline-[16px]`. */
+@Composable
+private fun SettingsDivider(indent: Dp = 56.dp) {
+    HorizontalDivider(
+        modifier = Modifier.padding(start = indent),
+        thickness = 0.5.dp,
+        color = Color.White.copy(alpha = 0.08f),
+    )
+}
+
 /** A titled block of settings rows, styled as an inset card matching the web player settings. */
 @Composable
-private fun SettingsGroup(title: String, content: @Composable () -> Unit) {
+private fun SettingsGroup(
+    title: String,
+    footer: String? = null,
+    content: @Composable () -> Unit,
+) {
     val query = LocalSettingsQuery.current
     val wholeGroup = query.isBlank() || title.contains(query, ignoreCase = true)
     val matched = remember(query) { androidx.compose.runtime.mutableStateListOf<String>() }
     val visible = wholeGroup || matched.isNotEmpty()
     if (!visible) return
-    Column(Modifier.fillMaxWidth().padding(bottom = 20.dp)) {
+    Column(Modifier.fillMaxWidth().padding(bottom = 22.dp)) {
         Text(
             text = title.uppercase(),
-            color = Color.White.copy(alpha = 0.60f),
+            color = Color.White.copy(alpha = 0.55f),
             fontSize = 11.5.sp,
             fontWeight = FontWeight.SemiBold,
             letterSpacing = 0.8.sp,
-            modifier = Modifier.padding(start = 4.dp, bottom = 8.dp),
+            modifier = Modifier.padding(start = 6.dp, bottom = 8.dp),
         )
         Surface(
             shape = RoundedCornerShape(10.dp),
-            color = Color(0xFF1B1B1B),
+            color = Color(0xFF1B1B1E),
             modifier = Modifier
                 .fillMaxWidth()
-                .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(10.dp)),
+                .border(0.5.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(10.dp)),
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 2.dp),
+                    .padding(vertical = 2.dp),
             ) {
                 CompositionLocalProvider(
                     LocalSettingsQuery provides if (wholeGroup) "" else query,
@@ -9141,6 +9325,14 @@ private fun SettingsGroup(title: String, content: @Composable () -> Unit) {
                     content()
                 }
             }
+        }
+        if (footer != null) {
+            Text(
+                text = footer,
+                color = DesktopSecondary,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(start = 6.dp, end = 6.dp, top = 6.dp),
+            )
         }
     }
 }
@@ -9170,34 +9362,38 @@ private fun settingsRowVisible(title: String, subtitle: String = ""): Boolean {
 
 /** A settings row that opens something rather than toggling it. */
 @Composable
-private fun SettingsNavigationRow(title: String, subtitle: String, onClick: () -> Unit) {
-    if (!settingsRowVisible(title, subtitle)) return
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .desktopRowClickable(onClick = onClick)
-            .padding(vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
-            Text(
-                subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = DesktopSecondary,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        Spacer(Modifier.width(10.dp))
-        Icon(
-            RaagaIcons.ChevronRight,
-            null,
-            tint = DesktopSecondary,
-            modifier = Modifier.size(18.dp),
-        )
-    }
+private fun SettingsNavigationRow(
+    glyphIcon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    glyphColor: Color = Color(0xFF007AFF),
+    glyphTint: Color = Color.White,
+    title: String,
+    subtitle: String = "",
+    value: String? = null,
+    onClick: () -> Unit,
+) {
+    SettingsRow(
+        glyphIcon = glyphIcon,
+        glyphColor = glyphColor,
+        glyphTint = glyphTint,
+        title = title,
+        subtitle = subtitle,
+        value = value,
+        onClick = onClick,
+    )
 }
+
+/** Backward-compatible overload without a glyph icon. */
+@Composable
+private fun SettingsNavigationRow(
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+) = SettingsNavigationRow(
+    glyphIcon = null,
+    title = title,
+    subtitle = subtitle,
+    onClick = onClick,
+)
 
 /** A settings row whose control is a slider, with its value read out beside the title. */
 /** Material's slider with the step ticks and end-stop dot taken off, as Android draws them. */
@@ -9236,29 +9432,75 @@ internal fun DesktopBareSlider(
 }
 
 @Composable
-private fun SettingsToggle(title: String, subtitle: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+private fun SettingsToggle(
+    glyphIcon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    glyphColor: Color = Color(0xFF34C759),
+    glyphTint: Color = Color.White,
+    title: String,
+    subtitle: String = "",
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
     if (!settingsRowVisible(title, subtitle)) return
     Row(
         Modifier
             .fillMaxWidth()
             .desktopRowClickable { onCheckedChange(!checked) }
-            .padding(vertical = 13.dp),
+            .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
-            Text(subtitle, color = DesktopSecondary, style = MaterialTheme.typography.bodyMedium, maxLines = 3)
+        if (glyphIcon != null) {
+            DesktopGlyph(icon = glyphIcon, color = glyphColor, tint = glyphTint)
+            Spacer(Modifier.width(12.dp))
         }
-        Spacer(Modifier.width(18.dp))
-        Switch(checked = checked, onCheckedChange = onCheckedChange, colors = desktopSwitchColors())
+        Column(Modifier.weight(1f)) {
+            Text(
+                title,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Normal,
+                color = Color.White,
+            )
+            if (subtitle.isNotBlank()) {
+                Text(
+                    subtitle,
+                    color = DesktopSecondary,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 3,
+                )
+            }
+        }
+        Spacer(Modifier.width(14.dp))
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = desktopSwitchColors(),
+        )
     }
 }
 
+/** Backward-compatible overload without a glyph icon. */
 @Composable
-private fun SettingsRow(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+private fun SettingsToggle(
     title: String,
     subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) = SettingsToggle(
+    glyphIcon = null,
+    title = title,
+    subtitle = subtitle,
+    checked = checked,
+    onCheckedChange = onCheckedChange,
+)
+
+@Composable
+private fun SettingsRow(
+    glyphIcon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    glyphColor: Color = Color(0xFF636366),
+    glyphTint: Color = Color.White,
+    title: String,
+    subtitle: String = "",
+    value: String? = null,
     onClick: (() -> Unit)? = null,
 ) {
     if (!settingsRowVisible(title, subtitle)) return
@@ -9266,26 +9508,65 @@ private fun SettingsRow(
         Modifier
             .fillMaxWidth()
             .desktopRowClickable(enabled = onClick != null) { onClick?.invoke() }
-            .padding(vertical = 14.dp),
+            .padding(horizontal = 16.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            Modifier.size(34.dp).clip(RoundedCornerShape(9.dp)).background(Color.White.copy(alpha = 0.08f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(icon, null, tint = DesktopAccent, modifier = Modifier.size(19.dp))
+        if (glyphIcon != null) {
+            DesktopGlyph(icon = glyphIcon, color = glyphColor, tint = glyphTint)
+            Spacer(Modifier.width(12.dp))
         }
-        Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
-            Text(subtitle, color = DesktopSecondary, style = MaterialTheme.typography.bodyMedium, maxLines = 3)
+            Text(
+                title,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Normal,
+                color = Color.White,
+            )
+            if (subtitle.isNotBlank()) {
+                Text(
+                    subtitle,
+                    color = DesktopSecondary,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 3,
+                )
+            }
+        }
+        if (value != null) {
+            Spacer(Modifier.width(8.dp))
+            Text(
+                value,
+                color = DesktopSecondary,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+            )
         }
         if (onClick != null) {
-            Spacer(Modifier.width(10.dp))
-            Icon(RaagaIcons.ChevronRight, null, tint = DesktopSecondary, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(6.dp))
+            Icon(
+                RaagaIcons.ChevronRight,
+                null,
+                tint = DesktopSecondary.copy(alpha = 0.7f),
+                modifier = Modifier.size(16.dp),
+            )
         }
     }
 }
+
+/** Backward-compatible overload taking an unstyled raw icon. */
+@Composable
+private fun SettingsRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: (() -> Unit)? = null,
+) = SettingsRow(
+    glyphIcon = icon,
+    glyphColor = Color(0xFF636366),
+    glyphTint = Color.White,
+    title = title,
+    subtitle = subtitle,
+    onClick = onClick,
+)
 
 @Composable
 private fun DesktopActionButton(
