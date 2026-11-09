@@ -1,8 +1,8 @@
 {
   "version": "0.4.5",
-  "builtAt": "2026-10-25T13:41:34.200Z",
+  "builtAt": "2026-11-09T07:35:00.000Z",
   "files": {
     "chrome": "raaga-extension-chrome.zip",
-    "firefox": "raaga-extension-firefox.zip"
+    "firefox": "raaga-extension-firefox.xpi"
   }
 }

@@ -189,43 +189,27 @@ export function NeedsExtension({ what = 'YouTube Music' }: { what?: string }) {
             <>
               <StepItem
                 number={1}
-                title="Download & Extract Extension"
-                description="Download the Firefox extension package and extract its contents to a folder."
+                title="Install Signed Extension"
+                description="Click below to install the digitally signed extension directly into Firefox."
                 action={
                   <a
                     href={activeHref}
-                    download={`raaga-extension-firefox.zip`}
                     className="inline-flex items-center gap-2 rounded-lg bg-key-bg px-4 py-2 text-xs font-semibold text-white shadow-md transition-all hover:brightness-110 active:scale-95"
                   >
                     <Download size={14} />
-                    <span>Download Extension for Firefox ({version})</span>
+                    <span>Install Extension for Firefox ({version})</span>
                   </a>
                 }
               />
 
               <StepItem
                 number={2}
-                title="Open Firefox Debugging"
-                description={
-                  <div className="flex flex-col gap-2">
-                    <span>Open a new tab in Firefox and go to:</span>
-                    <div className="flex items-center justify-between rounded-lg border border-white/5 bg-black/50 px-3 py-1.5">
-                      <code className="font-mono text-xs text-key">about:debugging#/runtime/this-firefox</code>
-                      <CopyButton text="about:debugging#/runtime/this-firefox" />
-                    </div>
-                    <span className="text-[11px] text-tertiary">(or navigate to about:debugging and select "This Firefox" on the left menu)</span>
-                  </div>
-                }
+                title="Click 'Add' on the Firefox Prompt"
+                description="Firefox will show a permission popup at the top left asking 'Add Raaga?'. Click Add to permanently install it."
               />
 
               <StepItem
                 number={3}
-                title="Click Load Temporary Add-on"
-                description="Under Temporary Extensions, click Load Temporary Add-on… and select manifest.json inside the extracted extension folder (or choose the zip file directly)."
-              />
-
-              <StepItem
-                number={4}
                 title="Ready to Listen!"
                 description="Return to this tab — Raaga will automatically detect the extension via page relay and unlock YouTube Music, Spotify, and Discord instantly!"
               />
