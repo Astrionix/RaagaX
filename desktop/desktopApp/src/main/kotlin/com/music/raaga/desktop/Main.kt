@@ -119,23 +119,55 @@ private fun desktopMain() = application {
             // that minimum without updating Compose's state. Compose would then keep laying out a
             // 1220dp surface inside a 900dp window, cropping the right edge and putting its resize
             // boundary off-screen until a maximize/restore cycle synchronised the two. Re-assert
-            // the requested opening size on the native peer so both layers start in agreement.
-            composeWindow.size = Dimension(
-                (openingSize.width.value * transform.scaleX).roundToInt(),
-                (openingSize.height.value * transform.scaleY).roundToInt(),
-            )
+            // the requested opening size on the native peer so both layers start in agreement,
+            // while strictly respecting the display work area so the taskbar is never obscured.
+            val gc = composeWindow.graphicsConfiguration
+            val screen = gc.bounds
+            val insets = Toolkit.getDefaultToolkit().getScreenInsets(gc)
+            val workWidth = screen.width - insets.left - insets.right
+            val workHeight = screen.height - insets.top - insets.bottom
+
+            val targetWidth = (openingSize.width.value * transform.scaleX).roundToInt().coerceAtMost(workWidth)
+            val targetHeight = (openingSize.height.value * transform.scaleY).roundToInt().coerceAtMost(workHeight)
+            composeWindow.size = Dimension(targetWidth, targetHeight)
+
             if (DesktopPlatform.drawsOwnWindowFrame) {
-                val screen = composeWindow.graphicsConfiguration.bounds
-                val insets = Toolkit.getDefaultToolkit().getScreenInsets(
-                    composeWindow.graphicsConfiguration,
-                )
+                val currentLoc = composeWindow.location
+                val maxX = (screen.x + insets.left + workWidth - targetWidth).coerceAtLeast(screen.x + insets.left)
+                val maxY = (screen.y + insets.top + workHeight - targetHeight).coerceAtLeast(screen.y + insets.top)
+                val clampedX = currentLoc.x.coerceIn(screen.x + insets.left, maxX)
+                val clampedY = currentLoc.y.coerceIn(screen.y + insets.top, maxY)
+                composeWindow.setLocation(clampedX, clampedY)
+
                 composeWindow.maximizedBounds = Rectangle(
                     screen.x + insets.left,
                     screen.y + insets.top,
-                    screen.width - insets.left - insets.right,
-                    screen.height - insets.top - insets.bottom,
+                    workWidth,
+                    workHeight,
                 )
             }
+
+            val updateMaximizedBounds = {
+                if (DesktopPlatform.drawsOwnWindowFrame) {
+                    val currentGc = composeWindow.graphicsConfiguration
+                    val s = currentGc.bounds
+                    val ins = Toolkit.getDefaultToolkit().getScreenInsets(currentGc)
+                    composeWindow.maximizedBounds = Rectangle(
+                        s.x + ins.left,
+                        s.y + ins.top,
+                        s.width - ins.left - ins.right,
+                        s.height - ins.top - ins.bottom,
+                    )
+                }
+            }
+            composeWindow.addComponentListener(object : java.awt.event.ComponentAdapter() {
+                override fun componentMoved(e: java.awt.event.ComponentEvent?) {
+                    updateMaximizedBounds()
+                }
+                override fun componentResized(e: java.awt.event.ComponentEvent?) {
+                    updateMaximizedBounds()
+                }
+            })
             if (DesktopPlatform.isWindows && DesktopWindowsFrame.install(composeWindow)) {
                 DesktopWindowBackdrop.apply()
             } else if (DesktopPlatform.isMac && DesktopMacFrame.install(composeWindow)) {
@@ -150,20 +182,20 @@ private fun desktopMain() = application {
                     }
                 },
                 toggleMaximize = {
-                    if (DesktopPlatform.isWindows && DesktopWindowsFrame.toggleMaximize()) {
-                        return@DesktopWindowActions
-                    }
                     if (DesktopPlatform.drawsOwnWindowFrame) {
-                        val screen = composeWindow.graphicsConfiguration.bounds
-                        val insets = Toolkit.getDefaultToolkit().getScreenInsets(
-                            composeWindow.graphicsConfiguration,
-                        )
+                        val currentGc = composeWindow.graphicsConfiguration
+                        val screen = currentGc.bounds
+                        val insets = Toolkit.getDefaultToolkit().getScreenInsets(currentGc)
                         composeWindow.maximizedBounds = Rectangle(
                             screen.x + insets.left,
                             screen.y + insets.top,
                             screen.width - insets.left - insets.right,
                             screen.height - insets.top - insets.bottom,
                         )
+                    }
+                    if (DesktopPlatform.isWindows && DesktopWindowsFrame.toggleMaximize()) {
+                        DesktopWindowMode.toggleMaximized()
+                        return@DesktopWindowActions
                     }
                     DesktopWindowMode.toggleMaximized()
                 },

@@ -107,19 +107,41 @@ internal object DesktopWindowsFrame {
     }
 
     private fun applyInitialWindowAttributes(hwnd: Pointer) {
-        val d = dwmapi ?: return
+        val d = dwmapi
+        if (d != null) {
+            // Enable Dark Mode (DWMWA_USE_IMMERSIVE_DARK_MODE = 20)
+            val darkMem = Memory(4).apply { setInt(0, 1) }
+            d.DwmSetWindowAttribute(hwnd, 20, darkMem, 4)
 
-        // Enable Dark Mode (DWMWA_USE_IMMERSIVE_DARK_MODE = 20)
-        val darkMem = Memory(4).apply { setInt(0, 1) }
-        d.DwmSetWindowAttribute(hwnd, 20, darkMem, 4)
+            // Do not round corners (1 = DWMWCP_DONOTROUND) to prevent transparent corner cuts
+            val cornerMem = Memory(4).apply { setInt(0, 1) }
+            d.DwmSetWindowAttribute(hwnd, 33, cornerMem, 4)
 
-        // Do not round corners (1 = DWMWCP_DONOTROUND) to prevent transparent corner cuts
-        val cornerMem = Memory(4).apply { setInt(0, 1) }
-        d.DwmSetWindowAttribute(hwnd, 33, cornerMem, 4)
+            // Ensure DWM frame does not extend into the client area (0 margin = 100% opaque)
+            val margins = MARGINS(0)
+            d.DwmExtendFrameIntoClientArea(hwnd, margins)
+        }
 
-        // Ensure DWM frame does not extend into the client area (0 margin = 100% opaque)
-        val margins = MARGINS(0)
-        d.DwmExtendFrameIntoClientArea(hwnd, margins)
+        // Make window taskbar-aware: WS_THICKFRAME and WS_MAXIMIZEBOX ensure Windows OS
+        // constrains maximized bounds to the Taskbar Work Area (rcWork), so the Taskbar
+        // is never covered or hidden when maximized. WS_SYSMENU and WS_MINIMIZEBOX ensure
+        // standard taskbar click-to-minimize and system menu behavior like all other apps.
+        val u = user32
+        if (u != null) {
+            runCatching {
+                val currentStyle = u.GetWindowLongW(hwnd, GWL_STYLE)
+                val newStyle = currentStyle or WS_THICKFRAME or WS_MINIMIZEBOX or WS_MAXIMIZEBOX or WS_SYSMENU
+                if (newStyle != currentStyle) {
+                    u.SetWindowLongW(hwnd, GWL_STYLE, newStyle)
+                    u.SetWindowPos(
+                        hwnd,
+                        null,
+                        0, 0, 0, 0,
+                        SWP_NOMOVE or SWP_NOSIZE or SWP_NOZORDER or SWP_FRAMECHANGED
+                    )
+                }
+            }
+        }
     }
 
     fun minimize(): Boolean {
