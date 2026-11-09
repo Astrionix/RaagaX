@@ -1,5 +1,5 @@
 import { useMutation } from '@tanstack/react-query';
-import { ListPlus } from 'lucide-react';
+import { ListPlus, Search, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { DetailHeader, detailButton, type SortOption } from '@/components/music/DetailHeader';
@@ -81,6 +81,18 @@ export default function SpotifyPlaylistPage() {
   };
   const context = { source: { title: info.data.name, type: 'playlist' as const, id: `spotify:${id}` } };
 
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredRows = useMemo(() => {
+    if (!searchQuery.trim()) return sortedRows;
+    const q = searchQuery.trim().toLowerCase();
+    return sortedRows.filter(
+      (t) =>
+        t.title.toLowerCase().includes(q) ||
+        t.artists.some((a) => a.name.toLowerCase().includes(q))
+    );
+  }, [sortedRows, searchQuery]);
+
   return (
     <>
       <DetailHeader
@@ -92,7 +104,35 @@ export default function SpotifyPlaylistPage() {
         onSortChange={setSort}
         extra={<ImportButton title={info.data.name} videoIds={playable.map((t) => t.videoId)} ready={rows.matching === 0} />}
       />
-      <TrackList tracks={sortedRows} variant="playlist" source={context.source} />
+      {sortedRows.length > 0 && (
+        <div className="mx-(--body-gutter) mt-4 mb-2 flex items-center justify-between gap-3">
+          <div className="relative flex max-w-sm flex-1 items-center">
+            <Search size={15} strokeWidth={2.2} className="pointer-events-none absolute left-3 text-secondary" />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search in playlist…"
+              className="h-8 w-full rounded-full border border-search-border bg-quinary pr-8 pl-8.5 type-callout text-primary placeholder:text-tertiary focus:border-primary/40 focus:outline-none"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 text-secondary hover:text-primary"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          {searchQuery && (
+            <span className="type-caption text-secondary">
+              {filteredRows.length} of {sortedRows.length}
+            </span>
+          )}
+        </div>
+      )}
+      <TrackList tracks={filteredRows} variant="playlist" source={context.source} />
       <footer className={detailFooter}>
         <p>From Spotify. Songs are matched to YouTube Music by title, artist and length.</p>
       </footer>

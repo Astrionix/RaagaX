@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
+import { Search, X } from 'lucide-react';
 import { useParams } from 'react-router';
 import { DetailHeader, type SortOption } from '@/components/music/DetailHeader';
 import { playList, shuffleList } from '@/components/music/play';
@@ -61,6 +62,18 @@ export default function PlaylistPage() {
     }
   }, [rawTracks, sort]);
 
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredTracks = useMemo(() => {
+    if (!searchQuery.trim()) return tracks;
+    const q = searchQuery.trim().toLowerCase();
+    return tracks.filter(
+      (t) =>
+        t.title.toLowerCase().includes(q) ||
+        t.artists.some((a) => a.name.toLowerCase().includes(q))
+    );
+  }, [tracks, searchQuery]);
+
   if (missing) return <NeedsExtension />;
   if (playlist.isError && !playlist.data) return <LoadError error={playlist.error} onRetry={() => void playlist.refetch()} />;
   if (!playlist.data || !header) return <PlaylistSkeleton />;
@@ -71,12 +84,40 @@ export default function PlaylistPage() {
       <DetailHeader
         info={header}
         canPlay={tracks.length > 0}
-        onPlay={() => playList(tracks, 0, context)}
-        onShuffle={() => shuffleList(tracks, context)}
+        onPlay={() => playList(filteredTracks.length > 0 ? filteredTracks : tracks, 0, context)}
+        onShuffle={() => shuffleList(filteredTracks.length > 0 ? filteredTracks : tracks, context)}
         sort={sort}
         onSortChange={handleSortChange}
       />
-      <TrackList tracks={tracks} variant="playlist" onNearEnd={onNearEnd} source={context.source} />
+      {tracks.length > 0 && (
+        <div className="mx-(--body-gutter) mt-4 mb-2 flex items-center justify-between gap-3">
+          <div className="relative flex max-w-sm flex-1 items-center">
+            <Search size={15} strokeWidth={2.2} className="pointer-events-none absolute left-3 text-secondary" />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search in playlist…"
+              className="h-8 w-full rounded-full border border-search-border bg-quinary pr-8 pl-8.5 type-callout text-primary placeholder:text-tertiary focus:border-primary/40 focus:outline-none"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 text-secondary hover:text-primary"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          {searchQuery && (
+            <span className="type-caption text-secondary">
+              {filteredTracks.length} of {tracks.length}
+            </span>
+          )}
+        </div>
+      )}
+      <TrackList tracks={filteredTracks} variant="playlist" onNearEnd={onNearEnd} source={context.source} />
       {isFetchingNextPage && <div className="flex justify-center py-5 type-callout text-secondary">Loading more songs…</div>}
       {playlist.isFetchNextPageError && <LoadMoreError onRetry={() => void fetchNextPage()} />}
       <footer className={detailFooter}>

@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Search, X } from 'lucide-react';
 import { Navigate, useParams } from 'react-router';
 import { PageHeader } from '@/components/PageHeader';
 import { CircleLockup, SquareLockup, VideoLockup } from '@/components/music/Lockups';
@@ -63,15 +64,56 @@ export default function LibraryPage() {
     );
   }
   if (library.isError && !library.data) return <LoadError error={library.error} onRetry={() => void library.refetch()} />;
+  const [searchQuery, setSearchQuery] = useState('');
+  const rawGrid = library.data?.pages.flatMap((page) => page.data.grid) ?? [];
+  const rawTracks = library.data?.pages.flatMap((page) => page.data.tracks) ?? [];
+
+  const grid = useMemo(() => {
+    if (!searchQuery.trim()) return rawGrid;
+    const q = searchQuery.trim().toLowerCase();
+    return rawGrid.filter(
+      (item) => item.title.toLowerCase().includes(q) || item.subtitle.toLowerCase().includes(q)
+    );
+  }, [rawGrid, searchQuery]);
+
+  const tracks = useMemo(() => {
+    if (!searchQuery.trim()) return rawTracks;
+    const q = searchQuery.trim().toLowerCase();
+    return rawTracks.filter(
+      (t) =>
+        t.title.toLowerCase().includes(q) ||
+        t.artists.some((a) => a.name.toLowerCase().includes(q)) ||
+        (t.album?.name && t.album.name.toLowerCase().includes(q))
+    );
+  }, [rawTracks, searchQuery]);
+
   if (!library.data) return <PlainSkeleton />;
 
-  const grid = library.data.pages.flatMap((page) => page.data.grid);
-  const tracks = library.data.pages.flatMap((page) => page.data.tracks);
   return (
     <>
       <PageHeader title={title} />
       {section === 'recent' && <ReplayCardRow />}
-      {!grid.length && !tracks.length && <EmptyState title="Nothing here yet" />}
+
+      {(rawGrid.length > 0 || rawTracks.length > 0) && (
+        <div className="mx-(--body-gutter) mt-1 mb-4 flex max-w-sm items-center gap-2 rounded-full border border-search-border bg-quinary px-3 py-1.5">
+          <Search size={15} strokeWidth={2.2} className="text-secondary" />
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={section === 'playlists' ? 'Search in playlists…' : `Search in ${title.toLowerCase()}…`}
+            className="w-full bg-transparent type-callout text-primary placeholder:text-tertiary focus:outline-none"
+          />
+          {searchQuery && (
+            <button type="button" onClick={() => setSearchQuery('')} className="text-secondary hover:text-primary">
+              <X size={14} />
+            </button>
+          )}
+        </div>
+      )}
+
+      {!rawGrid.length && !rawTracks.length && <EmptyState title="Nothing here yet" />}
+      {rawGrid.length > 0 && !grid.length && <EmptyState title="No results found" detail={`No items match “${searchQuery}”.`} />}
       {grid.length > 0 && (
         <ul className={seeAllGrid} data-wide={grid.every((i) => i.wide) || undefined}>
           {grid.map((item, i) => (
