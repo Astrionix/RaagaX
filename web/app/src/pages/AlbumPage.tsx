@@ -17,7 +17,8 @@ export default function AlbumPage() {
   const id = decodeURIComponent(useParams().id ?? '');
   const { missing } = useYouTubeReady();
   const album = useAlbum(id);
-  usePageTint(useArtworkColor(album.data?.thumbnail));
+  const artworkColor = useArtworkColor(album.data?.thumbnail);
+  usePageTint(artworkColor);
   const motion = useAlbumMotion(album.data?.title, album.data?.artists.map((a) => a.name).join(', '));
   const [sort, setSort] = useState<SortOption>('default');
 

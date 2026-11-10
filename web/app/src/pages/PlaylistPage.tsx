@@ -17,7 +17,8 @@ export default function PlaylistPage() {
   const { missing } = useYouTubeReady();
   const playlist = usePlaylist(id);
   const header = playlist.data?.pages[0]?.header ?? null;
-  usePageTint(useArtworkColor(header?.thumbnail));
+  const artworkColor = useArtworkColor(header?.thumbnail);
+  usePageTint(artworkColor);
 
   const [sort, setSort] = useState<SortOption>(() => {
     try {

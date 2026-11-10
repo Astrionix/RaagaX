@@ -1,5 +1,5 @@
 import type { YtAccount, YtAuthState, YtChannel } from '@raaga/shared/bridge';
-import { installExtensionFetchRule } from './rules';
+import { installExtensionFetchRule, invalidateExtensionFetchRule } from './rules';
 
 /**
  * YouTube Music sign-in (prompt §5.3): the user's own browser session, used
@@ -79,13 +79,28 @@ export class SignedOutError extends Error {
   readonly code = 'unauthenticated';
 }
 
-let ruleReady: Promise<void> | null = null;
+export async function getYouTubeCookieHeader(): Promise<string> {
+  const [musicCookies, ytCookies, domainCookies] = await Promise.all([
+    browser.cookies.getAll({ url: `${MUSIC_ORIGIN}/` }).catch(() => []),
+    browser.cookies.getAll({ url: 'https://www.youtube.com/' }).catch(() => []),
+    browser.cookies.getAll({ domain: '.youtube.com' }).catch(() => []),
+  ]);
+  const map = new Map<string, string>();
+  for (const c of [...domainCookies, ...ytCookies, ...musicCookies]) {
+    if (c.name && c.value) {
+      map.set(c.name, c.value);
+    }
+  }
+  return Array.from(map.entries())
+    .map(([name, val]) => `${name}=${val}`)
+    .join('; ');
+}
 
 /**
  * A request made as [identity], signed for [signAs] when that isn't the URL's
- * own origin. The browser attaches the cookies; the
- * extension's session rule gives it the YouTube Origin the signature was
- * computed for (rules.ts, installExtensionFetchRule).
+ * own origin. In Firefox, cross-origin extension requests do not carry cookies,
+ * so we attach them via declarativeNetRequest session rules alongside the
+ * Origin and Referer impersonation headers.
  */
 export async function signedFetch(
   url: string,
@@ -95,11 +110,8 @@ export async function signedFetch(
 ): Promise<Response> {
   const secret = await signingSecret();
   if (!secret) throw new SignedOutError('The browser is not signed in to YouTube.');
-  ruleReady ??= installExtensionFetchRule().catch((error: unknown) => {
-    ruleReady = null;
-    throw error;
-  });
-  await ruleReady;
+  const cookieHeader = await getYouTubeCookieHeader();
+  await installExtensionFetchRule(cookieHeader || undefined);
 
   const origin = signAs ?? new URL(url).origin;
   const headers = new Headers(init.headers);
@@ -327,6 +339,7 @@ async function accounts(refresh: boolean): Promise<Accounts> {
 /** Forgets the account list, after a sign-in or sign-out in the browser. */
 export function invalidateAccounts(): void {
   cache = null;
+  invalidateExtensionFetchRule();
 }
 
 export function isSessionCookie(cookie: { name: string; domain: string }): boolean {

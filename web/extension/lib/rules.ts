@@ -96,17 +96,35 @@ export async function installRules(origins: string[]): Promise<void> {
  * computed over the origin, so the request has to carry that origin.
  */
 export const EXTENSION_FETCH_RULE_ID = 100;
-const EXTENSION_MUSIC_FETCH_RULE_ID = 101;
+export const EXTENSION_MUSIC_FETCH_RULE_ID = 101;
 /** s.youtube.com, where the play-reporting pings go, as YouTube Music's own. */
-const EXTENSION_STATS_FETCH_RULE_ID = 102;
+export const EXTENSION_STATS_FETCH_RULE_ID = 102;
 
-export async function installExtensionFetchRule(): Promise<void> {
-  const own = (id: number, host: string, origin: string): Rule => ({
-    id,
-    priority: 1,
-    condition: { urlFilter: `||${host}/`, tabIds: [-1], resourceTypes: ['xmlhttprequest'] },
-    action: { type: 'modifyHeaders', requestHeaders: impersonate(origin).slice(0, 2) },
-  });
+let currentInstalledCookie: string | null | undefined = undefined;
+
+export function invalidateExtensionFetchRule(): void {
+  currentInstalledCookie = undefined;
+}
+
+export async function installExtensionFetchRule(cookieHeader?: string): Promise<void> {
+  const desiredCookie = cookieHeader ?? null;
+  if (currentInstalledCookie !== undefined && currentInstalledCookie === desiredCookie) {
+    return;
+  }
+  currentInstalledCookie = desiredCookie;
+
+  const own = (id: number, host: string, origin: string): Rule => {
+    const requestHeaders = impersonate(origin).slice(0, 2);
+    if (cookieHeader) {
+      requestHeaders.push(set('Cookie', cookieHeader));
+    }
+    return {
+      id,
+      priority: 1,
+      condition: { urlFilter: `||${host}/`, tabIds: [-1], resourceTypes: ['xmlhttprequest'] },
+      action: { type: 'modifyHeaders', requestHeaders },
+    };
+  };
   await browser.declarativeNetRequest.updateSessionRules({
     removeRuleIds: [EXTENSION_FETCH_RULE_ID, EXTENSION_MUSIC_FETCH_RULE_ID, EXTENSION_STATS_FETCH_RULE_ID],
     addRules: [

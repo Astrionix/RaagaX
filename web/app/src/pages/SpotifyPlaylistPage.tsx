@@ -29,7 +29,8 @@ export default function SpotifyPlaylistPage() {
   const signedIn = useSpotifySignedIn();
   const info = useSpotifyPlaylistInfo(id);
   const rows = useSpotifyRows(id);
-  usePageTint(useArtworkColor(info.data?.imageUrl));
+  const artworkColor = useArtworkColor(info.data?.imageUrl);
+  usePageTint(artworkColor);
   const [sort, setSort] = useState<SortOption>('default');
   const [searchQuery, setSearchQuery] = useState('');
 
