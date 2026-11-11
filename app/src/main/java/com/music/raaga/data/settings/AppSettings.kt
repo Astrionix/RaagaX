@@ -10,6 +10,7 @@ import androidx.annotation.StringRes
 import com.music.raaga.R
 import com.music.raaga.BuildConfig
 import com.music.raaga.auth.AuthStore
+import com.music.raaga.data.model.Song
 import com.music.raaga.data.lyrics.LyricsSource
 import com.music.raaga.data.sources.SourceKind
 import com.music.raaga.playback.EqLayout
@@ -283,6 +284,11 @@ enum class LastPlayerScreen {
     LYRICS,
     QUEUE,
 }
+
+data class BlockedArtist(
+    val name: String,
+    val id: String? = null,
+)
 
 /**
  * App settings, backed by SharedPreferences and exposed as flows.
@@ -562,6 +568,117 @@ object AppSettings {
 
     /** Once a song has been suggested or played this session, AutoPlay won't offer it again. */
     val dontRepeatSuggestions = MutableStateFlow(false)
+
+    /**
+     * Artists explicitly blocked by the user ("Don't play this artist").
+     * Tracks by these artists are automatically skipped across all playback modes,
+     * radios, and autoplay queues.
+     */
+    val blockedArtists = MutableStateFlow<List<BlockedArtist>>(emptyList())
+
+    fun isSongBlocked(song: Song?): Boolean {
+        if (song == null) return false
+        val list = blockedArtists.value
+        if (list.isEmpty()) return false
+
+        val blockedIds = list.mapNotNull { it.id?.takeIf(String::isNotBlank) }.toSet()
+        if (blockedIds.isNotEmpty()) {
+            if (song.artistId != null && blockedIds.contains(song.artistId)) return true
+            if (song.artists.any { it.browseId != null && blockedIds.contains(it.browseId) }) return true
+        }
+
+        val namesToCheck = buildList {
+            if (song.artist.isNotBlank()) add(song.artist)
+            song.artists.forEach { if (it.name.isNotBlank()) add(it.name) }
+        }
+
+        for (target in namesToCheck) {
+            val targetNorm = target.trim().lowercase()
+            for (blocked in list) {
+                val blockedNorm = blocked.name.trim().lowercase()
+                if (blockedNorm.isBlank()) continue
+                if (targetNorm == blockedNorm || targetNorm.contains(blockedNorm)) {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
+    fun isArtistBlocked(artistName: String?, artistId: String? = null): Boolean {
+        val list = blockedArtists.value
+        if (list.isEmpty()) return false
+        if (!artistId.isNullOrBlank() && list.any { it.id == artistId }) return true
+        if (artistName.isNullOrBlank()) return false
+        val normTarget = artistName.trim().lowercase()
+        return list.any { blocked ->
+            val normBlocked = blocked.name.trim().lowercase()
+            normBlocked.isNotBlank() && (normTarget == normBlocked || normTarget.contains(normBlocked) || normBlocked.contains(normTarget))
+        }
+    }
+
+    fun blockArtist(name: String, id: String? = null) {
+        val cleanName = name.trim()
+        val cleanId = id?.trim()?.takeIf { it.isNotBlank() }
+        if (cleanName.isBlank() && cleanId == null) return
+        val current = blockedArtists.value.toMutableList()
+        val alreadyBlocked = current.any {
+            (cleanId != null && it.id == cleanId) ||
+                (cleanName.isNotBlank() && it.name.equals(cleanName, ignoreCase = true))
+        }
+        if (!alreadyBlocked) {
+            current.add(BlockedArtist(name = cleanName, id = cleanId))
+            saveBlockedArtists(current)
+        }
+    }
+
+    fun unblockArtist(name: String, id: String? = null) {
+        val cleanName = name.trim()
+        val cleanId = id?.trim()?.takeIf { it.isNotBlank() }
+        val current = blockedArtists.value.toMutableList()
+        val removed = current.removeAll {
+            (cleanId != null && it.id == cleanId) ||
+                (cleanName.isNotBlank() && it.name.equals(cleanName, ignoreCase = true))
+        }
+        if (removed) {
+            saveBlockedArtists(current)
+        }
+    }
+
+    private fun saveBlockedArtists(list: List<BlockedArtist>) {
+        blockedArtists.value = list
+        if (!this::prefs.isInitialized) return
+        try {
+            val array = org.json.JSONArray()
+            for (item in list) {
+                val obj = org.json.JSONObject()
+                obj.put("name", item.name)
+                if (item.id != null) obj.put("id", item.id)
+                array.put(obj)
+            }
+            prefs.edit().putString(KEY_BLOCKED_ARTISTS, array.toString()).apply()
+        } catch (_: Exception) {}
+    }
+
+    private fun loadBlockedArtists(): List<BlockedArtist> {
+        if (!this::prefs.isInitialized) return emptyList()
+        val raw = prefs.getString(KEY_BLOCKED_ARTISTS, null) ?: return emptyList()
+        return try {
+            val array = org.json.JSONArray(raw)
+            val result = mutableListOf<BlockedArtist>()
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                val name = obj.optString("name", "").trim()
+                val id = obj.optString("id", "").trim().takeIf { it.isNotBlank() }
+                if (name.isNotBlank() || id != null) {
+                    result.add(BlockedArtist(name = name, id = id))
+                }
+            }
+            result
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
 
     /**
      * Prefer the catalogue audio release when the selected result is a music
@@ -1245,6 +1362,7 @@ object AppSettings {
         swipeToPlayNext.value = prefs.getBoolean(KEY_SWIPE_TO_PLAY_NEXT, false)
         useStarFavorite.value = prefs.getBoolean(KEY_USE_STAR_FAVORITE, false)
         dontRepeatSuggestions.value = prefs.getBoolean(KEY_DONT_REPEAT_SUGGESTIONS, false)
+        blockedArtists.value = loadBlockedArtists()
         preferMusicOnly.value = prefs.getBoolean(KEY_PREFER_MUSIC_ONLY, false)
         smartVersionAlignment.value = prefs.getBoolean(KEY_SMART_VERSION_ALIGNMENT, true)
         reduceDynamicBlur.value = prefs.getBoolean(KEY_REDUCE_BLUR, false)
@@ -2921,6 +3039,7 @@ object AppSettings {
     private const val KEY_SWIPE_TO_PLAY_NEXT = "swipe_to_play_next"
     private const val KEY_USE_STAR_FAVORITE = "use_star_favorite"
     private const val KEY_DONT_REPEAT_SUGGESTIONS = "dont_repeat_suggestions"
+    private const val KEY_BLOCKED_ARTISTS = "blocked_artists"
     private const val KEY_PREFER_MUSIC_ONLY = "prefer_music_only"
     private const val KEY_SMART_VERSION_ALIGNMENT = "smart_version_alignment"
     private const val KEY_REDUCE_BLUR = "reduce_dynamic_blur"
