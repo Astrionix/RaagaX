@@ -1863,4 +1863,12 @@ A safety checkpoint of your current state will be automatically created before r
     <string name="auto_play_recognized_song">Auto Play Recognized Song</string>
     <string name="auto_play_recognized_song_subtitle">Automatically play a song after recognition finds it</string>
     <string name="search_voice">Search with your voice</string>
+    <string name="dont_play_this_artist">Don\'t play this artist</string>
+    <string name="unblock_artist">Unblock artist</string>
+    <string name="unblock_this_artist">Unblock this artist</string>
+    <string name="blocked_artists">Blocked Artists</string>
+    <string name="blocked_artists_desc">Manage artists whose tracks are hidden and automatically skipped</string>
+    <string name="blocked_artist_toast">Blocked %1$s • Won\'t play again</string>
+    <string name="unblocked_artist_toast">Unblocked %1$s</string>
+    <string name="no_blocked_artists">No blocked artists</string>
 </resources>
