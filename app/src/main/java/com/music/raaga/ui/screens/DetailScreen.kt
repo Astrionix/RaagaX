@@ -3,7 +3,10 @@ package com.music.raaga.ui.screens
 import com.music.raaga.R
 import com.music.raaga.ui.components.copyOnLongPress
 
+import android.widget.Toast
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.material.icons.rounded.Block
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -546,11 +549,26 @@ fun DetailScreen(
 
             if (songs.isNotEmpty() && isArtist) {
                 item(key = "actions") {
+                    val blockedArtists by com.music.raaga.data.settings.AppSettings.blockedArtists.collectAsStateWithLifecycle()
+                    val isBlocked = remember(blockedArtists, page.title, page.browseId) {
+                        com.music.raaga.data.settings.AppSettings.isArtistBlocked(page.title, page.browseId)
+                    }
+                    val context = LocalPlatformContext.current
                     ActionRow(
                         onPlay = { onSongClick(songs, 0) },
                         onShuffle = { onShuffle(songs) },
                         subscription = page.subscription?.takeIf { onToggleSubscription != null },
                         onToggleSubscription = onToggleSubscription,
+                        isBlocked = isBlocked,
+                        onToggleBlock = {
+                            if (isBlocked) {
+                                com.music.raaga.data.settings.AppSettings.unblockArtist(page.title, page.browseId)
+                                Toast.makeText(context, context.getString(R.string.unblocked_artist_toast, page.title), Toast.LENGTH_SHORT).show()
+                            } else {
+                                com.music.raaga.data.settings.AppSettings.blockArtist(page.title, page.browseId)
+                                Toast.makeText(context, context.getString(R.string.blocked_artist_toast, page.title), Toast.LENGTH_SHORT).show()
+                            }
+                        },
                         bottomSpace = 22.dp,
                     )
                 }
@@ -1481,6 +1499,8 @@ private fun ActionRow(
     subscription: SubscriptionState? = null,
     onToggleSubscription: (() -> Unit)? = null,
     playColor: Color? = null,
+    isBlocked: Boolean = false,
+    onToggleBlock: (() -> Unit)? = null,
 ) {
     Row(
         modifier = Modifier
@@ -1513,6 +1533,17 @@ private fun ActionRow(
                 onClick = { onToggleSubscription?.invoke() },
                 haptic = if (subscription.subscribed) Haptic.ToggleOff else Haptic.ToggleOn,
                 size = ARTIST_SIDE_BUTTON,
+            )
+        }
+
+        if (onToggleBlock != null) {
+            CircleIconButton(
+                icon = if (isBlocked) Icons.Rounded.CheckCircle else Icons.Rounded.Block,
+                contentDescription = if (isBlocked) "Unblock Artist" else "Don't Play This Artist",
+                onClick = onToggleBlock,
+                haptic = if (isBlocked) Haptic.ToggleOff else Haptic.ToggleOn,
+                size = ARTIST_SIDE_BUTTON,
+                tint = if (isBlocked) Color(0xFFFF453A) else Color.White,
             )
         }
     }
@@ -1619,6 +1650,7 @@ private fun CircleIconButton(
     onClick: () -> Unit,
     haptic: Haptic = Haptic.Tap,
     size: Dp = 50.dp,
+    tint: Color = Color.White,
 ) {
     val haptics = rememberHaptics()
     Box(
@@ -1636,7 +1668,7 @@ private fun CircleIconButton(
         Icon(
             imageVector = icon,
             contentDescription = contentDescription,
-            tint = Color.White,
+            tint = tint,
             modifier = Modifier.size(size * 0.44f),
         )
     }
