@@ -1698,14 +1698,27 @@ fun NowPlayingScreen(
                                 onScrub = onScrub,
                                 onScrubFinished = onScrubFinished,
                             ) {
-                                PlaybackQualityLabel(
-                                    song = song,
-                                    isLoading = isLoading,
-                                    onClick = { showQualityPickerSheet = true },
-                                    modifier = Modifier
-                                        .align(Alignment.Center)
-                                        .padding(horizontal = 8.dp),
-                                )
+                                val mixBlend by AppSettings.smartMixBlend.collectAsStateWithLifecycle()
+                                val smartFadeEnabled by AppSettings.smartFadeEnabled.collectAsStateWithLifecycle()
+                                Row(
+                                    modifier = Modifier.align(Alignment.Center),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                ) {
+                                    PlaybackQualityLabel(
+                                        song = song,
+                                        isLoading = isLoading,
+                                        onClick = { showQualityPickerSheet = true },
+                                        modifier = Modifier.padding(horizontal = 4.dp),
+                                    )
+                                    val showMixBadge = (smartFadeEnabled && song?.isVideoOrigin != true) || mixBlend != null || (transitionWindow != null && !scrub.scrubbing)
+                                    if (showMixBadge) {
+                                        AutomixBadge(
+                                            isBlending = mixBlend != null,
+                                            onClick = { showMixView = true },
+                                        )
+                                    }
+                                }
                             }
                         },
                         transport = {
@@ -3175,6 +3188,7 @@ fun NowPlayingScreen(
                 onScrubFinished = onScrubFinished,
             ) {
                 val mixBlend by AppSettings.smartMixBlend.collectAsStateWithLifecycle()
+                val smartFadeEnabled by AppSettings.smartFadeEnabled.collectAsStateWithLifecycle()
                 Row(
                     modifier = Modifier.align(Alignment.Center),
                     verticalAlignment = Alignment.CenterVertically,
@@ -3186,7 +3200,8 @@ fun NowPlayingScreen(
                         onClick = { showQualityPickerSheet = true },
                         modifier = Modifier.padding(horizontal = 4.dp),
                     )
-                    if (mixBlend != null || (transitionWindow != null && !scrub.scrubbing)) {
+                    val showMixBadge = (smartFadeEnabled && song?.isVideoOrigin != true) || mixBlend != null || (transitionWindow != null && !scrub.scrubbing)
+                    if (showMixBadge) {
                         AutomixBadge(
                             isBlending = mixBlend != null,
                             onClick = { showMixView = true },
