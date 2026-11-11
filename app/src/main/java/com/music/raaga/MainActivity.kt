@@ -4133,6 +4133,22 @@ private fun RaagaApp(
                     onOpenArtist = { id ->
                         openPage(id, song.artist, context.getString(R.string.artist), BrowseType.ARTIST)
                     },
+                    onBlockArtist = { artistName, artistId ->
+                        val isBlocked = AppSettings.isArtistBlocked(artistName, artistId)
+                        if (isBlocked) {
+                            AppSettings.unblockArtist(artistName, artistId)
+                            Toast.makeText(context, context.getString(R.string.unblocked_artist_toast, artistName), Toast.LENGTH_SHORT).show()
+                        } else {
+                            AppSettings.blockArtist(artistName, artistId)
+                            Toast.makeText(context, context.getString(R.string.blocked_artist_toast, artistName), Toast.LENGTH_SHORT).show()
+                            if (player.song?.artist?.equals(artistName, ignoreCase = true) == true ||
+                                AppSettings.isSongBlocked(player.song)
+                            ) {
+                                controller?.seekToNextMediaItem()
+                            }
+                        }
+                        songActions = null
+                    },
                     onSearchContributor = { term ->
                         songActions = null
                         showNowPlaying = false
