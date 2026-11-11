@@ -1,6 +1,7 @@
 package com.music.raaga.playback
 
 import com.music.raaga.data.model.Song
+import com.music.raaga.data.settings.AppSettings
 import java.util.Locale
 
 /**
@@ -41,8 +42,9 @@ object QueueBuilder {
         // ("Dildaara (Stand By Me)" against "Lyrical Video: Dildara Song")
         // that no title match will catch it. The catalogue cut is the one a
         // music app wants; videos only stand in when there is nothing else.
-        val songsOnly = candidates.filterNot { it.isVideo }
-        val ordered = songsOnly.ifEmpty { candidates }
+        val candidatesNotBlocked = candidates.filterNot { AppSettings.isSongBlocked(it) }
+        val songsOnly = candidatesNotBlocked.filterNot { it.isVideo }
+        val ordered = songsOnly.ifEmpty { candidatesNotBlocked }
 
         for (candidate in ordered) {
             if (out.size >= limit) break
