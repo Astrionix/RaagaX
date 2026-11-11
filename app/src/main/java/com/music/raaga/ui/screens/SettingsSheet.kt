@@ -47,6 +47,7 @@ import androidx.compose.material.icons.rounded.Animation
 import androidx.compose.material.icons.rounded.BarChart
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.BlurOff
+import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.BlurOn
 import androidx.compose.material.icons.rounded.Brightness4
 import androidx.compose.material.icons.rounded.Check
@@ -479,6 +480,7 @@ fun SettingsScreen(
     }
     var showListenBrainzTokenDialog by remember { mutableStateOf(false) }
     var showLastfmLoginDialog by remember { mutableStateOf(false) }
+    var showBlockedArtistsDialog by remember { mutableStateOf(false) }
     val scrobbleScope = rememberCoroutineScope()
 
     val version = remember(context) {
@@ -1861,6 +1863,34 @@ fun SettingsScreen(
                     onClick = { AppSettings.setSquareVideoThumbnails(!squareVideoThumbnails) },
                 )
             }
+            val blockedArtists by AppSettings.blockedArtists.collectAsStateWithLifecycle()
+            val blockedArtistsTitle = "Blocked Artists"
+            row(blockedArtistsTitle, "block", "artist", "hidden", "don't play", "dislike") {
+                SettingsRow(
+                    icon = Icons.Rounded.Block,
+                    title = blockedArtistsTitle,
+                    subtitle = if (blockedArtists.isEmpty()) "No artists blocked" else "${blockedArtists.size} artist${if (blockedArtists.size > 1) "s" else ""} blocked from playback",
+                    trailing = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (blockedArtists.isNotEmpty()) {
+                                Text(
+                                    text = blockedArtists.size.toString(),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Spacer(Modifier.width(4.dp))
+                            }
+                            Icon(
+                                imageVector = Icons.Rounded.ChevronRight,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(14.dp),
+                            )
+                        }
+                    },
+                    onClick = { showBlockedArtistsDialog = true },
+                )
+            }
         }
     }
 
@@ -2716,6 +2746,73 @@ fun SettingsScreen(
             dismissButton = {
                 TextButton(onClick = { showListenBrainzTokenDialog = false }) {
                     Text(stringResource(R.string.cancel))
+                }
+            },
+        )
+    }
+
+    if (showBlockedArtistsDialog) {
+        val blockedList by AppSettings.blockedArtists.collectAsStateWithLifecycle()
+        AlertDialog(
+            onDismissRequest = { showBlockedArtistsDialog = false },
+            title = {
+                Text(
+                    text = "Blocked Artists",
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                )
+            },
+            text = {
+                if (blockedList.isEmpty()) {
+                    Text(
+                        text = "No artists are currently blocked. You can block any artist using 'Don't play this artist' from the artist page or song menu.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 350.dp)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        blockedList.forEach { artist ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = artist.name,
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    Text(
+                                        text = "Blocked from all playback",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                Spacer(Modifier.width(8.dp))
+                                TextButton(
+                                    onClick = { AppSettings.unblockArtist(artist.name, artist.id) },
+                                ) {
+                                    Text("Unblock", color = MaterialTheme.colorScheme.error)
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showBlockedArtistsDialog = false }) {
+                    Text(stringResource(R.string.done))
                 }
             },
         )
