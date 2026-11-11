@@ -21,6 +21,8 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Block
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -377,6 +379,36 @@ fun ArtistsSubScreen(
                                         onClick = {
                                             menuExpanded = false
                                             AppSettings.togglePinnedArtist(artistKey)
+                                        },
+                                    )
+                                    val blockedArtists by AppSettings.blockedArtists.collectAsStateWithLifecycle()
+                                    val isArtistBlocked = remember(blockedArtists, artist.title, artist.browseId) {
+                                        AppSettings.isArtistBlocked(artist.title, artist.browseId)
+                                    }
+                                    val context = androidx.compose.ui.platform.LocalContext.current
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                text = if (isArtistBlocked) stringResource(R.string.unblock_artist) else stringResource(R.string.dont_play_this_artist),
+                                                color = Color.White,
+                                            )
+                                        },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = if (isArtistBlocked) Icons.Rounded.CheckCircle else Icons.Rounded.Block,
+                                                contentDescription = null,
+                                                tint = if (isArtistBlocked) RaagaAccentRed else Color.White,
+                                            )
+                                        },
+                                        onClick = {
+                                            menuExpanded = false
+                                            if (isArtistBlocked) {
+                                                AppSettings.unblockArtist(artist.title, artist.browseId)
+                                                android.widget.Toast.makeText(context, context.getString(R.string.unblocked_artist_toast, artist.title), android.widget.Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                AppSettings.blockArtist(artist.title, artist.browseId)
+                                                android.widget.Toast.makeText(context, context.getString(R.string.blocked_artist_toast, artist.title), android.widget.Toast.LENGTH_SHORT).show()
+                                            }
                                         },
                                     )
                                 }
