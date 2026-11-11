@@ -18,10 +18,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.GraphicEq
@@ -79,11 +77,9 @@ fun MixViewDialog(
         onDismiss = onDismiss,
         modifier = modifier,
     ) {
-        val scrollState = rememberScrollState()
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .verticalScroll(scrollState)
                 .padding(vertical = 4.dp),
         ) {
             // Live Status Card
@@ -130,13 +126,14 @@ fun MixViewDialog(
                     Spacer(Modifier.height(6.dp))
 
                     val bpm = smartMixBlend?.beatMs?.takeIf { it > 0f }?.let { (60_000f / it).roundToInt() }
+                    val window = transitionWindow
                     Text(
                         text = when {
                             isBlending && bpm != null -> "Phase-Locked • Tempo synced at $bpm BPM"
                             isBlending -> "Phase-Locked • Beat-matching active"
-                            transitionWindow != null -> {
-                                val start = (transitionWindow!!.start * 100).toInt()
-                                val end = (transitionWindow!!.end * 100).toInt()
+                            window != null -> {
+                                val start = (window.start * 100).toInt()
+                                val end = (window.end * 100).toInt()
                                 "Transition armed at $start% – $end% duration"
                             }
                             smartFadeEnabled -> "Analyzing beat grid and track energy"
