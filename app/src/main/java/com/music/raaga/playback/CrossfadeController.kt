@@ -1232,6 +1232,8 @@ class CrossfadeController(
         if (out === into) return false
         val nextIndex = out.nextMediaItemIndex
         if (nextIndex == C.INDEX_UNSET) return false
+        val nextItem = out.getMediaItemAt(nextIndex)
+        if (AppSettings.isSongBlocked(nextItem.toSong())) return false
         // The last blend's stretch, if it is somehow still easing off: this
         // player is about to be the outgoing side of a new one.
         endEase(clickless = false)
