@@ -815,6 +815,7 @@ class PlaybackService : MediaLibraryService() {
      * time: the one [player] names.
      */
     private val playbackListener = object : Player.Listener {
+        private var blockedArtistSkipStreak = 0
         override fun onEvents(player: Player, events: Player.Events) {
             val activePlayer = this@PlaybackService.player ?: return
             if (player === activePlayer) updateAudioEffectSession(activePlayer)
@@ -966,6 +967,17 @@ class PlaybackService : MediaLibraryService() {
                 swappingMediaId = null
                 return
             }
+
+            val incomingSong = mediaItem?.toSong()
+            if (incomingSong != null && AppSettings.isSongBlocked(incomingSong)) {
+                if (blockedArtistSkipStreak < 15 && exoPlayer.hasNextMediaItem()) {
+                    blockedArtistSkipStreak++
+                    TrackLog.d("Raaga", "Blocked artist auto-skip for track: ${incomingSong.title} by ${incomingSong.artist}")
+                    exoPlayer.seekToNextMediaItem()
+                    return
+                }
+            }
+            blockedArtistSkipStreak = 0
 
             // No crossfade case to allow for here any more. A blended advance
             // never reaches this callback — the incoming track starts as the
