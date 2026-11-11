@@ -7,6 +7,7 @@ import androidx.compose.material3.Surface
 import kotlin.math.roundToInt
 
 import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -33,6 +34,8 @@ import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material.icons.rounded.Album
+import androidx.compose.material.icons.rounded.Block
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.BugReport
@@ -203,6 +206,7 @@ fun SongActionsSheet(
     showLoopOption: Boolean = false,
     isLooping: Boolean = false,
     onToggleLoop: (() -> Unit)? = null,
+    onBlockArtist: ((String, String?) -> Unit)? = null,
 ) {
     var pickingSleepTimer by remember { mutableStateOf(false) }
     var showingSongInfo by remember(song.videoId) { mutableStateOf(false) }
@@ -239,6 +243,10 @@ fun SongActionsSheet(
         HorizontalDivider(thickness = 0.5.dp, color = palette.divider)
 
         val automixMeta by AppSettings.automixMetadata.collectAsStateWithLifecycle()
+        val blockedArtists by AppSettings.blockedArtists.collectAsStateWithLifecycle()
+        val isArtistBlocked = remember(blockedArtists, song.artist, song.artistId) {
+            AppSettings.isArtistBlocked(song.artist, song.artistId)
+        }
         if (automixMeta != null) {
             Surface(
                 shape = RoundedCornerShape(16.dp),
@@ -439,6 +447,27 @@ fun SongActionsSheet(
                     accent = palette.accent,
                 ) { onOpenArtist(id) }
             }
+            // Block / Don't play this artist
+            if (song.artist.isNotBlank()) {
+                ActionRow(
+                    icon = if (isArtistBlocked) Icons.Rounded.CheckCircle else Icons.Rounded.Block,
+                    label = if (isArtistBlocked) stringResource(R.string.unblock_artist) else stringResource(R.string.dont_play_this_artist),
+                    accent = palette.accent,
+                    tint = if (isArtistBlocked) palette.accent else null,
+                ) {
+                    if (onBlockArtist != null) {
+                        onBlockArtist(song.artist, song.artistId)
+                    } else {
+                        if (isArtistBlocked) {
+                            AppSettings.unblockArtist(song.artist, song.artistId)
+                            Toast.makeText(context, context.getString(R.string.unblocked_artist_toast, song.artist), Toast.LENGTH_SHORT).show()
+                        } else {
+                            AppSettings.blockArtist(song.artist, song.artistId)
+                            Toast.makeText(context, context.getString(R.string.blocked_artist_toast, song.artist), Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            }
 
             // 9. Share
             if (!isOffline) {
@@ -538,6 +567,26 @@ fun SongActionsSheet(
                     stringResource(R.string.open_artist),
                     accent = palette.accent,
                 ) { onOpenArtist(id) }
+            }
+            if (song.artist.isNotBlank()) {
+                ActionRow(
+                    icon = if (isArtistBlocked) Icons.Rounded.CheckCircle else Icons.Rounded.Block,
+                    label = if (isArtistBlocked) stringResource(R.string.unblock_artist) else stringResource(R.string.dont_play_this_artist),
+                    accent = palette.accent,
+                    tint = if (isArtistBlocked) palette.accent else null,
+                ) {
+                    if (onBlockArtist != null) {
+                        onBlockArtist(song.artist, song.artistId)
+                    } else {
+                        if (isArtistBlocked) {
+                            AppSettings.unblockArtist(song.artist, song.artistId)
+                            Toast.makeText(context, context.getString(R.string.unblocked_artist_toast, song.artist), Toast.LENGTH_SHORT).show()
+                        } else {
+                            AppSettings.blockArtist(song.artist, song.artistId)
+                            Toast.makeText(context, context.getString(R.string.blocked_artist_toast, song.artist), Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
             }
             ActionRow(
                 Icons.Rounded.Info,
