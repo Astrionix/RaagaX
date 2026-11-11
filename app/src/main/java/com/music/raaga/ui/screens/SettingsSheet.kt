@@ -88,6 +88,7 @@ import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Usb
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material.icons.rounded.SystemUpdate
+import androidx.compose.material.icons.rounded.Vibration
 import androidx.compose.material.icons.rounded.VolumeOff
 import androidx.compose.material.icons.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Waves
@@ -96,6 +97,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatDelegate
 import com.music.raaga.data.settings.AutoDownloadPlaylist
+import com.music.raaga.data.settings.MusicHapticsIntensity
 import com.music.raaga.download.PlaylistSyncWorker
 import com.music.raaga.data.AppUpdateChecker
 import com.music.raaga.data.lyrics.translationLanguageName
@@ -260,6 +262,10 @@ fun SettingsScreen(
     val crossfadeMode by AppSettings.crossfadeMode.collectAsStateWithLifecycle()
     val crossfadeSeconds by AppSettings.crossfadeSeconds.collectAsStateWithLifecycle()
     var pickingCrossfadeMode by remember { mutableStateOf(false) }
+    val musicHapticsEnabled by AppSettings.musicHapticsEnabled.collectAsStateWithLifecycle()
+    val musicHapticsIntensity by AppSettings.musicHapticsIntensity.collectAsStateWithLifecycle()
+    val musicHapticsScreenOff by AppSettings.musicHapticsScreenOff.collectAsStateWithLifecycle()
+    var pickingMusicHapticsIntensity by remember { mutableStateOf(false) }
     val smartFade by AppSettings.smartFadeEnabled.collectAsStateWithLifecycle()
     val automixPerformance by AppSettings.automixPerformanceMode.collectAsStateWithLifecycle()
     val bitPerfectMode by AppSettings.bitPerfectMode.collectAsStateWithLifecycle()
@@ -1145,6 +1151,55 @@ fun SettingsScreen(
                         onSliderValue = { AppSettings.setLoudnessTargetLufs(it) },
                         valueRange = AppSettings.MIN_LOUDNESS_TARGET_LUFS..AppSettings.MAX_LOUDNESS_TARGET_LUFS,
                         steps = 27,
+                    )
+                }
+            }
+            val musicHapticsTitle = stringResource(R.string.music_haptics_title)
+            row(musicHapticsTitle, "music haptics", "haptics", "vibration", "beat", "apple music") {
+                SettingsRow(
+                    icon = Icons.Rounded.Vibration,
+                    title = musicHapticsTitle,
+                    subtitle = stringResource(R.string.music_haptics_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = musicHapticsEnabled,
+                            onCheckedChange = AppSettings::setMusicHapticsEnabled,
+                            colors = settingsSwitchColors(),
+                        )
+                    },
+                    onClick = { AppSettings.setMusicHapticsEnabled(!musicHapticsEnabled) },
+                )
+            }
+            if (musicHapticsEnabled) {
+                val intensityTitle = stringResource(R.string.music_haptics_intensity)
+                row(intensityTitle, "intensity", "strength", "haptics") {
+                    SettingsRow(
+                        icon = Icons.Rounded.Tune,
+                        title = intensityTitle,
+                        subtitle = stringResource(
+                            when (musicHapticsIntensity) {
+                                MusicHapticsIntensity.SUBTLE -> R.string.music_haptics_subtle_desc
+                                MusicHapticsIntensity.BALANCED -> R.string.music_haptics_balanced_desc
+                                MusicHapticsIntensity.STRONG -> R.string.music_haptics_strong_desc
+                            }
+                        ),
+                        value = stringResource(
+                            when (musicHapticsIntensity) {
+                                MusicHapticsIntensity.SUBTLE -> R.string.music_haptics_subtle
+                                MusicHapticsIntensity.BALANCED -> R.string.music_haptics_balanced
+                                MusicHapticsIntensity.STRONG -> R.string.music_haptics_strong
+                            }
+                        ),
+                        onClick = { pickingMusicHapticsIntensity = true },
+                    )
+                }
+                val pocketTitle = stringResource(R.string.music_haptics_pocket)
+                row(pocketTitle, "screen off", "pocket", "haptics") {
+                    SettingsSubRow(
+                        title = pocketTitle,
+                        subtitle = stringResource(R.string.music_haptics_pocket_subtitle),
+                        checked = musicHapticsScreenOff,
+                        onCheckedChange = AppSettings::setMusicHapticsScreenOff,
                     )
                 }
             }
@@ -2643,6 +2698,21 @@ fun SettingsScreen(
         }
     }
 
+    if (pickingMusicHapticsIntensity) {
+        ModalBottomSheet(
+            onDismissRequest = { pickingMusicHapticsIntensity = false },
+            containerColor = MaterialTheme.colorScheme.background,
+        ) {
+            MusicHapticsIntensitySheet(
+                selected = musicHapticsIntensity,
+                onSelect = { intensity ->
+                    AppSettings.setMusicHapticsIntensity(intensity)
+                    pickingMusicHapticsIntensity = false
+                },
+            )
+        }
+    }
+
     // Asked before the picker opens rather than after a file is chosen: the
     // thing being confirmed is that this device's own history is about to be
     // thrown away, and that is true whichever file gets picked.
@@ -3469,6 +3539,88 @@ private fun AutomixPerformanceSheet(
                                 AutomixPerformanceMode.BALANCED -> R.string.automix_mode_balanced_subtitle
                                 AutomixPerformanceMode.PERFORMANCE -> R.string.automix_mode_performance_subtitle
                             },
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (chosen) {
+                    Spacer(Modifier.width(12.dp))
+                    Icon(
+                        Icons.Rounded.Check,
+                        contentDescription = stringResource(R.string.selected),
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MusicHapticsIntensitySheet(
+    selected: MusicHapticsIntensity,
+    onSelect: (MusicHapticsIntensity) -> Unit,
+) {
+    val haptics = LocalHapticFeedback.current
+    Column(Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
+        Row(
+            modifier = Modifier.padding(start = 22.dp, end = 22.dp, bottom = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Vibration,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.size(22.dp),
+            )
+            Spacer(Modifier.width(14.dp))
+            Column {
+                Text(
+                    text = stringResource(R.string.music_haptics_intensity),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
+                Text(
+                    text = stringResource(R.string.music_haptics_subtitle),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline)
+        MusicHapticsIntensity.entries.forEach { intensity ->
+            val chosen = intensity == selected
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onSelect(intensity)
+                    }
+                    .padding(horizontal = 22.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(
+                            when (intensity) {
+                                MusicHapticsIntensity.SUBTLE -> R.string.music_haptics_subtle
+                                MusicHapticsIntensity.BALANCED -> R.string.music_haptics_balanced
+                                MusicHapticsIntensity.STRONG -> R.string.music_haptics_strong
+                            }
+                        ),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
+                    Text(
+                        text = stringResource(
+                            when (intensity) {
+                                MusicHapticsIntensity.SUBTLE -> R.string.music_haptics_subtle_desc
+                                MusicHapticsIntensity.BALANCED -> R.string.music_haptics_balanced_desc
+                                MusicHapticsIntensity.STRONG -> R.string.music_haptics_strong_desc
+                            }
                         ),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,

@@ -248,6 +248,19 @@ enum class SongSort {
     DATE_ADDED_DESC,
 }
 
+/** Intensity profile for audio-reactive rhythm and bass haptics (Apple Music parity). */
+enum class MusicHapticsIntensity(val scale: Float) {
+    SUBTLE(0.4f),
+    BALANCED(0.75f),
+    STRONG(1.0f);
+
+    companion object {
+        fun fromString(name: String?): MusicHapticsIntensity = runCatching {
+            name?.let { valueOf(it) }
+        }.getOrNull() ?: BALANCED
+    }
+}
+
 /** Display mode for music lists: compact rows or grid cards. */
 enum class LibraryViewType {
     LIST,
@@ -448,6 +461,11 @@ object AppSettings {
      * attaching aggressive volume levelers, compressors, and artificial loudness boosts.
      */
     val bypassSystemEffectsOnUsb = MutableStateFlow(true)
+
+    /** Audio-reactive music haptics synchronized with real-time beats and bass transients (Apple Music parity). */
+    val musicHapticsEnabled = MutableStateFlow(false)
+    val musicHapticsIntensity = MutableStateFlow(MusicHapticsIntensity.BALANCED)
+    val musicHapticsScreenOff = MutableStateFlow(false)
 
     /**
      * Whether a source offering a Dolby Atmos rendition is allowed to serve it.
@@ -1300,6 +1318,9 @@ object AppSettings {
         usbAllowFixedVolume.value = prefs.getBoolean(KEY_USB_ALLOW_FIXED_VOLUME, false)
         loudnessOffOnSpeaker.value = prefs.getBoolean(KEY_LOUDNESS_OFF_ON_SPEAKER, true)
         bypassSystemEffectsOnUsb.value = prefs.getBoolean(KEY_BYPASS_SYSTEM_EFFECTS_ON_USB, true)
+        musicHapticsEnabled.value = prefs.getBoolean(KEY_MUSIC_HAPTICS_ENABLED, false)
+        musicHapticsIntensity.value = MusicHapticsIntensity.fromString(prefs.getString(KEY_MUSIC_HAPTICS_INTENSITY, null))
+        musicHapticsScreenOff.value = prefs.getBoolean(KEY_MUSIC_HAPTICS_SCREEN_OFF, false)
         onboardingComplete.value = prefs.getBoolean(KEY_ONBOARDING_COMPLETE, false)
         hideStatusBarInPlayer.value = prefs.getBoolean(KEY_HIDE_STATUS_BAR_IN_PLAYER, false)
         showQueueHistory.value = prefs.getBoolean(KEY_SHOW_QUEUE_HISTORY, false)
@@ -2360,6 +2381,21 @@ object AppSettings {
         prefs.edit().putBoolean(KEY_USB_ALLOW_FIXED_VOLUME, value).apply()
     }
 
+    fun setMusicHapticsEnabled(value: Boolean) {
+        musicHapticsEnabled.value = value
+        prefs.edit().putBoolean(KEY_MUSIC_HAPTICS_ENABLED, value).apply()
+    }
+
+    fun setMusicHapticsIntensity(value: MusicHapticsIntensity) {
+        musicHapticsIntensity.value = value
+        prefs.edit().putString(KEY_MUSIC_HAPTICS_INTENSITY, value.name).apply()
+    }
+
+    fun setMusicHapticsScreenOff(value: Boolean) {
+        musicHapticsScreenOff.value = value
+        prefs.edit().putBoolean(KEY_MUSIC_HAPTICS_SCREEN_OFF, value).apply()
+    }
+
     fun setExportDownloads(value: Boolean) {
         exportDownloads.value = value
         prefs.edit().putBoolean(KEY_EXPORT_DOWNLOADS, value).apply()
@@ -3001,6 +3037,9 @@ object AppSettings {
     private const val KEY_USB_ALLOW_FIXED_VOLUME = "usb_allow_fixed_volume"
     private const val KEY_LOUDNESS_OFF_ON_SPEAKER = "loudness_off_on_speaker"
     private const val KEY_BYPASS_SYSTEM_EFFECTS_ON_USB = "bypass_system_effects_on_usb"
+    private const val KEY_MUSIC_HAPTICS_ENABLED = "music_haptics_enabled"
+    private const val KEY_MUSIC_HAPTICS_INTENSITY = "music_haptics_intensity"
+    private const val KEY_MUSIC_HAPTICS_SCREEN_OFF = "music_haptics_screen_off"
     private const val KEY_ONBOARDING_COMPLETE = "onboarding_complete"
     private const val KEY_HIDE_STATUS_BAR_IN_PLAYER = "hide_status_bar_in_player"
     private const val KEY_SHOW_QUEUE_HISTORY = "show_queue_history"

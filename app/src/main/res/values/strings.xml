@@ -1871,4 +1871,15 @@ A safety checkpoint of your current state will be automatically created before r
     <string name="blocked_artist_toast">Blocked %1$s • Won\'t play again</string>
     <string name="unblocked_artist_toast">Unblocked %1$s</string>
     <string name="no_blocked_artists">No blocked artists</string>
+    <string name="music_haptics_title">Music Haptics</string>
+    <string name="music_haptics_subtitle">Feel synchronized tactile beats and bass pulses with playback</string>
+    <string name="music_haptics_intensity">Haptics Intensity</string>
+    <string name="music_haptics_subtle">Subtle</string>
+    <string name="music_haptics_subtle_desc">Gentle tactile accents for relaxed listening</string>
+    <string name="music_haptics_balanced">Balanced</string>
+    <string name="music_haptics_balanced_desc">Responsive kick drum and rhythm feedback</string>
+    <string name="music_haptics_strong">Bass Thump</string>
+    <string name="music_haptics_strong_desc">Deep, energetic bass kick pulses</string>
+    <string name="music_haptics_pocket">Pocket Haptics</string>
+    <string name="music_haptics_pocket_subtitle">Continue vibrating while the screen is turned off</string>
 </resources>

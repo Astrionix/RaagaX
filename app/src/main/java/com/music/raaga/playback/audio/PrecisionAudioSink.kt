@@ -12,6 +12,7 @@ import androidx.media3.exoplayer.audio.ForwardingAudioSink
 import com.music.raaga.BuildConfig
 import com.music.raaga.playback.AudioOutputStatus
 import com.music.raaga.playback.audio.usb.DirectAudioOutput
+import com.music.raaga.playback.haptics.MusicHapticsEngine
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
@@ -350,6 +351,16 @@ class PrecisionAudioSink(
                 frameCount = decodedFrames,
                 channelCount = channelCount,
             )
+
+            // Real-time audio-reactive rhythm and bass haptics (Apple Music parity)
+            if (isAudible() && MusicHapticsEngine.isActive) {
+                MusicHapticsEngine.analyzeBlock(
+                    samples = audioBlock.samples,
+                    frameCount = decodedFrames,
+                    channelCount = channelCount,
+                    sampleRate = configuredSampleRate,
+                )
+            }
 
             // Encode processed samples to target PCM output buffer (Float32 or PCM16)
             outputByteBuffer.clear()
