@@ -6,6 +6,7 @@ import com.music.raaga.data.model.SearchFilter
 import com.music.raaga.data.model.SearchResult
 import com.music.raaga.data.model.QueueTier
 import com.music.raaga.data.model.Song
+import com.music.raaga.data.settings.AppSettings
 import com.music.raaga.data.sources.SourceRegistry
 import com.music.raaga.data.sources.TrackMatcher
 import com.music.raaga.playback.QueueCoordinator.asQueueEntry
@@ -103,7 +104,8 @@ suspend fun loadAutoplayTracks(
 ): Result<List<Song>> {
     val seed = youtubeSeedFor(seedSong) ?: return Result.success(emptyList())
     val related = YtMusicRepository.radio(seed).getOrElse { return Result.failure(it) }
-    val extra = QueueBuilder.extend(existing, related, limit)
+    val filtered = related.filterNot { AppSettings.isSongBlocked(it) }
+    val extra = QueueBuilder.extend(existing, filtered, limit)
     if (extra.isEmpty()) return Result.success(emptyList())
 
     return Result.success(extra.map {
