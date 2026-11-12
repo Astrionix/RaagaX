@@ -1202,6 +1202,17 @@ fun SettingsScreen(
                         onCheckedChange = AppSettings::setMusicHapticsScreenOff,
                     )
                 }
+                val testBeatTitle = stringResource(R.string.music_haptics_test_beat)
+                row(testBeatTitle, "test haptics", "preview haptics", "vibration test", "beat") {
+                    SettingsRow(
+                        icon = Icons.Rounded.GraphicEq,
+                        title = testBeatTitle,
+                        subtitle = stringResource(R.string.music_haptics_test_beat_desc),
+                        onClick = {
+                            com.music.raaga.playback.haptics.MusicHapticsEngine.playTestBeat(musicHapticsIntensity)
+                        },
+                    )
+                }
             }
             val crossfadeTitle = stringResource(R.string.crossfade)
             row(crossfadeTitle, "crossfade", "smart crossfade", "fade", "gapless", "automatic") {
@@ -3596,8 +3607,8 @@ private fun MusicHapticsIntensitySheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable {
-                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         onSelect(intensity)
+                        com.music.raaga.playback.haptics.MusicHapticsEngine.playTestBeat(intensity)
                     }
                     .padding(horizontal = 22.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,

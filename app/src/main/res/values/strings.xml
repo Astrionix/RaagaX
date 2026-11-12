@@ -1882,4 +1882,6 @@ A safety checkpoint of your current state will be automatically created before r
     <string name="music_haptics_strong_desc">Deep, energetic bass kick pulses</string>
     <string name="music_haptics_pocket">Pocket Haptics</string>
     <string name="music_haptics_pocket_subtitle">Continue vibrating while the screen is turned off</string>
+    <string name="music_haptics_test_beat">Test Beat Pulse</string>
+    <string name="music_haptics_test_beat_desc">Tap to feel a sample synchronized rhythm pulse</string>
 </resources>

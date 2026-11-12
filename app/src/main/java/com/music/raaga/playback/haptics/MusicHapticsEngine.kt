@@ -304,6 +304,28 @@ object MusicHapticsEngine {
         runCatching { hapticExecutor.shutdownNow() }
     }
 
+    /**
+     * Plays an instant tactile preview rhythm pattern (3-beat kick burst)
+     * using the current or specified intensity level so the user can test
+     * and feel what the haptic feedback feels like in their hand.
+     */
+    fun playTestBeat(intensity: com.music.raaga.data.settings.MusicHapticsIntensity = AppSettings.musicHapticsIntensity.value) {
+        if (!hapticExecutor.isShutdown) {
+            hapticExecutor.execute {
+                try {
+                    dispatchHapticPulse(intensity.scale)
+                    Thread.sleep(170)
+                    dispatchHapticPulse(intensity.scale * 0.85f)
+                    Thread.sleep(170)
+                    dispatchHapticPulse(intensity.scale)
+                } catch (_: InterruptedException) {
+                } catch (t: Throwable) {
+                    Log.w(TAG, "Failed to play test beat", t)
+                }
+            }
+        }
+    }
+
     private val MEDIA_AUDIO_ATTRIBUTES by lazy {
         AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_MEDIA)
