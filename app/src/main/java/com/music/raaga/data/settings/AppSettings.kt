@@ -261,6 +261,24 @@ enum class MusicHapticsIntensity(val scale: Float) {
     }
 }
 
+/** Pattern style for audio-reactive rhythm and bass haptics (Apple Music / Pulse parity). */
+enum class MusicHapticsStyle {
+    /** Bass punches, downbeat layering, and crisp hi-hat/snare ticks. */
+    FULL_GROOVE,
+
+    /** Sub-bass & kick drum punches only (no treble articulation). */
+    BASSLINE,
+
+    /** Accented downbeats only, rendered softly for calm rhythm. */
+    HEARTBEAT;
+
+    companion object {
+        fun fromString(name: String?): MusicHapticsStyle = runCatching {
+            name?.let { valueOf(it) }
+        }.getOrNull() ?: FULL_GROOVE
+    }
+}
+
 /** Display mode for music lists: compact rows or grid cards. */
 enum class LibraryViewType {
     LIST,
@@ -465,6 +483,7 @@ object AppSettings {
     /** Audio-reactive music haptics synchronized with real-time beats and bass transients (Apple Music parity). */
     val musicHapticsEnabled = MutableStateFlow(false)
     val musicHapticsIntensity = MutableStateFlow(MusicHapticsIntensity.BALANCED)
+    val musicHapticsStyle = MutableStateFlow(MusicHapticsStyle.FULL_GROOVE)
     val musicHapticsScreenOff = MutableStateFlow(false)
 
     /**
@@ -1320,6 +1339,7 @@ object AppSettings {
         bypassSystemEffectsOnUsb.value = prefs.getBoolean(KEY_BYPASS_SYSTEM_EFFECTS_ON_USB, true)
         musicHapticsEnabled.value = prefs.getBoolean(KEY_MUSIC_HAPTICS_ENABLED, false)
         musicHapticsIntensity.value = MusicHapticsIntensity.fromString(prefs.getString(KEY_MUSIC_HAPTICS_INTENSITY, null))
+        musicHapticsStyle.value = MusicHapticsStyle.fromString(prefs.getString(KEY_MUSIC_HAPTICS_STYLE, null))
         musicHapticsScreenOff.value = prefs.getBoolean(KEY_MUSIC_HAPTICS_SCREEN_OFF, false)
         onboardingComplete.value = prefs.getBoolean(KEY_ONBOARDING_COMPLETE, false)
         hideStatusBarInPlayer.value = prefs.getBoolean(KEY_HIDE_STATUS_BAR_IN_PLAYER, false)
@@ -2391,6 +2411,11 @@ object AppSettings {
         prefs.edit().putString(KEY_MUSIC_HAPTICS_INTENSITY, value.name).apply()
     }
 
+    fun setMusicHapticsStyle(value: MusicHapticsStyle) {
+        musicHapticsStyle.value = value
+        prefs.edit().putString(KEY_MUSIC_HAPTICS_STYLE, value.name).apply()
+    }
+
     fun setMusicHapticsScreenOff(value: Boolean) {
         musicHapticsScreenOff.value = value
         prefs.edit().putBoolean(KEY_MUSIC_HAPTICS_SCREEN_OFF, value).apply()
@@ -3039,6 +3064,7 @@ object AppSettings {
     private const val KEY_BYPASS_SYSTEM_EFFECTS_ON_USB = "bypass_system_effects_on_usb"
     private const val KEY_MUSIC_HAPTICS_ENABLED = "music_haptics_enabled"
     private const val KEY_MUSIC_HAPTICS_INTENSITY = "music_haptics_intensity"
+    private const val KEY_MUSIC_HAPTICS_STYLE = "music_haptics_style"
     private const val KEY_MUSIC_HAPTICS_SCREEN_OFF = "music_haptics_screen_off"
     private const val KEY_ONBOARDING_COMPLETE = "onboarding_complete"
     private const val KEY_HIDE_STATUS_BAR_IN_PLAYER = "hide_status_bar_in_player"

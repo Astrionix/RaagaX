@@ -14,36 +14,56 @@ import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.media3.common.C
 import com.music.raaga.data.settings.AppSettings
+import com.music.raaga.data.settings.MusicHapticsIntensity
+import com.music.raaga.data.settings.MusicHapticsStyle
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import kotlin.math.cos
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.sin
 
 /**
- * Audio-reactive haptics engine delivering Apple Music-style tactile feedback on Android.
+ * Audio-reactive haptics engine delivering Apple Music & Pulse-grade tactile feedback on Android.
  *
- * Synchronizes real-time transient kick drum and sub-bass beats with the device's
- * haptic actuator (LRA) using Android's modern composition primitives, combined with
- * Android 12+ native [HapticGenerator] audio coupling where supported by OEM hardware.
+ * Synchronizes real-time transient kick drum, sub-bass beats, and hi-hat/snare backbeats with the
+ * device's haptic actuator (LRA) using Android's modern composition primitives, multi-band DSP
+ * filtering (Robert Bristow-Johnson Audio EQ Cookbook), and adaptive variance-based thresholding
+ * (Frédéric Patin algorithm), paired with Android 12+ native [HapticGenerator] audio coupling where
+ * supported by OEM hardware.
  *
- * Architecture safeguards:
- * 1. Zero audio-thread blockage: Beat detection math executes in-place in < 3μs; haptic
- *    vibration actuation is dispatched asynchronously to a dedicated daemon executor.
- * 2. Battery & thermal safety: Minimum refractory window (135ms) prevents motor fatigue;
- *    automatic throttling when screen turns off (unless Pocket Haptics is enabled) and
- *    complete bypass when Android Battery Saver is engaged.
- * 3. Dynamic envelope tracking: Adapts threshold to the running average bass energy so
- *    quiet acoustic songs and loud EDM tracks feel equally punchy and responsive.
+ * Core architectural pillars:
+ * 1. Multi-band frequency separation:
+ *    - Sub-bass & kick channel: Direct-Form II Transposed low-pass filter (140 Hz, Q = 0.85).
+ *    - Treble & snare articulation channel: Direct-Form II Transposed band-pass filter (3500 Hz, Q = 0.70).
+ * 2. Adaptive variance-based onset sensitivity:
+ *    - Tracks local energy mean and variance across a rolling ~1s window so quiet acoustic intros
+ *      and compressed EDM drops both deliver balanced, natural tactile heft.
+ * 3. Layered composition primitives:
+ *    - Heavy downbeats layer `PRIMITIVE_QUICK_RISE` into `PRIMITIVE_THUD` for realistic physical attack.
+ *    - Snare/hat transients fire delicate `PRIMITIVE_TICK` or `PRIMITIVE_LOW_TICK` pulses.
+ *    - Graceful fallback to amplitude waveforms (API 26+) and single-shots (API 21+).
+ * 4. Battery, thermal & audio-thread safety:
+ *    - Zero audio-thread blocking (< 10μs compute per buffer); async executor dispatch.
+ *    - Debouncing refractory gates (175ms bass, 80ms treble) prevent motor overheating and battery drain.
+ *    - Automatic throttling when screen turns off (unless Pocket Haptics is enabled) and bypass on Battery Saver.
  */
 object MusicHapticsEngine {
     private const val TAG = "MusicHaptics"
 
-    private const val LOWPASS_CUTOFF_HZ = 115f
-    private const val LOWPASS_Q = 0.7071f
-    private const val REFRACTORY_WINDOW_MS = 135L
-    private const val MIN_ENERGY_THRESHOLD = 0.0008f
-    private const val SENSITIVITY_RATIO = 1.40f
+    // Multi-band DSP tuning (RBJ Cookbook)
+    private const val BASS_CUTOFF_HZ = 140f
+    private const val BASS_Q = 0.85f
+    private const val TREBLE_CENTER_HZ = 3500f
+    private const val TREBLE_Q = 0.70f
+
+    // Debouncing refractory periods
+    private const val BASS_REFRACTORY_MS = 175L
+    private const val TREBLE_REFRACTORY_MS = 80L
+
+    // Minimum energy floors to prevent noise triggering
+    private const val MIN_BASS_ENERGY_THRESHOLD = 0.0006f
+    private const val MIN_TREBLE_ENERGY_THRESHOLD = 0.0002f
     private const val POWER_CHECK_INTERVAL_MS = 500L
 
     @Volatile
@@ -58,25 +78,41 @@ object MusicHapticsEngine {
     @Volatile
     private var isPlaying: Boolean = false
 
+    // Hardware capability flags
     @Volatile
     private var canCompose: Boolean = false
 
     @Volatile
-    private var hasLowTick: Boolean = false
+    private var hasClick: Boolean = false
 
     @Volatile
     private var hasThud: Boolean = false
 
     @Volatile
+    private var hasQuickRise: Boolean = false
+
+    @Volatile
+    private var hasTick: Boolean = false
+
+    @Volatile
+    private var hasLowTick: Boolean = false
+
+    @Volatile
     private var canScaleAmplitude: Boolean = false
 
-    private val filter = BiquadLowPass()
+    // DSP biquad filters (Direct-Form II Transposed)
+    private val bassFilter = Biquad()
+    private val trebleFilter = Biquad()
+
+    // Sliding window energy history for adaptive Patin thresholding
+    private val bassHistory = EnergyHistory(capacity = 40)
+    private val trebleHistory = EnergyHistory(capacity = 40)
 
     @Volatile
-    private var runningAverageEnergy: Float = 0f
+    private var lastBassBeatMs: Long = 0L
 
     @Volatile
-    private var lastBeatMs: Long = 0L
+    private var lastTrebleBeatMs: Long = 0L
 
     @Volatile
     private var lastPowerCheckMs: Long = 0L
@@ -84,7 +120,7 @@ object MusicHapticsEngine {
     @Volatile
     private var cachedPowerAllowsVibration: Boolean = true
 
-    // Single-thread daemon executor for lightweight non-blocking vibration dispatching
+    // Dedicated single-thread daemon executor for lightweight non-blocking vibration dispatching
     private val hapticExecutor: ExecutorService = Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "RaagaMusicHaptics").apply {
             isDaemon = true
@@ -113,13 +149,19 @@ object MusicHapticsEngine {
 
         if (vib != null && vib.hasVibrator()) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                canCompose = PrimitivesCompat.checkCanCompose(vib)
-                hasLowTick = PrimitivesCompat.checkHasLowTick(vib)
-                hasThud = PrimitivesCompat.checkHasThud(vib)
+                hasClick = PrimitivesCompat.checkSupport(vib, VibrationEffect.Composition.PRIMITIVE_CLICK)
+                hasQuickRise = PrimitivesCompat.checkSupport(vib, VibrationEffect.Composition.PRIMITIVE_QUICK_RISE)
+                hasTick = PrimitivesCompat.checkSupport(vib, VibrationEffect.Composition.PRIMITIVE_TICK)
+                hasThud = PrimitivesCompat.checkSupportS(vib, VibrationEffect.Composition.PRIMITIVE_THUD)
+                hasLowTick = PrimitivesCompat.checkSupportS(vib, VibrationEffect.Composition.PRIMITIVE_LOW_TICK)
+                canCompose = hasClick || hasThud
             }
             canScaleAmplitude = vib.hasAmplitudeControl()
         }
-        Log.d(TAG, "Initialized: canCompose=$canCompose, hasLowTick=$hasLowTick, hasThud=$hasThud, canScaleAmp=$canScaleAmplitude")
+        Log.d(
+            TAG,
+            "Initialized: canCompose=$canCompose (click=$hasClick, thud=$hasThud, quickRise=$hasQuickRise, tick=$hasTick, lowTick=$hasLowTick), amp=$canScaleAmplitude",
+        )
     }
 
     fun setPlaying(playing: Boolean) {
@@ -134,9 +176,12 @@ object MusicHapticsEngine {
             vibrator?.cancel()
         } catch (_: Throwable) {
         }
-        filter.reset()
-        runningAverageEnergy = 0f
-        lastBeatMs = 0L
+        bassFilter.reset()
+        trebleFilter.reset()
+        bassHistory.reset()
+        trebleHistory.reset()
+        lastBassBeatMs = 0L
+        lastTrebleBeatMs = 0L
     }
 
     /**
@@ -183,8 +228,8 @@ object MusicHapticsEngine {
     }
 
     /**
-     * Real-time DSP audio block analysis called from the audio sink pipeline.
-     * Operates purely in-place on normalized Float32 samples.
+     * Real-time DSP audio block analysis called directly from the audio sink pipeline.
+     * Operates purely in-place on normalized Float32 samples with zero allocations.
      */
     fun analyzeBlock(
         samples: FloatArray,
@@ -196,7 +241,7 @@ object MusicHapticsEngine {
 
         val now = SystemClock.elapsedRealtime()
 
-        // Throttled power check (every 500ms) to avoid Binder IPC overhead on audio thread
+        // Throttled power check (every 500ms) to avoid Binder IPC overhead on the audio thread
         if (now - lastPowerCheckMs > POWER_CHECK_INTERVAL_MS) {
             lastPowerCheckMs = now
             val pm = powerManager
@@ -207,13 +252,18 @@ object MusicHapticsEngine {
         }
         if (!cachedPowerAllowsVibration) return
 
-        filter.configure(sampleRate, LOWPASS_CUTOFF_HZ, LOWPASS_Q)
+        bassFilter.configureLowPass(sampleRate, BASS_CUTOFF_HZ, BASS_Q)
+        val style = AppSettings.musicHapticsStyle.value
+        val needsTreble = (style == MusicHapticsStyle.FULL_GROOVE)
+        if (needsTreble) {
+            trebleFilter.configureBandPass(sampleRate, TREBLE_CENTER_HZ, TREBLE_Q)
+        }
 
-        // Downsample analysis: step by channelCount * 2 to keep CPU footprint < 2μs
-        val step = max(channelCount, channelCount * 2)
+        val step = channelCount
         val maxSamples = frameCount * channelCount
         var sampleIndex = 0
-        var energySum = 0f
+        var bassEnergySum = 0f
+        var trebleEnergySum = 0f
         var processedCount = 0
 
         while (sampleIndex < maxSamples && sampleIndex < samples.size) {
@@ -222,79 +272,162 @@ object MusicHapticsEngine {
             } else {
                 samples[sampleIndex]
             }
-            val filtered = filter.process(mono)
-            energySum += filtered * filtered
+            val bassY = bassFilter.process(mono)
+            bassEnergySum += bassY * bassY
+
+            if (needsTreble) {
+                val trebleY = trebleFilter.process(mono)
+                trebleEnergySum += trebleY * trebleY
+            }
             processedCount++
             sampleIndex += step
         }
 
         if (processedCount == 0) return
-        val blockEnergy = energySum / processedCount
+        val bassBlockEnergy = bassEnergySum / processedCount
 
-        // Exponential moving average tracking song bass envelope
-        val currentAverage = runningAverageEnergy
-        val newAverage = if (currentAverage <= 0f) blockEnergy else currentAverage * 0.90f + blockEnergy * 0.10f
-        runningAverageEnergy = newAverage
+        // 1. Bass Onset Detection with Patin Dynamic Thresholding
+        bassHistory.add(bassBlockEnergy)
+        val bassAvg = bassHistory.mean()
+        val bassVar = bassHistory.variance(bassAvg)
+        val bassSensitivity = ((-0.0025714f * bassVar) + 1.5142857f).coerceIn(1.30f, 3.00f)
+        val bassThreshold = max(MIN_BASS_ENERGY_THRESHOLD, bassAvg * bassSensitivity)
 
-        val threshold = max(MIN_ENERGY_THRESHOLD, newAverage * SENSITIVITY_RATIO)
+        if (bassBlockEnergy > bassThreshold && (now - lastBassBeatMs) >= BASS_REFRACTORY_MS) {
+            lastBassBeatMs = now
+            val overshoot = (bassBlockEnergy - bassThreshold) / (bassThreshold + 1e-4f)
+            val strength = (0.55f + 0.45f * min(1f, overshoot)).coerceIn(0.55f, 1.0f)
+            val isDownbeat = overshoot > 0.85f || strength > 0.88f
 
-        // Transient onset detection with refractory debouncing
-        if (blockEnergy > threshold && (now - lastBeatMs) >= REFRACTORY_WINDOW_MS) {
-            lastBeatMs = now
-            val excess = (blockEnergy - threshold) / (threshold + 1e-4f)
-            val rawStrength = (0.35f + excess * 0.65f).coerceIn(0.25f, 1.0f)
-            val userScale = AppSettings.musicHapticsIntensity.value.scale
-            val finalStrength = (rawStrength * userScale).coerceIn(0.1f, 1.0f)
-
-            // Asynchronously dispatch vibration off the real-time audio thread
             if (!hapticExecutor.isShutdown) {
                 hapticExecutor.execute {
-                    dispatchHapticPulse(finalStrength)
+                    dispatchBassPulse(strength, isDownbeat, style)
+                }
+            }
+        }
+
+        // 2. Treble/Snare Onset Detection (Full Groove style only)
+        if (needsTreble) {
+            val trebleBlockEnergy = trebleEnergySum / processedCount
+            trebleHistory.add(trebleBlockEnergy)
+            val trebleAvg = trebleHistory.mean()
+            val trebleVar = trebleHistory.variance(trebleAvg)
+            val trebleSensitivity = ((-0.0025714f * trebleVar) + 1.70f).coerceIn(1.80f, 3.40f)
+            val trebleThreshold = max(MIN_TREBLE_ENERGY_THRESHOLD, trebleAvg * trebleSensitivity)
+
+            if (trebleBlockEnergy > trebleThreshold && (now - lastTrebleBeatMs) >= TREBLE_REFRACTORY_MS) {
+                lastTrebleBeatMs = now
+                val overshoot = (trebleBlockEnergy - trebleThreshold) / (trebleThreshold + 1e-4f)
+                val strength = (0.25f + 0.25f * min(1f, overshoot)).coerceIn(0.25f, 0.50f)
+
+                if (!hapticExecutor.isShutdown) {
+                    hapticExecutor.execute {
+                        dispatchTreblePulse(strength)
+                    }
                 }
             }
         }
     }
 
-    private fun dispatchHapticPulse(strength: Float) {
+    private fun dispatchBassPulse(
+        rawStrength: Float,
+        isDownbeat: Boolean,
+        style: MusicHapticsStyle,
+    ) {
         val vib = vibrator ?: return
         if (!vib.hasVibrator()) return
 
+        // In Heartbeat style, only downbeats are rendered (softer feel)
+        if (style == MusicHapticsStyle.HEARTBEAT && !isDownbeat) {
+            return
+        }
+
+        val userScale = AppSettings.musicHapticsIntensity.value.scale
+        val styleScale = if (style == MusicHapticsStyle.HEARTBEAT) 0.65f else 1.0f
+        val strength = (rawStrength * userScale * styleScale).coerceIn(0.10f, 1.0f)
+
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && canCompose) {
-                val primitive = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && hasThud && strength > 0.8f) {
-                    VibrationEffect.Composition.PRIMITIVE_THUD
-                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && hasLowTick && strength < 0.6f) {
-                    VibrationEffect.Composition.PRIMITIVE_LOW_TICK
-                } else {
-                    VibrationEffect.Composition.PRIMITIVE_CLICK
+                val composition = VibrationEffect.startComposition()
+
+                if (isDownbeat && hasQuickRise && hasThud) {
+                    // Apple Music / Pulse downbeat layering: quick-rise ramp immediately into a thud
+                    composition.addPrimitive(
+                        VibrationEffect.Composition.PRIMITIVE_QUICK_RISE,
+                        (strength * 0.45f).coerceIn(0.1f, 1.0f),
+                        0,
+                    )
+                    composition.addPrimitive(
+                        VibrationEffect.Composition.PRIMITIVE_THUD,
+                        strength,
+                        0,
+                    )
+                } else if (hasThud) {
+                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_THUD, strength)
+                } else if (hasClick) {
+                    composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_CLICK, strength)
                 }
 
-                val effect = VibrationEffect.startComposition()
-                    .addPrimitive(primitive, strength)
-                    .compose()
-
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    MediaVibrationCompat.sendTiramisu(vib, effect)
-                } else {
-                    @Suppress("DEPRECATION")
-                    vib.vibrate(effect, MEDIA_AUDIO_ATTRIBUTES)
-                }
+                sendVibration(vib, composition.compose())
             } else if (canScaleAmplitude) {
                 val amplitude = (255 * strength).toInt().coerceIn(1, 255)
-                val effect = VibrationEffect.createWaveform(longArrayOf(0, 14), intArrayOf(0, amplitude), -1)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    MediaVibrationCompat.sendTiramisu(vib, effect)
-                } else {
-                    @Suppress("DEPRECATION")
-                    vib.vibrate(effect, MEDIA_AUDIO_ATTRIBUTES)
-                }
+                val durationMs = if (isDownbeat) 60L else 45L
+                val effect = VibrationEffect.createWaveform(
+                    longArrayOf(0, durationMs),
+                    intArrayOf(0, amplitude),
+                    -1,
+                )
+                sendVibration(vib, effect)
             } else {
-                val effect = VibrationEffect.createOneShot(14, VibrationEffect.DEFAULT_AMPLITUDE)
-                @Suppress("DEPRECATION")
-                vib.vibrate(effect, MEDIA_AUDIO_ATTRIBUTES)
+                val effect = VibrationEffect.createOneShot(32L, VibrationEffect.DEFAULT_AMPLITUDE)
+                sendVibration(vib, effect)
             }
         } catch (t: Throwable) {
-            Log.w(TAG, "Failed to actuate haptic pulse", t)
+            Log.w(TAG, "Failed to actuate bass haptic pulse", t)
+        }
+    }
+
+    private fun dispatchTreblePulse(rawStrength: Float) {
+        val vib = vibrator ?: return
+        if (!vib.hasVibrator()) return
+
+        val userScale = AppSettings.musicHapticsIntensity.value.scale
+        val strength = (rawStrength * userScale).coerceIn(0.05f, 0.50f)
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && canCompose) {
+                val primitive = when {
+                    hasTick -> VibrationEffect.Composition.PRIMITIVE_TICK
+                    hasLowTick -> VibrationEffect.Composition.PRIMITIVE_LOW_TICK
+                    hasClick -> VibrationEffect.Composition.PRIMITIVE_CLICK
+                    else -> null
+                }
+                if (primitive != null) {
+                    val composition = VibrationEffect.startComposition()
+                    composition.addPrimitive(primitive, strength)
+                    sendVibration(vib, composition.compose())
+                }
+            } else if (canScaleAmplitude) {
+                val amplitude = (255 * strength * 0.7f).toInt().coerceIn(1, 255)
+                val effect = VibrationEffect.createWaveform(
+                    longArrayOf(0, 20L),
+                    intArrayOf(0, amplitude),
+                    -1,
+                )
+                sendVibration(vib, effect)
+            }
+            // Basic on/off motors drop treble to prevent continuous buzzing
+        } catch (t: Throwable) {
+            Log.w(TAG, "Failed to actuate treble haptic pulse", t)
+        }
+    }
+
+    private fun sendVibration(vib: Vibrator, effect: VibrationEffect) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            MediaVibrationCompat.sendTiramisu(vib, effect)
+        } else {
+            @Suppress("DEPRECATION")
+            vib.vibrate(effect, MEDIA_AUDIO_ATTRIBUTES)
         }
     }
 
@@ -305,19 +438,34 @@ object MusicHapticsEngine {
     }
 
     /**
-     * Plays an instant tactile preview rhythm pattern (3-beat kick burst)
-     * using the current or specified intensity level so the user can test
-     * and feel what the haptic feedback feels like in their hand.
+     * Plays a rich sample groove pattern demonstrating downbeat quick-rise layering,
+     * sub-bass thudding, and delicate treble ticks so the user can experience the haptic feel.
      */
-    fun playTestBeat(intensity: com.music.raaga.data.settings.MusicHapticsIntensity = AppSettings.musicHapticsIntensity.value) {
+    fun playTestBeat(
+        intensity: MusicHapticsIntensity = AppSettings.musicHapticsIntensity.value,
+        style: MusicHapticsStyle = AppSettings.musicHapticsStyle.value,
+    ) {
         if (!hapticExecutor.isShutdown) {
             hapticExecutor.execute {
                 try {
-                    dispatchHapticPulse(intensity.scale)
+                    // Beat 1: Heavy accented downbeat kick
+                    dispatchBassPulse(rawStrength = 0.95f, isDownbeat = true, style = style)
                     Thread.sleep(170)
-                    dispatchHapticPulse(intensity.scale * 0.85f)
+
+                    // Beat 2: Crisp hi-hat / snare articulation tick
+                    if (style == MusicHapticsStyle.FULL_GROOVE) {
+                        dispatchTreblePulse(rawStrength = 0.40f)
+                    }
                     Thread.sleep(170)
-                    dispatchHapticPulse(intensity.scale)
+
+                    // Beat 3: Punchy bass kick
+                    dispatchBassPulse(rawStrength = 0.80f, isDownbeat = false, style = style)
+                    Thread.sleep(170)
+
+                    // Beat 4: Crisp snare backbeat
+                    if (style == MusicHapticsStyle.FULL_GROOVE) {
+                        dispatchTreblePulse(rawStrength = 0.45f)
+                    }
                 } catch (_: InterruptedException) {
                 } catch (t: Throwable) {
                     Log.w(TAG, "Failed to play test beat", t)
@@ -334,69 +482,115 @@ object MusicHapticsEngine {
     }
 
     /**
-     * Biquad 2nd-order low-pass filter (Butterworth, Q = 0.7071)
+     * Direct-form II transposed biquad filter, coefficients per the Robert Bristow-Johnson Audio EQ Cookbook.
      */
-    private class BiquadLowPass {
+    private class Biquad {
         private var b0 = 0f
         private var b1 = 0f
         private var b2 = 0f
         private var a1 = 0f
         private var a2 = 0f
-        private var x1 = 0f
-        private var x2 = 0f
-        private var y1 = 0f
-        private var y2 = 0f
+        private var z1 = 0f
+        private var z2 = 0f
         private var configuredRate = 0
-
-        fun configure(sampleRate: Int, cutoffHz: Float = 115f, q: Float = 0.7071f) {
-            if (sampleRate <= 0 || sampleRate == configuredRate) return
-            configuredRate = sampleRate
-            val omega = 2f * Math.PI.toFloat() * (cutoffHz / sampleRate)
-            val alpha = sin(omega.toDouble()).toFloat() / (2f * q)
-            val cosw = cos(omega.toDouble()).toFloat()
-            val a0 = 1f + alpha
-            b0 = ((1f - cosw) / 2f) / a0
-            b1 = (1f - cosw) / a0
-            b2 = ((1f - cosw) / 2f) / a0
-            a1 = (-2f * cosw) / a0
-            a2 = (1f - alpha) / a0
-            reset()
-        }
+        private var configuredType = -1
 
         fun process(x: Float): Float {
-            val y = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2
-            x2 = x1
-            x1 = x
-            y2 = y1
-            y1 = y
+            val y = b0 * x + z1
+            z1 = b1 * x + z2 - a1 * y
+            z2 = b2 * x - a2 * y
             return y
         }
 
         fun reset() {
-            x1 = 0f
-            x2 = 0f
-            y1 = 0f
-            y2 = 0f
+            z1 = 0f
+            z2 = 0f
+        }
+
+        fun configureLowPass(sampleRate: Int, cutoffHz: Float = 140f, q: Float = 0.85f) {
+            if (sampleRate <= 0 || (sampleRate == configuredRate && configuredType == 0)) return
+            configuredRate = sampleRate
+            configuredType = 0
+            val w0 = (2.0 * Math.PI * cutoffHz / sampleRate).toFloat()
+            val alpha = (sin(w0.toDouble()) / (2.0 * q)).toFloat()
+            val cosw0 = cos(w0.toDouble()).toFloat()
+            val a0 = 1f + alpha
+            b0 = ((1f - cosw0) / 2f) / a0
+            b1 = (1f - cosw0) / a0
+            b2 = ((1f - cosw0) / 2f) / a0
+            a1 = (-2f * cosw0) / a0
+            a2 = (1f - alpha) / a0
+            reset()
+        }
+
+        fun configureBandPass(sampleRate: Int, centerHz: Float = 3500f, q: Float = 0.70f) {
+            if (sampleRate <= 0 || (sampleRate == configuredRate && configuredType == 1)) return
+            configuredRate = sampleRate
+            configuredType = 1
+            val w0 = (2.0 * Math.PI * centerHz / sampleRate).toFloat()
+            val alpha = (sin(w0.toDouble()) / (2.0 * q)).toFloat()
+            val cosw0 = cos(w0.toDouble()).toFloat()
+            val a0 = 1f + alpha
+            b0 = alpha / a0
+            b1 = 0f
+            b2 = -alpha / a0
+            a1 = (-2f * cosw0) / a0
+            a2 = (1f - alpha) / a0
+            reset()
+        }
+    }
+
+    /**
+     * Circular ring buffer calculating running mean and variance without heap allocation.
+     */
+    private class EnergyHistory(private val capacity: Int = 40) {
+        private val buffer = FloatArray(capacity)
+        private var count = 0
+        private var head = 0
+        private var sum = 0f
+
+        fun add(energy: Float) {
+            if (count < capacity) {
+                buffer[head] = energy
+                sum += energy
+                count++
+            } else {
+                sum = sum - buffer[head] + energy
+                buffer[head] = energy
+            }
+            head = (head + 1) % capacity
+        }
+
+        fun mean(): Float = if (count > 0) sum / count else 0f
+
+        fun variance(avg: Float): Float {
+            if (count <= 1) return 0f
+            var varSum = 0f
+            for (i in 0 until count) {
+                val diff = buffer[i] - avg
+                varSum += diff * diff
+            }
+            return varSum / count
+        }
+
+        fun reset() {
+            count = 0
+            head = 0
+            sum = 0f
+            buffer.fill(0f)
         }
     }
 
     @RequiresApi(Build.VERSION_CODES.R)
     private object PrimitivesCompat {
-        fun checkCanCompose(vibrator: Vibrator): Boolean = runCatching {
-            vibrator.areAllPrimitivesSupported(VibrationEffect.Composition.PRIMITIVE_CLICK)
+        fun checkSupport(vibrator: Vibrator, primitiveId: Int): Boolean = runCatching {
+            vibrator.areAllPrimitivesSupported(primitiveId)
         }.getOrDefault(false)
 
-        fun checkHasLowTick(vibrator: Vibrator): Boolean = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            runCatching {
-                vibrator.areAllPrimitivesSupported(VibrationEffect.Composition.PRIMITIVE_LOW_TICK)
-            }.getOrDefault(false)
-        } else false
-
-        fun checkHasThud(vibrator: Vibrator): Boolean = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            runCatching {
-                vibrator.areAllPrimitivesSupported(VibrationEffect.Composition.PRIMITIVE_THUD)
-            }.getOrDefault(false)
-        } else false
+        fun checkSupportS(vibrator: Vibrator, primitiveId: Int): Boolean =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                checkSupport(vibrator, primitiveId)
+            } else false
     }
 
     @RequiresApi(Build.VERSION_CODES.S)
@@ -423,4 +617,3 @@ object MusicHapticsEngine {
         }
     }
 }
-

@@ -98,6 +98,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatDelegate
 import com.music.raaga.data.settings.AutoDownloadPlaylist
 import com.music.raaga.data.settings.MusicHapticsIntensity
+import com.music.raaga.data.settings.MusicHapticsStyle
 import com.music.raaga.download.PlaylistSyncWorker
 import com.music.raaga.data.AppUpdateChecker
 import com.music.raaga.data.lyrics.translationLanguageName
@@ -264,8 +265,10 @@ fun SettingsScreen(
     var pickingCrossfadeMode by remember { mutableStateOf(false) }
     val musicHapticsEnabled by AppSettings.musicHapticsEnabled.collectAsStateWithLifecycle()
     val musicHapticsIntensity by AppSettings.musicHapticsIntensity.collectAsStateWithLifecycle()
+    val musicHapticsStyle by AppSettings.musicHapticsStyle.collectAsStateWithLifecycle()
     val musicHapticsScreenOff by AppSettings.musicHapticsScreenOff.collectAsStateWithLifecycle()
     var pickingMusicHapticsIntensity by remember { mutableStateOf(false) }
+    var pickingMusicHapticsStyle by remember { mutableStateOf(false) }
     val smartFade by AppSettings.smartFadeEnabled.collectAsStateWithLifecycle()
     val automixPerformance by AppSettings.automixPerformanceMode.collectAsStateWithLifecycle()
     val bitPerfectMode by AppSettings.bitPerfectMode.collectAsStateWithLifecycle()
@@ -1193,6 +1196,28 @@ fun SettingsScreen(
                         onClick = { pickingMusicHapticsIntensity = true },
                     )
                 }
+                val styleTitle = stringResource(R.string.music_haptics_style_title)
+                row(styleTitle, "style", "pattern", "groove", "bassline", "heartbeat") {
+                    SettingsRow(
+                        icon = Icons.Rounded.GraphicEq,
+                        title = styleTitle,
+                        subtitle = stringResource(
+                            when (musicHapticsStyle) {
+                                MusicHapticsStyle.FULL_GROOVE -> R.string.music_haptics_style_full_groove_desc
+                                MusicHapticsStyle.BASSLINE -> R.string.music_haptics_style_bassline_desc
+                                MusicHapticsStyle.HEARTBEAT -> R.string.music_haptics_style_heartbeat_desc
+                            }
+                        ),
+                        value = stringResource(
+                            when (musicHapticsStyle) {
+                                MusicHapticsStyle.FULL_GROOVE -> R.string.music_haptics_style_full_groove
+                                MusicHapticsStyle.BASSLINE -> R.string.music_haptics_style_bassline
+                                MusicHapticsStyle.HEARTBEAT -> R.string.music_haptics_style_heartbeat
+                            }
+                        ),
+                        onClick = { pickingMusicHapticsStyle = true },
+                    )
+                }
                 val pocketTitle = stringResource(R.string.music_haptics_pocket)
                 row(pocketTitle, "screen off", "pocket", "haptics") {
                     SettingsSubRow(
@@ -1205,11 +1230,11 @@ fun SettingsScreen(
                 val testBeatTitle = stringResource(R.string.music_haptics_test_beat)
                 row(testBeatTitle, "test haptics", "preview haptics", "vibration test", "beat") {
                     SettingsRow(
-                        icon = Icons.Rounded.GraphicEq,
+                        icon = Icons.Rounded.AutoAwesome,
                         title = testBeatTitle,
                         subtitle = stringResource(R.string.music_haptics_test_beat_desc),
                         onClick = {
-                            com.music.raaga.playback.haptics.MusicHapticsEngine.playTestBeat(musicHapticsIntensity)
+                            com.music.raaga.playback.haptics.MusicHapticsEngine.playTestBeat(musicHapticsIntensity, musicHapticsStyle)
                         },
                     )
                 }
@@ -2724,6 +2749,21 @@ fun SettingsScreen(
         }
     }
 
+    if (pickingMusicHapticsStyle) {
+        ModalBottomSheet(
+            onDismissRequest = { pickingMusicHapticsStyle = false },
+            containerColor = MaterialTheme.colorScheme.background,
+        ) {
+            MusicHapticsStyleSheet(
+                selected = musicHapticsStyle,
+                onSelect = { style ->
+                    AppSettings.setMusicHapticsStyle(style)
+                    pickingMusicHapticsStyle = false
+                },
+            )
+        }
+    }
+
     // Asked before the picker opens rather than after a file is chosen: the
     // thing being confirmed is that this device's own history is about to be
     // thrown away, and that is true whichever file gets picked.
@@ -3631,6 +3671,93 @@ private fun MusicHapticsIntensitySheet(
                                 MusicHapticsIntensity.SUBTLE -> R.string.music_haptics_subtle_desc
                                 MusicHapticsIntensity.BALANCED -> R.string.music_haptics_balanced_desc
                                 MusicHapticsIntensity.STRONG -> R.string.music_haptics_strong_desc
+                            }
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (chosen) {
+                    Spacer(Modifier.width(12.dp))
+                    Icon(
+                        Icons.Rounded.Check,
+                        contentDescription = stringResource(R.string.selected),
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MusicHapticsStyleSheet(
+    selected: MusicHapticsStyle,
+    onSelect: (MusicHapticsStyle) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 24.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 22.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                Icons.Rounded.GraphicEq,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.size(22.dp),
+            )
+            Spacer(Modifier.width(14.dp))
+            Column {
+                Text(
+                    text = stringResource(R.string.music_haptics_style_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
+                Text(
+                    text = stringResource(R.string.music_haptics_subtitle),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline)
+        MusicHapticsStyle.entries.forEach { style ->
+            val chosen = style == selected
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        onSelect(style)
+                        com.music.raaga.playback.haptics.MusicHapticsEngine.playTestBeat(style = style)
+                    }
+                    .padding(horizontal = 22.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(
+                            when (style) {
+                                MusicHapticsStyle.FULL_GROOVE -> R.string.music_haptics_style_full_groove
+                                MusicHapticsStyle.BASSLINE -> R.string.music_haptics_style_bassline
+                                MusicHapticsStyle.HEARTBEAT -> R.string.music_haptics_style_heartbeat
+                            }
+                        ),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
+                    Text(
+                        text = stringResource(
+                            when (style) {
+                                MusicHapticsStyle.FULL_GROOVE -> R.string.music_haptics_style_full_groove_desc
+                                MusicHapticsStyle.BASSLINE -> R.string.music_haptics_style_bassline_desc
+                                MusicHapticsStyle.HEARTBEAT -> R.string.music_haptics_style_heartbeat_desc
                             }
                         ),
                         style = MaterialTheme.typography.bodyMedium,

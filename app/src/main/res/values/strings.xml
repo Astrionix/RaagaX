@@ -1884,4 +1884,11 @@ A safety checkpoint of your current state will be automatically created before r
     <string name="music_haptics_pocket_subtitle">Continue vibrating while the screen is turned off</string>
     <string name="music_haptics_test_beat">Test Beat Pulse</string>
     <string name="music_haptics_test_beat_desc">Tap to feel a sample synchronized rhythm pulse</string>
+    <string name="music_haptics_style_title">Haptic Pattern Style</string>
+    <string name="music_haptics_style_full_groove">Full Groove</string>
+    <string name="music_haptics_style_full_groove_desc">Deep bass kicks, layered downbeats, and crisp hi-hat/snare ticks</string>
+    <string name="music_haptics_style_bassline">Bassline</string>
+    <string name="music_haptics_style_bassline_desc">Sub-bass and kick drum punches only</string>
+    <string name="music_haptics_style_heartbeat">Heartbeat</string>
+    <string name="music_haptics_style_heartbeat_desc">Calm rhythmic pulse on primary downbeats</string>
 </resources>
