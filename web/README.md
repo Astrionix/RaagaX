@@ -36,7 +36,7 @@ corepack pnpm --dir web/extension build
 ```
 
 - **Chrome, Edge, Brave:** `chrome://extensions` → Developer mode → *Load unpacked* → `web/extension/.output/chrome-mv3`. The id is always `pkddffeebcmhhanjcigilehaeonkkfih`, pinned by the manifest `key` (`extension/dev-key/`), so the site finds it without configuration.
-- **Firefox:** `about:debugging#/runtime/this-firefox` → *Load Temporary Add-on* → `web/extension/.output/firefox-mv3/manifest.json`.
+- **Firefox:** Search for **"Raaga"** in Firefox Add-ons (`about:addons`) or on [Mozilla Add-ons](https://addons.mozilla.org/firefox/search/?q=raaga) and click "Add to Firefox". For local dev builds: `about:debugging#/runtime/this-firefox` → *Load Temporary Add-on* → `web/extension/.output/firefox-mv3/manifest.json`.
 
 To offer the extension as a download from the site's Extension page, package it:
 

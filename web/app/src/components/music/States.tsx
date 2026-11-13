@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { FaChrome, FaFirefoxBrowser } from 'react-icons/fa';
-import { Check, Copy, Download, ExternalLink, Puzzle, Sparkles } from 'lucide-react';
+import { Check, Copy, Download, ExternalLink, Puzzle, Search, Sparkles } from 'lucide-react';
 import { PrefetchLink } from '@/components/PrefetchLink';
 import { config } from '@/config';
 import { useExtension } from '@/extension/useExtension';
@@ -64,7 +64,7 @@ export function NeedsExtension({ what = 'YouTube Music' }: { what?: string }) {
   const [browser, setBrowser] = useState<'chrome' | 'firefox'>(isFirefox ? 'firefox' : 'chrome');
 
   const chromeHref = published ? downloadUrl(published.files.chrome) : config.extensionChromeUrl;
-  const firefoxHref = published ? downloadUrl(published.files.firefox) : config.extensionFirefoxUrl;
+  const firefoxHref = config.extensionFirefoxUrl;
   const activeHref = browser === 'firefox' ? firefoxHref : chromeHref;
   const version = published?.version ? `v${published.version}` : 'latest';
 
@@ -189,29 +189,64 @@ export function NeedsExtension({ what = 'YouTube Music' }: { what?: string }) {
             <>
               <StepItem
                 number={1}
-                title="Install Signed Extension"
-                description="Click below to install the digitally signed extension directly into Firefox."
+                title="Search 'Raaga' in Firefox Add-ons"
+                description={
+                  <div className="flex flex-col gap-2">
+                    <span>
+                      Open the Firefox Add-ons manager in a new tab, or browse Mozilla Add-ons directly:
+                    </span>
+                    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-white/5 bg-black/50 px-3 py-1.5">
+                      <code className="font-mono text-xs text-key">about:addons</code>
+                      <CopyButton text="about:addons" />
+                      <span className="text-[11px] text-tertiary">
+                        (or press <kbd className="rounded border border-white/20 bg-white/10 px-1.5 py-0.5 font-mono text-[10px] text-white">Ctrl+Shift+A</kbd> / <kbd className="rounded border border-white/20 bg-white/10 px-1.5 py-0.5 font-mono text-[10px] text-white">Cmd+Shift+A</kbd>)
+                      </span>
+                    </div>
+                  </div>
+                }
                 action={
                   <a
-                    href={activeHref}
+                    href={firefoxHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="inline-flex items-center gap-2 rounded-lg bg-key-bg px-4 py-2 text-xs font-semibold text-white shadow-md transition-all hover:brightness-110 active:scale-95"
                   >
-                    <Download size={14} />
-                    <span>Install Extension for Firefox ({version})</span>
+                    <Search size={14} />
+                    <span>Search Raaga on Mozilla Add-ons</span>
+                    <ExternalLink size={12} className="opacity-80" />
                   </a>
                 }
               />
 
               <StepItem
                 number={2}
-                title="Click 'Add' on the Firefox Prompt"
-                description="Firefox will show a permission popup at the top left asking 'Add Raaga?'. Click Add to permanently install it."
+                title="Click on Raaga"
+                description={
+                  <div className="flex flex-col gap-1">
+                    <span>
+                      In the extensions search bar at the top, type <strong className="text-white">Raaga</strong> and press Enter.
+                    </span>
+                    <span>
+                      From the search results, click on the <strong className="text-white">Raaga</strong> extension.
+                    </span>
+                  </div>
+                }
               />
 
               <StepItem
                 number={3}
-                title="Ready to Listen!"
-                description="Return to this tab — Raaga will automatically detect the extension via page relay and unlock YouTube Music, Spotify, and Discord instantly!"
+                title="Click 'Add to Firefox' & Confirm"
+                description={
+                  <span>
+                    Click the blue <strong className="text-white">Add to Firefox</strong> button. When Firefox prompts asking <em>&quot;Add Raaga? This extension will have permission to: ...&quot;</em>, click <strong className="text-white">Add</strong> (and optionally check <em>&quot;Allow in Private Windows&quot;</em>).
+                  </span>
+                }
+              />
+
+              <StepItem
+                number={4}
+                title="You're All Set!"
+                description="Return to this tab — Raaga will automatically detect the extension via page relay and unlock full YouTube Music playback, Spotify, and Discord instantly!"
               />
             </>
           )}

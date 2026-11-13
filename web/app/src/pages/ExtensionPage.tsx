@@ -52,20 +52,20 @@ function downloadsFor(published: PublishedExtension | null): Download[] {
     },
     {
       browser: 'firefox',
-      title: 'Install for Firefox',
-      detail: 'Firefox 128 or newer',
-      href: published ? downloadUrl(published.files.firefox) : config.extensionFirefoxUrl,
+      title: 'Get on Mozilla Add-ons',
+      detail: 'Firefox 128 or newer · Official Firefox Add-on',
+      href: config.extensionFirefoxUrl,
       Icon: FaFirefoxBrowser,
       steps: [
-        'Click "Install for Firefox" above.',
-        'Firefox will prompt: "Add Raaga? This extension will have permission to: ...".',
-        'Click "Add" (and optionally check "Allow in Private Windows").',
+        'Open the Firefox Add-ons manager (about:addons or press Ctrl+Shift+A) or click the card above to browse Mozilla Add-ons.',
+        'In the search box, search for "Raaga" and press Enter.',
+        'Click on "Raaga" in the search results.',
+        'Click the blue "Add to Firefox" button, then click "Add" when Firefox prompts for permissions (and optionally check "Allow in Private Windows").',
         'Return to this page: the status above will automatically turn to "Installed" (Connection: Page relay).',
-        'The extension is digitally signed by Mozilla and permanently installed across all browser restarts.',
       ],
       updateSteps: [
-        'Click "Install for Firefox" above.',
-        'Click "Add" when Firefox prompts to update the extension.',
+        'Extensions installed from Mozilla Add-ons update automatically in Firefox.',
+        'To check for updates manually, go to about:addons → click the gear icon ⚙ → "Check for Updates".',
         'Return to this page: the version above updates automatically on its own.',
       ],
     },
@@ -163,14 +163,17 @@ export default function ExtensionPage() {
               className={`${settingsUi.group} ${settingsUi.download} mt-3`}
               href={forUpdate.href}
               download={forUpdate.browser === 'chrome' ? `raaga-extension-chrome.zip` : undefined}
+              target={forUpdate.browser === 'firefox' ? '_blank' : undefined}
+              rel={forUpdate.browser === 'firefox' ? 'noopener noreferrer' : undefined}
               onClick={() => setUpdating(true)}
             >
               <span className={settingsUi.updateDot} aria-hidden="true" />
               <span className={settingsUi.downloadText}>
                 <span className={settingsUi.downloadTitle}>Update to v{update.latest.version}</span>
                 <span className={settingsUi.downloadDetail}>
-                  You have v{update.installed}. Download the new {forUpdate.browser === 'firefox' ? 'Firefox' : 'Chrome'}{' '}
-                  build, then reload the extension.
+                  {forUpdate.browser === 'firefox'
+                    ? `You have v${update.installed}. Update via Mozilla Add-ons or about:addons.`
+                    : `You have v${update.installed}. Download the new Chrome build, then reload the extension.`}
                 </span>
               </span>
               <ChevronRight size={16} strokeWidth={2.4} className={settingsUi.chevron} />
@@ -197,6 +200,8 @@ export default function ExtensionPage() {
               className={settingsUi.download}
               href={href}
               download={browser === 'chrome' ? `raaga-extension-${browser}.zip` : undefined}
+              target={browser === 'firefox' ? '_blank' : undefined}
+              rel={browser === 'firefox' ? 'noopener noreferrer' : undefined}
               onClick={() => setChosen(browser)}
             >
               <Icon size={28} className="text-primary" />
