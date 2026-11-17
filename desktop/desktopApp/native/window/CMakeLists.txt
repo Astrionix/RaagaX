@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 
 project(raaga_window LANGUAGES CXX)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -23,7 +24,7 @@ else()
     target_include_directories(raaga_window PRIVATE ${JNI_INCLUDE_DIRS})
 endif()
 
-target_link_libraries(raaga_window PRIVATE user32 dwmapi ole32 uuid)
+target_link_libraries(raaga_window PRIVATE user32 dwmapi ole32 uuid shell32)
 
 if(MINGW)
     # The desktop app loads this DLL from its private runtime directory. Gradle daemons and
