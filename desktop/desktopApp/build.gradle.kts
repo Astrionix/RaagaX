@@ -325,48 +325,88 @@ val buildWindowNative by tasks.registering {
     inputs.dir(cmakeSource)
     inputs.property("target", targetOs)
     outputs.dir(outputDir)
+    val msvcTools: Triple<File, File, File>? by lazy {
+        if (targetOs != "windows") null
+        else runCatching {
+            val vswhere = File(System.getenv("ProgramFiles(x86)") ?: "C:\\Program Files (x86)", "Microsoft Visual Studio/Installer/vswhere.exe")
+            if (!vswhere.exists()) return@runCatching null
+            val proc = ProcessBuilder(vswhere.absolutePath, "-latest", "-property", "installationPath").start()
+            val vsPath = proc.inputStream.bufferedReader().readText().trim()
+            proc.waitFor()
+            if (vsPath.isEmpty()) return@runCatching null
+            val vsDir = File(vsPath)
+            val vcvars = File(vsDir, "VC/Auxiliary/Build/vcvarsall.bat")
+            val cmake = File(vsDir, "Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe")
+            val ninja = File(vsDir, "Common7/IDE/CommonExtensions/Microsoft/CMake/Ninja/ninja.exe")
+            if (vcvars.exists() && cmake.exists() && ninja.exists()) {
+                Triple(vcvars, cmake, ninja)
+            } else null
+        }.getOrNull()
+    }
     onlyIf {
         if (targetOs != "windows") return@onlyIf false
         val cmake = findOnPath("cmake")
         val compiler = findOnPath(if (crossing) "x86_64-w64-mingw32-g++" else "g++")
         val ninja = findOnPath("ninja")
-        if (cmake == null || compiler == null || ninja == null) {
+        val hasMinGw = cmake != null && compiler != null && ninja != null
+        val hasMsvc = msvcTools != null
+        if (!hasMinGw && !hasMsvc) {
             logger.lifecycle(
-                "cmake, Ninja, or a MinGW C++ compiler is unavailable — the Windows build will " +
+                "cmake, Ninja, or a C++ compiler (MinGW or MSVC) is unavailable — the Windows build will " +
                     "fall back to Compose's frameless window behaviour.",
             )
         }
-        cmake != null && compiler != null && ninja != null
+        hasMinGw || hasMsvc
     }
     doLast {
         val javaHome = System.getProperty("java.home")
         val compiler = findOnPath(if (crossing) "x86_64-w64-mingw32-g++" else "g++")
-            ?: error("MinGW C++ compiler disappeared while building the Windows frame")
         val ninja = findOnPath("ninja")
-            ?: error("Ninja disappeared while building the Windows frame")
-        providers.exec {
-            commandLine(
-                buildList {
-                    addAll(
-                        listOf(
-                            cmakeBinary(),
-                            "-S", cmakeSource.absolutePath,
-                            "-B", outputDir.absolutePath,
-                            "-G", "Ninja",
-                            "-DCMAKE_MAKE_PROGRAM=${ninja.absolutePath}",
-                            "-DCMAKE_CXX_COMPILER=${compiler.absolutePath}",
-                            "-DCMAKE_BUILD_TYPE=Release",
-                        ),
-                    )
-                    if (crossing) add("-DCMAKE_TOOLCHAIN_FILE=${toolchain.absolutePath}")
-                },
-            )
-            environment("JAVA_HOME", javaHome)
-        }.result.get().assertNormalExitValue()
-        providers.exec {
-            commandLine(cmakeBinary(), "--build", outputDir.absolutePath, "-j", "4")
-            environment("JAVA_HOME", javaHome)
-        }.result.get().assertNormalExitValue()
+        val cmake = findOnPath("cmake")
+        val msvc = msvcTools
+        if (compiler != null && ninja != null && cmake != null) {
+            providers.exec {
+                commandLine(
+                    buildList {
+                        addAll(
+                            listOf(
+                                cmakeBinary(),
+                                "-S", cmakeSource.absolutePath,
+                                "-B", outputDir.absolutePath,
+                                "-G", "Ninja",
+                                "-DCMAKE_MAKE_PROGRAM=${ninja.absolutePath}",
+                                "-DCMAKE_CXX_COMPILER=${compiler.absolutePath}",
+                                "-DCMAKE_BUILD_TYPE=Release",
+                            ),
+                        )
+                        if (crossing) add("-DCMAKE_TOOLCHAIN_FILE=${toolchain.absolutePath}")
+                    },
+                )
+                environment("JAVA_HOME", javaHome)
+            }.result.get().assertNormalExitValue()
+            providers.exec {
+                commandLine(cmakeBinary(), "--build", outputDir.absolutePath, "-j", "4")
+                environment("JAVA_HOME", javaHome)
+            }.result.get().assertNormalExitValue()
+        } else if (msvc != null) {
+            val (vcvars, msvcCmake, msvcNinja) = msvc
+            outputDir.mkdirs()
+            providers.exec {
+                commandLine(
+                    "cmd.exe", "/c",
+                    "call \"${vcvars.absolutePath}\" x64 && " +
+                        "\"${msvcCmake.absolutePath}\" -S \"${cmakeSource.absolutePath}\" -B \"${outputDir.absolutePath}\" -G Ninja -DCMAKE_MAKE_PROGRAM=\"${msvcNinja.absolutePath}\" -DCMAKE_BUILD_TYPE=Release && " +
+                        "\"${msvcCmake.absolutePath}\" --build \"${outputDir.absolutePath}\"",
+                )
+                environment("JAVA_HOME", javaHome)
+            }.result.get().assertNormalExitValue()
+        } else {
+            error("No usable C++ compiler found while building the Windows frame")
+        }
+        val compileCommands = File(outputDir, "compile_commands.json")
+        if (compileCommands.exists()) {
+            compileCommands.copyTo(File(cmakeSource, "compile_commands.json"), overwrite = true)
+        }
     }
 }
 

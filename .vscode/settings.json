@@ -1,4 +1,3 @@
 {
-  "java.configuration.updateBuildConfiguration": "interactive",
-  "C_Cpp.default.compileCommands": "${workspaceFolder}/app/.cxx/Debug/2h5x2s5l/arm64-v8a/compile_commands.json"
+  "java.configuration.updateBuildConfiguration": "interactive"
 }

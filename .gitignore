@@ -23,6 +23,10 @@ captures/
 .cxx/
 *.hprof
 .vscode/c_cpp_properties.json
+compile_commands.json
+**/compile_commands.json
+.clangd
+**/.clangd
 
 # Log/OS files
 *.log
