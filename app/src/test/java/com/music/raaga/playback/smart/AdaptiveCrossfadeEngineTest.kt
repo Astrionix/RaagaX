@@ -222,12 +222,12 @@ class AdaptiveCrossfadeEngineTest {
     }
 
     @Test
-    fun crossfadeMode_defaultIsAutomaticAndSwitchesCorrectly() {
+    fun crossfadeMode_defaultIsOffAndSwitchesCorrectly() {
         assertEquals(CrossfadeMode.AUTOMATIC, CrossfadeMode.fromString("AUTOMATIC"))
         assertEquals(CrossfadeMode.MANUAL, CrossfadeMode.fromString("MANUAL"))
         assertEquals(CrossfadeMode.OFF, CrossfadeMode.fromString("OFF"))
-        assertEquals(CrossfadeMode.AUTOMATIC, CrossfadeMode.fromString(null))
-        assertEquals(CrossfadeMode.AUTOMATIC, CrossfadeMode.fromString("UNKNOWN"))
+        assertEquals(CrossfadeMode.OFF, CrossfadeMode.fromString(null))
+        assertEquals(CrossfadeMode.OFF, CrossfadeMode.fromString("UNKNOWN"))
     }
 }
 

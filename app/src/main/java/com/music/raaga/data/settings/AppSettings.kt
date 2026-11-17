@@ -202,7 +202,7 @@ enum class CrossfadeMode {
     companion object {
         fun fromString(name: String?): CrossfadeMode = runCatching {
             name?.let { valueOf(it) }
-        }.getOrNull() ?: AUTOMATIC
+        }.getOrNull() ?: OFF
     }
 }
 
@@ -413,7 +413,7 @@ object AppSettings {
     // [SourceResolver.requestForNow][com.music.raaga.data.sources.SourceResolver.requestForNow],
     // which now reads [effectiveAudioQuality] and nothing else.
 
-    val crossfadeMode = MutableStateFlow(CrossfadeMode.AUTOMATIC)
+    val crossfadeMode = MutableStateFlow(CrossfadeMode.OFF)
     val crossfadeSeconds = MutableStateFlow(5)
 
     /**
@@ -425,7 +425,7 @@ object AppSettings {
      *
      * See [com.music.raaga.playback.smart.TransitionPlanner].
      */
-    val smartFadeEnabled = MutableStateFlow(true)
+    val smartFadeEnabled = MutableStateFlow(false)
 
     /** The CPU budget used by Beat This! and vocal analysis for Automix. */
     val automixPerformanceMode = MutableStateFlow(AutomixPerformanceMode.BALANCED)
@@ -461,7 +461,7 @@ object AppSettings {
      * altering samples, and switching this off is the first thing a listener
      * chasing an untouched signal would do.
      */
-    val loudnessNormalization = MutableStateFlow(true)
+    val loudnessNormalization = MutableStateFlow(false)
     val loudnessTargetLufs = MutableStateFlow(DEFAULT_LOUDNESS_TARGET_LUFS)
     val bitPerfectMode = MutableStateFlow(BitPerfectMode.OFF)
 
@@ -1305,14 +1305,13 @@ object AppSettings {
             when {
                 legacySmart -> CrossfadeMode.AUTOMATIC
                 legacySec > 0 -> CrossfadeMode.MANUAL
-                legacySec == 0 -> CrossfadeMode.OFF
-                else -> CrossfadeMode.AUTOMATIC
+                else -> CrossfadeMode.OFF
             }
         }
         crossfadeMode.value = resolvedMode
         val savedSec = prefs.getInt(KEY_CROSSFADE, 5)
         crossfadeSeconds.value = if (savedSec > 0) savedSec else 5
-        smartFadeEnabled.value = (resolvedMode == CrossfadeMode.AUTOMATIC)
+        smartFadeEnabled.value = prefs.getBoolean(KEY_SMART_FADE, resolvedMode == CrossfadeMode.AUTOMATIC)
         automixPerformanceMode.value = runCatching {
             AutomixPerformanceMode.valueOf(
                 prefs.getString(KEY_AUTOMIX_PERFORMANCE_MODE, null) ?: AutomixPerformanceMode.BALANCED.name,
@@ -1328,7 +1327,7 @@ object AppSettings {
         preferUsbDac.value = prefs.getBoolean(KEY_PREFER_USB_DAC, true)
         usbDirectAudio.value = prefs.getBoolean(KEY_USB_DIRECT_AUDIO, true)
         convertForLimitedDac.value = prefs.getBoolean(KEY_CONVERT_FOR_LIMITED_DAC, true)
-        loudnessNormalization.value = prefs.getBoolean(KEY_LOUDNESS_NORMALIZATION, true)
+        loudnessNormalization.value = prefs.getBoolean(KEY_LOUDNESS_NORMALIZATION, false)
         loudnessTargetLufs.value = prefs.getFloat(KEY_LOUDNESS_TARGET_LUFS, DEFAULT_LOUDNESS_TARGET_LUFS)
             .coerceIn(MIN_LOUDNESS_TARGET_LUFS, MAX_LOUDNESS_TARGET_LUFS)
         bitPerfectMode.value = runCatching {
@@ -1750,11 +1749,18 @@ object AppSettings {
 
     fun setCrossfadeMode(mode: CrossfadeMode) {
         crossfadeMode.value = mode
-        smartFadeEnabled.value = (mode == CrossfadeMode.AUTOMATIC)
+        if (mode == CrossfadeMode.AUTOMATIC) {
+            smartFadeEnabled.value = true
+        }
         prefs.edit()
             .putString(KEY_CROSSFADE_MODE, mode.name)
-            .putBoolean(KEY_SMART_FADE, mode == CrossfadeMode.AUTOMATIC)
+            .putBoolean(KEY_SMART_FADE, smartFadeEnabled.value)
             .apply()
+    }
+
+    fun setCrossfadeEnabled(value: Boolean) {
+        val newMode = if (value) CrossfadeMode.MANUAL else CrossfadeMode.OFF
+        setCrossfadeMode(newMode)
     }
 
     fun setCrossfadeSeconds(value: Int) {
@@ -1764,7 +1770,8 @@ object AppSettings {
     }
 
     fun setSmartFadeEnabled(value: Boolean) {
-        setCrossfadeMode(if (value) CrossfadeMode.AUTOMATIC else CrossfadeMode.OFF)
+        smartFadeEnabled.value = value
+        prefs.edit().putBoolean(KEY_SMART_FADE, value).apply()
     }
 
     fun setAutomixPerformanceMode(value: AutomixPerformanceMode) {

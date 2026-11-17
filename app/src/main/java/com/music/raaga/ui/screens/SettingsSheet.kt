@@ -1239,21 +1239,55 @@ fun SettingsScreen(
                     )
                 }
             }
-            val crossfadeTitle = stringResource(R.string.crossfade)
-            row(crossfadeTitle, "crossfade", "smart crossfade", "fade", "gapless", "automatic") {
+            // --- Automix (Smart DJ Transitions) ---
+            val automixTitle = stringResource(R.string.automix)
+            row(automixTitle, "automix", "smart fade", "dj", "transitions") {
                 SettingsRow(
                     icon = Icons.Rounded.AutoAwesome,
-                    title = crossfadeTitle,
-                    subtitle = stringResource(R.string.crossfade_settings_subtitle),
-                    value = when (crossfadeMode) {
-                        CrossfadeMode.AUTOMATIC -> stringResource(R.string.crossfade_mode_automatic)
-                        CrossfadeMode.MANUAL -> stringResource(R.string.crossfade_mode_manual) + " (${crossfadeSeconds}s)"
-                        CrossfadeMode.OFF -> stringResource(R.string.crossfade_mode_off)
+                    title = automixTitle,
+                    subtitle = stringResource(R.string.advanced_automix_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = smartFade,
+                            onCheckedChange = AppSettings::setSmartFadeEnabled,
+                            colors = settingsSwitchColors(),
+                        )
                     },
-                    onClick = { pickingCrossfadeMode = true },
+                    onClick = { AppSettings.setSmartFadeEnabled(!smartFade) },
                 )
             }
-            if (crossfadeMode == CrossfadeMode.MANUAL) {
+            if (smartFade) {
+                val automixPerformanceTitle = stringResource(R.string.automix_performance)
+                row(automixPerformanceTitle, "cpu", "battery", "automix") {
+                    SettingsRow(
+                        icon = Icons.Rounded.Tune,
+                        title = automixPerformanceTitle,
+                        subtitle = stringResource(R.string.automix_performance_subtitle),
+                        value = automixPerformance.localizedLabel(),
+                        onClick = { pickingAutomixPerformance = true },
+                    )
+                }
+            }
+
+            // --- Crossfade (Standard Track Overlap) ---
+            val crossfadeTitle = stringResource(R.string.crossfade)
+            val isCrossfadeOn = crossfadeMode != CrossfadeMode.OFF
+            row(crossfadeTitle, "crossfade", "fade", "seconds", "overlap") {
+                SettingsRow(
+                    icon = Icons.Rounded.GraphicEq,
+                    title = crossfadeTitle,
+                    subtitle = stringResource(R.string.crossfade_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = isCrossfadeOn,
+                            onCheckedChange = { on -> AppSettings.setCrossfadeEnabled(on) },
+                            colors = settingsSwitchColors(),
+                        )
+                    },
+                    onClick = { AppSettings.setCrossfadeEnabled(!isCrossfadeOn) },
+                )
+            }
+            if (isCrossfadeOn) {
                 row(stringResource(R.string.crossfade_mode_manual), "crossfade", "seconds") {
                     SliderRow(
                         icon = Icons.Rounded.Tune,
@@ -1264,18 +1298,6 @@ fun SettingsScreen(
                         onSliderValue = { AppSettings.setCrossfadeSeconds(it.roundToInt()) },
                         valueRange = 1f..12f,
                         steps = 10,
-                    )
-                }
-            }
-            if (crossfadeMode == CrossfadeMode.AUTOMATIC) {
-                val automixPerformanceTitle = stringResource(R.string.automix_performance)
-                row(automixPerformanceTitle, "cpu", "battery", "automix") {
-                    SettingsRow(
-                        icon = Icons.Rounded.Tune,
-                        title = automixPerformanceTitle,
-                        subtitle = stringResource(R.string.automix_performance_subtitle),
-                        value = automixPerformance.localizedLabel(),
-                        onClick = { pickingAutomixPerformance = true },
                     )
                 }
             }

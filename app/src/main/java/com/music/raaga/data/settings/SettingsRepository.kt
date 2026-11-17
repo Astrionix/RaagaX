@@ -50,6 +50,7 @@ object SettingsRepository {
         val wifiQuality: StateFlow<AudioQuality> get() = AppSettings.audioQualityWifi
         val cellularQuality: StateFlow<AudioQuality> get() = AppSettings.audioQualityCellular
         val automixEnabled: StateFlow<Boolean> get() = AppSettings.smartFadeEnabled
+        val crossfadeMode: StateFlow<CrossfadeMode> get() = AppSettings.crossfadeMode
         val crossfadeDurationSec: StateFlow<Int> get() = AppSettings.crossfadeSeconds
         val releaseHardwareOnPause: StateFlow<Boolean> get() = AppSettings.releaseHardwareOnPause
         val peakLimiterEnabled: StateFlow<Boolean> get() = AppSettings.peakLimiterEnabled
@@ -58,6 +59,7 @@ object SettingsRepository {
         fun setWifiQuality(quality: AudioQuality) = AppSettings.setAudioQualityWifi(quality)
         fun setCellularQuality(quality: AudioQuality) = AppSettings.setAudioQualityCellular(quality)
         fun setAutomixEnabled(value: Boolean) = AppSettings.setSmartFadeEnabled(value)
+        fun setCrossfadeEnabled(value: Boolean) = AppSettings.setCrossfadeEnabled(value)
         fun setCrossfadeDurationSec(seconds: Int) = AppSettings.setCrossfadeSeconds(seconds)
         fun setReleaseHardwareOnPause(value: Boolean) = AppSettings.setReleaseHardwareOnPause(value)
         fun setPeakLimiterEnabled(value: Boolean) = AppSettings.setPeakLimiterEnabled(value)
