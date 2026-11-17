@@ -15,6 +15,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import raaga.desktopapp.generated.resources.Res
@@ -139,16 +140,18 @@ private fun desktopMain() = application {
                 val clampedY = currentLoc.y.coerceIn(screen.y + insets.top, maxY)
                 composeWindow.setLocation(clampedX, clampedY)
 
-                composeWindow.maximizedBounds = Rectangle(
-                    screen.x + insets.left,
-                    screen.y + insets.top,
-                    workWidth,
-                    workHeight,
-                )
+                if (!DesktopWindowsFrame.hasNativeFrame) {
+                    composeWindow.maximizedBounds = Rectangle(
+                        screen.x + insets.left,
+                        screen.y + insets.top,
+                        workWidth,
+                        workHeight,
+                    )
+                }
             }
 
             val updateMaximizedBounds = {
-                if (DesktopPlatform.drawsOwnWindowFrame) {
+                if (DesktopPlatform.drawsOwnWindowFrame && !DesktopWindowsFrame.hasNativeFrame) {
                     val currentGc = composeWindow.graphicsConfiguration
                     val s = currentGc.bounds
                     val ins = Toolkit.getDefaultToolkit().getScreenInsets(currentGc)
@@ -158,17 +161,37 @@ private fun desktopMain() = application {
                         s.width - ins.left - ins.right,
                         s.height - ins.top - ins.bottom,
                     )
+                } else if (DesktopWindowsFrame.hasNativeFrame) {
+                    composeWindow.maximizedBounds = null
+                }
+            }
+            val checkMaximizedState = {
+                if (DesktopPlatform.isWindows) {
+                    val isZoomed = DesktopWindowsFrame.isZoomed()
+                    if (isZoomed && DesktopWindowMode.placement.value != WindowPlacement.Maximized) {
+                        DesktopWindowMode.adopt(WindowPlacement.Maximized)
+                    } else if (!isZoomed && DesktopWindowMode.placement.value == WindowPlacement.Maximized) {
+                        DesktopWindowMode.adopt(WindowPlacement.Floating)
+                    }
                 }
             }
             composeWindow.addComponentListener(object : java.awt.event.ComponentAdapter() {
                 override fun componentMoved(e: java.awt.event.ComponentEvent?) {
                     updateMaximizedBounds()
+                    checkMaximizedState()
                 }
                 override fun componentResized(e: java.awt.event.ComponentEvent?) {
                     updateMaximizedBounds()
+                    checkMaximizedState()
                 }
             })
+            composeWindow.addWindowStateListener {
+                checkMaximizedState()
+            }
             if (DesktopPlatform.isWindows && DesktopWindowsFrame.install(composeWindow)) {
+                if (DesktopWindowsFrame.hasNativeFrame) {
+                    composeWindow.maximizedBounds = null
+                }
                 DesktopWindowBackdrop.apply()
             } else if (DesktopPlatform.isMac && DesktopMacFrame.install(composeWindow)) {
                 DesktopWindowBackdrop.apply()
@@ -182,7 +205,7 @@ private fun desktopMain() = application {
                     }
                 },
                 toggleMaximize = {
-                    if (DesktopPlatform.drawsOwnWindowFrame) {
+                    if (DesktopPlatform.drawsOwnWindowFrame && !DesktopWindowsFrame.hasNativeFrame) {
                         val currentGc = composeWindow.graphicsConfiguration
                         val screen = currentGc.bounds
                         val insets = Toolkit.getDefaultToolkit().getScreenInsets(currentGc)

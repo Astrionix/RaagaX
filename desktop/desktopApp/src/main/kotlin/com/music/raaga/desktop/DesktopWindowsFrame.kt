@@ -8,10 +8,16 @@ import com.sun.jna.Structure
 import java.awt.Window
 
 /**
- * Windows' native frame and DWM backdrop bridge via Win32 and JNA.
+ * Windows' native frame and DWM backdrop bridge.
  *
- * Provides native Acrylic, Mica and window controls on Windows 11 without requiring
- * external precompiled C++ DLLs.
+ * The real work is done by `raaga_window` (`native/window/window_jni.cpp`), which subclasses the
+ * window procedure so the window is a proper overlapped window (WS_CAPTION, no WS_POPUP) whose
+ * client area is the whole window (WM_NCCALCSIZE). That is what gives Aero Snap, Win+Arrow, the
+ * maximize animation, taskbar thumbnails, taskbar auto-hide behaviour and no edge gaps.
+ *
+ * When the library is missing (a build without cmake/Ninja/MinGW) this falls back to the JNA
+ * style tweaks below, which cannot fix those things: adding WS_CAPTION without owning
+ * WM_NCCALCSIZE would draw a system title bar over the app's own.
  */
 internal object DesktopWindowsFrame {
 
@@ -75,6 +81,41 @@ internal object DesktopWindowsFrame {
     @Volatile
     private var installed = false
 
+    /** True once raaga_window's frame procedure owns the window; every action then goes to it. */
+    @Volatile
+    private var nativeFrame = false
+
+    val hasNativeFrame: Boolean get() = nativeFrame
+
+    private val nativeLoaded: Boolean by lazy {
+        DesktopPlatform.isWindows &&
+            runCatching { DesktopAnalysisRuntime.loadNative(LIBRARY) }
+                .onFailure { DesktopTrackLog.log("window frame: native bridge unavailable: ${it.message}") }
+                .isSuccess
+    }
+
+    // Implemented in native/window/window_jni.cpp.
+    @JvmStatic private external fun nativeInstall(title: String, hwnd: Long): Boolean
+    @JvmStatic private external fun nativeMinimize(): Boolean
+    @JvmStatic private external fun nativeToggleMaximize(): Boolean
+    @JvmStatic private external fun nativeStartDrag(): Boolean
+    @JvmStatic private external fun nativeSetBackdrop(kind: Int): Boolean
+    @JvmStatic private external fun nativeEnterFullScreen(): Boolean
+    @JvmStatic private external fun nativeExitFullScreen(): Boolean
+    @JvmStatic private external fun nativeIsFullScreen(): Boolean
+    @JvmStatic private external fun nativeIsZoomed(): Boolean
+
+    private fun installNative(hwndVal: Long = 0L): Boolean {
+        if (!nativeLoaded) return false
+        val ok = runCatching { nativeInstall(WINDOW_TITLE, hwndVal) }.getOrDefault(false)
+        nativeFrame = ok
+        DesktopTrackLog.log(
+            if (ok) "window frame: native frame procedure installed"
+            else "window frame: native install failed, using the JNA fallback",
+        )
+        return ok
+    }
+
     fun install(window: Window): Boolean {
         if (!DesktopPlatform.isWindows) return false
         val hwnd = runCatching {
@@ -83,7 +124,8 @@ internal object DesktopWindowsFrame {
         if (hwnd != null) {
             windowPointer = hwnd
             installed = true
-            applyInitialWindowAttributes(hwnd)
+            val hwndVal = runCatching { Pointer.nativeValue(hwnd) }.getOrDefault(0L)
+            if (!installNative(hwndVal)) applyInitialWindowAttributes(hwnd)
             return true
         }
         return false
@@ -98,7 +140,8 @@ internal object DesktopWindowsFrame {
             if (hwnd != null) {
                 windowPointer = hwnd
                 installed = true
-                applyInitialWindowAttributes(hwnd)
+                val hwndVal = runCatching { Pointer.nativeValue(hwnd) }.getOrDefault(0L)
+                if (!installNative(hwndVal)) applyInitialWindowAttributes(hwnd)
                 return true
             }
             kotlinx.coroutines.delay(INSTALL_RETRY_MILLIS)
@@ -144,13 +187,42 @@ internal object DesktopWindowsFrame {
         }
     }
 
+    fun isFullScreen(): Boolean {
+        if (nativeFrame) return runCatching { nativeIsFullScreen() }.getOrDefault(false)
+        return false
+    }
+
+    fun enterFullScreen(): Boolean {
+        if (nativeFrame) return runCatching { nativeEnterFullScreen() }.getOrDefault(false)
+        return false
+    }
+
+    fun exitFullScreen(): Boolean {
+        if (nativeFrame) return runCatching { nativeExitFullScreen() }.getOrDefault(false)
+        return false
+    }
+
+    fun toggleFullScreen(): Boolean {
+        if (!nativeFrame) return false
+        return if (isFullScreen()) exitFullScreen() else enterFullScreen()
+    }
+
+    fun isZoomed(): Boolean {
+        if (nativeFrame) return runCatching { nativeIsZoomed() }.getOrDefault(false)
+        val hwnd = windowPointer ?: return false
+        val u = user32 ?: return false
+        return runCatching { u.IsZoomed(hwnd) }.getOrDefault(false)
+    }
+
     fun minimize(): Boolean {
+        if (nativeFrame) return runCatching { nativeMinimize() }.getOrDefault(false)
         val hwnd = windowPointer ?: return false
         val u = user32 ?: return false
         return runCatching { u.ShowWindow(hwnd, 6 /* SW_MINIMIZE */) }.getOrDefault(false)
     }
 
     fun toggleMaximize(): Boolean {
+        if (nativeFrame) return runCatching { nativeToggleMaximize() }.getOrDefault(false)
         val hwnd = windowPointer ?: return false
         val u = user32 ?: return false
         return runCatching {
@@ -160,6 +232,7 @@ internal object DesktopWindowsFrame {
     }
 
     fun startDrag(): Boolean {
+        if (nativeFrame) return runCatching { nativeStartDrag() }.getOrDefault(false)
         val hwnd = windowPointer ?: return false
         val u = user32 ?: return false
         return runCatching {
@@ -169,6 +242,7 @@ internal object DesktopWindowsFrame {
     }
 
     fun setBackdrop(kind: Int): Boolean {
+        if (nativeFrame) return runCatching { nativeSetBackdrop(kind) }.getOrDefault(false)
         val hwnd = windowPointer ?: return false
         val d = dwmapi ?: return false
         return runCatching {
@@ -188,6 +262,10 @@ internal object DesktopWindowsFrame {
             res == 0
         }.getOrDefault(false)
     }
+
+    /** Must match the window title in Main.kt; the native side finds its HWND by it. */
+    private const val WINDOW_TITLE = "Raaga"
+    private const val LIBRARY = "raaga_window"
 
     private const val INSTALL_ATTEMPTS = 20
     private const val INSTALL_RETRY_MILLIS = 100L
