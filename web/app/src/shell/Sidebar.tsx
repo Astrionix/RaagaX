@@ -58,7 +58,7 @@ const item =
 const icon = 'inline-grid size-6 flex-none place-items-center text-primary group-aria-[current=page]:text-key';
 const navLabel = 'min-w-0 truncate';
 // "Library", "Playlists" (report §1: 12px/15px 600, secondary, padding 4px 8px).
-const sectionHeader = 'mt-4 px-2 py-1 type-callout-emphasized text-secondary';
+const sectionHeader = 'mt-4 px-1 py-1 type-callout-emphasized text-secondary';
 const list = 'flex flex-col';
 
 function NavList({ items, onNavigate }: { items: NavItem[]; onNavigate: () => void }) {

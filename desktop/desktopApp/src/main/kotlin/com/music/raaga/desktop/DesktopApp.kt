@@ -3280,7 +3280,11 @@ fun RaagaDesktopApp() {
                             true
                         }
                         event.key == Key.F11 -> {
-                            windowActions?.toggleMaximize?.invoke()
+                            if (DesktopPlatform.isWindows && DesktopWindowsFrame.hasNativeFrame) {
+                                DesktopWindowsFrame.toggleFullScreen()
+                            } else {
+                                windowActions?.toggleMaximize?.invoke()
+                            }
                             true
                         }
                         // One layer at a time, innermost first: the player's own side panel, then
@@ -3288,12 +3292,18 @@ fun RaagaDesktopApp() {
                         event.key == Key.Escape -> when {
                             overlays.nowPlaying && PlayerBack.dispatch() -> true
                             overlays.nowPlaying -> {
+                                if (DesktopPlatform.isWindows && DesktopWindowsFrame.hasNativeFrame) {
+                                    DesktopWindowsFrame.exitFullScreen()
+                                }
                                 DesktopWindowMode.exit()
                                 overlays.nowPlaying = false
                                 true
                             }
                             // Exit full screen mode first if active
-                            DesktopWindowMode.fullScreen.value -> {
+                            DesktopWindowMode.fullScreen.value || (DesktopPlatform.isWindows && DesktopWindowsFrame.isFullScreen()) -> {
+                                if (DesktopPlatform.isWindows && DesktopWindowsFrame.hasNativeFrame) {
+                                    DesktopWindowsFrame.exitFullScreen()
+                                }
                                 DesktopWindowMode.exit()
                                 true
                             }
@@ -5094,6 +5104,7 @@ private fun DesktopSidebar(
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
                             item(key = "col:liked_songs") {
+                                val isLikedSelected = destination == DesktopDestination.LIKED_SONGS
                                 TooltipArea(
                                     tooltip = {
                                         Surface(
@@ -5120,7 +5131,11 @@ private fun DesktopSidebar(
                                                     listOf(Color(0xFF450AF5), Color(0xFF8E8EE5)),
                                                 )
                                             )
-                                            .clickable { onDestinationSelected(DesktopDestination.LIBRARY) },
+                                            .then(
+                                                if (isLikedSelected) Modifier.border(1.5.dp, Color.White, RoundedCornerShape(4.dp))
+                                                else Modifier
+                                            )
+                                            .clickable { onDestinationSelected(DesktopDestination.LIKED_SONGS) },
                                         contentAlignment = Alignment.Center,
                                     ) {
                                         Icon(
@@ -5134,6 +5149,7 @@ private fun DesktopSidebar(
                             }
 
                             items(accountPlaylists, key = { "col-acc:${it.browseId}" }) { item ->
+                                val isSelected = openedCollectionId == item.browseId
                                 TooltipArea(
                                     tooltip = {
                                         Surface(
@@ -5155,6 +5171,10 @@ private fun DesktopSidebar(
                                         modifier = Modifier
                                             .size(48.dp)
                                             .clip(RoundedCornerShape(4.dp))
+                                            .then(
+                                                if (isSelected) Modifier.border(1.5.dp, Color(0xFF1DB954), RoundedCornerShape(4.dp))
+                                                else Modifier
+                                            )
                                             .clickable { onOpenAccountPlaylist(item) },
                                         contentAlignment = Alignment.Center,
                                     ) {
@@ -5168,6 +5188,7 @@ private fun DesktopSidebar(
                             }
 
                             items(localPlaylists, key = { "col-loc:${it.id}" }) { playlist ->
+                                val isSelected = openedCollectionId == playlist.id
                                 TooltipArea(
                                     tooltip = {
                                         Surface(
@@ -5190,13 +5211,99 @@ private fun DesktopSidebar(
                                             .size(48.dp)
                                             .clip(RoundedCornerShape(4.dp))
                                             .background(Color(0xFF282828))
+                                            .then(
+                                                if (isSelected) Modifier.border(1.5.dp, Color(0xFF1DB954), RoundedCornerShape(4.dp))
+                                                else Modifier
+                                            )
                                             .clickable { onOpenLocalPlaylist(playlist) },
                                         contentAlignment = Alignment.Center,
                                     ) {
                                         Icon(
                                             Icons.AutoMirrored.Rounded.PlaylistPlay,
                                             contentDescription = playlist.title,
-                                            tint = Color.White.copy(alpha = 0.7f),
+                                            tint = if (isSelected) Color(0xFF1DB954) else Color.White.copy(alpha = 0.7f),
+                                            modifier = Modifier.size(22.dp),
+                                        )
+                                    }
+                                }
+                            }
+
+                            item(key = "col:local_music") {
+                                val isLocalSelected = destination == DesktopDestination.LOCAL_MUSIC
+                                TooltipArea(
+                                    tooltip = {
+                                        Surface(
+                                            shape = RoundedCornerShape(4.dp),
+                                            color = Color(0xFF282828),
+                                            shadowElevation = 4.dp,
+                                        ) {
+                                            Text(
+                                                text = "Local Music",
+                                                color = Color.White,
+                                                fontSize = 12.sp,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                            )
+                                        }
+                                    },
+                                    delayMillis = 300,
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(48.dp)
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(Color(0xFF282828))
+                                            .then(
+                                                if (isLocalSelected) Modifier.border(1.5.dp, Color(0xFF1DB954), RoundedCornerShape(4.dp))
+                                                else Modifier
+                                            )
+                                            .clickable { onDestinationSelected(DesktopDestination.LOCAL_MUSIC) },
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Icon(
+                                            Icons.Rounded.Folder,
+                                            contentDescription = "Local Music",
+                                            tint = if (isLocalSelected) Color(0xFF1DB954) else Color.White.copy(alpha = 0.7f),
+                                            modifier = Modifier.size(22.dp),
+                                        )
+                                    }
+                                }
+                            }
+
+                            item(key = "col:downloads") {
+                                val isDownSelected = destination == DesktopDestination.DOWNLOADS
+                                TooltipArea(
+                                    tooltip = {
+                                        Surface(
+                                            shape = RoundedCornerShape(4.dp),
+                                            color = Color(0xFF282828),
+                                            shadowElevation = 4.dp,
+                                        ) {
+                                            Text(
+                                                text = "Downloads",
+                                                color = Color.White,
+                                                fontSize = 12.sp,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                            )
+                                        }
+                                    },
+                                    delayMillis = 300,
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(48.dp)
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(Color(0xFF282828))
+                                            .then(
+                                                if (isDownSelected) Modifier.border(1.5.dp, Color(0xFF1DB954), RoundedCornerShape(4.dp))
+                                                else Modifier
+                                            )
+                                            .clickable { onDestinationSelected(DesktopDestination.DOWNLOADS) },
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Icon(
+                                            Icons.Rounded.Download,
+                                            contentDescription = "Downloads",
+                                            tint = if (isDownSelected) Color(0xFF1DB954) else Color.White.copy(alpha = 0.7f),
                                             modifier = Modifier.size(22.dp),
                                         )
                                     }
@@ -5245,32 +5352,74 @@ private fun DesktopSidebar(
                             Icon(
                                 imageVector = Icons.Rounded.Settings,
                                 contentDescription = "Settings",
-                                tint = Color.White.copy(alpha = 0.70f),
+                                tint = if (settingsOpen) Color(0xFF1DB954) else Color.White.copy(alpha = 0.70f),
                                 modifier = Modifier.size(20.dp),
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(6.dp))
+
+                    TooltipArea(
+                        tooltip = {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = Color(0xFF282828),
+                                shadowElevation = 4.dp,
+                            ) {
+                                Text(
+                                    text = "Discord Community",
+                                    color = Color.White,
+                                    fontSize = 12.sp,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                )
+                            }
+                        },
+                        delayMillis = 300,
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .desktopHoverWash()
+                                .clickable { DesktopExternalLinks.open("https://discord.gg/yGV2HqhSk") },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = RaagaIcons.Discord,
+                                contentDescription = "Discord Community",
+                                tint = Color(0xFF5865F2),
+                                modifier = Modifier.size(18.dp),
                             )
                         }
                     }
                 }
             } else {
-                // Expanded "Your Library" Panel (Screenshots 2, 3, 4, 5)
+                // Expanded "Your Library" Panel
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(12.dp),
+                        .padding(top = 10.dp, bottom = 10.dp, start = 6.dp, end = 6.dp),
                 ) {
-                    // Header
+                    // 1. Header Row (Library title at start, action buttons at end)
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 2.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Row(
-                            modifier = Modifier.clickable { libraryCollapsed = true },
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .desktopHoverWash()
+                                .clickable { libraryCollapsed = true }
+                                .padding(horizontal = 6.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Icon(
                                 imageVector = RaagaIcons.Library,
                                 contentDescription = "Collapse Your Library",
-                                tint = Color.White.copy(alpha = 0.75f),
+                                tint = Color.White.copy(alpha = 0.85f),
                                 modifier = Modifier.size(22.dp),
                             )
                             Spacer(Modifier.width(10.dp))
@@ -5282,9 +5431,13 @@ private fun DesktopSidebar(
                             )
                         }
                         Spacer(Modifier.weight(1f))
-                        IconButton(
-                            onClick = { /* create playlist */ },
-                            modifier = Modifier.size(32.dp),
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .desktopHoverWash()
+                                .clickable { /* create playlist */ },
+                            contentAlignment = Alignment.Center,
                         ) {
                             Icon(
                                 imageVector = RaagaIcons.Plus,
@@ -5293,9 +5446,14 @@ private fun DesktopSidebar(
                                 modifier = Modifier.size(18.dp),
                             )
                         }
-                        IconButton(
-                            onClick = { libraryCollapsed = true },
-                            modifier = Modifier.size(32.dp),
+                        Spacer(Modifier.width(4.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .desktopHoverWash()
+                                .clickable { libraryCollapsed = true },
+                            contentAlignment = Alignment.Center,
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
@@ -5306,10 +5464,13 @@ private fun DesktopSidebar(
                         }
                     }
 
-                    Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(8.dp))
 
-                    // Filter Chips Row
+                    // 2. Filter Chips Row (aligned to start at 8dp)
                     Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -5319,7 +5480,7 @@ private fun DesktopSidebar(
                                 .clip(RoundedCornerShape(percent = 50))
                                 .background(if (playlistsActive) Color.White else Color(0xFF282828))
                                 .clickable { selectedFilter = if (playlistsActive) null else "Playlists" }
-                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                                .padding(horizontal = 14.dp, vertical = 6.dp),
                             contentAlignment = Alignment.Center,
                         ) {
                             Text(
@@ -5336,7 +5497,7 @@ private fun DesktopSidebar(
                                 .clip(RoundedCornerShape(percent = 50))
                                 .background(if (artistsActive) Color.White else Color(0xFF282828))
                                 .clickable { selectedFilter = if (artistsActive) null else "Artists" }
-                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                                .padding(horizontal = 14.dp, vertical = 6.dp),
                             contentAlignment = Alignment.Center,
                         ) {
                             Text(
@@ -5348,14 +5509,15 @@ private fun DesktopSidebar(
                         }
                     }
 
-                    Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(8.dp))
 
-                    // Search & Recents Sort Row
+                    // 3. Search & Recents Sort Row
                     if (sidebarSearchOpen) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(32.dp)
+                                .padding(horizontal = 2.dp)
+                                .height(34.dp)
                                 .clip(RoundedCornerShape(6.dp))
                                 .background(Color(0xFF282828))
                                 .padding(horizontal = 8.dp),
@@ -5365,9 +5527,9 @@ private fun DesktopSidebar(
                                 imageVector = RaagaIcons.Search,
                                 contentDescription = null,
                                 tint = Color.White.copy(alpha = 0.60f),
-                                modifier = Modifier.size(14.dp),
+                                modifier = Modifier.size(16.dp),
                             )
-                            Spacer(Modifier.width(6.dp))
+                            Spacer(Modifier.width(8.dp))
                             BasicTextField(
                                 value = sidebarSearchQuery,
                                 onValueChange = { sidebarSearchQuery = it },
@@ -5391,8 +5553,9 @@ private fun DesktopSidebar(
                             )
                             Box(
                                 modifier = Modifier
-                                    .size(20.dp)
+                                    .size(22.dp)
                                     .clip(CircleShape)
+                                    .desktopHoverWash()
                                     .clickable {
                                         if (sidebarSearchQuery.isNotEmpty()) {
                                             sidebarSearchQuery = ""
@@ -5406,19 +5569,21 @@ private fun DesktopSidebar(
                                     imageVector = Icons.Rounded.Close,
                                     contentDescription = "Close",
                                     tint = Color.White.copy(alpha = 0.70f),
-                                    modifier = Modifier.size(13.dp),
+                                    modifier = Modifier.size(14.dp),
                                 )
                             }
                         }
                     } else {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 2.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween,
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(28.dp)
+                                    .size(32.dp)
                                     .clip(CircleShape)
                                     .desktopHoverWash()
                                     .clickable { sidebarSearchOpen = true },
@@ -5431,7 +5596,14 @@ private fun DesktopSidebar(
                                     modifier = Modifier.size(16.dp),
                                 )
                             }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .desktopHoverWash()
+                                    .clickable { /* sort */ }
+                                    .padding(horizontal = 6.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
                                 Text(
                                     text = "Recents",
                                     color = Color.White.copy(alpha = 0.70f),
@@ -5449,62 +5621,194 @@ private fun DesktopSidebar(
                         }
                     }
 
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(6.dp))
 
-                    // Scrollable Library List
-                    LazyColumn(
-                        modifier = Modifier.weight(1f).fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    // 4. Scrollable Library List with vertical scrollbar
+                    val expandedScrollState = rememberLazyListState()
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
                     ) {
-                        // Pinned Liked Songs item
-                        if (selectedFilter != "Artists" && showLikedInSidebar) {
-                            item(key = "pinned:liked_songs") {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .clickable { onDestinationSelected(DesktopDestination.LIKED_SONGS) }
-                                        .padding(6.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Box(
+                        LazyColumn(
+                            state = expandedScrollState,
+                            modifier = Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
+                            // Pinned Liked Songs item
+                            if (selectedFilter != "Artists" && showLikedInSidebar) {
+                                item(key = "pinned:liked_songs") {
+                                    val isLikedSelected = destination == DesktopDestination.LIKED_SONGS
+                                    Row(
                                         modifier = Modifier
-                                            .size(48.dp)
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(
-                                                Brush.linearGradient(
-                                                    listOf(Color(0xFF450AF5), Color(0xFF8E8EE5)),
-                                                )
-                                            ),
-                                        contentAlignment = Alignment.Center,
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(if (isLikedSelected) Color.White.copy(alpha = 0.10f) else Color.Transparent)
+                                            .desktopHoverWash()
+                                            .clickable { onDestinationSelected(DesktopDestination.LIKED_SONGS) }
+                                            .padding(horizontal = 2.dp, vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
                                     ) {
-                                        Icon(
-                                            imageVector = RaagaIcons.HeartFilled,
-                                            contentDescription = null,
-                                            tint = Color.White,
-                                            modifier = Modifier.size(22.dp),
-                                        )
-                                    }
-                                    Spacer(Modifier.width(12.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = "Liked Songs",
-                                            color = Color.White,
-                                            fontWeight = FontWeight.SemiBold,
-                                            fontSize = 13.5.sp,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                        )
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(
+                                            modifier = Modifier
+                                                .padding(start = 6.dp)
+                                                .size(48.dp)
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(
+                                                    Brush.linearGradient(
+                                                        listOf(Color(0xFF450AF5), Color(0xFF8E8EE5)),
+                                                    )
+                                                ),
+                                            contentAlignment = Alignment.Center,
+                                        ) {
                                             Icon(
-                                                imageVector = RaagaIcons.Pin,
-                                                contentDescription = "Pinned",
-                                                tint = Color(0xFF1DB954),
-                                                modifier = Modifier.size(11.dp),
+                                                imageVector = RaagaIcons.HeartFilled,
+                                                contentDescription = null,
+                                                tint = Color.White,
+                                                modifier = Modifier.size(22.dp),
                                             )
-                                            Spacer(Modifier.width(4.dp))
+                                        }
+                                        Spacer(Modifier.width(10.dp))
+                                        Column(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .padding(end = 6.dp),
+                                            verticalArrangement = Arrangement.Center,
+                                        ) {
                                             Text(
-                                                text = "Playlist • $likedCount songs",
+                                                text = "Liked Songs",
+                                                color = if (isLikedSelected) Color(0xFF1DB954) else Color.White,
+                                                fontWeight = FontWeight.SemiBold,
+                                                fontSize = 13.5.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                            Spacer(Modifier.height(3.dp))
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(
+                                                    imageVector = RaagaIcons.Pin,
+                                                    contentDescription = "Pinned",
+                                                    tint = Color(0xFF1DB954),
+                                                    modifier = Modifier.size(11.dp),
+                                                )
+                                                Spacer(Modifier.width(4.dp))
+                                                Text(
+                                                    text = "Playlist • $likedCount songs",
+                                                    color = Color.White.copy(alpha = 0.60f),
+                                                    fontSize = 12.sp,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Playlists
+                            if (selectedFilter != "Artists") {
+                                items(filteredAccountPlaylists, key = { "account:${it.browseId}" }) { playlist ->
+                                    val isSelected = openedCollectionId == playlist.browseId
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(if (isSelected) Color.White.copy(alpha = 0.10f) else Color.Transparent)
+                                            .desktopHoverWash()
+                                            .clickable { onOpenAccountPlaylist(playlist) }
+                                            .padding(horizontal = 2.dp, vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .padding(start = 6.dp)
+                                                .size(48.dp)
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(Color(0xFF282828)),
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            if (playlist.thumbnailUrl != null) {
+                                                DesktopArtwork(playlist.thumbnailUrl, Modifier.fillMaxSize(), px = 96)
+                                            } else {
+                                                Icon(
+                                                    Icons.AutoMirrored.Rounded.PlaylistPlay,
+                                                    null,
+                                                    tint = Color.White.copy(alpha = 0.7f),
+                                                    modifier = Modifier.size(22.dp),
+                                                )
+                                            }
+                                        }
+                                        Spacer(Modifier.width(10.dp))
+                                        Column(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .padding(end = 6.dp),
+                                            verticalArrangement = Arrangement.Center,
+                                        ) {
+                                            Text(
+                                                text = playlist.title,
+                                                color = if (isSelected) Color(0xFF1DB954) else Color.White,
+                                                fontWeight = FontWeight.SemiBold,
+                                                fontSize = 13.5.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                            Spacer(Modifier.height(3.dp))
+                                            Text(
+                                                text = "Playlist • Raaga",
+                                                color = Color.White.copy(alpha = 0.60f),
+                                                fontSize = 12.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                        }
+                                    }
+                                }
+                                items(filteredLocalPlaylists, key = { "local:${it.id}" }) { playlist ->
+                                    val isSelected = openedCollectionId == playlist.id
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(if (isSelected) Color.White.copy(alpha = 0.10f) else Color.Transparent)
+                                            .desktopHoverWash()
+                                            .clickable { onOpenLocalPlaylist(playlist) }
+                                            .padding(horizontal = 2.dp, vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .padding(start = 6.dp)
+                                                .size(48.dp)
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(Color(0xFF282828)),
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            Icon(
+                                                Icons.AutoMirrored.Rounded.PlaylistPlay,
+                                                null,
+                                                tint = if (isSelected) Color(0xFF1DB954) else Color.White.copy(alpha = 0.7f),
+                                                modifier = Modifier.size(22.dp),
+                                            )
+                                        }
+                                        Spacer(Modifier.width(10.dp))
+                                        Column(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .padding(end = 6.dp),
+                                            verticalArrangement = Arrangement.Center,
+                                        ) {
+                                            Text(
+                                                text = playlist.title,
+                                                color = if (isSelected) Color(0xFF1DB954) else Color.White,
+                                                fontWeight = FontWeight.SemiBold,
+                                                fontSize = 13.5.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                            Spacer(Modifier.height(3.dp))
+                                            Text(
+                                                text = "Playlist • Custom",
                                                 color = Color.White.copy(alpha = 0.60f),
                                                 fontSize = 12.sp,
                                                 maxLines = 1,
@@ -5514,238 +5818,186 @@ private fun DesktopSidebar(
                                     }
                                 }
                             }
-                        }
 
-                        // Playlists
-                        if (selectedFilter != "Artists") {
-                            items(filteredAccountPlaylists, key = { "account:${it.browseId}" }) { playlist ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .clickable { onOpenAccountPlaylist(playlist) }
-                                        .padding(6.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Box(
+                            // Local music item
+                            if (showLocalMusicInSidebar) {
+                                item(key = "local_music") {
+                                    val isSelected = destination == DesktopDestination.LOCAL_MUSIC
+                                    Row(
                                         modifier = Modifier
-                                            .size(48.dp)
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(Color(0xFF282828)),
-                                        contentAlignment = Alignment.Center,
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(if (isSelected) Color.White.copy(alpha = 0.10f) else Color.Transparent)
+                                            .desktopHoverWash()
+                                            .clickable { onDestinationSelected(DesktopDestination.LOCAL_MUSIC) }
+                                            .padding(horizontal = 2.dp, vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
                                     ) {
-                                        if (playlist.thumbnailUrl != null) {
-                                            DesktopArtwork(playlist.thumbnailUrl, Modifier.fillMaxSize(), px = 96)
-                                        } else {
+                                        Box(
+                                            modifier = Modifier
+                                                .padding(start = 6.dp)
+                                                .size(48.dp)
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(Color(0xFF282828)),
+                                            contentAlignment = Alignment.Center,
+                                        ) {
                                             Icon(
-                                                Icons.AutoMirrored.Rounded.PlaylistPlay,
+                                                Icons.Rounded.Folder,
                                                 null,
-                                                tint = Color.White.copy(alpha = 0.7f),
+                                                tint = if (isSelected) Color(0xFF1DB954) else Color.White.copy(alpha = 0.7f),
                                                 modifier = Modifier.size(22.dp),
                                             )
                                         }
-                                    }
-                                    Spacer(Modifier.width(12.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = playlist.title,
-                                            color = if (openedCollectionId == playlist.browseId) Color(0xFF1DB954) else Color.White,
-                                            fontWeight = FontWeight.SemiBold,
-                                            fontSize = 13.5.sp,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                        )
-                                        Text(
-                                            text = "Playlist • Raaga",
-                                            color = Color.White.copy(alpha = 0.60f),
-                                            fontSize = 12.sp,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                        )
+                                        Spacer(Modifier.width(10.dp))
+                                        Column(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .padding(end = 6.dp),
+                                            verticalArrangement = Arrangement.Center,
+                                        ) {
+                                            Text(
+                                                text = "Local Music",
+                                                color = if (isSelected) Color(0xFF1DB954) else Color.White,
+                                                fontWeight = FontWeight.SemiBold,
+                                                fontSize = 13.5.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                            Spacer(Modifier.height(3.dp))
+                                            Text(
+                                                text = "Folder • Files",
+                                                color = Color.White.copy(alpha = 0.60f),
+                                                fontSize = 12.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                        }
                                     }
                                 }
                             }
-                            items(filteredLocalPlaylists, key = { "local:${it.id}" }) { playlist ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .clickable { onOpenLocalPlaylist(playlist) }
-                                        .padding(6.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Box(
+
+                            // Downloads item
+                            if (sidebarSearchQuery.isBlank() || "downloads".contains(sidebarSearchQuery.trim().lowercase()) || "offline music".contains(sidebarSearchQuery.trim().lowercase())) {
+                                item(key = "downloads") {
+                                    val isSelected = destination == DesktopDestination.DOWNLOADS
+                                    Row(
                                         modifier = Modifier
-                                            .size(48.dp)
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(Color(0xFF282828)),
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(if (isSelected) Color.White.copy(alpha = 0.10f) else Color.Transparent)
+                                            .desktopHoverWash()
+                                            .clickable { onDestinationSelected(DesktopDestination.DOWNLOADS) }
+                                            .padding(horizontal = 2.dp, vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .padding(start = 6.dp)
+                                                .size(48.dp)
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(Color(0xFF282828)),
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            Icon(
+                                                Icons.Rounded.Download,
+                                                null,
+                                                tint = if (isSelected) Color(0xFF1DB954) else Color.White.copy(alpha = 0.7f),
+                                                modifier = Modifier.size(22.dp),
+                                            )
+                                        }
+                                        Spacer(Modifier.width(10.dp))
+                                        Column(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .padding(end = 6.dp),
+                                            verticalArrangement = Arrangement.Center,
+                                        ) {
+                                            Text(
+                                                text = "Downloads",
+                                                color = if (isSelected) Color(0xFF1DB954) else Color.White,
+                                                fontWeight = FontWeight.SemiBold,
+                                                fontSize = 13.5.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                            Spacer(Modifier.height(3.dp))
+                                            Text(
+                                                text = "Offline Music",
+                                                color = Color.White.copy(alpha = 0.60f),
+                                                fontSize = 12.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Empty search state
+                            if (sidebarSearchQuery.isNotBlank() &&
+                                filteredAccountPlaylists.isEmpty() &&
+                                filteredLocalPlaylists.isEmpty() &&
+                                !showLikedInSidebar &&
+                                !showLocalMusicInSidebar &&
+                                !"downloads".contains(sidebarSearchQuery.trim().lowercase())
+                            ) {
+                                item(key = "sidebar:empty_search") {
+                                    Box(
+                                        modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
                                         contentAlignment = Alignment.Center,
                                     ) {
-                                        Icon(
-                                            Icons.AutoMirrored.Rounded.PlaylistPlay,
-                                            null,
-                                            tint = Color.White.copy(alpha = 0.7f),
-                                            modifier = Modifier.size(22.dp),
-                                        )
-                                    }
-                                    Spacer(Modifier.width(12.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
                                         Text(
-                                            text = playlist.title,
-                                            color = if (openedCollectionId == playlist.id) Color(0xFF1DB954) else Color.White,
-                                            fontWeight = FontWeight.SemiBold,
-                                            fontSize = 13.5.sp,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                        )
-                                        Text(
-                                            text = "Playlist • Custom",
-                                            color = Color.White.copy(alpha = 0.60f),
-                                            fontSize = 12.sp,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
+                                            text = "No playlists found",
+                                            color = Color.White.copy(alpha = 0.50f),
+                                            fontSize = 12.5.sp,
                                         )
                                     }
                                 }
                             }
                         }
 
-                        // Local music item
-                        if (showLocalMusicInSidebar) {
-                            item(key = "local_music") {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .clickable { onDestinationSelected(DesktopDestination.LOCAL_MUSIC) }
-                                        .padding(6.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(48.dp)
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(Color(0xFF282828)),
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        Icon(
-                                            Icons.Rounded.Folder,
-                                            null,
-                                            tint = Color.White.copy(alpha = 0.7f),
-                                            modifier = Modifier.size(22.dp),
-                                        )
-                                    }
-                                    Spacer(Modifier.width(12.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = "Local Music",
-                                            color = if (destination == DesktopDestination.LOCAL_MUSIC) Color(0xFF1DB954) else Color.White,
-                                            fontWeight = FontWeight.SemiBold,
-                                            fontSize = 13.5.sp,
-                                        )
-                                        Text(
-                                            text = "Folder • Files",
-                                            color = Color.White.copy(alpha = 0.60f),
-                                            fontSize = 12.sp,
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        // Downloads item
-                        if (sidebarSearchQuery.isBlank() || "downloads".contains(sidebarSearchQuery.trim().lowercase()) || "offline music".contains(sidebarSearchQuery.trim().lowercase())) {
-                            item(key = "downloads") {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .clickable { onDestinationSelected(DesktopDestination.DOWNLOADS) }
-                                        .padding(6.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(48.dp)
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(Color(0xFF282828)),
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        Icon(
-                                            Icons.Rounded.Download,
-                                            null,
-                                            tint = Color.White.copy(alpha = 0.7f),
-                                            modifier = Modifier.size(22.dp),
-                                        )
-                                    }
-                                    Spacer(Modifier.width(12.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = "Downloads",
-                                            color = if (destination == DesktopDestination.DOWNLOADS) Color(0xFF1DB954) else Color.White,
-                                            fontWeight = FontWeight.SemiBold,
-                                            fontSize = 13.5.sp,
-                                        )
-                                        Text(
-                                            text = "Offline Music",
-                                            color = Color.White.copy(alpha = 0.60f),
-                                            fontSize = 12.sp,
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        // Empty search state
-                        if (sidebarSearchQuery.isNotBlank() &&
-                            filteredAccountPlaylists.isEmpty() &&
-                            filteredLocalPlaylists.isEmpty() &&
-                            !showLikedInSidebar &&
-                            !showLocalMusicInSidebar &&
-                            !"downloads".contains(sidebarSearchQuery.trim().lowercase())
-                        ) {
-                            item(key = "sidebar:empty_search") {
-                                Box(
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Text(
-                                        text = "No playlists found",
-                                        color = Color.White.copy(alpha = 0.50f),
-                                        fontSize = 12.5.sp,
-                                    )
-                                }
-                            }
-                        }
+                        VerticalScrollbar(
+                            adapter = rememberScrollbarAdapter(expandedScrollState),
+                            modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight(),
+                            style = defaultScrollbarStyle().copy(
+                                unhoverColor = Color.White.copy(alpha = 0.12f),
+                                hoverColor = Color.White.copy(alpha = 0.35f),
+                                thickness = 3.dp,
+                            ),
+                        )
                     }
 
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(6.dp))
                     HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = 6.dp),
                         color = Color.White.copy(alpha = 0.08f),
                         thickness = 0.5.dp,
                     )
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(6.dp))
 
-                    // Bottom Row: Settings & Discord
+                    // 5. Bottom Row: Settings & Discord (aligned to 8dp start and 2dp end)
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 2.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
                         Row(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
+                                .desktopHoverWash()
                                 .clickable { onOpenSettings() }
-                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                                .padding(horizontal = 6.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Icon(
                                 Icons.Rounded.Settings,
                                 contentDescription = "Settings",
                                 tint = if (settingsOpen) Color(0xFF1DB954) else Color.White.copy(alpha = 0.70f),
-                                modifier = Modifier.size(18.dp),
+                                modifier = Modifier.size(19.dp),
                             )
-                            Spacer(Modifier.width(8.dp))
+                            Spacer(Modifier.width(10.dp))
                             Text(
                                 text = "Settings",
                                 color = if (settingsOpen) Color(0xFF1DB954) else Color.White.copy(alpha = 0.75f),
@@ -5754,9 +6006,13 @@ private fun DesktopSidebar(
                             )
                         }
 
-                        IconButton(
-                            onClick = { DesktopExternalLinks.open("https://discord.gg/yGV2HqhSk") },
-                            modifier = Modifier.size(32.dp),
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .desktopHoverWash()
+                                .clickable { DesktopExternalLinks.open("https://discord.gg/yGV2HqhSk") },
+                            contentAlignment = Alignment.Center,
                         ) {
                             Icon(
                                 RaagaIcons.Discord,
