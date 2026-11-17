@@ -201,28 +201,65 @@ private fun seedOf(bitmap: Bitmap): Seed? {
     fun swatches(builder: Palette.Builder) =
         builder.maximumColorCount(SWATCH_COUNT).generate().swatches
 
-    // The default filter deliberately throws away near-black and near-white.
-    // That is useful while looking for an accent, but it is the wrong answer
-    // to "what colour is this page mostly made of?" A dark photograph would
-    // otherwise be reduced to whatever warm face or tiny coloured detail
-    // survived the filter, and a monochrome sleeve to an anti-aliased fringe.
-    // Both cases used to turn into the same maroon page.
+    // Swatches with filters cleared gives us every region of the sleeve,
+    // including dark backgrounds and bright highlights.
     val all = swatches(Palette.from(bitmap).clearFilters())
     if (all.isEmpty()) return null
-    val accentCandidates = swatches(Palette.from(bitmap)).ifEmpty { all }
 
-    val dominant = all.maxBy { it.population }
-    // The accent has to earn its place twice over: a colour nobody sees enough
-    // of reads as arbitrary, and a grey one isn't an accent at all. Scoring on
-    // saturation against the *square root* of population is what stops a sleeve
-    // that is four-fifths black sky from accenting in black.
-    val vibrant = accentCandidates.maxBy { swatch ->
-        val hsl = FloatArray(3).also { ColorUtils.colorToHSL(swatch.rgb, it) }
-        hsl[1] * sqrt(swatch.population.toFloat())
+    val hslMap = all.associateWith { swatch ->
+        FloatArray(3).also { ColorUtils.colorToHSL(swatch.rgb, it) }
     }
+
+    val totalPop = all.sumOf { it.population }.coerceAtLeast(1)
+
+    // A swatch is genuinely chromatic when its saturation is visible and it is neither
+    // crushed black nor blown-out white.
+    val chromaticSwatches = all.filter { swatch ->
+        val hsl = hslMap.getValue(swatch)
+        hsl[1] >= 0.13f && hsl[2] in 0.08f..0.92f
+    }
+    val chromaticPop = chromaticSwatches.sumOf { it.population }
+    val hasSignificantColor = chromaticPop >= (totalPop * 0.05f) ||
+        chromaticSwatches.any { it.population >= (totalPop * 0.08f) }
+
+    // When a cover is full of colors, choose the dominant theme from the most representative
+    // chromatic swatch instead of being hijacked by a neutral/black backdrop.
+    val dominantSwatch = if (hasSignificantColor && chromaticSwatches.isNotEmpty()) {
+        chromaticSwatches.maxByOrNull { swatch ->
+            val hsl = hslMap.getValue(swatch)
+            val s = hsl[1]
+            val l = hsl[2]
+            val lumWeight = 1.0f - kotlin.math.abs(l - 0.45f) * 0.7f
+            swatch.population.toFloat() * s.pow(0.75f) * lumWeight.coerceAtLeast(0.2f)
+        } ?: all.maxBy { it.population }
+    } else {
+        // Genuinely monochrome artwork (e.g. pencil sketches, vintage B&W photos).
+        all.maxBy { it.population }
+    }
+
+    // For the accent, consider all hues (do NOT use Palette's default filter which rejects
+    // warm colors, oranges and golds in hue 10°..37°), but filter out low-saturation noise
+    // and dark compression artifacts so accents never turn into stray green or purple.
+    val accentCandidates = all.filter { swatch ->
+        val hsl = hslMap.getValue(swatch)
+        hsl[1] >= 0.16f && hsl[2] in 0.12f..0.88f
+    }
+
+    val vibrantSwatch = if (accentCandidates.isNotEmpty()) {
+        accentCandidates.maxBy { swatch ->
+            val hsl = hslMap.getValue(swatch)
+            val s = hsl[1]
+            val l = hsl[2]
+            val lumWeight = 1.0f - kotlin.math.abs(l - 0.55f) * 0.8f
+            s.pow(1.2f) * sqrt(swatch.population.toFloat()) * lumWeight.coerceAtLeast(0.2f)
+        }
+    } else {
+        dominantSwatch
+    }
+
     return Seed(
-        dominant = Color(dominant.rgb),
-        vibrant = Color(vibrant.rgb),
+        dominant = Color(dominantSwatch.rgb),
+        vibrant = Color(vibrantSwatch.rgb),
         edge = bitmap.bottomEdgeColor(),
         topBandLuminance = bitmap.topBandRelativeLuminance(),
     )

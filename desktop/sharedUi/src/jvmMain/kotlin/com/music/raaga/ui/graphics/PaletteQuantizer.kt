@@ -206,11 +206,9 @@ internal object PaletteQuantizer {
         private fun shouldIgnoreColor(rgb: Int): Boolean {
             if (!useDefaultFilter) return false
             ColorUtils.colorToHSL(rgb, tempHsl)
-            // Palette.DEFAULT_FILTER: not white, not black, not the red I-line.
             val isBlack = tempHsl[2] <= 0.05f
             val isWhite = tempHsl[2] >= 0.95f
-            val nearRedILine = tempHsl[0] in 10f..37f && tempHsl[1] <= 0.82f
-            return isWhite || isBlack || nearRedILine
+            return isWhite || isBlack
         }
     }
 

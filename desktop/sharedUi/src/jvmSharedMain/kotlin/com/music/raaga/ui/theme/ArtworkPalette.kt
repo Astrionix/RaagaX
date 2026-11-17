@@ -207,28 +207,55 @@ private fun seedOf(bitmap: ImageBitmap): Seed? {
     fun swatches(clearFilters: Boolean) =
         paletteSwatches(bitmap, SWATCH_COUNT, clearFilters)
 
-    // The default filter deliberately throws away near-black and near-white.
-    // That is useful while looking for an accent, but it is the wrong answer
-    // to "what colour is this page mostly made of?" A dark photograph would
-    // otherwise be reduced to whatever warm face or tiny coloured detail
-    // survived the filter, and a monochrome sleeve to an anti-aliased fringe.
-    // Both cases used to turn into the same maroon page.
     val all = swatches(clearFilters = true)
     if (all.isEmpty()) return null
-    val accentCandidates = swatches(clearFilters = false).ifEmpty { all }
 
-    val dominant = all.maxBy { it.population }
-    // The accent has to earn its place twice over: a colour nobody sees enough
-    // of reads as arbitrary, and a grey one isn't an accent at all. Scoring on
-    // saturation against the *square root* of population is what stops a sleeve
-    // that is four-fifths black sky from accenting in black.
-    val vibrant = accentCandidates.maxBy { swatch ->
-        val hsl = FloatArray(3).also { ColorUtils.colorToHSL(swatch.rgb, it) }
-        hsl[1] * sqrt(swatch.population.toFloat())
+    val hslMap = all.associateWith { swatch ->
+        FloatArray(3).also { ColorUtils.colorToHSL(swatch.rgb, it) }
     }
+
+    val totalPop = all.sumOf { it.population }.coerceAtLeast(1)
+
+    val chromaticSwatches = all.filter { swatch ->
+        val hsl = hslMap.getValue(swatch)
+        hsl[1] >= 0.13f && hsl[2] in 0.08f..0.92f
+    }
+    val chromaticPop = chromaticSwatches.sumOf { it.population }
+    val hasSignificantColor = chromaticPop >= (totalPop * 0.05f) ||
+        chromaticSwatches.any { it.population >= (totalPop * 0.08f) }
+
+    val dominantSwatch = if (hasSignificantColor && chromaticSwatches.isNotEmpty()) {
+        chromaticSwatches.maxByOrNull { swatch ->
+            val hsl = hslMap.getValue(swatch)
+            val s = hsl[1]
+            val l = hsl[2]
+            val lumWeight = 1.0f - kotlin.math.abs(l - 0.45f) * 0.7f
+            swatch.population.toFloat() * s.pow(0.75f) * lumWeight.coerceAtLeast(0.2f)
+        } ?: all.maxBy { it.population }
+    } else {
+        all.maxBy { it.population }
+    }
+
+    val accentCandidates = all.filter { swatch ->
+        val hsl = hslMap.getValue(swatch)
+        hsl[1] >= 0.16f && hsl[2] in 0.12f..0.88f
+    }
+
+    val vibrantSwatch = if (accentCandidates.isNotEmpty()) {
+        accentCandidates.maxBy { swatch ->
+            val hsl = hslMap.getValue(swatch)
+            val s = hsl[1]
+            val l = hsl[2]
+            val lumWeight = 1.0f - kotlin.math.abs(l - 0.55f) * 0.8f
+            s.pow(1.2f) * sqrt(swatch.population.toFloat()) * lumWeight.coerceAtLeast(0.2f)
+        }
+    } else {
+        dominantSwatch
+    }
+
     return Seed(
-        dominant = Color(dominant.rgb),
-        vibrant = Color(vibrant.rgb),
+        dominant = Color(dominantSwatch.rgb),
+        vibrant = Color(vibrantSwatch.rgb),
         edge = bitmap.bottomEdgeColor(),
         topBandLuminance = bitmap.topBandRelativeLuminance(),
     )

@@ -36,13 +36,13 @@ data class AmbientArtworkPalette(
          * Fallback palette used when artwork is absent or during initial load.
          */
         val Default = AmbientArtworkPalette(
-            dominant = Color(0xFF1E1B4B),
-            vibrant = Color(0xFF4C1D95),
-            secondary = Color(0xFF1E3A8A),
-            accent = Color(0xFFC026D3),
-            primaryGlow = Color(0xFF4C1D95),
-            secondaryGlow = Color(0xFF1E3A8A),
-            accentGlow = Color(0xFFC026D3),
+            dominant = Color(0xFF181A22),
+            vibrant = Color(0xFF2C3240),
+            secondary = Color(0xFF202430),
+            accent = Color(0xFF4C556C),
+            primaryGlow = Color(0xFF2C3240),
+            secondaryGlow = Color(0xFF202430),
+            accentGlow = Color(0xFF4C556C),
             darkVignetteBase = Color(0xFF090A10),
             isMonochrome = false,
         )
@@ -124,16 +124,19 @@ object ArtworkPaletteExtractor {
         val swatches = palette.swatches.sortedByDescending { it.population }
         if (swatches.isEmpty()) return AmbientArtworkPalette.Default
 
-        // 1. Detect if the artwork is monochrome / black & white
-        var maxSaturation = 0f
-        for (s in swatches.take(6)) {
-            val hsl = FloatArray(3)
-            ColorUtils.colorToHSL(s.rgb, hsl)
-            if (hsl[1] > maxSaturation) {
-                maxSaturation = hsl[1]
-            }
+        val hslMap = swatches.associateWith { s ->
+            FloatArray(3).also { ColorUtils.colorToHSL(s.rgb, it) }
         }
-        val isMonochrome = maxSaturation < 0.08f
+        val totalPop = swatches.sumOf { it.population }.coerceAtLeast(1)
+
+        val chromaticSwatches = swatches.filter { s ->
+            val hsl = hslMap.getValue(s)
+            hsl[1] >= 0.13f && hsl[2] in 0.08f..0.92f
+        }
+        val chromaticPop = chromaticSwatches.sumOf { it.population }
+        val hasSignificantColor = chromaticPop >= (totalPop * 0.05f) ||
+            chromaticSwatches.any { it.population >= (totalPop * 0.08f) }
+        val isMonochrome = !hasSignificantColor || chromaticSwatches.isEmpty()
 
         if (isMonochrome) {
             // For monochrome covers (pencil sketches, vintage B&W photos),
@@ -143,7 +146,7 @@ object ArtworkPaletteExtractor {
 
             return AmbientArtworkPalette(
                 dominant = Color(liftedDominant),
-                vibrant = Color(0xFF384357), // Slate blue
+                vibrant = Color(0xFF384357), // Slate neutral
                 secondary = Color(0xFF1E293B),
                 accent = Color(0xFF64748B),
                 primaryGlow = Color(0xFF475569),
@@ -154,20 +157,31 @@ object ArtworkPaletteExtractor {
             )
         }
 
-        // 2. Multi-color dynamic artwork extraction 100% true to the cover art
-        val dominantSwatch = palette.dominantSwatch ?: swatches.first()
-        val vibrantSwatch = palette.vibrantSwatch
-            ?: palette.lightVibrantSwatch
-            ?: palette.darkVibrantSwatch
-            ?: dominantSwatch
-        val secondarySwatch = palette.mutedSwatch
-            ?: palette.lightMutedSwatch
-            ?: swatches.getOrNull(1)
-            ?: dominantSwatch
-        val accentSwatch = palette.lightVibrantSwatch
-            ?: palette.darkVibrantSwatch
-            ?: palette.darkMutedSwatch
-            ?: vibrantSwatch
+        // 2. Multi-color dynamic artwork extraction: pick true chromatic notes without
+        // discarding warm colors or picking up near-black chroma noise.
+        val dominantSwatch = chromaticSwatches.maxByOrNull { s ->
+            val hsl = hslMap.getValue(s)
+            val lumWeight = 1.0f - kotlin.math.abs(hsl[2] - 0.45f) * 0.7f
+            s.population.toFloat() * Math.pow(hsl[1].toDouble(), 0.75).toFloat() * lumWeight.coerceAtLeast(0.2f)
+        } ?: swatches.first()
+
+        val vibrantSwatch = chromaticSwatches.maxByOrNull { s ->
+            val hsl = hslMap.getValue(s)
+            val lumWeight = 1.0f - kotlin.math.abs(hsl[2] - 0.55f) * 0.8f
+            Math.pow(hsl[1].toDouble(), 1.2).toFloat() * Math.sqrt(s.population.toDouble()).toFloat() * lumWeight.coerceAtLeast(0.2f)
+        } ?: dominantSwatch
+
+        val secondarySwatch = chromaticSwatches.firstOrNull { s ->
+            if (s.rgb == dominantSwatch.rgb || s.rgb == vibrantSwatch.rgb) return@firstOrNull false
+            val hslA = hslMap.getValue(s)
+            val hslB = hslMap.getValue(dominantSwatch)
+            val hueDiff = Math.abs(hslA[0] - hslB[0]).let { Math.min(it, 360f - it) }
+            hueDiff >= 20f || Math.abs(hslA[2] - hslB[2]) >= 0.15f
+        } ?: chromaticSwatches.getOrNull(1) ?: dominantSwatch
+
+        val accentSwatch = chromaticSwatches.maxByOrNull { s ->
+            if (s.rgb == dominantSwatch.rgb) 0f else hslMap.getValue(s)[1]
+        } ?: vibrantSwatch
 
         val domRgb = liftColor(dominantSwatch.rgb, minLuminance = 0.12f, maxLuminance = 0.50f)
         val vibRgb = liftColor(vibrantSwatch.rgb, minLuminance = 0.25f, maxLuminance = 0.75f)
@@ -193,11 +207,14 @@ object ArtworkPaletteExtractor {
     /**
      * Normalizes luminance and saturation so colors stay vivid and visible behind the blur
      * without blowing out contrast or muddying into pitch black.
+     * Prevents amplifying low-saturation noise into fake purple or green.
      */
     private fun liftColor(rgb: Int, minLuminance: Float, maxLuminance: Float): Int {
         val hsl = FloatArray(3)
         ColorUtils.colorToHSL(rgb, hsl)
-        hsl[1] = (hsl[1] * 1.15f).coerceIn(0.25f, 0.95f)
+        if (hsl[1] >= 0.12f) {
+            hsl[1] = (hsl[1] * 1.15f).coerceIn(0.20f, 0.95f)
+        }
         hsl[2] = hsl[2].coerceIn(minLuminance, maxLuminance)
         return ColorUtils.HSLToColor(hsl)
     }
