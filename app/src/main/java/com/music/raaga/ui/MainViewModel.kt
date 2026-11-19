@@ -2435,12 +2435,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             .debounce(SUGGEST_DEBOUNCE_MS)
             .collectLatest { input ->
                 if (!stillWanted(input)) return@collectLatest
-                val fetched = YtMusicRepository.searchSuggestions(input).getOrNull()
+                val payload = YtMusicRepository.searchSuggestionsPayload(input).getOrNull()
                     ?: return@collectLatest
                 // Asked again on the way back; the field is live throughout.
                 if (!stillWanted(input)) return@collectLatest
                 _suggestions.value = listOf(input) +
-                    fetched.filterNot { it.equals(input, ignoreCase = true) }
+                    payload.queries.filterNot { it.equals(input, ignoreCase = true) }
+                if (payload.entities.isNotEmpty()) {
+                    _typeaheadResults.value = payload.entities.take(TYPEAHEAD_MAX_RESULTS)
+                }
             }
     }
 
@@ -2465,6 +2468,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 // typeahead dropdown under an already-committed search.
                 if (searchSubmitted) {
                     _typeaheadResults.value = emptyList()
+                    return@collectLatest
+                }
+                // If the lightweight suggest payload already populated typeahead entities, keep them
+                if (_typeaheadResults.value.isNotEmpty()) {
                     return@collectLatest
                 }
                 val result = YtMusicRepository.searchTypeahead(input).getOrNull()
