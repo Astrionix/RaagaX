@@ -78,10 +78,13 @@ export async function fetchCategories(): Promise<CategoryGroup[]> {
   return mapCategories(response.data);
 }
 
-export type SearchFilterType = 'all' | 'playlist' | 'song' | 'album' | 'artist' | 'video';
+export type SearchFilterType = 'all' | 'playlist' | 'song' | 'album' | 'artist' | 'video' | 'lyrics';
 
 export async function fetchSearch(query: string, filter?: SearchFilterType): Promise<SearchResults> {
   const yt = await getMusicClient();
+  if (filter === 'lyrics') {
+    return mapSearch(await yt.music.search(`${query} lyrics`, { type: 'song' }));
+  }
   if (filter && filter !== 'all') {
     return mapSearch(await yt.music.search(query, { type: filter }));
   }
