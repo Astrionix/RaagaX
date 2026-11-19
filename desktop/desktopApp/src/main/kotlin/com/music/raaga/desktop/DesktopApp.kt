@@ -2436,8 +2436,15 @@ fun RaagaDesktopApp() {
             return@LaunchedEffect
         }
         delay(SUGGESTION_DEBOUNCE_MS)
-        DesktopSearchClient.searchSuggestions(query)
-            .onSuccess { if (searchTyping) searchSuggestions = it }
+        DesktopSearchClient.searchSuggestionsPayload(query)
+            .onSuccess { payload ->
+                if (searchTyping) {
+                    searchSuggestions = payload.queries
+                    if (payload.entities.isNotEmpty()) {
+                        searchTypeahead = payload.entities.take(TYPEAHEAD_MEDIA_LIMIT)
+                    }
+                }
+            }
             .onFailure { searchSuggestions = emptyList() }
     }
 
@@ -2449,9 +2456,10 @@ fun RaagaDesktopApp() {
             return@LaunchedEffect
         }
         delay(TYPEAHEAD_MEDIA_DEBOUNCE_MS)
+        if (searchTypeahead.isNotEmpty()) return@LaunchedEffect
         DesktopSearchClient.searchTypeahead(query)
-            .onSuccess { if (searchTyping) searchTypeahead = it.take(TYPEAHEAD_MEDIA_LIMIT) }
-            .onFailure { searchTypeahead = emptyList() }
+            .onSuccess { if (searchTyping && searchTypeahead.isEmpty()) searchTypeahead = it.take(TYPEAHEAD_MEDIA_LIMIT) }
+            .onFailure { if (searchTypeahead.isEmpty()) searchTypeahead = emptyList() }
     }
 
     fun runSearch(term: String) {
