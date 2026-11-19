@@ -26,13 +26,14 @@ actor YouTubeMusicService {
         case videos = "Videos"
         case albums = "Albums"
         case artists = "Artists"
+        case lyrics = "Lyrics"
 
         var id: String { rawValue }
 
         var param: String? {
             switch self {
             case .all: return nil
-            case .songs: return "EgWKAQIIAWoMEAMQBBAJEAoQBRAV"
+            case .songs, .lyrics: return "EgWKAQIIAWoMEAMQBBAJEAoQBRAV"
             case .videos: return "EgWKAQIQAWoMEAMQBBAJEAoQBRAV"
             case .albums: return "EgWKAQIYAWoMEAMQBBAJEAoQBRAV"
             case .artists: return "EgWKAQIgAWoMEAMQBBAJEAoQBRAV"
@@ -61,7 +62,8 @@ actor YouTubeMusicService {
 
     /// Search YouTube Music for tracks, albums, artists.
     func search(query: String, filter: SearchFilter = .all) async -> (songs: [Song], collections: [MediaCollection]) {
-        var payload: JSONDict = ["query": query]
+        let q = filter == .lyrics ? "\(query) lyrics" : query
+        var payload: JSONDict = ["query": q]
         if let param = filter.param {
             payload["params"] = param
         }
