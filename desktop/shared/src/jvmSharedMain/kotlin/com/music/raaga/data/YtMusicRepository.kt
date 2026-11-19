@@ -294,14 +294,114 @@ object YtMusicRepository {
      * the listener reaches the end of the list.
      */
     suspend fun searchPage(query: String, filter: SearchFilter): Result<SearchPage> =
-        call("search:${filter.name}") {
-            InnertubeParser.parseSearchPage(
-                Innertube.search(query, filter.params),
-                includeVideos = filter == SearchFilter.VIDEOS,
-            ).let { page ->
-                SearchPage(page.rows.distinctBy { it.identityKey() }, page.continuation)
+        if (filter == SearchFilter.LYRICS) {
+            searchLyricsPage(query)
+        } else {
+            call("search:${filter.name}") {
+                InnertubeParser.parseSearchPage(
+                    Innertube.search(query, filter.params),
+                    includeVideos = filter == SearchFilter.VIDEOS,
+                ).let { page ->
+                    SearchPage(page.rows.distinctBy { it.identityKey() }, page.continuation)
+                }
             }
         }
+
+    private suspend fun searchLyricsPage(query: String): Result<SearchPage> = call("search:lyrics") {
+        coroutineScope {
+            val ytDeferred = async {
+                runCatching {
+                    InnertubeParser.parseSearchPage(
+                        Innertube.search("$query lyrics", SearchFilter.SONGS.params),
+                        includeVideos = false,
+                    )
+                }.getOrNull()
+            }
+            val lrcDeferred = async {
+                runCatching {
+                    com.music.raaga.data.lyrics.LrcLib.searchByLyrics(query)
+                }.getOrDefault(emptyList())
+            }
+
+            val ytPage = ytDeferred.await()
+            val lrcHits = lrcDeferred.await()
+
+            fun clean(s: String) = s.lowercase(Locale.ROOT)
+                .replace(Regex("""\(.*?\)"""), "")
+                .replace(Regex("""\[.*?\]"""), "")
+                .replace(Regex("""[^a-z0-9\s]"""), " ")
+                .trim()
+
+            val seenKeys = mutableSetOf<String>()
+            val resultRows = mutableListOf<SearchResult>()
+
+            val topLrcHits = lrcHits.take(3)
+            val lrcSupplementalRows = if (topLrcHits.isNotEmpty()) {
+                val existingTitles = ytPage?.rows?.mapNotNull {
+                    when (it) {
+                        is SearchResult.Track -> clean(it.song.title)
+                        is SearchResult.TopTrack -> clean(it.song.title)
+                        else -> null
+                    }
+                }?.toSet() ?: emptySet()
+
+                topLrcHits.filter { hit ->
+                    val cleanHitTitle = clean(hit.trackName)
+                    cleanHitTitle.isNotBlank() && existingTitles.none { it.contains(cleanHitTitle) || cleanHitTitle.contains(it) }
+                }.take(2).mapNotNull { hit ->
+                    runCatching {
+                        val searchRes = InnertubeParser.parseSearchPage(
+                            Innertube.search("${hit.trackName} ${hit.artistName}", SearchFilter.SONGS.params),
+                            includeVideos = false,
+                        )
+                        val match = searchRes.rows.firstOrNull { it is SearchResult.Track || it is SearchResult.TopTrack }
+                        when (match) {
+                            is SearchResult.Track -> match.copy(song = match.song.copy(lyricsSnippet = hit.snippet))
+                            is SearchResult.TopTrack -> match.copy(song = match.song.copy(lyricsSnippet = hit.snippet))
+                            else -> null
+                        }
+                    }.getOrNull()
+                }
+            } else emptyList()
+
+            lrcSupplementalRows.forEach { row ->
+                val key = row.identityKey()
+                if (seenKeys.add(key)) {
+                    resultRows.add(row)
+                }
+            }
+
+            ytPage?.rows?.forEach { row ->
+                val enrichedRow = when (row) {
+                    is SearchResult.Track -> {
+                        val cleanTitle = clean(row.song.title)
+                        val matchingHit = lrcHits.firstOrNull { hit ->
+                            val lrcTitle = clean(hit.trackName)
+                            lrcTitle.isNotEmpty() && (cleanTitle.contains(lrcTitle) || lrcTitle.contains(cleanTitle))
+                        }
+                        val snippet = matchingHit?.snippet ?: row.song.lyricsSnippet ?: "...${query.trim()}..."
+                        row.copy(song = row.song.copy(lyricsSnippet = snippet))
+                    }
+                    is SearchResult.TopTrack -> {
+                        val cleanTitle = clean(row.song.title)
+                        val matchingHit = lrcHits.firstOrNull { hit ->
+                            val lrcTitle = clean(hit.trackName)
+                            lrcTitle.isNotEmpty() && (cleanTitle.contains(lrcTitle) || lrcTitle.contains(cleanTitle))
+                        }
+                        val snippet = matchingHit?.snippet ?: row.song.lyricsSnippet ?: "...${query.trim()}..."
+                        row.copy(song = row.song.copy(lyricsSnippet = snippet))
+                    }
+                    else -> row
+                }
+                val key = enrichedRow.identityKey()
+                if (seenKeys.add(key)) {
+                    resultRows.add(enrichedRow)
+                }
+            }
+
+            SearchPage(resultRows, ytPage?.continuation)
+        }
+    }
 
     /** Fetches the next page of a search only when the result list needs it. */
     suspend fun searchContinuation(token: String, filter: SearchFilter): Result<SearchPage> = call("search:continuation") {
@@ -331,6 +431,11 @@ object YtMusicRepository {
      * field's typeahead. Unfiltered on purpose: a suggestion is a query, and
      * which tab it is then run against is the user's to pick afterwards.
      */
+    suspend fun searchSuggestionsPayload(input: String): Result<InnertubeParser.SearchSuggestionsPayload> =
+        call("suggest:payload") {
+            InnertubeParser.parseSearchSuggestionsPayload(Innertube.searchSuggestions(input))
+        }
+
     suspend fun searchSuggestions(input: String): Result<List<String>> =
         call("suggest") {
             InnertubeParser.parseSearchSuggestions(Innertube.searchSuggestions(input))
