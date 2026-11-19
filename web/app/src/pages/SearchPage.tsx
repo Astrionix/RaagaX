@@ -34,6 +34,7 @@ const FILTERS: { id: SearchFilterType; label: string }[] = [
   { id: 'album', label: 'Albums' },
   { id: 'artist', label: 'Artists' },
   { id: 'video', label: 'Videos' },
+  { id: 'lyrics', label: 'Lyrics' },
 ];
 
 /** Apple's result shelves, in its order, from results grouped by kind. */
@@ -183,6 +184,21 @@ function Results({ query, filter }: { query: string; filter: SearchFilterType })
         </ul>
       </div>
     );
+  }
+
+  if (filter === 'lyrics') {
+    const lyricSongs = results.songs.length ? results.songs : results.top;
+    if (!lyricSongs.length) {
+      return <EmptyState title="No Songs Found For These Lyrics" detail={`Try searching with different lyrics or words from the song.`} />;
+    }
+    const shelf: Shelf = {
+      title: 'Songs Matching Lyrics',
+      strapline: null,
+      layout: 'tracks',
+      items: lyricSongs,
+      seeAll: null,
+    };
+    return <Shelves shelves={[shelf]} />;
   }
 
   if (filter === 'song') {
