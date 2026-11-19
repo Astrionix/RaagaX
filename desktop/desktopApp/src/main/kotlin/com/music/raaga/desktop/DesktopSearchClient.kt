@@ -126,6 +126,9 @@ object DesktopSearchClient {
 
     suspend fun searchSuggestions(input: String): Result<List<String>> = YtMusicRepository.searchSuggestions(input)
 
+    suspend fun searchSuggestionsPayload(input: String): Result<com.music.raaga.data.innertube.InnertubeParser.SearchSuggestionsPayload> =
+        YtMusicRepository.searchSuggestionsPayload(input)
+
     suspend fun accountMenu(): Result<JsonObject> = runCatching { Innertube.accountMenu() }
 
     suspend fun accountsList(): Result<JsonObject> = runCatching { Innertube.accountsList() }
