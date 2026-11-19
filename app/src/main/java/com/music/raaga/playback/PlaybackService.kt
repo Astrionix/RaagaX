@@ -79,7 +79,6 @@ import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.guava.future
 import com.music.raaga.playback.audio.DspChain
 import com.music.raaga.playback.audio.PrecisionAudioSink
-import com.music.raaga.playback.haptics.MusicHapticsEngine
 import com.music.raaga.playback.audio.bitperfect.BitPerfectAudioSink
 import com.music.raaga.playback.audio.bitperfect.BitPerfectOutput
 import com.music.raaga.playback.audio.bitperfect.BitPerfectRoutingSink
@@ -824,7 +823,6 @@ class PlaybackService : MediaLibraryService() {
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             LockScreenArt.onPlaying(this@PlaybackService, isPlaying)
-            MusicHapticsEngine.setPlaying(isPlaying)
             // The player this fired on, which is by definition the one the
             // session is currently pointed at.
             val exoPlayer = player ?: return
@@ -1266,21 +1264,6 @@ class PlaybackService : MediaLibraryService() {
                 .build()
                 .apply { setSmallIcon(R.drawable.ic_notification_logo) },
         )
-
-        // Initialize audio-reactive music haptics engine (Apple Music parity)
-        MusicHapticsEngine.init(this)
-        scope.launch {
-            AppSettings.musicHapticsEnabled.collectLatest { enabled ->
-                if (enabled) {
-                    val activePlayer = player
-                    val sessionId = activePlayer?.audioSessionId ?: C.AUDIO_SESSION_ID_UNSET
-                    MusicHapticsEngine.attachAudioSession(sessionId)
-                } else {
-                    MusicHapticsEngine.detachAudioSession()
-                    MusicHapticsEngine.cancel()
-                }
-            }
-        }
 
         // Both the player screen and notification route their Shuffle command
         // here. Observe its state so either surface's icon follows the queue
@@ -2814,7 +2797,6 @@ class PlaybackService : MediaLibraryService() {
 
         closeAudioEffectSession()
         advertisedAudioEffectSessionId = sessionId
-        MusicHapticsEngine.attachAudioSession(sessionId)
         sendBroadcast(
             Intent(AudioEffect.ACTION_OPEN_AUDIO_EFFECT_CONTROL_SESSION).apply {
                 putExtra(AudioEffect.EXTRA_AUDIO_SESSION, sessionId)
@@ -2826,7 +2808,6 @@ class PlaybackService : MediaLibraryService() {
 
     private fun closeAudioEffectSession() {
         val sessionId = advertisedAudioEffectSessionId
-        MusicHapticsEngine.detachAudioSession()
         if (sessionId == C.AUDIO_SESSION_ID_UNSET) return
 
         advertisedAudioEffectSessionId = C.AUDIO_SESSION_ID_UNSET
@@ -6577,7 +6558,6 @@ class PlaybackService : MediaLibraryService() {
         loudnessRetryJob?.cancel()
         loudnessEnhancer?.release()
         loudnessEnhancer = null
-        MusicHapticsEngine.release()
         // The YouTube Music history entry for whatever was playing, closed out
         // on the same terms as the ListenBrainz submit below: a swipe-away never
         // fires STATE_ENDED, and the tracker's own scope outlives this service,
