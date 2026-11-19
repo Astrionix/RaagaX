@@ -714,6 +714,17 @@ private fun SongRowContent(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+            if (!song.lyricsSnippet.isNullOrBlank()) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = "♫ \"${song.lyricsSnippet}\"",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
         if (downloadedTint != null) {
             DownloadedBadge(song.videoId, downloadedTint)
