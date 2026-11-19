@@ -42,6 +42,48 @@ object LrcLib {
             synced?.let(::parseLrc)?.takeIf { it.isNotEmpty() }
         }
 
+    /**
+     * Searches LRCLIB for songs matching a lyric phrase. Returns track metadata and
+     * the matching snippet line.
+     */
+    suspend fun searchByLyrics(query: String): List<LyricSearchResult> =
+        withContext(Dispatchers.IO) {
+            val q = query.trim()
+            if (q.isBlank()) return@withContext emptyList()
+            val url = "$BASE/search".toHttpUrl().newBuilder()
+                .addQueryParameter("q", q)
+                .build()
+            val body = get(url.toString()) ?: return@withContext emptyList()
+            val hits = (json.parseToJsonElement(body) as? JsonArray) ?: return@withContext emptyList()
+            val queryWords = q.lowercase().split(Regex("""\s+""")).filter { it.length >= 3 }
+
+            hits.mapNotNull { it as? JsonObject }
+                .mapNotNull { hit ->
+                    val trackName = hit["trackName"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+                    val artistName = hit["artistName"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+                    val albumName = hit["albumName"]?.jsonPrimitive?.contentOrNull
+                    val plain = hit["plainLyrics"]?.jsonPrimitive?.contentOrNull
+                    val synced = hit["syncedLyrics"]?.jsonPrimitive?.contentOrNull
+                    val text = plain ?: synced?.replace(Regex("""\[\d+:\d+\.\d+]"""), "")
+
+                    val matchingLine = text?.lineSequence()
+                        ?.map { it.trim() }
+                        ?.firstOrNull { line ->
+                            line.isNotBlank() && (queryWords.isEmpty() || queryWords.any { w -> line.contains(w, ignoreCase = true) })
+                        }
+                        ?.take(120)
+
+                    LyricSearchResult(
+                        trackName = trackName,
+                        artistName = artistName,
+                        albumName = albumName,
+                        snippet = matchingLine ?: q,
+                    )
+                }
+                .distinctBy { "${it.trackName.lowercase()}:${it.artistName.lowercase()}" }
+                .take(10)
+        }
+
     private fun exactMatch(title: String, artist: String, seconds: Int): String? {
         val url = "$BASE/get".toHttpUrl().newBuilder()
             .addQueryParameter("track_name", title)
@@ -207,3 +249,10 @@ object LrcLib {
         RegexOption.IGNORE_CASE,
     )
 }
+
+data class LyricSearchResult(
+    val trackName: String,
+    val artistName: String,
+    val albumName: String? = null,
+    val snippet: String? = null,
+)
