@@ -126,14 +126,48 @@ object InnertubeParser {
      * display text arrives split into runs purely so the typed prefix can be
      * bold-faced, with no separator of its own to rejoin on.
      */
-    fun parseSearchSuggestions(response: JsonObject): List<String> =
-        collectRenderers(response, "searchSuggestionRenderer")
+    data class SearchSuggestionsPayload(
+        val queries: List<String>,
+        val entities: List<SearchResult>,
+    )
+
+    /**
+     * Parses the full search suggestions payload from `music/get_search_suggestions`.
+     * Extracts both query string suggestions and direct entity matches (artists, songs, albums).
+     */
+    fun parseSearchSuggestionsPayload(response: JsonObject): SearchSuggestionsPayload {
+        val queries = collectRenderers(response, "searchSuggestionRenderer")
             .mapNotNull { renderer ->
                 val query = renderer.o("navigationEndpoint").o("searchEndpoint").s("query")
                     ?: renderer.o("suggestion").runs()
                 query.takeIf { it.isNotBlank() }
             }
             .distinct()
+
+        val entities = collectRenderers(response, "musicResponsiveListItemRenderer")
+            .mapNotNull { renderer ->
+                val browse = parseBrowseItem(renderer)
+                if (browse != null) {
+                    SearchResult.Browse(browse)
+                } else {
+                    parseResponsiveListItem(renderer)?.let { song ->
+                        SearchResult.Track(song)
+                    }
+                }
+            }
+            .distinctBy {
+                when (it) {
+                    is SearchResult.TopTrack -> "v:${it.song.videoId}"
+                    is SearchResult.Track -> "v:${it.song.videoId}"
+                    is SearchResult.Browse -> "b:${it.item.browseId}"
+                }
+            }
+
+        return SearchSuggestionsPayload(queries, entities)
+    }
+
+    fun parseSearchSuggestions(response: JsonObject): List<String> =
+        parseSearchSuggestionsPayload(response).queries
 
     /** Depth-first collection of a named renderer, preserving document order. */
     private fun collectRenderers(root: JsonElement, name: String): List<JsonObject> {
