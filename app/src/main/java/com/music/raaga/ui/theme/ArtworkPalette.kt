@@ -344,63 +344,56 @@ private const val PLAYER_STATUS_SCRIM_MAX_ALPHA = 0.65f
 
 private fun Seed.toPalette(dark: Boolean): ArtworkPalette = if (dark) {
     ArtworkPalette(
-        // Deep enough that white body text clears contrast on any sleeve, but
-        // not so deep the hue is gone — the whole point is that the page is
-        // recognisably *this* record's colour.
+        // Rich, vibrant artwork wash matching Apple Music's release page tinting.
+        // Atmospheric and saturated without crushing to black or losing the record's identity.
         background = dominant.withHsl(
-            saturation = { adaptedArtworkSaturation(it, minimum = 0.20f, maximum = 0.62f) },
-            lightness = { 0.13f },
+            saturation = { adaptedArtworkSaturation(it, minimum = 0.32f, maximum = 0.68f) },
+            lightness = { it.coerceIn(0.24f, 0.40f) },
         ),
-        // Follows the edge's own brightness within a band that stays clear of
-        // white body text at the top and of [background] at the bottom: a
-        // sleeve that ends dark hands over almost invisibly, one that ends
-        // bright leaves a page that is visibly lit from under the artwork.
+        // Follows the bottom edge of the sleeve into the page wash.
         wash = edge.withHsl(
-            saturation = { adaptedArtworkSaturation(it, minimum = 0.18f, maximum = 0.58f) },
-            lightness = { it.coerceIn(0.14f, 0.24f) },
+            saturation = { adaptedArtworkSaturation(it, minimum = 0.28f, maximum = 0.62f) },
+            lightness = { it.coerceIn(0.26f, 0.45f) },
         ),
         elevated = dominant.withHsl(
-            saturation = { adaptedArtworkSaturation(it, minimum = 0.20f, maximum = 0.62f) },
-            lightness = { 0.22f },
+            saturation = { adaptedArtworkSaturation(it, minimum = 0.25f, maximum = 0.60f) },
+            lightness = { (it + 0.08f).coerceIn(0.30f, 0.48f) },
         ),
         accent = vibrant.withHsl(
-            saturation = { adaptedArtworkSaturation(it, minimum = 0.55f, maximum = 1f) },
-            lightness = { it.coerceIn(0.62f, 0.78f) },
+            saturation = { adaptedArtworkSaturation(it, minimum = 0.60f, maximum = 1f) },
+            lightness = { it.coerceIn(0.68f, 0.88f) },
         ),
         onBackground = Color.White,
-        // A pale tint of the page's own hue rather than a translucent white —
-        // Apple Music's secondary lines are the sleeve's colour, lifted, so a
-        // blue record's credits read light blue on its blue page. Bright
-        // enough that it still clears contrast on [background].
+        // Pale tint of the page's own hue for secondary metadata and credits,
+        // mirroring Apple Music's tinted artist subtitles.
         onBackgroundVariant = dominant.withHsl(
-            saturation = { adaptedArtworkSaturation(it, minimum = 0.22f, maximum = 0.50f) },
-            lightness = { 0.80f },
+            saturation = { adaptedArtworkSaturation(it, minimum = 0.16f, maximum = 0.38f) },
+            lightness = { 0.85f },
         ),
         divider = Color.White.copy(alpha = 0.12f),
     )
 } else {
     ArtworkPalette(
         background = dominant.withHsl(
-            saturation = { adaptedArtworkSaturation(it, minimum = 0.14f, maximum = 0.50f) },
-            lightness = { 0.91f },
+            saturation = { adaptedArtworkSaturation(it, minimum = 0.24f, maximum = 0.58f) },
+            lightness = { it.coerceIn(0.78f, 0.88f) },
         ),
         wash = edge.withHsl(
-            saturation = { adaptedArtworkSaturation(it, minimum = 0.12f, maximum = 0.46f) },
-            lightness = { it.coerceIn(0.78f, 0.90f) },
+            saturation = { adaptedArtworkSaturation(it, minimum = 0.22f, maximum = 0.54f) },
+            lightness = { it.coerceIn(0.74f, 0.86f) },
         ),
         elevated = dominant.withHsl(
-            saturation = { adaptedArtworkSaturation(it, minimum = 0.14f, maximum = 0.50f) },
-            lightness = { 0.83f },
+            saturation = { adaptedArtworkSaturation(it, minimum = 0.20f, maximum = 0.50f) },
+            lightness = { 0.80f },
         ),
         accent = vibrant.withHsl(
-            saturation = { adaptedArtworkSaturation(it, minimum = 0.55f, maximum = 1f) },
+            saturation = { adaptedArtworkSaturation(it, minimum = 0.60f, maximum = 1f) },
             lightness = { it.coerceIn(0.30f, 0.44f) },
         ),
         onBackground = Color.Black,
-        // The same hue taken down rather than up, for the pale page.
         onBackgroundVariant = dominant.withHsl(
-            saturation = { adaptedArtworkSaturation(it, minimum = 0.22f, maximum = 0.55f) },
-            lightness = { 0.34f },
+            saturation = { adaptedArtworkSaturation(it, minimum = 0.24f, maximum = 0.55f) },
+            lightness = { 0.32f },
         ),
         divider = Color.Black.copy(alpha = 0.10f),
     )

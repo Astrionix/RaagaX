@@ -347,6 +347,8 @@ fun SongRow(
     onSwipeDelete: (() -> Unit)? = null,
     /** Label to show on Left-to-Right swipe (defaults to Delete). */
     swipeDeleteLabel: String? = null,
+    /** Whether to render track duration beside the actions button. */
+    showDuration: Boolean = true,
 ) {
     val haptics = rememberHaptics()
     val swipeStateHolder = remember { mutableStateOf<SwipeToDismissBoxState?>(null) }
@@ -388,6 +390,7 @@ fun SongRow(
             isPlaying = isPlaying,
             activeTint = activeTint,
             selected = selected,
+            showDuration = showDuration,
         )
         return
     }
@@ -444,6 +447,7 @@ fun SongRow(
             isPlaying = isPlaying,
             activeTint = activeTint,
             selected = selected,
+            showDuration = showDuration,
         )
     }
 }
@@ -649,6 +653,7 @@ private fun SongRowContent(
     isPlaying: Boolean = false,
     activeTint: Color = MaterialTheme.colorScheme.primary,
     selected: Boolean = false,
+    showDuration: Boolean = true,
 ) {
     val titleColor by animateColorAsState(
         targetValue = if (isCurrent) activeTint else MaterialTheme.colorScheme.onBackground,
@@ -769,13 +774,15 @@ private fun SongRowContent(
                 )
             }
         }
-        song.durationText?.let {
-            Spacer(Modifier.width(8.dp))
-            Text(
-                text = it,
-                style = MaterialTheme.typography.labelMedium,
-                color = subtitleColor,
-            )
+        if (showDuration) {
+            song.durationText?.let {
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = subtitleColor,
+                )
+            }
         }
         // Same sheet the long-press opens, for anyone who doesn't think to hold.
         if (onMore != null) {

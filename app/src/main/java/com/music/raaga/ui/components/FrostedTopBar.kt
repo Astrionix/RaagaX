@@ -421,7 +421,7 @@ private fun ArtworkPageBackButton(
     val contentColor = if (useLiquidGlass && !reduceDynamicBlur) {
         glassContentColor()
     } else {
-        MaterialTheme.colorScheme.onSurface
+        Color.White
     }
 
     IconButton(
@@ -478,7 +478,7 @@ private fun ArtworkPageActions(
  */
 private fun Modifier.artworkActionEdgePadding(): Modifier = layout { measurable, constraints ->
     val placeable = measurable.measure(constraints.copy(minWidth = 0))
-    val oneActionWidth = 48.dp.roundToPx()
+    val oneActionWidth = 36.dp.roundToPx()
     val extraActionFraction = ((placeable.width - oneActionWidth).toFloat() / oneActionWidth)
         .coerceIn(0f, 1f)
     val edgePadding = (PILL_INSET.roundToPx() * extraActionFraction).roundToInt()

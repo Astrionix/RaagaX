@@ -2187,7 +2187,7 @@ private fun RaagaApp(
     // handing them the theme's background puts a black band on a page that is
     // washed in an artwork's colour instead. Off a detail page this resolves
     // to the theme's background anyway, which is exactly right there.
-    val detailPalette = rememberArtworkPalette(detail?.thumbnailUrl)
+    val detailPalette = rememberArtworkPalette(detail?.thumbnailUrl, dark = true)
 
     // One set of numbers for the cards, the page, the stories and the shared
     // picture, so they cannot disagree. Read while any of them is on screen —
@@ -3048,6 +3048,7 @@ private fun RaagaApp(
                                     QueueSource(page.title, PlaybackSourceType.BROWSE, page.browseId),
                                 )
                             },
+                            onPlayPause = { togglePlayPause() },
                             onSongLongPress = { openSongMenu(withAlbum(it)) },
                             onSongSwipe = onSongSwipe,
                             onRemoveSongFromPlaylist = if (isEditablePlaylist) {
@@ -3621,14 +3622,19 @@ private fun RaagaApp(
                             // `LocalSearchField`).
                             if (isReleaseDetail && detail != null) {
                                 val releaseSongs = (detail.songs as? UiState.Success)?.data.orEmpty()
+                                val topBarIconTint = Color.White.copy(alpha = 0.92f)
                                 if (releaseSongs.isNotEmpty()) {
-                                    IconButton(onClick = { detailSearching = !detailSearching }) {
+                                    IconButton(
+                                        onClick = { detailSearching = !detailSearching },
+                                        modifier = Modifier.size(36.dp),
+                                    ) {
                                         Icon(
                                             if (detailSearching) Icons.Rounded.Close else RaagaIcons.Search,
                                             contentDescription = stringResource(
                                                 if (detailSearching) R.string.close_search else R.string.search_this_list,
                                             ),
-                                            tint = MaterialTheme.colorScheme.onSurface,
+                                            tint = topBarIconTint,
+                                            modifier = Modifier.size(19.dp),
                                         )
                                     }
                                 }
@@ -3650,19 +3656,25 @@ private fun RaagaApp(
                                                 },
                                             )
                                         },
+                                        modifier = Modifier.size(36.dp),
                                     ) {
                                         Icon(
                                             Icons.Rounded.Edit,
                                             contentDescription = stringResource(R.string.edit_playlist),
-                                            tint = MaterialTheme.colorScheme.onSurface,
+                                            tint = topBarIconTint,
+                                            modifier = Modifier.size(19.dp),
                                         )
                                     }
                                 }
-                                IconButton(onClick = { songSortMenuOpen = true }) {
+                                IconButton(
+                                    onClick = { songSortMenuOpen = true },
+                                    modifier = Modifier.size(36.dp),
+                                ) {
                                     Icon(
                                         Icons.Rounded.Sort,
                                         contentDescription = stringResource(R.string.sort_songs),
-                                        tint = MaterialTheme.colorScheme.onSurface,
+                                        tint = topBarIconTint,
+                                        modifier = Modifier.size(19.dp),
                                     )
                                 }
                                 IconButton(
@@ -3684,15 +3696,20 @@ private fun RaagaApp(
                                             downloadId = downloadIdFor(detail.browseId),
                                         )
                                     },
+                                    modifier = Modifier.size(36.dp),
                                 ) {
                                     Icon(
                                         Icons.Rounded.MoreHoriz,
                                         contentDescription = stringResource(R.string.more),
-                                        tint = MaterialTheme.colorScheme.onSurface,
+                                        tint = topBarIconTint,
+                                        modifier = Modifier.size(19.dp),
                                     )
                                 }
                             }
-                            TopBarDownloadButton(onClick = { showDownloadManager = true })
+                            TopBarDownloadButton(
+                                onClick = { showDownloadManager = true },
+                                modifier = if (isReleaseDetail) Modifier.size(36.dp) else Modifier,
+                            )
                             if (!isReleaseDetail) {
                                 TopBarAccountButton(
                                     account = account,

@@ -62,6 +62,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Pause
 import com.music.raaga.data.settings.PlaylistCustomOrderStore
 import androidx.compose.material.icons.rounded.Star
 import com.music.raaga.data.YtMusicRepository
@@ -185,6 +186,9 @@ private const val ARTIST_ROW_MAX_ITEMS = 5
 /** The artist photo, very slightly taller than it is wide. */
 private const val ARTIST_PHOTO_RATIO = 0.95f
 
+/** 3:4 portrait ratio for Apple Music cover presentation. */
+private const val RELEASE_PHOTO_RATIO = 0.75f
+
 /** The framed sleeve on a release page, as a fraction of the page width. */
 private const val SLEEVE_FRACTION = 0.76f
 
@@ -194,16 +198,16 @@ private const val SLEEVE_MAX_HEIGHT = 0.5f
 private val SLEEVE_SHAPE = RoundedCornerShape(12.dp)
 private val SLEEVE_SHADOW = 18.dp
 
-/** Shuffle and Add to Library either side of the release page's Play pill. */
-private val RELEASE_SIDE_BUTTON = 50.dp
-private val RELEASE_ACTION_GAP = 14.dp
+/** Shuffle and Add to Library either side of the release page's Play pill (Apple Music scale). */
+private val RELEASE_SIDE_BUTTON = 44.dp
+private val RELEASE_ACTION_GAP = 12.dp
 
 /** Past this the Play pill stops growing, so a tablet doesn't get a bar. */
 private val RELEASE_ACTIONS_MAX_WIDTH = 420.dp
-private val PILL_SHAPE = RoundedCornerShape(12.dp)
+private val PILL_SHAPE = CircleShape
 
-private const val LIGHT_FILL_ALPHA = 0.07f
-private const val TOP_RELEASE_EDGE_ALPHA = 0.10f
+private const val LIGHT_FILL_ALPHA = 0.16f
+private const val TOP_RELEASE_EDGE_ALPHA = 0.20f
 
 /** The artist action row: a large Play flanked by two smaller glass circles. */
 private val ARTIST_PLAY_BUTTON = 70.dp
@@ -276,6 +280,7 @@ fun DetailScreen(
     onSongLongPress: (Song) -> Unit,
     onSongSwipe: (Song) -> Unit,
     onShuffle: (List<Song>) -> Unit,
+    onPlayPause: (() -> Unit)? = null,
     onSectionItemClick: (ShelfItem) -> Unit,
     onArtistClick: (String, String) -> Unit,
     onAddSuggested: (Song) -> Unit,
@@ -368,7 +373,7 @@ fun DetailScreen(
     val localCoverUri = if (isPlaylist) localCovers[page.browseId] else null
     val effectiveThumbnailUrl = localCoverUri ?: page.thumbnailUrl
 
-    val palette = rememberArtworkPalette(effectiveThumbnailUrl)
+    val palette = rememberArtworkPalette(effectiveThumbnailUrl, dark = true)
 
     // Narrowing the running order in place — the release equivalent of the
     // filter box on the Local Music tab, and the one thing a long track list
@@ -468,7 +473,7 @@ fun DetailScreen(
                 val sleeveSize = (maxWidth * SLEEVE_FRACTION).coerceAtMost(maxHeight * SLEEVE_MAX_HEIGHT)
 
                 val fullBleedArt by AppSettings.fullBleedArtwork.collectAsStateWithLifecycle()
-                val releaseArtHeight = (maxWidth / ARTIST_PHOTO_RATIO).coerceAtMost(maxHeight * 0.55f)
+                val releaseArtHeight = (maxWidth / RELEASE_PHOTO_RATIO).coerceAtMost(maxHeight * 0.60f)
                 val effectiveArtHeight = if (isArtist) artHeight else releaseArtHeight
                 val hasFullBleed = isArtist || fullBleedArt
 
@@ -512,7 +517,10 @@ fun DetailScreen(
                         sleeveSize = sleeveSize,
                         canvas = canvas,
                         songs = songs,
+                        currentSong = currentSong,
+                        isPlaying = isPlaying,
                         onPlay = { onSongClick(songs, 0) },
+                        onPlayPause = onPlayPause,
                         onShuffle = { onShuffle(songs) },
                         onArtistClick = onArtistClick,
                         onToggleLibrary = onToggleLibrary,
@@ -656,6 +664,7 @@ fun DetailScreen(
                             isCurrent = isCurrent,
                             isPlaying = isCurrent && isPlaying,
                             activeTint = palette.accent,
+                            showDuration = false,
                         )
                         if (position < matches.lastIndex) {
                             HorizontalDivider(
@@ -763,7 +772,10 @@ private fun ReleaseHeader(
     sleeveSize: Dp,
     canvas: CanvasArtwork?,
     songs: List<Song>,
+    currentSong: Song? = null,
+    isPlaying: Boolean = false,
     onPlay: () -> Unit,
+    onPlayPause: (() -> Unit)? = null,
     onShuffle: () -> Unit,
     onArtistClick: (String, String) -> Unit,
     onToggleLibrary: (() -> Unit)?,
@@ -788,7 +800,7 @@ private fun ReleaseHeader(
             page.title.equals("Favorite Songs", ignoreCase = true)
 
         if (fullBleed) {
-            Spacer(Modifier.fillMaxWidth().height(artHeight * 0.70f))
+            Spacer(Modifier.fillMaxWidth().height(artHeight * 0.72f))
         } else {
             Box(
                 Modifier
@@ -879,6 +891,8 @@ private fun ReleaseHeader(
 
         if (songs.isNotEmpty()) {
             val library = page.library?.takeIf { onToggleLibrary != null }
+            val isCurrentSongInRelease = currentSong != null && songs.any { it.videoId == currentSong.videoId }
+            val isReleasePlaying = isCurrentSongInRelease && isPlaying
             Spacer(Modifier.height(18.dp))
             Row(
                 modifier = Modifier
@@ -896,7 +910,14 @@ private fun ReleaseHeader(
                     size = RELEASE_SIDE_BUTTON,
                 )
                 PlayPill(
-                    onClick = onPlay,
+                    isPlaying = isReleasePlaying,
+                    onClick = {
+                        if (isReleasePlaying || isCurrentSongInRelease) {
+                            onPlayPause?.invoke() ?: onPlay()
+                        } else {
+                            onPlay()
+                        }
+                    },
                     size = RELEASE_SIDE_BUTTON,
                     modifier = Modifier.weight(1f),
                 )
@@ -1556,8 +1577,9 @@ private fun ActionRow(
  */
 @Composable
 private fun PlayPill(
+    isPlaying: Boolean,
     onClick: () -> Unit,
-    size: Dp,
+    size: Dp = RELEASE_SIDE_BUTTON,
     modifier: Modifier = Modifier,
 ) {
     val haptics = rememberHaptics()
@@ -1567,22 +1589,25 @@ private fun PlayPill(
             .clip(PILL_SHAPE)
             .background(Color.White, PILL_SHAPE)
             .clickable {
-                haptics.play(Haptic.Resume)
+                haptics.play(if (isPlaying) Haptic.Pause else Haptic.Resume)
                 onClick()
             },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
     ) {
         Icon(
-            imageVector = RaagaIcons.Play,
+            imageVector = if (isPlaying) Icons.Rounded.Pause else RaagaIcons.Play,
             contentDescription = null,
             tint = Color.Black,
-            modifier = Modifier.size(18.dp),
+            modifier = Modifier.size(17.dp),
         )
         Spacer(Modifier.width(8.dp))
         Text(
-            text = stringResource(R.string.play),
-            style = MaterialTheme.typography.titleMedium,
+            text = stringResource(if (isPlaying) R.string.pause else R.string.play),
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+            ),
             color = Color.Black,
             maxLines = 1,
         )
@@ -1649,7 +1674,7 @@ private fun CircleIconButton(
     contentDescription: String,
     onClick: () -> Unit,
     haptic: Haptic = Haptic.Tap,
-    size: Dp = 50.dp,
+    size: Dp = RELEASE_SIDE_BUTTON,
     tint: Color = Color.White,
 ) {
     val haptics = rememberHaptics()
@@ -1669,7 +1694,7 @@ private fun CircleIconButton(
             imageVector = icon,
             contentDescription = contentDescription,
             tint = tint,
-            modifier = Modifier.size(size * 0.44f),
+            modifier = Modifier.size(if (size <= RELEASE_SIDE_BUTTON) 18.dp else size * 0.44f),
         )
     }
 }
