@@ -240,13 +240,12 @@ fun LiveAudioPipelineSheet(
                         "Automix / Crossfade: 0s Gapless"
                     }
 
-                    val hapticsChip = if (AppSettings.musicHapticsEnabled.value) "Haptics: Active" else "Haptics: Standby"
                     PipelineNodeCard(
                         stepNumber = 2,
                         title = "DSP & DYNAMICS ENGINE",
                         icon = Icons.Rounded.Tune,
                         accentColor = Color(0xFF64B5F6),
-                        chips = listOf("10-Band EQ", "Peak Limiter", "Automix Engine", hapticsChip),
+                        chips = listOf("10-Band EQ", "Peak Limiter", "Automix Engine"),
                         detail = "$peakLimiterText\n$automixText",
                         status = "PROCESSING",
                     )
