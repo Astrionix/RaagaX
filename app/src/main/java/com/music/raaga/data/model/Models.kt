@@ -135,6 +135,8 @@ data class Song(
     val playbackSourceType: PlaybackSourceType? = null,
     /** Browse id for an album, playlist, or other source page. */
     val playbackSourceId: String? = null,
+    /** Matched lyrics snippet when discovered via lyrics search. */
+    val lyricsSnippet: String? = null,
 ) {
     /** Legacy derived property: true if and only if [queueTier] is [QueueTier.AUTOPLAY]. */
     val fromAutoplay: Boolean get() = queueTier == QueueTier.AUTOPLAY
@@ -386,6 +388,7 @@ enum class SearchFilter(val label: String, val params: String?) {
     /** YouTube Music's mixed search page: songs, artists, albums and playlists. */
     ALL("All", null),
     SONGS("Songs", "EgWKAQIIAWoKEAkQChAFEAMQBA=="),
+    LYRICS("Lyrics", null),
     VIDEOS("Videos", "EgWKAQIQAWoKEAkQChAFEAMQBA=="),
     ALBUMS("Albums", "EgWKAQIYAWoKEAkQChAFEAMQBA=="),
     ARTISTS("Artists", "EgWKAQIgAWoKEAkQChAFEAMQBA=="),
