@@ -57,7 +57,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
@@ -252,6 +257,8 @@ fun SearchScreen(
                 suggesting -> {
                     searchSuggestions(
                         suggestions = suggestions,
+                        typedQuery = query,
+                        showTypeahead = showTypeahead,
                         // Picking one is done typing, so the keyboard comes down
                         // with it and the results get the whole screen.
                         onClick = { term ->
@@ -274,7 +281,13 @@ fun SearchScreen(
                     }
                 }
                 results == null -> if (history.isEmpty()) {
-                    item { MessageState(stringResource(Res.string.search_empty)) }
+                    item {
+                        if (filter == SearchFilter.LYRICS) {
+                            MessageState("Search by song lyrics.\nType any phrase or line you remember.")
+                        } else {
+                            MessageState(stringResource(Res.string.search_empty))
+                        }
+                    }
                 } else {
                     recentSearches(
                         history = history,
@@ -288,6 +301,15 @@ fun SearchScreen(
                 results is UiState.Loading -> songListSkeleton(circular = filter == SearchFilter.ARTISTS)
                 results is UiState.Error -> item { MessageState(results.message) }
                 results is UiState.Success -> {
+                    if (results.data.isEmpty()) {
+                        item {
+                            if (filter == SearchFilter.LYRICS) {
+                                MessageState("No songs found matching these lyrics.\nTry searching with different words or a shorter line.")
+                            } else {
+                                MessageState("No results found.\nTry a different search term.")
+                            }
+                        }
+                    } else {
                     val tracks = results.data
                         .mapNotNull { row -> when (row) {
                             is SearchResult.TopTrack -> row.song
@@ -371,6 +393,7 @@ fun SearchScreen(
                             keyPrefix = "skeleton:search:more",
                             circular = filter == SearchFilter.ARTISTS,
                         )
+                    }
                     }
                 }
             }
@@ -527,6 +550,8 @@ private fun TopResultCard(
  */
 private fun LazyListScope.searchSuggestions(
     suggestions: List<String>,
+    typedQuery: String = "",
+    showTypeahead: Boolean = false,
     onClick: (String) -> Unit,
     onFill: (String) -> Unit,
 ) {
@@ -534,12 +559,12 @@ private fun LazyListScope.searchSuggestions(
     // row. It keeps the gap under the field stable even when that row changes
     // its text or icon treatment.
     item(key = "suggestions:top-inset") { Spacer(Modifier.height(8.dp)) }
-    // Skip the echo of the typed text (element 0) — it's already visible in
-    // the search field itself — and cap at N so the list stays compact above
-    // the playable-media cards.
-    itemsIndexed(suggestions.drop(1).take(3), key = { _, term -> "suggest:$term" }) { _, term ->
+    // YouTube Music shows 7-8 completions when space permits, or 4-5 when media typeahead cards sit below.
+    val maxSuggestions = if (showTypeahead) 5 else 8
+    itemsIndexed(suggestions.drop(1).take(maxSuggestions), key = { _, term -> "suggest:$term" }) { _, term ->
         SuggestionRow(
             term = term,
+            typedQuery = typedQuery,
             isQueryAction = false,
             onFill = { onFill(term) },
             onClick = { onClick(term) },
@@ -556,6 +581,7 @@ private fun LazyListScope.searchSuggestions(
 @Composable
 private fun SuggestionRow(
     term: String,
+    typedQuery: String = "",
     isQueryAction: Boolean,
     onFill: (() -> Unit)?,
     onClick: () -> Unit,
@@ -579,11 +605,25 @@ private fun SuggestionRow(
             modifier = Modifier.size(22.dp),
         )
         Spacer(Modifier.width(16.dp))
+        val cleanTyped = typedQuery.trim()
+        val displayText: AnnotatedString = if (isQueryAction) {
+            AnnotatedString("""${stringResource(Res.string.search)} "$term"""")
+        } else if (cleanTyped.isNotEmpty() && term.startsWith(cleanTyped, ignoreCase = true)) {
+            val prefixLen = cleanTyped.length.coerceAtMost(term.length)
+            buildAnnotatedString {
+                append(term.substring(0, prefixLen))
+                withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
+                    append(term.substring(prefixLen))
+                }
+            }
+        } else {
+            AnnotatedString(term)
+        }
         Text(
             // The first row is the deliberate action to search the exact text
             // in the field, not a server-provided completion. Naming it makes
             // the otherwise duplicated wording read as intentional.
-            text = if (isQueryAction) """${stringResource(Res.string.search)} "$term"""" else term,
+            text = displayText,
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onBackground,
             maxLines = 1,
