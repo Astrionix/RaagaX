@@ -66,6 +66,7 @@ private val SearchFilters = listOf(
     SearchFilter.ALBUMS,
     SearchFilter.ARTISTS,
     SearchFilter.PLAYLISTS,
+    SearchFilter.LYRICS,
 )
 
 @Composable
