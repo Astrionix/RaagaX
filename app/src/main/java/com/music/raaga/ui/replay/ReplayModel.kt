@@ -90,10 +90,18 @@ val ReplayPeriodSaver = Saver<ReplayPeriod, String>(
  *   costing a file merge on every cold start for a page most launches never
  *   open. It also means reopening Replay re-reads: whatever has been played
  *   since is on it.
+ * @param pageOpen whether the Replay page is open (on the stack, or showing
+ *   its stories or share sheet). Only there can a tab other than Lifetime be
+ *   picked: everywhere else, the Library cards above all, the period is
+ *   Lifetime, and the page opens on Lifetime again each time.
  */
 @Composable
-fun rememberReplayState(active: Boolean): Pair<ReplayState, (ReplayPeriod) -> Unit> {
-    var period by rememberSaveable(stateSaver = ReplayPeriodSaver) { mutableStateOf<ReplayPeriod>(ReplayPeriod.THIS_YEAR) }
+fun rememberReplayState(active: Boolean, pageOpen: Boolean = true): Pair<ReplayState, (ReplayPeriod) -> Unit> {
+    var picked by rememberSaveable(stateSaver = ReplayPeriodSaver) { mutableStateOf<ReplayPeriod>(ReplayPeriod.ALL_TIME) }
+    LaunchedEffect(pageOpen) { if (!pageOpen) picked = ReplayPeriod.ALL_TIME }
+    // Read straight off [pageOpen] rather than waiting for the reset above, so
+    // the frame the page closes on already asks for Lifetime.
+    val period = if (pageOpen) picked else ReplayPeriod.ALL_TIME
     var summary by remember { mutableStateOf<ReplaySummary?>(null) }
     var loading by remember { mutableStateOf(true) }
     var memberSince by remember { mutableStateOf<String?>(null) }
@@ -132,8 +140,9 @@ fun rememberReplayState(active: Boolean): Pair<ReplayState, (ReplayPeriod) -> Un
             summary = ListeningStats.summary(period)
         }
     }
-    return ReplayState(period, summary, loading, memberSince, availableMonths) to
-        { next: ReplayPeriod -> period = next }
+    val shown = summary?.takeIf { pageOpen || it.period == period }
+    return ReplayState(period, shown, loading || (summary != null && shown == null), memberSince, availableMonths) to
+        { next: ReplayPeriod -> picked = next }
 }
 
 /** How long a burst of artist lookups is allowed to settle before a rebuild. */
