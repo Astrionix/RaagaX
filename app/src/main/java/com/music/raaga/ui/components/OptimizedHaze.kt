@@ -1,11 +1,14 @@
 package com.music.raaga.ui.components
 
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.ExperimentalHazeApi
 import dev.chrisbanes.haze.HazeEffectScope
 import dev.chrisbanes.haze.HazeInputScale
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
+import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeEffect
 
 /**
@@ -30,3 +33,43 @@ fun Modifier.optimizedHazeEffect(
     inputScale = HazeInputScale.Fixed(0.33f)
     block?.invoke(this)
 }
+
+/**
+ * The frost of the menu panel: what is behind blurred well past legibility,
+ * under [fill] at the alpha the panel's slab takes — so a page or the player
+ * shows through as colour, not as a page seen through tinted glass.
+ *
+ * [fill] alone stands in where the blur can't be drawn.
+ */
+fun menuFrost(fill: Color, alpha: Float = MENU_FROST_ALPHA): HazeStyle = HazeStyle(
+    backgroundColor = fill,
+    tints = listOf(HazeTint(fill.copy(alpha = alpha))),
+    blurRadius = 24.dp,
+    noiseFactor = 0f,
+    fallbackTint = HazeTint(fill),
+)
+
+/**
+ * [menuFrost] blurred live off [state] rather than off a still — for a panel
+ * or glass pill over something that keeps moving under it, such as the player's
+ * full-screen Spotify Canvas or artwork backdrop. Sampled at a tenth and blurs
+ * every source of [state], whatever their z-index.
+ */
+@OptIn(ExperimentalHazeApi::class)
+fun Modifier.liveMenuFrost(
+    state: HazeState,
+    fill: Color,
+    alpha: Float = MENU_FROST_ALPHA,
+): Modifier =
+    optimizedHazeEffect(state = state, style = menuFrost(fill, alpha)) {
+        inputScale = HazeInputScale.Fixed(LIVE_FROST_INPUT_SCALE)
+        canDrawArea = { true }
+    }
+
+private const val LIVE_FROST_INPUT_SCALE = 0.10f
+
+/** How much of the slab covers the frost on the player's drawers and popups. */
+const val MENU_FROST_ALPHA = 0.80f
+
+/** The menu panel's charcoal, and the player's — which is dark whatever the theme. */
+val MenuFrostDark = Color(0xFF1C1C1E)
