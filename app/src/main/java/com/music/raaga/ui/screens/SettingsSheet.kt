@@ -294,6 +294,7 @@ fun SettingsScreen(
     val spatialAudio by AppSettings.spatialAudio.collectAsStateWithLifecycle()
     val autoPlayRecognizedSong by AppSettings.autoPlayRecognizedSong.collectAsStateWithLifecycle()
     val nerdStats by AppSettings.showNerdStats.collectAsStateWithLifecycle()
+    val bestPart by AppSettings.showBestPart.collectAsStateWithLifecycle()
     val listenTogetherButton by AppSettings.showListenTogetherButton.collectAsStateWithLifecycle()
     val reduceAnimation by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
@@ -1168,7 +1169,12 @@ fun SettingsScreen(
             }
             // --- Automix (Smart DJ Transitions) ---
             val automixTitle = stringResource(R.string.automix)
-            row(automixTitle, "automix", "smart fade", "dj", "transitions") {
+            val artTransitionTitle = stringResource(R.string.automix_art_transition)
+            val miniArtTransitionTitle = stringResource(R.string.automix_mini_art_transition)
+            row(
+                automixTitle, "automix", "smart fade", "dj", "transitions",
+                artTransitionTitle.takeIf { smartFade }, miniArtTransitionTitle.takeIf { smartFade },
+            ) {
                 SettingsRow(
                     icon = Icons.Rounded.AutoAwesome,
                     title = automixTitle,
@@ -1182,6 +1188,26 @@ fun SettingsScreen(
                     },
                     onClick = { AppSettings.setSmartFadeEnabled(!smartFade) },
                 )
+                if (smartFade) {
+                    val artwork by AppSettings.autoMixArtwork.collectAsStateWithLifecycle()
+                    SettingsSubRow(
+                        title = artTransitionTitle,
+                        subtitle = stringResource(R.string.automix_art_transition_subtitle),
+                        checked = artwork.artTransition,
+                        onCheckedChange = AppSettings::setAutoMixArtTransition,
+                        enabled = !bitPerfectReady,
+                        subtitleEndPadding = 12.dp,
+                    )
+                    SettingsSubRow(
+                        title = miniArtTransitionTitle,
+                        subtitle = stringResource(R.string.automix_mini_art_transition_subtitle),
+                        checked = artwork.miniPlayerTransition,
+                        onCheckedChange = AppSettings::setAutoMixMiniPlayerTransition,
+                        enabled = !bitPerfectReady,
+                        titleMaxLines = 2,
+                        subtitleEndPadding = 12.dp,
+                    )
+                }
             }
             if (smartFade) {
                 val automixPerformanceTitle = stringResource(R.string.automix_performance)
@@ -2403,6 +2429,22 @@ fun SettingsScreen(
                         )
                     },
                     onClick = { AppSettings.setSmartVersionAlignment(!smartVersionAlignment) },
+                )
+            }
+            val bestPartTitle = stringResource(R.string.show_best_part)
+            row(bestPartTitle, "best part", "chorus", "skip", "replayed", "highlight") {
+                SettingsRow(
+                    icon = RaagaIcons.MusicNote,
+                    title = bestPartTitle,
+                    subtitle = stringResource(R.string.show_best_part_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = bestPart,
+                            onCheckedChange = AppSettings::setShowBestPart,
+                            colors = settingsSwitchColors(),
+                        )
+                    },
+                    onClick = { AppSettings.setShowBestPart(!bestPart) },
                 )
             }
             val showNerdStatsTitle = stringResource(R.string.show_nerd_stats)
@@ -4017,12 +4059,17 @@ internal fun SettingsSubRow(
     onCheckedChange: (Boolean) -> Unit,
     badge: String? = null,
     subtitle: String? = null,
+    enabled: Boolean = true,
+    indent: androidx.compose.ui.unit.Dp = 0.dp,
+    titleMaxLines: Int = 1,
+    subtitleEndPadding: androidx.compose.ui.unit.Dp = 0.dp,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onCheckedChange(!checked) }
-            .padding(start = ROW_INSET, end = ROW_INSET, top = 0.dp, bottom = 10.dp),
+            .clickable(enabled = enabled) { onCheckedChange(!checked) }
+            .alpha(if (enabled) 1f else 0.45f)
+            .padding(start = ROW_INSET + indent, end = ROW_INSET, top = 0.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
@@ -4031,7 +4078,7 @@ internal fun SettingsSubRow(
                     text = title,
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onBackground,
-                    maxLines = 1,
+                    maxLines = titleMaxLines,
                     overflow = TextOverflow.Ellipsis,
                 )
                 if (badge != null) {
@@ -4042,6 +4089,7 @@ internal fun SettingsSubRow(
             if (subtitle != null) {
                 Text(
                     text = subtitle,
+                    modifier = Modifier.padding(end = subtitleEndPadding),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 5,
@@ -4203,6 +4251,7 @@ internal fun SegmentedControl(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    disabled: Set<Int> = emptySet(),
 ) {
     val haptics = LocalHapticFeedback.current
     Row(
@@ -4242,7 +4291,7 @@ internal fun SegmentedControl(
                     .weight(1f)
                     .clip(RoundedCornerShape(8.dp))
                     .background(pill)
-                    .clickable(enabled = enabled) {
+                    .clickable(enabled = enabled && index !in disabled) {
                         if (!chosen) {
                             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             onSelect(index)
@@ -4254,7 +4303,7 @@ internal fun SegmentedControl(
                 Text(
                     text = label,
                     style = MaterialTheme.typography.labelMedium,
-                    color = labelColor,
+                    color = if (index in disabled) labelColor.copy(alpha = 0.3f) else labelColor,
                     maxLines = 1,
                 )
             }
