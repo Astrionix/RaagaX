@@ -69,6 +69,11 @@ object Innertube {
             }
         }
 
+    internal val currentRegion: String
+        get() = AppCompatDelegate.getApplicationLocales().get(0)?.country?.takeIf { it.length == 2 }?.uppercase(Locale.ROOT)
+            ?: Locale.getDefault().country.takeIf { it.length == 2 }?.uppercase(Locale.ROOT)
+            ?: "US"
+
     private val acceptLanguageHeader: String
         get() {
             val lang = currentLanguage
@@ -99,6 +104,13 @@ object Innertube {
      */
     private const val ANDROID_MUSIC_CLIENT_ID = "21"
     private const val ANDROID_MUSIC_VERSION = "7.21.50"
+
+    /**
+     * The plain youtube.com client, for [webNext] only. Kept in step with the
+     * WEB entry in [PlayerClient]; `next` is lenient about an old version.
+     */
+    private const val WEB_CLIENT_VERSION = "2.20260708.00.00"
+    private const val WEB_CLIENT_ID = "1"
 
     private const val TAG = "Raaga"
 
@@ -528,8 +540,13 @@ object Innertube {
 
     // ---- Public API ---------------------------------------------------------
 
-    suspend fun browse(browseId: String, params: String? = null): JsonObject =
-        postMusic("browse") {
+    /**
+     * @param language an `hl` to ask in instead of the app's own — for a caller
+     *   that needs YouTube's titles in one fixed language to read them, rather
+     *   than to show them.
+     */
+    suspend fun browse(browseId: String, params: String? = null, language: String? = null): JsonObject =
+        postMusic("browse", language = language) {
             put("browseId", browseId)
             params?.let { put("params", it) }
         }
@@ -624,6 +641,48 @@ object Innertube {
         put("videoId", videoId)
         put("playlistId", "RDAMVM$videoId")
         put("isAudioOnly", true)
+    }
+
+    /**
+     * youtube.com's own `next` answer for [videoId], asked as the plain WEB
+     * client rather than YouTube Music.
+     *
+     * Only for what YouTube Music's answer leaves out: the "Most replayed"
+     * heat markers the Replay year story uses to start each song on its best
+     * part. Same video, same timeline, but only youtube.com's watch page
+     * carries the curve.
+     *
+     * Anonymous on purpose. No cookie, no visitor id, no account: which part
+     * of a song the world replays is not something the listener's account has
+     * any say in, and asking under it would put a watch-page visit on their
+     * history for every song in the story. One retry rather than the usual
+     * two, because a miss here only costs a clip starting at a guessed point,
+     * and the answer is around half a megabyte.
+     */
+    suspend fun webNext(videoId: String): JsonObject = withRetry(attempts = 2) {
+        client.post("$YOUTUBE_ORIGIN/youtubei/v1/next") {
+            contentType(ContentType.Application.Json)
+            parameter("prettyPrint", "false")
+            header("User-Agent", WEB_USER_AGENT)
+            header("Origin", YOUTUBE_ORIGIN)
+            header("Referer", "$YOUTUBE_ORIGIN/")
+            header("X-YouTube-Client-Name", WEB_CLIENT_ID)
+            header("X-YouTube-Client-Version", WEB_CLIENT_VERSION)
+            header("Accept-Language", acceptLanguageHeader)
+            setBody(
+                buildJsonObject {
+                    putJsonObject("context") {
+                        putJsonObject("client") {
+                            put("clientName", "WEB")
+                            put("clientVersion", WEB_CLIENT_VERSION)
+                            put("hl", currentLanguage)
+                            put("gl", currentRegion)
+                        }
+                    }
+                    put("videoId", videoId)
+                },
+            )
+        }.body<JsonObject>()
     }
 
     /** Timed caption transcript used as a last-resort lyrics source. */
@@ -1096,8 +1155,13 @@ object Innertube {
     private suspend fun postMusic(
         endpoint: String,
         query: Map<String, String> = emptyMap(),
+        /** The context's `gl`; null sends none. */
+        region: String? = currentRegion,
+        /** The `hl` to ask in; the app's own language when null. */
+        language: String? = null,
         bodyExtras: JsonObjectBuilder.() -> Unit,
     ): JsonObject {
+        val hl = language ?: currentLanguage
         // This is the common authenticated request path: Home, Library,
         // likes, playlists, account menus and all their continuations pass
         // through it. Waiting here makes restoration process-wide rather than
@@ -1109,8 +1173,8 @@ object Innertube {
             client.post("$MUSIC_BASE/$endpoint") {
                 contentType(ContentType.Application.Json)
                 parameter("prettyPrint", "false")
-                parameter("hl", currentLanguage)
-                header("Accept-Language", acceptLanguageHeader)
+                parameter("hl", hl)
+                header("Accept-Language", language ?: acceptLanguageHeader)
                 query.forEach { (key, value) -> parameter(key, value) }
                 header("X-Origin", MUSIC_ORIGIN)
                 header("Origin", MUSIC_ORIGIN)
@@ -1136,8 +1200,8 @@ object Innertube {
                             putJsonObject("client") {
                                 put("clientName", "WEB_REMIX")
                                 put("clientVersion", clientVersion)
-                                put("hl", currentLanguage)
-                                put("gl", "US")
+                                put("hl", hl)
+                                region?.let { put("gl", it) }
                                 visitorData?.let { put("visitorData", it) }
                             }
                             putJsonObject("user") {
