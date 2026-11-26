@@ -1,5 +1,6 @@
 package com.music.raaga.download
 
+import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
@@ -9,14 +10,22 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.music.raaga.R
 import com.music.raaga.data.DebugLog as Log
+import com.music.raaga.data.LikeState
 import com.music.raaga.data.YtMusicRepository
+import com.music.raaga.data.model.LikeStatus
 import com.music.raaga.data.settings.AppSettings
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 
 /**
@@ -39,9 +48,19 @@ class PlaylistSyncWorker(
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
-        if (!AppSettings.keepPlaylistsUpdated.value) return Result.success()
+        if (!AppSettings.keepPlaylistsUpdated.value && !AppSettings.downloadLikedSongs.value) return Result.success()
 
         Log.d(TAG, "Starting playlist sync")
+
+        if (AppSettings.downloadLikedSongs.value) {
+            try {
+                syncLikedSongs()
+            } catch (e: Exception) {
+                Log.w(TAG, "Sync liked songs failed: ${e.message}")
+            }
+        }
+
+        if (!AppSettings.keepPlaylistsUpdated.value) return Result.success()
 
         return try {
             val playlists = Downloads.savedPlaylists()
@@ -174,6 +193,35 @@ class PlaylistSyncWorker(
         }
     }
 
+    private suspend fun syncLikedSongs() {
+        val existing = Downloads.collections.value[YtMusicRepository.LIKED_MUSIC]
+        val page = YtMusicRepository.browseSongs(YtMusicRepository.LIKED_MUSIC).getOrNull() ?: return
+        val freshSongs = page.songs.distinctBy { it.videoId }
+        val known = existing?.videoIds?.toHashSet() ?: emptySet()
+        val missing = freshSongs.filter { it.videoId !in known }
+        if (missing.isNotEmpty()) {
+            val record = existing ?: SavedCollection(
+                id = YtMusicRepository.LIKED_MUSIC,
+                title = context.getString(R.string.auto_liked),
+                thumbnailUrl = page.header?.thumbnailUrl,
+                playlist = true,
+            )
+            for (song in missing) {
+                Downloads.enqueue(context, song, from = record.title)
+            }
+            Downloads.rememberCollection(
+                DownloadTarget(
+                    id = record.id,
+                    title = record.title,
+                    subtitle = record.subtitle,
+                    thumbnailUrl = record.thumbnailUrl,
+                    playlist = true,
+                ),
+                freshSongs,
+            )
+        }
+    }
+
     private fun ensureChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
@@ -234,6 +282,38 @@ class PlaylistSyncWorker(
          */
         fun cancel(context: Context) {
             WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
+            WorkManager.getInstance(context).cancelUniqueWork("liked_sync_soon")
+        }
+
+        fun scheduleLikedSync(context: Context) {
+            val request = OneTimeWorkRequestBuilder<PlaylistSyncWorker>()
+                .setConstraints(
+                    Constraints.Builder()
+                        .setRequiredNetworkType(
+                            if (AppSettings.wifiOnlyDownloads.value) NetworkType.UNMETERED else NetworkType.CONNECTED
+                        )
+                        .build()
+                )
+                .setInitialDelay(20L, TimeUnit.SECONDS)
+                .build()
+            WorkManager.getInstance(context).enqueueUniqueWork("liked_sync_soon", ExistingWorkPolicy.REPLACE, request)
+        }
+
+        fun init(app: Application) {
+            schedule(app)
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            scope.launch {
+                var before = LikeState.overrides.value
+                LikeState.overrides.collect { now ->
+                    val newlyLiked = now.any { (id, status) ->
+                        status == LikeStatus.LIKE && before[id] != LikeStatus.LIKE
+                    }
+                    before = now
+                    if (newlyLiked && AppSettings.downloadLikedSongs.value) {
+                        scheduleLikedSync(app)
+                    }
+                }
+            }
         }
     }
 }
