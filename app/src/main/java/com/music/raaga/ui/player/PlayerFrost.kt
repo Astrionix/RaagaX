@@ -58,6 +58,8 @@ internal fun FrostedPlayerFrame(
     modifier: Modifier,
     /** [LocalPlayerChrome] for the player, not for what is drawn over it. */
     chrome: Boolean,
+    /** [LocalChromeSoftened], alongside [chrome]. */
+    softened: Boolean = false,
     frost: PlayerFrost? = null,
     live: Boolean = false,
     /** Read off composition, so a panel opening recomposes nothing here. */
@@ -82,7 +84,11 @@ internal fun FrostedPlayerFrame(
     Box(modifier.fillMaxSize()) {
         val source = if (frost != null) with(frost) { Modifier.frostSource() } else Modifier
         Box(Modifier.fillMaxSize().then(source)) {
-            CompositionLocalProvider(LocalPlayerChrome provides chrome, content = content)
+            CompositionLocalProvider(
+                LocalPlayerChrome provides chrome,
+                LocalChromeSoftened provides softened,
+                content = content,
+            )
         }
         CompositionLocalProvider(LocalPlayerFrost provides frost?.takeIf { !live }) {
             overlays()
