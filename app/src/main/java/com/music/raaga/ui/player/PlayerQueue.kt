@@ -40,7 +40,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DragHandle
-import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -210,17 +209,6 @@ private fun splitQueue(queue: List<Song>, currentIndex: Int): QueueTracks {
 private fun LazyItemScope.queueMotion(): Modifier =
     Modifier.animateItem(fadeInSpec = null, fadeOutSpec = null, placementSpec = QUEUE_ROW_MOTION)
 
-/**
- * Target index for the first upcoming section, landing the list directly on
- * what plays next rather than having the now-playing track monopolize the view.
- */
-private fun upcomingStartIndex(tracks: QueueTracks): Int {
-    if (tracks.user.isNotEmpty() || tracks.context.isNotEmpty() || tracks.autoplay.isNotEmpty()) {
-        return 2
-    }
-    return 0
-}
-
 /** The live queue, in the player itself. */
 @Composable
 internal fun InlineQueue(
@@ -263,18 +251,19 @@ internal fun InlineQueue(
         ?: nowPlaying?.song?.playbackSource?.takeIf { it.isNotBlank() }
         ?: nowPlaying?.song?.albumName?.takeIf { it.isNotBlank() }
 
-    // Start at what plays next; now playing stays above, reachable by scrolling up.
+    // Start at the first visible section when tracks advance.
     var hasScrolledOnce by remember { mutableStateOf(false) }
     LaunchedEffect(currentIndex, nowPlaying?.key) {
-        val target = upcomingStartIndex(tracks)
-        val scrolledAway = listState.firstVisibleItemIndex != target || listState.firstVisibleItemScrollOffset != 0
-        if (drag.held == null && nowPlaying != null && scrolledAway) {
-            if (hasScrolledOnce) {
-                listState.animateScrollToItem(target)
-            } else {
-                listState.scrollToItem(target)
-                hasScrolledOnce = true
+        val scrolledAway = listState.firstVisibleItemIndex != 0 || listState.firstVisibleItemScrollOffset != 0
+        if (drag.held == null && nowPlaying != null) {
+            if (scrolledAway) {
+                if (hasScrolledOnce) {
+                    listState.animateScrollToItem(0)
+                } else {
+                    listState.scrollToItem(0)
+                }
             }
+            hasScrolledOnce = true
         }
     }
 
@@ -302,6 +291,7 @@ internal fun InlineQueue(
         ) {
             LazyColumn(
                 state = listState,
+                overscrollEffect = null,
                 modifier = Modifier
                     .fillMaxWidth()
                     // Without this the sheet treats the list's leftover scroll as a
@@ -310,29 +300,11 @@ internal fun InlineQueue(
                     .then(if (collapsePlayerOnScroll) Modifier.nestedScroll(controlsOnScroll) else Modifier),
                 contentPadding = PaddingValues(horizontal = PLAYER_GUTTER),
             ) {
-                if (nowPlaying != null) {
-                    item(key = "header-now-playing") {
-                        QueueHeading(
-                            title = stringResource(R.string.now_playing),
-                            modifier = Modifier.padding(top = 12.dp, bottom = 6.dp),
-                        )
-                    }
-                    item(key = nowPlaying.key) {
-                        InlineQueueRow(
-                            song = nowPlaying.song,
-                            isCurrent = true,
-                            onClick = { onJumpTo(nowPlaying.timelineIndex) },
-                            onRemove = { onRemove(nowPlaying.timelineIndex) },
-                            locked = controlsLocked,
-                            modifier = queueMotion(),
-                        )
-                    }
-                }
                 if (tracks.user.isNotEmpty()) {
                     item(key = "header-user-queue") {
                         QueueHeading(
                             title = stringResource(R.string.next_in_queue),
-                            modifier = Modifier.padding(top = 16.dp, bottom = 6.dp).then(queueMotion()),
+                            modifier = Modifier.padding(top = 12.dp, bottom = 6.dp),
                         ) {
                             QueueClearButton(MaterialTheme.typography.labelLarge, controlsLocked, onClear)
                         }
@@ -347,14 +319,20 @@ internal fun InlineQueue(
                             } else {
                                 stringResource(R.string.queue)
                             },
-                            modifier = Modifier.padding(top = 16.dp, bottom = 6.dp).then(queueMotion()),
+                            modifier = Modifier
+                                .padding(top = if (tracks.user.isNotEmpty()) 16.dp else 12.dp, bottom = 6.dp)
+                                .then(if (tracks.user.isNotEmpty()) queueMotion() else Modifier),
                         )
                     }
                     queueSection(tracks.context, QueueSection.CONTEXT, drag, controlsLocked, onJumpTo, onRemove)
                 }
                 if (autoplayEnabled || tracks.autoplay.isNotEmpty()) {
+                    val hasPreviousSection = tracks.user.isNotEmpty() || tracks.context.isNotEmpty()
                     item(key = "autoplay-heading") {
-                        AutoplayHeading(hasTracks = tracks.autoplay.isNotEmpty(), modifier = queueMotion())
+                        AutoplayHeading(
+                            hasTracks = tracks.autoplay.isNotEmpty(),
+                            modifier = if (hasPreviousSection) queueMotion() else Modifier,
+                        )
                     }
                     queueSection(tracks.autoplay, QueueSection.AUTOPLAY, drag, controlsLocked, onJumpTo, onRemove)
                 }
@@ -366,7 +344,6 @@ internal fun InlineQueue(
                 Box(Modifier.matchParentSize().padding(horizontal = PLAYER_GUTTER)) {
                     InlineQueueRow(
                         song = held.song,
-                        isCurrent = false,
                         onClick = {},
                         onRemove = {},
                         draggable = true,
@@ -402,7 +379,6 @@ private fun LazyListScope.queueSection(
         }
         InlineQueueRow(
             song = track.song,
-            isCurrent = false,
             onClick = { onJumpTo(track.timelineIndex) },
             onRemove = { onRemove(track.timelineIndex) },
             locked = locked,
@@ -709,7 +685,6 @@ private class QueueDrag(private val listState: LazyListState) {
 @Composable
 private fun InlineQueueRow(
     song: Song,
-    isCurrent: Boolean,
     onClick: () -> Unit,
     onRemove: () -> Unit,
     modifier: Modifier = Modifier,
@@ -809,7 +784,7 @@ private fun InlineQueueRow(
             ExplicitSongTitle(
                 song = song,
                 style = MaterialTheme.typography.titleMedium,
-                color = if (isCurrent) Color.White else Color.White.copy(alpha = 0.92f),
+                color = Color.White.copy(alpha = 0.92f),
             )
             Text(
                 text = song.artist,
@@ -818,15 +793,6 @@ private fun InlineQueueRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-        }
-        if (isCurrent) {
-            Icon(
-                Icons.Rounded.GraphicEq,
-                contentDescription = stringResource(R.string.now_playing),
-                tint = Color.White,
-                modifier = Modifier.size(18.dp),
-            )
-            Spacer(Modifier.width(10.dp))
         }
         if (!locked) {
             Box(
