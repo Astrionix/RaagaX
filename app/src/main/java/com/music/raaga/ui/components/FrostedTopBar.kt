@@ -169,6 +169,7 @@ fun FrostedTopBar(
     onBack: (() -> Unit)? = null,
     refreshing: Boolean = false,
     pullFraction: () -> Float = { 0f },
+    leadingBadge: (@Composable () -> Unit)? = null,
     actions: @Composable () -> Unit = {},
 ) {
     FrostedTopBar(
@@ -182,6 +183,7 @@ fun FrostedTopBar(
         onBack = onBack,
         refreshing = refreshing,
         pullFraction = pullFraction,
+        leadingBadge = leadingBadge,
         actions = actions,
     )
 }
@@ -203,6 +205,7 @@ fun FrostedTopBar(
     // A lambda, not a value: the drag changes every frame, and reading it in
     // the caller would recompose the whole app on each one.
     pullFraction: () -> Float = { 0f },
+    leadingBadge: (@Composable () -> Unit)? = null,
     actions: @Composable () -> Unit = {},
 ) {
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
@@ -336,19 +339,27 @@ fun FrostedTopBar(
                     }
                 }
             } else if (useFloatingChrome) {
-                FloatingAppMark(
-                    hazeState = backButtonHazeState,
+                Row(
                     modifier = Modifier
                         .align(Alignment.CenterStart)
                         .padding(start = PAGE_GUTTER),
-                )
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    FloatingAppMark(
+                        hazeState = backButtonHazeState,
+                    )
+                    if (leadingBadge != null) {
+                        Spacer(Modifier.width(10.dp))
+                        leadingBadge()
+                    }
+                }
             } else {
                 val isLight = MaterialTheme.colorScheme.surface.luminance() > 0.5f
-                Box(
+                Row(
                     modifier = Modifier
                         .align(Alignment.CenterStart)
                         .padding(start = 16.dp),
-                    contentAlignment = Alignment.CenterStart,
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Image(
                         painter = painterResource(if (isLight) R.drawable.ic_logo_dark else R.drawable.ic_logo),
@@ -356,6 +367,10 @@ fun FrostedTopBar(
                         modifier = Modifier.height(34.dp),
                         contentScale = ContentScale.Fit,
                     )
+                    if (leadingBadge != null) {
+                        Spacer(Modifier.width(10.dp))
+                        leadingBadge()
+                    }
                 }
             }
             if (useFloatingChrome) {
