@@ -238,6 +238,7 @@ fun SettingsScreen(
     onAccountScrobbling: () -> Unit,
     onEqualizer: () -> Unit,
     onOpenReplay: () -> Unit,
+    onDriveBackup: () -> Unit = {},
     onLyricsSources: () -> Unit,
     onTranslationLanguage: () -> Unit,
     onSources: () -> Unit,
@@ -346,6 +347,7 @@ fun SettingsScreen(
     val exportArtwork by AppSettings.exportArtwork.collectAsStateWithLifecycle()
     val autoDownloadPlaylists by AppSettings.autoDownloadPlaylists.collectAsStateWithLifecycle()
     val keepPlaylistsUpdated by AppSettings.keepPlaylistsUpdated.collectAsStateWithLifecycle()
+    val downloadLikedSongs by AppSettings.downloadLikedSongs.collectAsStateWithLifecycle()
     val stopOnTaskRemoved by AppSettings.stopOnTaskRemoved.collectAsStateWithLifecycle()
     val hideVolumeBar by AppSettings.hideVolumeBar.collectAsStateWithLifecycle()
     val hideSongStatus by AppSettings.hideSongStatus.collectAsStateWithLifecycle()
@@ -973,7 +975,7 @@ fun SettingsScreen(
                     onClick = { pickingAutoDownloadPlaylists = true },
                 )
             }
-            row("Keep playlists updated", "sync", "playlist", "update", divided = false) {
+            row("Keep playlists updated", "sync", "playlist", "update", divided = true) {
                 SettingsRow(
                     icon = Icons.Rounded.Sync,
                     title = "Keep playlists updated",
@@ -986,6 +988,21 @@ fun SettingsScreen(
                                 if (enabled) PlaylistSyncWorker.schedule(context)
                                 else PlaylistSyncWorker.cancel(context)
                             },
+                            colors = settingsSwitchColors(),
+                        )
+                    },
+                )
+            }
+            val downloadLikedTitle = stringResource(R.string.download_liked_songs)
+            row(downloadLikedTitle, "liked", "favorites", "offline", "automatic", divided = false) {
+                SettingsRow(
+                    icon = RaagaIcons.HeartFilled,
+                    title = downloadLikedTitle,
+                    subtitle = stringResource(R.string.download_liked_songs_subtitle),
+                    trailing = {
+                        Switch(
+                            checked = downloadLikedSongs,
+                            onCheckedChange = AppSettings::setDownloadLikedSongs,
                             colors = settingsSwitchColors(),
                         )
                     },
@@ -2168,6 +2185,10 @@ fun SettingsScreen(
                     onClick = { confirmImport = true },
                 )
             }
+            val driveBackupTitle = stringResource(R.string.drive_backup_title)
+            row(driveBackupTitle, "backup", "restore", "google", "drive", "cloud") {
+                DriveBackupSettingsRow(title = driveBackupTitle, onClick = onDriveBackup)
+            }
         }
     }
 
@@ -2921,7 +2942,7 @@ fun SettingsScreen(
 }
 
 /** "3 months of listening" — the unit a backup is actually measured in. */
-private fun Context.countOfMonths(months: Int): String = if (months == 0) {
+internal fun Context.countOfMonths(months: Int): String = if (months == 0) {
     getString(R.string.no_listening_history)
 } else {
     resources.getQuantityString(R.plurals.listening_month_count, months, months)
@@ -3759,6 +3780,78 @@ private fun SearchableSettingsGroup(
                 index == 0 && !entry.divided -> Spacer(Modifier.height(10.dp))
             }
             entry.content()
+        }
+    }
+}
+
+@Composable
+internal fun SettingsPageTitle(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.displayLarge,
+        color = MaterialTheme.colorScheme.onBackground,
+        modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 14.dp),
+    )
+}
+
+@Composable
+internal fun <T> ChoiceGroup(
+    options: List<T>,
+    selected: T,
+    label: @Composable (T) -> String,
+    footer: String?,
+    detail: (@Composable (T) -> String)? = null,
+    enabled: (T) -> Boolean = { true },
+    header: String? = null,
+    onSelect: (T) -> Unit,
+) {
+    val haptics = LocalHapticFeedback.current
+    SettingsGroup(header = header, footer = footer, topSpacing = 0.dp) {
+        options.forEachIndexed { index, option ->
+            if (index > 0) {
+                HorizontalDivider(
+                    modifier = Modifier.padding(start = ROW_INSET),
+                    thickness = 0.5.dp,
+                    color = MaterialTheme.colorScheme.outline,
+                )
+            }
+            val available = enabled(option)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(enabled = available) {
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onSelect(option)
+                    }
+                    .alpha(if (available) 1f else 0.45f)
+                    .heightIn(min = 52.dp)
+                    .padding(horizontal = ROW_INSET, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = label(option),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
+                    detail?.let {
+                        Text(
+                            text = it(option),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                if (option == selected) {
+                    Spacer(Modifier.width(12.dp))
+                    Icon(
+                        Icons.Rounded.Check,
+                        contentDescription = stringResource(R.string.selected),
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
         }
     }
 }
