@@ -24,6 +24,10 @@ data class CreditContributor(
     val artistId: String? = null,
 )
 
+data class SongCredit(val role: String, val names: List<String>) {
+    val text: String get() = names.joinToString(", ")
+}
+
 data class SongCredits(
     val mainArtist: CreditContributor? = null,
     val featuredArtists: List<CreditContributor> = emptyList(),
@@ -97,6 +101,7 @@ object SongInfoRepository {
                 SongInfoParser.parse(html, song.videoId, song)
             }
         }
+        val ytmCreditsDeferred = async { attempt { fetchCredits(song.videoId) }.getOrDefault(emptyList()) }
         var album = song.albumName
         var year: String? = null
         val release = attempt {
@@ -112,12 +117,137 @@ object SongInfoRepository {
             }
         }
         val baseInfo = statistics.await().getOrNull() ?: SongInfo(failed = true)
-        val finalCredits = baseInfo.credits ?: SongCreditsParser.parse(null, song)
+        val ytmCredits = ytmCreditsDeferred.await()
+        val finalCredits = if (ytmCredits.isNotEmpty()) {
+            SongCreditsParser.fromSongCredits(ytmCredits, song)
+        } else {
+            baseInfo.credits ?: SongCreditsParser.parse(null, song)
+        }
         baseInfo.copy(
             album = album,
             releaseYear = year,
             credits = finalCredits,
         ).let { it.copy(failed = it.failed || release.isFailure) }
+    }
+
+    private suspend fun fetchCredits(videoId: String): List<SongCredit> {
+        // Direct credits browse: reliable for catalog tracks on YouTube Music.
+        val direct = runCatching { parseCreditsPage(Innertube.browse("MPTC$videoId")) }.getOrDefault(emptyList())
+        if (direct.isNotEmpty()) return direct
+        val next = Innertube.next(videoId)
+        val endpoint = findCreditsEndpoint(next, videoId) ?: return emptyList()
+        val browseId = (endpoint["browseId"] as? JsonPrimitive)?.contentOrNull ?: return emptyList()
+        val params = (endpoint["params"] as? JsonPrimitive)?.contentOrNull
+        val page = Innertube.browse(browseId, params)
+        return parseCreditsPage(page)
+    }
+
+    internal fun findCreditsEndpoint(root: JsonElement, videoId: String): JsonObject? {
+        fun JsonObject.pageType(): String =
+            this["browseEndpointContextSupportedConfigs"]
+                ?.let { it as? JsonObject }?.get("browseEndpointContextMusicConfig")
+                ?.let { it as? JsonObject }?.get("pageType")
+                ?.let { it as? JsonPrimitive }?.contentOrNull.orEmpty()
+
+        fun isCreditsBrowse(browse: JsonObject): Boolean {
+            val id = (browse["browseId"] as? JsonPrimitive)?.contentOrNull.orEmpty()
+            return "CREDIT" in browse.pageType() || id.startsWith("MPTC")
+        }
+
+        val rows = objectsNamed(root, "playlistPanelVideoRenderer")
+            .filter { (it["videoId"] as? JsonPrimitive)?.contentOrNull == videoId }
+            .toList()
+            .ifEmpty { objectsNamed(root, "playlistPanelVideoRenderer").toList() }
+        val menuScopes = (rows + listOfNotNull(root as? JsonObject))
+        for (scope in menuScopes) {
+            val items = objectsNamed(scope, "menuNavigationItemRenderer").toList()
+            val endpoint = items.firstNotNullOfOrNull { nav ->
+                val browse = (nav["navigationEndpoint"] as? JsonObject)?.get("browseEndpoint") as? JsonObject
+                    ?: return@firstNotNullOfOrNull null
+                if (isCreditsBrowse(browse)) browse else null
+            } ?: items.firstNotNullOfOrNull { nav ->
+                val browse = (nav["navigationEndpoint"] as? JsonObject)?.get("browseEndpoint") as? JsonObject
+                    ?: return@firstNotNullOfOrNull null
+                if (nav.runsText().contains("credit", ignoreCase = true)) browse else null
+            }
+            if (endpoint != null) return endpoint
+        }
+        return objectsNamed(root, "browseEndpoint").firstOrNull(::isCreditsBrowse)
+    }
+
+    internal fun parseCreditsPage(root: JsonElement): List<SongCredit> {
+        val credits = mutableListOf<SongCredit>()
+        for (section in objectsNamed(root, "dismissableDialogContentSectionRenderer")) {
+            val role = section["title"]?.runsText()?.trim().orEmpty()
+            val names = splitNames(
+                listOfNotNull(
+                    section["subtitle"]?.runsText(),
+                    section["description"]?.runsText(),
+                )
+            )
+            if (role.isNotBlank() && names.isNotEmpty()) credits += SongCredit(role, names)
+        }
+        if (credits.isNotEmpty()) return credits.distinctBy { it.role.lowercase() to it.text.lowercase() }
+
+        // Two-column list layout
+        for (item in objectsNamed(root, "musicResponsiveListItemRenderer")) {
+            val columns = (item["flexColumns"] as? JsonArray)?.mapNotNull { col ->
+                (col as? JsonObject)?.get("musicResponsiveListItemFlexColumnRenderer") as? JsonObject
+            }.orEmpty()
+            if (columns.size >= 2) {
+                val role = columns[0].rendererText().trim()
+                val names = splitNames(listOf(columns[1].rendererText()))
+                if (role.isNotBlank() && names.isNotEmpty()) credits += SongCredit(role, names)
+            }
+        }
+        if (credits.isNotEmpty()) return credits.distinctBy { it.role.lowercase() to it.text.lowercase() }
+
+        // Fallback: shelf-based layouts
+        for (shelf in objectsNamed(root, "musicShelfRenderer") + objectsNamed(root, "musicCarouselShelfRenderer")) {
+            val header = shelf["header"] as? JsonObject
+            val role = header?.runsText()?.trim().orEmpty()
+            val contents = ((shelf["contents"] as? JsonArray) ?: JsonArray(emptyList())).toList()
+            val names = contents.flatMap { c ->
+                splitNames(listOf((c as? JsonObject)?.runsText().orEmpty()))
+            }
+            if (role.isNotBlank() && names.isNotEmpty()) credits += SongCredit(role, names)
+        }
+        return credits.distinctBy { it.role.lowercase() to it.text.lowercase() }
+    }
+
+    private fun JsonElement.rendererText(): String =
+        objectsNamed(this, "text").firstNotNullOfOrNull { it.runsText().takeIf(String::isNotBlank) }
+            ?: runsText()
+
+    private fun JsonElement.runsText(): String = when (this) {
+        is JsonPrimitive -> contentOrNull.orEmpty()
+        is JsonArray -> joinToString("") { it.runsText() }
+        is JsonObject -> (this["simpleText"] as? JsonPrimitive)?.contentOrNull
+            ?: (this["runs"] as? JsonArray)?.joinToString("") { run ->
+                ((run as? JsonObject)?.get("text") as? JsonPrimitive)?.contentOrNull.orEmpty()
+            }
+            ?: this["text"]?.runsText()
+            ?: ""
+    }
+
+    private fun splitNames(strings: List<String>): List<String> {
+        val joined = strings.joinToString("")
+        if (joined.isBlank()) return emptyList()
+        return joined.split(Regex("\\r?\\n+|\\s*[•·]\\s*|\\s*,\\s+(?=[\\p{Lu}\"'])"))
+            .map { it.trim().trimEnd(',', '•', '·') }
+            .filter { it.isNotBlank() }
+            .ifEmpty { listOf(joined.trim()) }
+    }
+
+    private fun objectsNamed(root: JsonElement, name: String): Sequence<JsonObject> = sequence {
+        when (root) {
+            is JsonObject -> for ((key, value) in root) {
+                if (key == name && value is JsonObject) yield(value)
+                yieldAll(objectsNamed(value, name))
+            }
+            is JsonArray -> for (value in root) yieldAll(objectsNamed(value, name))
+            else -> Unit
+        }
     }
 
     private suspend fun <T> attempt(block: suspend () -> T): Result<T> = try {
@@ -320,6 +450,79 @@ internal object SongCreditsParser {
             copyright = copyright,
             publisher = publisher,
             releaseDate = releaseDate,
+        )
+    }
+
+    fun fromSongCredits(creditsList: List<SongCredit>, fallbackSong: Song): SongCredits {
+        val artists = splitArtists(fallbackSong.artist)
+        val mainArtistName = artists.firstOrNull() ?: fallbackSong.artist.ifBlank { "Unknown Artist" }
+        var main = CreditContributor(
+            name = mainArtistName,
+            roles = listOf("Main Artist"),
+            artistId = fallbackSong.artistId,
+        )
+        val featured = artists.drop(1).map {
+            CreditContributor(name = it, roles = listOf("Featured Artist"))
+        }.toMutableList()
+
+        val compositionMap = linkedMapOf<String, MutableSet<String>>()
+        val productionMap = linkedMapOf<String, MutableSet<String>>()
+        val engineeringMap = linkedMapOf<String, MutableSet<String>>()
+        val musiciansMap = linkedMapOf<String, MutableSet<String>>()
+        var label: String? = null
+        var copyright: String? = null
+
+        for (credit in creditsList) {
+            val role = credit.role
+            val lower = role.lowercase()
+            when {
+                lower.contains("performed by") || lower.contains("main artist") -> {
+                    val names = credit.names
+                    if (names.isNotEmpty()) {
+                        main = CreditContributor(names.first(), listOf(role), artistId = fallbackSong.artistId)
+                        names.drop(1).forEach {
+                            featured.add(CreditContributor(it, listOf("Featured Artist")))
+                        }
+                    }
+                }
+                lower.contains("written by") || lower.contains("composer") || lower.contains("lyricist") || lower.contains("author") -> {
+                    for (name in credit.names) {
+                        compositionMap.getOrPut(name) { linkedSetOf() }.add(role)
+                    }
+                }
+                lower.contains("produced by") || lower.contains("producer") -> {
+                    for (name in credit.names) {
+                        productionMap.getOrPut(name) { linkedSetOf() }.add(role)
+                    }
+                }
+                lower.contains("engineer") || lower.contains("mixer") || lower.contains("master") || lower.contains("recording") -> {
+                    for (name in credit.names) {
+                        engineeringMap.getOrPut(name) { linkedSetOf() }.add(role)
+                    }
+                }
+                lower.contains("provided by") || lower.contains("metadata") || lower.contains("label") -> {
+                    label = credit.names.joinToString(", ")
+                }
+                lower.contains("copyright") -> {
+                    copyright = credit.names.joinToString(", ")
+                }
+                else -> {
+                    for (name in credit.names) {
+                        musiciansMap.getOrPut(name) { linkedSetOf() }.add(role)
+                    }
+                }
+            }
+        }
+
+        return SongCredits(
+            mainArtist = main,
+            featuredArtists = featured.distinctBy { it.name },
+            compositionAndLyrics = compositionMap.map { (name, roles) -> CreditContributor(name, roles.toList()) },
+            production = productionMap.map { (name, roles) -> CreditContributor(name, roles.toList()) },
+            engineering = engineeringMap.map { (name, roles) -> CreditContributor(name, roles.toList()) },
+            musicians = musiciansMap.map { (name, roles) -> CreditContributor(name, roles.toList()) },
+            label = label,
+            copyright = copyright,
         )
     }
 }
