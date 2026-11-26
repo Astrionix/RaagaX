@@ -353,6 +353,9 @@ const val NOTIFICATION_ART_PX = 544
  */
 const val PLAYER_ART_PX = 1200
 
+/** Memory-cache namespace shared by the player and same-resolution widgets. */
+const val PLAYER_ART_MEMORY_CACHE_KEY_EXTRA = "raaga_player_art_px"
+
 enum class BrowseType { ALBUM, ARTIST, PLAYLIST, OTHER }
 
 /** A queue-level origin shown above Now Playing, in the style of Spotify. */
@@ -404,6 +407,13 @@ data class ShelfItem(
     val browseId: String?,
     val isVideo: Boolean = false,
 )
+
+/**
+ * A "Mixed for you" card and its English title, which is what says what kind
+ * of mix it is whatever language [item] is shown in — see
+ * [com.music.raaga.data.YtMusicRepository.mixedForYouKeyed].
+ */
+data class KeyedMix(val item: ShelfItem, val englishTitle: String)
 
 /** The signed-in Google account, as YouTube Music reports it. */
 data class Account(
@@ -681,3 +691,11 @@ sealed interface UiState<out T> {
     data class Success<T>(val data: T) : UiState<T>
     data class Error(val message: String) : UiState<Nothing>
 }
+
+/** Identity of one occurrence in a live queue, independent of its timeline index. */
+data class QueueEntryIdentity(
+    val mediaId: String,
+    val queueEntryId: String?,
+    /** Zero-based occurrence among entries with the same media and queue-entry ids. */
+    val occurrence: Int,
+)
