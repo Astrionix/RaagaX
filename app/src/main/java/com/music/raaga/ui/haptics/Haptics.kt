@@ -58,6 +58,12 @@ enum class Haptic {
 
     /** Something growing to fill the screen, e.g. the mini player opening. */
     Expand,
+
+    /**
+     * Something heavy landing on the screen: a full-strength beat with a low
+     * one under it, like a thud. For a story's big reveal, not for controls.
+     */
+    Slam,
 }
 
 /**
@@ -143,6 +149,10 @@ private fun rhythmOf(haptic: Haptic): List<Beat> = when (haptic) {
         Beat(Beat.Kind.Tick, 0.3f, 0),
         Beat(Beat.Kind.Tick, 0.45f, 12),
         Beat(Beat.Kind.Click, 0.6f, 12),
+    )
+    Haptic.Slam -> listOf(
+        Beat(Beat.Kind.Click, 1f, 0),
+        Beat(Beat.Kind.LowTick, 0.6f, 24),
     )
 }
 
