@@ -159,6 +159,10 @@ import com.music.raaga.ui.screens.ListenTogetherScreen
 import com.music.raaga.ui.screens.PartyServerEditor
 import com.music.raaga.ui.screens.SettingsScreen
 import com.music.raaga.ui.screens.WearOsScreen
+import com.music.raaga.ui.screens.DriveBackupScreen
+import com.music.raaga.ui.screens.DriveDevicesScreen
+import com.music.raaga.ui.screens.DriveBackupAlerts
+import com.music.raaga.ui.screens.DriveBackupAlertsHost
 import com.music.raaga.ui.screens.SignatureApiEditor
 import com.music.raaga.ui.screens.SourceEditorAlert
 import com.music.raaga.ui.screens.SourcesScreen
@@ -213,6 +217,7 @@ import com.music.raaga.playback.QualityUpgrade
 import com.music.raaga.playback.rememberMediaController
 import com.music.raaga.playback.rememberPlayerState
 import com.music.raaga.playback.setQueueDragActive
+import com.music.raaga.playback.replayFromHistory
 import com.music.raaga.ui.MainViewModel
 import com.music.raaga.ui.components.BottomFadeScrim
 import com.music.raaga.ui.components.BottomTab
@@ -540,6 +545,9 @@ private fun RaagaApp(
     var showListenTogether by remember { mutableStateOf(false) }
     var showEqualizer by remember { mutableStateOf(false) }
     var showWearOs by remember { mutableStateOf(false) }
+    var showDriveBackup by remember { mutableStateOf(false) }
+    var showDriveDevices by remember { mutableStateOf(false) }
+    val driveAlerts = remember { DriveBackupAlerts() }
     var showSpotifyCanvasAuth by remember { mutableStateOf(false) }
 
     // Hosted here rather than inside SourcesScreen so its frosted card has
@@ -2416,7 +2424,18 @@ private fun RaagaApp(
             },
             onJumpTo = { index ->
                 controller?.let { c ->
-                    QueueCoordinator.jumpToQueueItem(c, index, player.queue)
+                    val historySong = player.queue.getOrNull(index)
+                        ?.takeIf { index < c.currentMediaItemIndex }
+                    if (historySong == null) {
+                        QueueCoordinator.jumpToQueueItem(c, index, player.queue)
+                    } else {
+                        scope.launch {
+                            if (!c.replayFromHistory(index, historySong)) {
+                                QueueCoordinator.jumpToQueueItem(c, index, player.queue)
+                            }
+                            c.play()
+                        }
+                    }
                 }
             },
             onRemoveFromQueue = { controller?.removeMediaItem(it) },
@@ -2467,6 +2486,8 @@ private fun RaagaApp(
                 showSources = false
                 showListenTogether = false
                 showWearOs = false
+                showDriveBackup = false
+                showDriveDevices = false
                 showEqualizer = false
                 showReplay = false
                 showHistory = false
@@ -2581,6 +2602,12 @@ private fun RaagaApp(
         BackHandler(enabled = showWearOs) {
             showWearOs = false
         }
+        BackHandler(enabled = showDriveDevices) {
+            showDriveDevices = false
+        }
+        BackHandler(enabled = showDriveBackup) {
+            showDriveBackup = false
+        }
         // One back step out of Settings, or out of any tab but Home, lands on
         // Home rather than exiting — only Home itself hands back to the system,
         // which is what actually closes/minimizes the app.
@@ -2638,6 +2665,8 @@ private fun RaagaApp(
                         showSources -> "sources"
                         showListenTogether -> "listen_together"
                         showWearOs -> "wear_os"
+                        showDriveDevices -> "drive_devices"
+                        showDriveBackup -> "drive_backup"
                         showEqualizer -> "equalizer"
                         // Above Replay, not below it. The top bar's account
                         // button sets `showSettings` from every page including
@@ -2850,6 +2879,20 @@ private fun RaagaApp(
                         )
                     } else if (key == "wear_os") {
                         WearOsScreen(contentPadding = listPadding)
+                    } else if (key == "drive_devices") {
+                        DriveDevicesScreen(
+                            contentPadding = listPadding,
+                            onConfirmRestore = { driveAlerts.restore = it },
+                            onDone = { showDriveDevices = false },
+                        )
+                    } else if (key == "drive_backup") {
+                        DriveBackupScreen(
+                            contentPadding = listPadding,
+                            onOpenDevices = { showDriveDevices = true },
+                            onConfirmDisconnect = { driveAlerts.disconnect = true },
+                            onConfirmRemove = { driveAlerts.remove = it },
+                            onRename = { driveAlerts.renaming = it },
+                        )
                     } else if (key == "equalizer") {
                         EqualizerScreen(contentPadding = listPadding)
                     } else if (key == "settings") {
@@ -2871,6 +2914,7 @@ private fun RaagaApp(
                                 replayLandingPage = ReplayStoryPage.INTRO
                                 showReplay = true
                             },
+                            onDriveBackup = { showDriveBackup = true },
                             onLyricsSources = { showLyricsSources = true },
                             onTranslationLanguage = { showTranslationLanguage = true },
                             onSources = { showSources = true },
@@ -3430,6 +3474,8 @@ private fun RaagaApp(
                         showSources -> stringResource(R.string.sources)
                         showListenTogether -> stringResource(R.string.listen_together)
                         showWearOs -> stringResource(R.string.wear_os_page_title)
+                        showDriveDevices -> stringResource(R.string.drive_devices_title)
+                        showDriveBackup -> stringResource(R.string.drive_backup_title)
                         showEqualizer -> stringResource(R.string.equalizer)
                         showSettings && activeSettingsCategory != null -> stringResource(activeSettingsCategory!!.titleRes)
                         showSettings -> stringResource(R.string.settings)
@@ -3450,7 +3496,7 @@ private fun RaagaApp(
                     scrolled = {
                         when {
                             showSettings || showAccountScrobbling || showSources || showListenTogether ||
-                                showWearOs || showEqualizer ||
+                                showWearOs || showDriveDevices || showDriveBackup || showEqualizer ||
                                 showDiscord || showHistory ||
                                 (libraryShowAll != null && detail == null) ||
                                 (detail != null && detailActiveShelf != null) ||
@@ -3472,6 +3518,8 @@ private fun RaagaApp(
                         showSources -> ({ showSources = false })
                         showListenTogether -> ({ showListenTogether = false })
                         showWearOs -> ({ showWearOs = false })
+                        showDriveDevices -> ({ showDriveDevices = false })
+                        showDriveBackup -> ({ showDriveBackup = false })
                         showEqualizer -> ({ showEqualizer = false })
                         showSettings && activeSettingsCategory != null -> ({ activeSettingsCategory = null })
                         showSettings -> ({ showSettings = false; activeSettingsCategory = null })
@@ -5265,6 +5313,14 @@ private fun RaagaApp(
                 onDismiss = { confirmJioSaavn = false },
             )
         }
+
+        DriveBackupAlertsHost(
+            alerts = driveAlerts,
+            hazeState = hazeState,
+            onRestoreStarted = {
+                showDriveDevices = false
+            },
+        )
 
     }
 }
