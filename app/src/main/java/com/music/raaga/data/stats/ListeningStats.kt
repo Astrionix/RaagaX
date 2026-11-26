@@ -162,6 +162,11 @@ object ListeningStats {
             if (track.artistId == null) track.artistId = song.artistId
             if (track.art == null) track.art = song.thumbnailUrl
             if (countsAsPlay) track.plays++
+            val dayKey = at.toLocalDate().toString()
+            track.days.computeIfAbsent(dayKey) { DayStats() }.also { d ->
+                d.ms += playedMs
+                if (countsAsPlay) d.plays++
+            }
 
             // The lead artist, not the credit as a string. A track billed
             // "Cheema Y & Gur Sidhu" is not a third artist who happens to share
@@ -315,6 +320,62 @@ object ListeningStats {
             cached = Cached(period, version, facts, today, it)
         }
     }
+
+    /**
+     * One calendar [year] in full, for the Replay year story.
+     *
+     * Apart from [summary] because it needs a year the periods can't name: from
+     * January the 1st to the 15th the story is still about the year that just
+     * ended, and [ReplayPeriod.THIS_YEAR] has already moved on. Not cached:
+     * it is read once each time the story's button appears, a dozen month files
+     * at most, and caching it here would evict the Library's Lifetime summary
+     * from [cached] every time Home was opened.
+     *
+     * Peers are merged in exactly as [summary] does, so the year is every
+     * synced device's year.
+     */
+    suspend fun year(year: Int): ReplayYearData = withContext(Dispatchers.IO) {
+        flushAndAwait()
+        val today = LocalDate.now()
+        val months = allMonths().filter { it.year == year }
+        val merged = MergedBucket()
+        val dayMs = HashMap<String, Long>()
+        val monthTops = ArrayList<ReplayMonthTop>()
+        months.forEach { month ->
+            val buckets = bucketsOf(month)
+            buckets.forEach(merged::add)
+            buckets.forEach { bucket ->
+                bucket.days.forEach { (day, ms) ->
+                    val date = "${bucket.month}-%02d".format(Locale.ROOT, day)
+                    dayMs[date] = (dayMs[date] ?: 0L) + ms
+                }
+            }
+            // A month on its own, for its top song only. Ranked by the same
+            // merge as the year, so a month's chart agrees with the Replay's.
+            val single = MergedBucket().apply { buckets.forEach(::add) }
+            single.toSummary(ReplayPeriod.THIS_YEAR, today).songs.firstOrNull()
+                ?.let { monthTops += ReplayMonthTop(month, it) }
+        }
+        val summary = merged.toSummary(ReplayPeriod.THIS_YEAR, today).copy(label = year.toString())
+        // The song that carried the busiest day: the track whose day entry for
+        // that date is biggest. Months recorded before tracks kept per-day
+        // entries have none, and the story picks another song.
+        val busiestDaySong = summary.busiestDay?.let { date ->
+            val month = runCatching { YearMonth.parse(date.take(7)) }.getOrNull() ?: return@let null
+            val best = bucketsOf(month).flatMap { it.tracks }
+                .groupBy { it.id }
+                .mapValues { (_, entries) -> entries.sumOf { it.days[date]?.ms ?: 0L } }
+                .filterValues { it > 0 }
+                .maxByOrNull { it.value }
+                ?.key ?: return@let null
+            summary.songs.firstOrNull { it.song.videoId == best }?.song
+        }
+        ReplayYearData(year, summary, dayMs, monthTops, busiestDaySong)
+    }
+
+    /** This device's copy of [month], then every other device's. See [summary]. */
+    private fun bucketsOf(month: YearMonth): List<StoredBucket> =
+        listOfNotNull(read(month.toString())) + PeerListening.buckets(month.toString())
 
     /** Every month with a file, oldest first. */
     fun months(): List<YearMonth> {
@@ -545,7 +606,10 @@ object ListeningStats {
 
         fun add(bucket: StoredBucket) {
             bucket.tracks.forEach { entry ->
-                tracks.merge(mergeKey(entry), entry.copy()) { a, b -> a.also { it.absorb(b) } }
+                tracks.merge(
+                    mergeKey(entry),
+                    entry.copy(days = entry.days.mapValuesTo(HashMap()) { it.value.copy() }),
+                ) { a, b -> a.also { it.absorb(b) } }
             }
             bucket.artists.forEach { entry ->
                 val lead = entry.copy(name = primaryArtist(entry.name) ?: entry.name)
@@ -599,7 +663,7 @@ object ListeningStats {
                         plays = it.plays,
                     )
                 }
-            val rankedAlbums = albums.values
+            val rankedAlbums = foldAlbumsByTitle(albums.values)
                 .sortedWith(compareByDescending<NameEntry> { it.plays }.thenByDescending { it.ms })
                 .map { RankedEntry(it.name, it.sub, it.art, it.id, it.ms, it.plays) }
 
@@ -679,6 +743,31 @@ object ListeningStats {
         albumId?.let { it } ?: albumKey(name, artist)
 
     /**
+     * Folds entries that share a title and artist into one row.
+     *
+     * A record could be filed by name in a month before the track carried an
+     * album id, by id afterwards, or under two YouTube ids across months;
+     * without a fold, a long period ranks the same album twice and the Replay
+     * list crashes on the duplicate key. The id-bearing entry wins so tapping
+     * the row can open the album.
+     */
+    internal fun foldAlbumsByTitle(albums: Collection<NameEntry>): List<NameEntry> {
+        val folded = LinkedHashMap<String, NameEntry>()
+        albums
+            .sortedWith(compareByDescending<NameEntry> { it.id != null }.thenByDescending { it.ms })
+            .forEach { entry ->
+                val key = albumKey(entry.name, entry.sub.orEmpty())
+                val existing = folded[key]
+                if (existing == null) {
+                    folded[key] = entry.copy()
+                } else {
+                    existing.absorb(entry)
+                }
+            }
+        return folded.values.toList()
+    }
+
+    /**
      * Which row of the song chart [entry] is added into.
      *
      * A track's id, except for a file on the device: its id is a `content://`
@@ -756,6 +845,13 @@ object ListeningStats {
     private const val MAX_NAMES = 400
 }
 
+/** Daily-level listening for a single track. */
+@Serializable
+data class DayStats(
+    var ms: Long = 0L,
+    var plays: Int = 0,
+)
+
 /** One track's totals inside a bucket. */
 @Serializable
 data class TrackEntry(
@@ -769,6 +865,8 @@ data class TrackEntry(
     var ms: Long = 0L,
     var plays: Int = 0,
     var last: Long = 0L,
+    /** Per-day breakdown. Key: "YYYY-MM-DD". */
+    var days: MutableMap<String, DayStats> = mutableMapOf(),
 ) {
     fun absorb(other: TrackEntry) {
         ms += other.ms
@@ -778,6 +876,14 @@ data class TrackEntry(
         if (albumId == null) albumId = other.albumId
         if (artistId == null) artistId = other.artistId
         if (art == null) art = other.art
+        if (other.days.isNotEmpty()) {
+            other.days.forEach { (dateKey, stats) ->
+                days.computeIfAbsent(dateKey) { DayStats() }.also { existing ->
+                    existing.ms += stats.ms
+                    existing.plays += stats.plays
+                }
+            }
+        }
     }
 }
 
@@ -835,6 +941,21 @@ data class RankedEntry(
     val ms: Long,
     val plays: Int,
 )
+
+/** A calendar year, for the Replay year story. See [ListeningStats.year]. */
+data class ReplayYearData(
+    val year: Int,
+    val summary: ReplaySummary,
+    /** Milliseconds listened per day, keyed `YYYY-MM-DD`. Days with nothing are absent. */
+    val dayMs: Map<String, Long>,
+    /** Each month's top song, oldest month first. Months with nothing are absent. */
+    val monthTops: List<ReplayMonthTop>,
+    /** The song played most on [ReplaySummary.busiestDay], when the months kept per-day counts. */
+    val busiestDaySong: Song?,
+)
+
+/** One month's top song. */
+data class ReplayMonthTop(val month: YearMonth, val song: RankedSong)
 
 /** A song row, which keeps the whole [Song] so tapping it can play it. */
 data class RankedSong(val song: Song, val ms: Long, val plays: Int)
