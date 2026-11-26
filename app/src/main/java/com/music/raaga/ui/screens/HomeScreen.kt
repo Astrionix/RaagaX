@@ -182,6 +182,7 @@ fun HomeScreen(
     onLoadMore: (() -> Unit)? = null,
     loadingMore: Boolean = false,
     recentlyPlayedLoading: Boolean = false,
+    replayYear: ReplayYearBadge? = null,
 ) {
     val recentsViewType by AppSettings.homeRecentsViewType.collectAsStateWithLifecycle()
     val showRecents by AppSettings.showHomeRecents.collectAsStateWithLifecycle()
@@ -257,12 +258,20 @@ fun HomeScreen(
         ) {
             if (title.isNotBlank()) {
                 item(key = "home_title") {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.displayLarge,
-                        color = MaterialTheme.colorScheme.onBackground,
+                    Row(
                         modifier = Modifier.padding(horizontal = PAGE_GUTTER, vertical = 8.dp),
-                    )
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.displayLarge,
+                            color = MaterialTheme.colorScheme.onBackground,
+                        )
+                        if (replayYear != null) {
+                            Spacer(Modifier.width(14.dp))
+                            ReplayYearButton(replayYear, height = 28.dp)
+                        }
+                    }
                 }
             }
             if (!signedIn && onSignIn != null) {
