@@ -56,9 +56,7 @@
         android:maxSdkVersion="28" />
 
     <!-- Full-screen lock screen animated artwork player and wallpaper -->
-    <uses-permission android:name="android.permission.SET_WALLPAPER" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.DISABLE_KEYGUARD" />
 
     <application
