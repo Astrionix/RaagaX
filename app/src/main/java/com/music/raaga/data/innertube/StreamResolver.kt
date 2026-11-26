@@ -359,6 +359,14 @@ object StreamResolver {
         unplayable.clear()
     }
 
+    /**
+     * Drops the remembered stream URLs, so the next play of a track resolves
+     * afresh — for a setting that changes which stream a resolve picks.
+     */
+    fun forgetResolved() {
+        recent.clear()
+    }
+
     private const val UNPLAYABLE_TTL_MS = 10 * 60 * 1000L
 
     /**
@@ -486,11 +494,12 @@ object StreamResolver {
         videoId: String,
         maxKbps: Int = AppSettings.effectiveAudioQuality.maxKbps,
         requireM4a: Boolean = false,
+        premium: Boolean = AppSettings.youtubePremiumAudio.value,
     ): Stream? {
         val skip = mutableSetOf<String>()
         repeat(INNERTUBEX_ATTEMPTS) {
             val found = try {
-                InnerTubeXResolver.extract(videoId, maxKbps, skip, requireM4a)
+                InnerTubeXResolver.extract(videoId, maxKbps, skip, requireM4a, premium)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -719,6 +728,7 @@ object StreamResolver {
      */
     suspend fun signatureTimestamp(videoId: String): Int? {
         cachedSignatureTimestamp?.let { return it }
+        init
         return runCatching {
             jsPlayerManager { YoutubeJavaScriptPlayerManager.getSignatureTimestamp(videoId) }
         }
