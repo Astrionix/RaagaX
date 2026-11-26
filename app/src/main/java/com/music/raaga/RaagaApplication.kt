@@ -40,6 +40,9 @@ class RaagaApplication : Application(), SingletonImageLoader.Factory {
     @OptIn(UnstableApi::class)
     override fun onCreate() {
         super.onCreate()
+        if (!BuildConfig.DEBUG) {
+            System.setProperty("slf4j.internal.verbosity", "WARN")
+        }
         // PlaybackService shares this process, so seeding the cookie here means
         // stream resolution is authenticated from the first play onwards.
         authStore = AuthStore(this)
@@ -82,6 +85,7 @@ class RaagaApplication : Application(), SingletonImageLoader.Factory {
             CoroutineScope(Dispatchers.IO).launch { Innertube.ensureSessionScope() }
         }
         AppSettings.init(this, authStore)
+        com.music.raaga.data.backup.DriveBackup.init(this)
         com.music.raaga.data.FeedCache.init(this)
         LastPlayed.init(this)
         LockScreenArt.install(this)
@@ -91,8 +95,8 @@ class RaagaApplication : Application(), SingletonImageLoader.Factory {
         // Non-critical background initializations off the main thread so first frame draws immediately
         CoroutineScope(Dispatchers.IO).launch {
             com.music.raaga.data.update.AutoUpdateScheduler.schedule(this@RaagaApplication)
-            if (AppSettings.keepPlaylistsUpdated.value) {
-                com.music.raaga.download.PlaylistSyncWorker.schedule(this@RaagaApplication)
+            if (AppSettings.keepPlaylistsUpdated.value || AppSettings.downloadLikedSongs.value) {
+                com.music.raaga.download.PlaylistSyncWorker.init(this@RaagaApplication)
             }
             com.music.raaga.data.backup.SmartBackupManager.scheduleOrUpdateWork(this@RaagaApplication)
             com.music.raaga.data.connect.RaagaPairingStore.init(this@RaagaApplication)
