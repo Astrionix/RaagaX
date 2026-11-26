@@ -2,6 +2,7 @@ package com.music.raaga.ui.player
 
 import kotlinx.coroutines.flow.first
 import androidx.compose.runtime.snapshotFlow
+import com.music.raaga.data.model.PLAYER_ART_MEMORY_CACHE_KEY_EXTRA
 import com.music.raaga.playback.PlaybackPosition
 import com.music.raaga.data.connect.AndroidConnect
 import android.content.Context
@@ -30,6 +31,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImagePainter
+import coil3.memory.MemoryCache
 import coil3.request.ImageRequest
 import com.music.raaga.data.canvas.CanvasArtwork
 import com.music.raaga.data.canvas.CanvasRepository
@@ -40,6 +42,7 @@ import com.music.raaga.data.model.ROW_ART_PX
 import com.music.raaga.data.model.Song
 import com.music.raaga.data.model.artworkAt
 import com.music.raaga.data.settings.AppSettings
+import com.music.raaga.playback.AutoMixVisualFeed
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineScope
@@ -97,8 +100,11 @@ internal fun rememberCanvasArtwork(song: Song): CanvasArtwork? {
         canvas = CanvasRepository.canvasFor(song) ?: canvas
     }
 
-    return canvas
+    return canvas?.takeIf { canvasAllowedNow && (spotifyCanvasEnabled || it.source != CanvasSource.SPOTIFY) }
 }
+
+internal fun playerCoverRequest(context: Context, artworkUrl: String?): ImageRequest.Builder =
+    ImageRequest.Builder(context).data(artworkUrl).size(ART_PX)
 
 /**
  * The player's cover: the one request every surface draws it from, whether it
@@ -129,6 +135,17 @@ internal class PlayerArtwork(
     /** Latched on an error, and only upwards — cleared by the retry itself. */
     internal var failed by mutableStateOf(false)
 
+    private var shown: MemoryCache.Key? = null
+    private var decodedCover: DecodedAutoMixCover? = null
+    private var decodedDuringMix: Long? = null
+
+    fun decodedCoverBefore(generation: Long): DecodedAutoMixCover? =
+        decodedCover?.takeIf { decodedDuringMix != generation }
+
+    fun noteDisplayedCover(cover: DecodedAutoMixCover) {
+        shown = cover.cacheKey
+    }
+
     /**
      * The one request for this cover, built once.
      *
@@ -147,10 +164,12 @@ internal class PlayerArtwork(
         val placeholderKey = remoteArt?.artworkAt(ROW_ART_PX)
             ?: remoteArt?.artworkAt(CARD_ART_PX)
             ?: remoteArt
-        ImageRequest.Builder(context)
-            .data(targetUrl)
+        playerCoverRequest(context, targetUrl)
             .size(if (attempt == 0) ART_PX else CARD_ART_PX)
             .apply {
+                if (attempt == 0) {
+                    memoryCacheKeyExtra(PLAYER_ART_MEMORY_CACHE_KEY_EXTRA, ART_PX.toString())
+                }
                 if (placeholderKey != null) {
                     placeholderMemoryCacheKey(placeholderKey)
                 }
@@ -166,7 +185,12 @@ internal class PlayerArtwork(
         ) {
             loaded = true
         }
-        if (state is AsyncImagePainter.State.Success) failed = false
+        if (state is AsyncImagePainter.State.Success) {
+            failed = false
+            shown = state.result.memoryCacheKey
+            decodedCover = state.result.decodedAutoMixCover()
+            decodedDuringMix = AutoMixVisualFeed.state.value?.takeIf { it.mixActive }?.generation
+        }
         if (state is AsyncImagePainter.State.Error) failed = true
     }
 
