@@ -1,5 +1,6 @@
 package com.music.raaga.ui.player
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.os.Build
 import androidx.compose.animation.animateColorAsState
@@ -25,7 +26,6 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
@@ -33,8 +33,6 @@ import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.SingletonImageLoader
@@ -79,15 +77,20 @@ private val ambientStateCache: MutableMap<String, AmbientBlurState> =
 fun rememberAmbientBlurState(
     imageUrl: String?,
     canvasFrame: Bitmap? = null,
+    seed: AmbientBlurState? = null,
 ): AmbientBlurState {
     val context = LocalContext.current
     val cacheKey = imageUrl ?: "frame_${canvasFrame.hashCode()}"
 
     var state by remember(cacheKey) {
-        mutableStateOf(ambientStateCache[cacheKey] ?: AmbientBlurState())
+        mutableStateOf(seed ?: ambientStateCache[cacheKey] ?: AmbientBlurState())
     }
 
-    LaunchedEffect(imageUrl) {
+    LaunchedEffect(imageUrl, seed) {
+        if (seed != null) {
+            state = seed
+            return@LaunchedEffect
+        }
         if (imageUrl.isNullOrBlank()) {
             state = AmbientBlurState()
             return@LaunchedEffect
@@ -97,28 +100,9 @@ fun rememberAmbientBlurState(
             return@LaunchedEffect
         }
 
-        withContext(Dispatchers.IO) {
-            val request = ImageRequest.Builder(context)
-                .data(imageUrl)
-                .size(AMBIENT_SOURCE_PX)
-                .allowHardware(false)
-                .build()
-            val result = SingletonImageLoader.get(context).execute(request)
-            val bitmap = (result as? SuccessResult)?.image?.toBitmap()
-            if (bitmap != null) {
-                val palette = ArtworkPaletteExtractor.extract(bitmap, imageUrl)
-                val fallbackBlurred = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
-                    fastBoxBlur(bitmap, AMBIENT_BLUR_BOX_PASSES).asImageBitmap()
-                } else null
-
-                val computed = AmbientBlurState(
-                    bitmap = bitmap.asImageBitmap(),
-                    blurredFallbackBitmap = fallbackBlurred,
-                    palette = palette,
-                )
-                ambientStateCache[imageUrl] = computed
-                state = computed
-            }
+        computeAmbientBlurState(context, imageUrl)?.let { computed ->
+            ambientStateCache[imageUrl] = computed
+            state = computed
         }
     }
 
@@ -141,6 +125,33 @@ fun rememberAmbientBlurState(
     return state
 }
 
+internal suspend fun prefetchAmbientBlurState(context: Context, imageUrl: String): AmbientBlurState? {
+    ambientStateCache[imageUrl]?.let { return it }
+    val computed = computeAmbientBlurState(context, imageUrl) ?: return null
+    ambientStateCache[imageUrl] = computed
+    return computed
+}
+
+private suspend fun computeAmbientBlurState(context: Context, imageUrl: String): AmbientBlurState? =
+    withContext(Dispatchers.IO) {
+        val request = ImageRequest.Builder(context)
+            .data(imageUrl)
+            .size(AMBIENT_SOURCE_PX)
+            .allowHardware(false)
+            .build()
+        val result = SingletonImageLoader.get(context).execute(request)
+        val bitmap = (result as? SuccessResult)?.image?.toBitmap() ?: return@withContext null
+        val palette = ArtworkPaletteExtractor.extract(bitmap, imageUrl)
+        val fallbackBlurred = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            fastBoxBlur(bitmap, AMBIENT_BLUR_BOX_PASSES).asImageBitmap()
+        } else null
+        AmbientBlurState(
+            bitmap = bitmap.asImageBitmap(),
+            blurredFallbackBitmap = fallbackBlurred,
+            palette = palette,
+        )
+    }
+
 /**
  * Apple Music-inspired Premium Ambient Artwork Blur Renderer.
  *
@@ -152,36 +163,35 @@ fun rememberAmbientBlurState(
  * 5. Smooth crossfading between tracks with zero flashes.
  */
 @Composable
-fun AmbientArtworkBlurBackdrop(
+internal fun AmbientArtworkBlurBackdrop(
     imageUrl: String?,
     canvasFrame: Bitmap? = null,
     modifier: Modifier = Modifier,
     blurRadius: Dp = 80.dp,
+    mix: AutoMixAmbientMix? = null,
+    currentIsOutgoing: Boolean = false,
+    seed: AmbientBlurState? = null,
+    direct: Boolean = false,
 ) {
     val reduceAnimation by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
     val canGpuBlur = !reduceDynamicBlur && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
 
-    val currentState = rememberAmbientBlurState(imageUrl, canvasFrame)
+    val currentState = rememberAmbientBlurState(imageUrl, canvasFrame, seed)
 
     var shownState by remember { mutableStateOf(currentState) }
     var incomingState by remember { mutableStateOf<AmbientBlurState?>(null) }
     val crossfadeProgress = remember { Animatable(1f) }
 
-    LaunchedEffect(currentState) {
-        if (shownState.bitmap == null) {
-            shownState = currentState
-            crossfadeProgress.snapTo(1f)
-            return@LaunchedEffect
-        }
-        if (currentState === shownState) return@LaunchedEffect
-
-        if (reduceAnimation) {
+    LaunchedEffect(currentState, mix, direct) {
+        if (mix != null) return@LaunchedEffect
+        if (direct || shownState.bitmap == null || reduceAnimation) {
             shownState = currentState
             incomingState = null
             crossfadeProgress.snapTo(1f)
             return@LaunchedEffect
         }
+        if (currentState === shownState) return@LaunchedEffect
 
         incomingState = currentState
         crossfadeProgress.snapTo(0f)
@@ -193,30 +203,57 @@ fun AmbientArtworkBlurBackdrop(
         incomingState = null
     }
 
+    val heldOutgoing = remember(mix) {
+        if (mix == null) null else shownState.takeIf { it.bitmap != null }
+            ?: mix.outgoingUrl?.let(ambientStateCache::get)
+            ?: currentState.takeIf { currentIsOutgoing }
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
             .clipToBounds()
-            .background(shownState.palette.darkVignetteBase),
+            .background((heldOutgoing ?: shownState).palette.darkVignetteBase),
     ) {
-        // Outgoing layer
-        AmbientLayer(
-            state = shownState,
-            alpha = 1f,
-            canGpuBlur = canGpuBlur,
-            blurRadius = blurRadius,
-            modifier = Modifier.fillMaxSize(),
-        )
-
-        // Incoming crossfading layer
-        incomingState?.let { incoming ->
+        if (mix != null) {
+            heldOutgoing?.let { out ->
+                AmbientLayer(
+                    state = out,
+                    alpha = { 1f },
+                    canGpuBlur = canGpuBlur,
+                    blurRadius = blurRadius,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+            mix.prepared?.ambientBlur?.let { next ->
+                AmbientLayer(
+                    state = next,
+                    alpha = mix.ease,
+                    canGpuBlur = canGpuBlur,
+                    blurRadius = blurRadius,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        } else {
+            // Outgoing layer
             AmbientLayer(
-                state = incoming,
-                alpha = crossfadeProgress.value,
+                state = shownState,
+                alpha = { 1f },
                 canGpuBlur = canGpuBlur,
                 blurRadius = blurRadius,
                 modifier = Modifier.fillMaxSize(),
             )
+
+            // Incoming crossfading layer
+            incomingState?.let { incoming ->
+                AmbientLayer(
+                    state = incoming,
+                    alpha = { crossfadeProgress.value },
+                    canGpuBlur = canGpuBlur,
+                    blurRadius = blurRadius,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
         }
 
         // Contrast and Readability Scrim (Vertical Gradient)
@@ -237,18 +274,15 @@ fun AmbientArtworkBlurBackdrop(
 @Composable
 private fun AmbientLayer(
     state: AmbientBlurState,
-    alpha: Float,
+    alpha: () -> Float,
     canGpuBlur: Boolean,
     blurRadius: Dp,
     modifier: Modifier = Modifier,
 ) {
-    if (alpha <= 0.001f) return
-
     val palette = state.palette
 
     // Animate color transitions smoothly so lighting shifts organically
-    val animDuration = if (alpha >= 0.99f) AMBIENT_CROSSFADE_MS else 0
-    val colorSpec = tween<Color>(animDuration, easing = FastOutSlowInEasing)
+    val colorSpec = tween<Color>(AMBIENT_CROSSFADE_MS, easing = FastOutSlowInEasing)
 
     val animatedPrimary by animateColorAsState(palette.primaryGlow, colorSpec, label = "ambPrimary")
     val animatedSecondary by animateColorAsState(palette.secondaryGlow, colorSpec, label = "ambSecondary")
@@ -257,7 +291,7 @@ private fun AmbientLayer(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .graphicsLayer { this.alpha = alpha },
+            .graphicsLayer { this.alpha = alpha() },
     ) {
         // 1. Blurred Artwork Foundation (Scaled beyond bounds to prevent clamped edge lines)
         if (canGpuBlur && state.bitmap != null) {
