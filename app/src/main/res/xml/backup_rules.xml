@@ -13,4 +13,9 @@
     <exclude domain="sharedpref" path="raaga_auth_plain.xml" />
     <exclude domain="sharedpref" path="raaga_sources.xml" />
     <exclude domain="sharedpref" path="raaga_sources_plain.xml" />
+    <!-- Drive backup: the account grant belongs to this phone (see DriveBackup). -->
+    <exclude domain="sharedpref" path="raaga_drive_backup.xml" />
+    <!-- Other devices' listening and what this one last uploaded: Drive sync's, and re-fetched from Drive. -->
+    <exclude domain="file" path="listening-peers/" />
+    <exclude domain="file" path="listening-synced/" />
 </full-backup-content>
