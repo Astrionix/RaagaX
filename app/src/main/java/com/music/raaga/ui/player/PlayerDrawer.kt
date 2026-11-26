@@ -40,6 +40,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -153,6 +154,8 @@ internal fun PlayerDrawer(
     title: String,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    titleGap: Dp = 14.dp,
+    maxHeight: Dp = 640.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
@@ -241,7 +244,7 @@ internal fun PlayerDrawer(
             modifier = Modifier
                 // Capped so a phone full of rows scrolls inside the drawer
                 // rather than growing one into a full-screen page.
-                .heightIn(max = 640.dp)
+                .heightIn(max = maxHeight)
                 // Capped before the fill, so [Modifier.fillMaxWidth] fills to
                 // the cap rather than to the window. Centred by the parent's
                 // own BottomCenter alignment once it is narrower.
@@ -343,7 +346,7 @@ internal fun PlayerDrawer(
                 color = Color.White,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 4.dp, bottom = 14.dp),
+                    .padding(start = 4.dp, bottom = titleGap),
             )
             content()
         }
