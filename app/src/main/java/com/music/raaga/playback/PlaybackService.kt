@@ -247,6 +247,15 @@ const val EXTRA_REORDER_ORDER = "raaga.reorder.order"
 const val ACTION_QUEUE_DRAG = "com.music.raaga.action.QUEUE_DRAG"
 const val EXTRA_QUEUE_DRAG_ACTIVE = "raaga.queueDrag.active"
 
+/**
+ * Play a history row again from the queue screen, keeping later history as
+ * history.
+ */
+const val ACTION_QUEUE_REPLAY_HISTORY = "com.music.raaga.action.QUEUE_REPLAY_HISTORY"
+const val EXTRA_QUEUE_MOVE_INDEX = "raaga.queueMove.index"
+const val EXTRA_QUEUE_MOVE_ENTRY = "raaga.queueMove.entry"
+const val EXTRA_QUEUE_MOVE_MEDIA = "raaga.queueMove.media"
+
 /** A full first page for an explicitly requested station. */
 private const val INITIAL_STATION_TRACKS = 24
 
@@ -747,6 +756,8 @@ class PlaybackService : MediaLibraryService() {
     private val swapVersionCommand = SessionCommand(ACTION_SWAP_VERSION, Bundle.EMPTY)
     private val reorderQueueCommand = SessionCommand(ACTION_REORDER_QUEUE, Bundle.EMPTY)
     private val queueDragCommand = SessionCommand(ACTION_QUEUE_DRAG, Bundle.EMPTY)
+    private val queueReplayHistoryCommand = SessionCommand(ACTION_QUEUE_REPLAY_HISTORY, Bundle.EMPTY)
+    private val queueMoveMutex = Mutex()
 
     private var favoriteActionJob: Job? = null
     private var stationActionJob: Job? = null
@@ -2385,6 +2396,30 @@ class PlaybackService : MediaLibraryService() {
         activePlayer.seekTo(index, position)
         if (wasPlaying) activePlayer.play()
         refreshCustomLayouts()
+    }
+
+    private suspend fun replayFromHistory(args: Bundle): Boolean {
+        if (ListenTogether.state.value.controlsLocked || ListenTogether.state.value.inParty) return false
+        val before = mediaSession?.player ?: return false
+        val requestedIndex = args.getInt(EXTRA_QUEUE_MOVE_INDEX, -1)
+        val entryId = args.getString(EXTRA_QUEUE_MOVE_ENTRY)
+        val mediaId = args.getString(EXTRA_QUEUE_MOVE_MEDIA)
+        val candidates = (0 until before.mediaItemCount).filter { index ->
+            val candidate = before.getMediaItemAt(index)
+            candidate.mediaId == mediaId && candidate.queueEntryId == entryId
+        }
+        val originalIndex = if (entryId != null) {
+            candidates.singleOrNull() ?: candidates.firstOrNull { it == requestedIndex }
+        } else candidates.firstOrNull { it == requestedIndex }
+        if (originalIndex == null || originalIndex >= before.currentMediaItemIndex) return false
+        val original = before.getMediaItemAt(originalIndex)
+        val activePlayer = mediaSession?.player ?: return false
+        val from = (0 until activePlayer.mediaItemCount)
+            .filter { activePlayer.getMediaItemAt(it) === original }.singleOrNull() ?: originalIndex
+        if (from !in 0 until activePlayer.currentMediaItemIndex) return false
+        if (!QueueCoordinator.replayFromHistory(activePlayer, from)) return false
+        player?.let(::saveQueueSnapshotImmediately)
+        return true
     }
 
     private fun toggleShuffleFromSession() {
@@ -7431,6 +7466,7 @@ class PlaybackService : MediaLibraryService() {
                 .add(swapVersionCommand)
                 .add(reorderQueueCommand)
                 .add(queueDragCommand)
+                .add(queueReplayHistoryCommand)
                 .build()
             return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
                 .setAvailablePlayerCommands(MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS)
@@ -7477,6 +7513,17 @@ class PlaybackService : MediaLibraryService() {
                         partySync?.beginQueueDrag()
                     } else {
                         partySync?.endQueueDrag()
+                    }
+                }
+                ACTION_QUEUE_REPLAY_HISTORY -> {
+                    val replayArgs = Bundle(args)
+                    return scope.future {
+                        queueMoveMutex.withLock {
+                            SessionResult(
+                                if (replayFromHistory(replayArgs)) SessionResult.RESULT_SUCCESS
+                                else SessionError.ERROR_INVALID_STATE,
+                            )
+                        }
                     }
                 }
                 ACTION_TOGGLE_FAVORITE -> session.player.currentMediaItem?.mediaId?.let {
@@ -8653,7 +8700,7 @@ private open class FfmpegFallbackRenderersFactory(context: Context) : DefaultRen
         super.buildAudioRenderers(
             context,
             extensionRendererMode,
-            withoutPlatformAlac(mediaCodecSelector),
+            withoutUnreliablePlatformDecoders(mediaCodecSelector),
             enableDecoderFallback,
             audioSink,
             eventHandler,
@@ -8665,15 +8712,24 @@ private open class FfmpegFallbackRenderersFactory(context: Context) : DefaultRen
 }
 
 /**
- * [selector] with no decoders for ALAC, so `MediaCodecAudioRenderer` reports
- * it unsupported and the track selector hands it to FFmpeg — unless this
- * build's FFmpeg cannot decode it (an ABI it was not built for), where a
- * vendor codec is still better than none. Wraps rather than replaces, so a
- * subclass's own selector (the FLAC one) keeps working underneath.
+ * [selector] with no decoders for ALAC or AC-4, so `MediaCodecAudioRenderer`
+ * reports them unsupported and the track selector hands them to FFmpeg —
+ * unless this build's FFmpeg cannot decode one (an ABI it was not built for),
+ * where a vendor codec is still better than none. Wraps rather than replaces,
+ * so a subclass's own selector (the FLAC one) keeps working underneath.
+ *
+ * AC-4 joins ALAC for the same reason: the platform decoders that claim it
+ * misbehave mid-track, and a codec that fails mid-playback is never retried
+ * on the next renderer.
  */
-private fun withoutPlatformAlac(selector: MediaCodecSelector) =
+private fun withoutUnreliablePlatformDecoders(selector: MediaCodecSelector) =
     MediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunnelingDecoder ->
-        if (mimeType == MimeTypes.AUDIO_ALAC && ffmpegDecodesAlac) {
+        val ffmpegFirst = when (mimeType) {
+            MimeTypes.AUDIO_ALAC -> ffmpegDecodesAlac
+            MimeTypes.AUDIO_AC4 -> ffmpegDecodesAc4
+            else -> false
+        }
+        if (ffmpegFirst) {
             emptyList()
         } else {
             selector.getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunnelingDecoder)
@@ -8681,8 +8737,9 @@ private fun withoutPlatformAlac(selector: MediaCodecSelector) =
     }
 
 /**
- * Asked once per process, and only when an ALAC track is first looked at: the
+ * Asked once per process, and only when an ALAC or AC-4 track is first looked at: the
  * native library then loads on the playback thread, as it did before, rather
  * than on the main thread while a player is built.
  */
 private val ffmpegDecodesAlac by lazy { FfmpegLibrary.supportsFormat(MimeTypes.AUDIO_ALAC) }
+private val ffmpegDecodesAc4 by lazy { FfmpegLibrary.supportsFormat(MimeTypes.AUDIO_AC4) }
