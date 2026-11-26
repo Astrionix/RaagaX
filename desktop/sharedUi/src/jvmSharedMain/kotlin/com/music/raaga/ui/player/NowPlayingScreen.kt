@@ -695,6 +695,11 @@ private fun SlidingPlayerDeck(
                         // this component's origin as its reported height changes.
                         placeable.placeRelative(0, 0)
                     }
+                }
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) awaitPointerEvent()
+                    }
                 },
         ) {
             content()
