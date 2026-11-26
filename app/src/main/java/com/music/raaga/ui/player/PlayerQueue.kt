@@ -210,6 +210,17 @@ private fun splitQueue(queue: List<Song>, currentIndex: Int): QueueTracks {
 private fun LazyItemScope.queueMotion(): Modifier =
     Modifier.animateItem(fadeInSpec = null, fadeOutSpec = null, placementSpec = QUEUE_ROW_MOTION)
 
+/**
+ * Target index for the first upcoming section, landing the list directly on
+ * what plays next rather than having the now-playing track monopolize the view.
+ */
+private fun upcomingStartIndex(tracks: QueueTracks): Int {
+    if (tracks.user.isNotEmpty() || tracks.context.isNotEmpty() || tracks.autoplay.isNotEmpty()) {
+        return 2
+    }
+    return 0
+}
+
 /** The live queue, in the player itself. */
 @Composable
 internal fun InlineQueue(
@@ -252,16 +263,16 @@ internal fun InlineQueue(
         ?: nowPlaying?.song?.playbackSource?.takeIf { it.isNotBlank() }
         ?: nowPlaying?.song?.albumName?.takeIf { it.isNotBlank() }
 
-    // Back to the top on a track change — snapped the first time, animated
-    // after — but never mid-drag, which would pull the list from under the finger.
+    // Start at what plays next; now playing stays above, reachable by scrolling up.
     var hasScrolledOnce by remember { mutableStateOf(false) }
-    LaunchedEffect(currentIndex) {
-        val scrolledAway = listState.firstVisibleItemIndex != 0 || listState.firstVisibleItemScrollOffset != 0
+    LaunchedEffect(currentIndex, nowPlaying?.key) {
+        val target = upcomingStartIndex(tracks)
+        val scrolledAway = listState.firstVisibleItemIndex != target || listState.firstVisibleItemScrollOffset != 0
         if (drag.held == null && nowPlaying != null && scrolledAway) {
             if (hasScrolledOnce) {
-                listState.animateScrollToItem(0)
+                listState.animateScrollToItem(target)
             } else {
-                listState.scrollToItem(0)
+                listState.scrollToItem(target)
                 hasScrolledOnce = true
             }
         }
