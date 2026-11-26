@@ -157,6 +157,7 @@ import com.music.raaga.ui.screens.EqualizerScreen
 import com.music.raaga.ui.screens.HistoryScreen
 import com.music.raaga.ui.screens.ListenTogetherScreen
 import com.music.raaga.ui.screens.PartyServerEditor
+import com.music.raaga.ui.screens.MixesScreen
 import com.music.raaga.ui.screens.SettingsScreen
 import com.music.raaga.ui.screens.WearOsScreen
 import com.music.raaga.ui.screens.DriveBackupScreen
@@ -257,6 +258,7 @@ import com.music.raaga.ui.icons.RaagaIcons
 import androidx.media3.common.Player
 import com.music.raaga.data.YtMusicRepository
 import com.music.raaga.ui.player.NowPlayingScreen
+import com.music.raaga.ui.player.rememberMiniAutoMixArtwork
 import com.music.raaga.ui.screens.DetailScreen
 import com.music.raaga.ui.screens.sortedForDetail
 import com.music.raaga.ui.screens.ExploreScreen
@@ -540,6 +542,8 @@ private fun RaagaApp(
     var showReplayShare by remember { mutableStateOf(false) }
     /** Which story card the share sheet is for, or null for the whole Replay. */
     var replaySharePage by remember { mutableStateOf<ReplayStoryPage?>(null) }
+    // The Replay year story, opened from its button on Home, and its share sheet.
+    var yearStoryOpen by rememberSaveable { mutableStateOf(false) }
     var showAccountScrobbling by remember { mutableStateOf(false) }
     var showSources by remember { mutableStateOf(false) }
     var showListenTogether by remember { mutableStateOf(false) }
@@ -693,6 +697,7 @@ private fun RaagaApp(
     val results by viewModel.results.collectAsStateWithLifecycle()
     val resultsQuery by viewModel.resultsQuery.collectAsStateWithLifecycle()
     val exploreState by viewModel.explore.collectAsStateWithLifecycle()
+    val mixesState by viewModel.mixes.collectAsStateWithLifecycle()
     val selectedMoodGenre by viewModel.selectedMoodGenre.collectAsStateWithLifecycle()
     val moodGenreShelves by viewModel.moodGenreShelves.collectAsStateWithLifecycle()
     val libraryState by viewModel.library.collectAsStateWithLifecycle()
@@ -982,9 +987,11 @@ private fun RaagaApp(
     val historyListState = rememberLazyListState()
     val libraryShowAllGridState = rememberLazyGridState()
     val searchListState = rememberLazyListState()
+    val mixesListState = rememberLazyListState()
     val currentListState = when (selectedTab) {
         TAB_HOME -> homeListState
         TAB_EXPLORE -> if (selectedMoodGenre == null) exploreListState else moodGenreListState
+        TAB_RADIO -> mixesListState
         TAB_LIBRARY -> libraryListState
         else -> searchListState
     }
@@ -994,27 +1001,33 @@ private fun RaagaApp(
     val homePull = rememberPullToRefreshState()
     val explorePull = rememberPullToRefreshState()
     val libraryPull = rememberPullToRefreshState()
+    val mixesPull = rememberPullToRefreshState()
     val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
     val currentFeed = when {
         showSettings || showAccountScrobbling || detail != null -> null
         selectedTab == TAB_HOME -> MainViewModel.Feed.HOME
         selectedTab == TAB_EXPLORE -> MainViewModel.Feed.EXPLORE
+        selectedTab == TAB_RADIO -> MainViewModel.Feed.MIXES
         selectedTab == TAB_LIBRARY -> MainViewModel.Feed.LIBRARY
         else -> null
     }
     // The lead shelf is listening history, so opening Home after playing
     // something is exactly when it needs re-fetching.
-    LaunchedEffect(currentFeed) {
+    // Keyed on the account too: the mixes are one listener's, and a sign-in
+    // or switch while the page is open is a different set of them.
+    LaunchedEffect(currentFeed, signedIn, account) {
         if (currentFeed == MainViewModel.Feed.HOME) viewModel.onHomeShown()
         if (currentFeed == MainViewModel.Feed.EXPLORE) viewModel.onExploreShown()
         // Likewise for Library: a playlist created or a song liked since it
         // was last fetched is a change to exactly this page.
         if (currentFeed == MainViewModel.Feed.LIBRARY) viewModel.onLibraryShown()
+        if (currentFeed == MainViewModel.Feed.MIXES) viewModel.onMixesShown()
     }
 
     val currentPull = when (currentFeed) {
         MainViewModel.Feed.HOME -> homePull
         MainViewModel.Feed.EXPLORE -> explorePull
+        MainViewModel.Feed.MIXES -> mixesPull
         MainViewModel.Feed.LIBRARY -> libraryPull
         else -> null
     }
@@ -1061,16 +1074,18 @@ private fun RaagaApp(
     val homeLabel = stringResource(R.string.home)
     val playLabel = stringResource(R.string.play)
     val exploreLabel = stringResource(R.string.explore)
+    val radioLabel = stringResource(R.string.radio)
     val libraryLabel = stringResource(R.string.library)
     val searchLabel = stringResource(R.string.search)
     val historyLabel = stringResource(R.string.history)
     val replayLabel = stringResource(R.string.replay)
     val queueLabel = stringResource(R.string.queue)
     val sharedLinkLabel = stringResource(R.string.shared_link)
-    val tabs = remember(homeLabel, exploreLabel, libraryLabel, searchLabel) {
+    val tabs = remember(homeLabel, exploreLabel, radioLabel, libraryLabel, searchLabel) {
         listOf(
             BottomTab(homeLabel, RaagaIcons.Home),
             BottomTab(exploreLabel, RaagaIcons.Explore),
+            BottomTab(radioLabel, RaagaIcons.Radio),
             BottomTab(libraryLabel, RaagaIcons.Library),
             BottomTab(searchLabel, RaagaIcons.Search),
         )
@@ -2203,10 +2218,31 @@ private fun RaagaApp(
     // See [rememberReplayState].
     val replayOpen = showReplay || replayStory != null || showReplayShare ||
         (selectedTab == TAB_LIBRARY && detail == null && !showSettings)
-    val (replay, setReplayPeriod) = rememberReplayState(replayOpen)
+    val replayPageOpen = showReplay || replayStory != null || showReplayShare
+    val (replay, setReplayPeriod) = rememberReplayState(replayOpen, replayPageOpen)
     val replayCards = remember(replay.summary) {
         replay.summary?.takeUnless { it.isEmpty }?.cards(context).orEmpty()
     }
+    // The year the Home button offers. Read only while Home or the story is up.
+    val replayYear = com.music.raaga.ui.replay.year.rememberReplayYear(
+        active = selectedTab == TAB_HOME || yearStoryOpen,
+    )
+    val replayYearDescription = replayYear?.let {
+        stringResource(R.string.replay_year_open, it.year.toString())
+    }
+    val replayYearBadge = remember(replayYear, replayYearDescription) {
+        replayYear?.let { year ->
+            com.music.raaga.ui.screens.ReplayYearBadge(
+                year = year.year,
+                artworkUrl = year.data.summary.songs.firstOrNull()?.song?.thumbnailUrl,
+                contentDescription = replayYearDescription.orEmpty(),
+                onOpen = { yearStoryOpen = true },
+            )
+        }
+    }
+    // The story has its own soundtrack: whatever was playing stops for it, and
+    // stays stopped after, rather than coming back in under the last card.
+    LaunchedEffect(yearStoryOpen) { if (yearStoryOpen) controller?.pause() }
 
     // ---- The track in the player ----
     // Whatever started this track knew its title and its artwork, but rarely
@@ -2344,6 +2380,18 @@ private fun RaagaApp(
                 } else {
                     controller?.seekToPrevious()
                 }
+            },
+            previousRestarts = {
+                if (activeRemoteDevice != null) {
+                    (remoteStatus?.positionMs ?: 0L) > 3_000L
+                } else {
+                    controller?.let {
+                        it.currentPosition > it.maxSeekToPreviousPosition || !it.hasPreviousMediaItem()
+                    } ?: true
+                }
+            },
+            currentPlaybackSong = {
+                if (activeRemoteDevice != null) displayedSong else controller?.currentMediaItem?.toSong()
             },
             onBlockedControl = showHostOnlyNotice,
             onSeekFraction = { fraction ->
@@ -3212,6 +3260,7 @@ private fun RaagaApp(
                             onLoadMore = viewModel::loadMoreHome,
                             loadingMore = homeLoadingMore,
                             recentlyPlayedLoading = homeRecentlyPlayedLoading,
+                            replayYear = replayYearBadge,
                         )
                         TAB_EXPLORE -> selectedMoodGenre?.let { category ->
                             MoodGenrePlaylistsScreen(
@@ -3252,6 +3301,31 @@ private fun RaagaApp(
                             refreshing = MainViewModel.Feed.EXPLORE in refreshing,
                             onRefresh = { viewModel.refresh(MainViewModel.Feed.EXPLORE) },
                             pullState = explorePull,
+                            contentPadding = listPadding,
+                        )
+                        TAB_RADIO -> MixesScreen(
+                            title = radioLabel,
+                            state = mixesState,
+                            signedIn = signedIn,
+                            listState = mixesListState,
+                            // A mix opens as the playlist it is, as its card
+                            // does on Home and in the web player.
+                            onItemClick = { item ->
+                                item.browseId?.let { browseId ->
+                                    viewModel.openDetail(
+                                        browseId = browseId,
+                                        title = item.title,
+                                        subtitle = item.subtitle,
+                                        thumbnailUrl = item.thumbnailUrl,
+                                    )
+                                }
+                            },
+                            onItemLongPress = onShelfLongPress,
+                            onRetry = viewModel::loadMixes,
+                            onSignIn = { webSession = WebSessionMode.SIGN_IN },
+                            refreshing = MainViewModel.Feed.MIXES in refreshing,
+                            onRefresh = { viewModel.refresh(MainViewModel.Feed.MIXES) },
+                            pullState = mixesPull,
                             contentPadding = listPadding,
                         )
                         TAB_SEARCH -> SearchScreen(
@@ -3510,6 +3584,18 @@ private fun RaagaApp(
                     },
                     refreshing = currentFeed != null && currentFeed in refreshing,
                     pullFraction = { currentPull?.distanceFraction ?: 0f },
+                    leadingBadge = if (
+                        !showSettings && !showAccountScrobbling && !showSources && !showListenTogether &&
+                        !showWearOs && !showDriveDevices && !showDriveBackup && !showEqualizer &&
+                        !showReplay && !showDiscord && !showHistory && libraryShowAll == null &&
+                        detail == null && selectedMoodGenre == null && selectedTab == TAB_HOME
+                    ) {
+                        replayYearBadge?.let { badge ->
+                            { com.music.raaga.ui.screens.ReplayYearButton(badge, height = 24.dp) }
+                        }
+                    } else {
+                        null
+                    },
                     onBack = when {
                         showDiscord -> ({ showDiscord = false })
                         showHistory -> ({ showHistory = false })
@@ -3811,6 +3897,7 @@ private fun RaagaApp(
                 val isInsideSubScreen = (showSettings && activeSettingsCategory != null) ||
                     showAccountScrobbling || showSources || showListenTogether || showEqualizer || showHistory
 
+                val miniArtwork = rememberMiniAutoMixArtwork(player.song, player.queue, player.queueIndex)
                 if (isInsideSubScreen) {
                     miniPlayerSong?.let { song ->
                         Column(
@@ -3827,6 +3914,7 @@ private fun RaagaApp(
                                 song = song,
                                 isPlaying = miniPlayerIsPlaying,
                                 isLoading = playPauseBusy,
+                                animationsActive = !showNowPlaying,
                                 hazeState = hazeState,
                                 onPlayPause = { togglePlayPause() },
                                 onNext = {
@@ -3839,6 +3927,7 @@ private fun RaagaApp(
                                 controlsLocked = controlsLocked,
                                 onBlockedControl = showHostOnlyNotice,
                                 modifier = Modifier.fillMaxWidth(),
+                                autoMixArtwork = miniArtwork,
                             )
                         }
                     }
@@ -3861,6 +3950,7 @@ private fun RaagaApp(
                         song = miniPlayerSong,
                         isPlaying = miniPlayerIsPlaying,
                         isLoading = playPauseBusy,
+                        animationsActive = !showNowPlaying,
                         onPlayPause = {
                             togglePlayPause()
                         },
@@ -3874,6 +3964,7 @@ private fun RaagaApp(
                         controlsLocked = controlsLocked,
                         onBlockedControl = showHostOnlyNotice,
                         modifier = Modifier.fillMaxWidth(),
+                        autoMixArtwork = miniArtwork,
                     )
                 } else Column(
                     modifier = Modifier
@@ -3894,6 +3985,7 @@ private fun RaagaApp(
                             song = song,
                             isPlaying = miniPlayerIsPlaying,
                             isLoading = playPauseBusy,
+                            animationsActive = !showNowPlaying,
                             hazeState = hazeState,
                             onPlayPause = {
                                 togglePlayPause()
@@ -3908,6 +4000,7 @@ private fun RaagaApp(
                             controlsLocked = controlsLocked,
                             onBlockedControl = showHostOnlyNotice,
                             modifier = Modifier.fillMaxWidth(),
+                            autoMixArtwork = miniArtwork,
                         )
                         Spacer(Modifier.height(8.dp))
                     }
@@ -3997,6 +4090,14 @@ private fun RaagaApp(
                 }
             }
         }
+
+        // ---- Replay year story ----
+        // Mounted over the window like the Replay story, for the same reason.
+        com.music.raaga.ui.replay.year.ReplayYearHost(
+            year = replayYear,
+            open = yearStoryOpen,
+            onClose = { yearStoryOpen = false },
+        )
 
         // ---- Album / playlist detail ----
         // ---- Long-press track actions ----
@@ -4857,6 +4958,9 @@ private fun RaagaApp(
                 hazeState = hazeState,
                 selected = songSort,
                 isPlaylist = detail?.type == BrowseType.PLAYLIST,
+                offerTrackNumber = (detail?.songs as? UiState.Success)?.data
+                    .orEmpty()
+                    .any { it.trackNumber != null },
                 onSelect = { option ->
                     detail?.browseId?.let { AppSettings.setDetailSongSort(it, option) }
                     songSortMenuOpen = false
@@ -5348,6 +5452,7 @@ private fun FrostedSortMenu(
     hazeState: HazeState,
     selected: SongSort,
     isPlaylist: Boolean = false,
+    offerTrackNumber: Boolean = false,
     onSelect: (SongSort) -> Unit,
     onFlipDateDirection: () -> Unit,
     onDismiss: () -> Unit,
@@ -5447,8 +5552,9 @@ private fun FrostedSortMenu(
                         SongSort.DURATION_DESC,
                     )
                 } else {
-                    listOf(
+                    listOfNotNull(
                         SongSort.DEFAULT,
+                        if (offerTrackNumber) SongSort.TRACK_NUMBER else null,
                         SongSort.TITLE_ASC,
                         SongSort.ARTIST_ASC,
                         SongSort.DURATION_DESC,
@@ -5486,6 +5592,7 @@ private fun FrostedSortMenu(
 private fun SongSort.localizedLabel(): String = when (this) {
     SongSort.DEFAULT -> stringResource(R.string.sort_default)
     SongSort.CUSTOM_ORDER -> stringResource(R.string.sort_custom_order)
+    SongSort.TRACK_NUMBER -> stringResource(R.string.sort_track_number)
     SongSort.TITLE_ASC -> stringResource(R.string.sort_title_ascending)
     SongSort.TITLE_DESC -> stringResource(R.string.sort_title_descending)
     SongSort.DATE_ADDED_ASC -> stringResource(R.string.sort_date_added_oldest)
@@ -5555,8 +5662,9 @@ private val DETAIL_TITLE_DROP = 320.dp
 
 private const val TAB_HOME = 0
 private const val TAB_EXPLORE = 1
-private const val TAB_LIBRARY = 2
-private const val TAB_SEARCH = 3
+private const val TAB_RADIO = 2
+private const val TAB_LIBRARY = 3
+private const val TAB_SEARCH = 4
 
 /**
  * What a tab's key is prefixed with in the content switcher above.
