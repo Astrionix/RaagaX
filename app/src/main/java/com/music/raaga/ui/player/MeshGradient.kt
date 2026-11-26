@@ -1,5 +1,6 @@
 package com.music.raaga.ui.player
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.os.Build
 import androidx.compose.animation.animateColorAsState
@@ -16,17 +17,20 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
@@ -78,59 +82,74 @@ fun MeshGradientBackground(
     modifier: Modifier = Modifier,
     trackKey: Any? = null,
     driftMillis: Int = 8_000,
-    /**
-     * Keep the blobs orbiting instead of letting them settle.
-     *
-     * Off everywhere the mesh fills a screen, for the reason in the class note:
-     * a full-screen blur re-drawn at refresh rate is the most expensive thing
-     * this app does, and nobody is looking at it. On the Replay's cards it is
-     * the opposite trade — the surface is a few hundred dp of a card the user
-     * has deliberately opened and is looking straight at, the motion is what
-     * makes the card feel like an object rather than a picture of one, and
-     * "reduce animation" still stops it dead.
-     */
     continuous: Boolean = false,
-    /**
-     * How far the blobs are smeared. The default is sized for a full screen;
-     * a small surface needs proportionally less, or the four colours blend into
-     * one wash before they reach its edges.
-     */
     blurRadius: Dp = 64.dp,
-    /**
-     * Off for a surface that should read as a still image: colours snap
-     * straight to target instead of crossfading, and the blobs never drift
-     * on a [trackKey] change, only settling once on first composition. The
-     * Replay page and its cards use this — a grid of these redrawing a
-     * blurred layer every time a card is opened or swiped past was the
-     * expensive case the class note above warns about, multiplied by however
-     * many cards are on screen.
-     */
     animated: Boolean = true,
+) {
+    MeshGradientBackground(
+        palette = palette,
+        modifier = modifier,
+        trackKey = trackKey,
+        driftMillis = driftMillis,
+        continuous = continuous,
+        blurRadius = blurRadius,
+        animated = animated,
+        mix = null,
+        snapKey = null,
+        settled = false,
+        currentIsOutgoing = false,
+    )
+}
+
+@Composable
+internal fun MeshGradientBackground(
+    palette: MeshPalette,
+    modifier: Modifier,
+    trackKey: Any? = null,
+    driftMillis: Int = 8_000,
+    continuous: Boolean = false,
+    blurRadius: Dp = 64.dp,
+    animated: Boolean = true,
+    colorFadeMillis: Int = 1400,
+    paused: Boolean = false,
+    mix: AutoMixAmbientMix?,
+    snapKey: Any?,
+    settled: Boolean,
+    currentIsOutgoing: Boolean,
+    directStill: Boolean = false,
 ) {
     val reduceAnimation by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
 
-    val tuned = (palette.colors.ifEmpty { FallbackColors } + FallbackColors)
-        .take(4)
-        .map { it.tuned() }
+    val lastDrawn = remember { LastLegacyAmbientColors() }
+    val held = remember(mix) {
+        if (mix == null) null else lastDrawn.colors ?: run {
+            val slots = (cachedArtworkPalette(mix.outgoingUrl)
+                ?: if (currentIsOutgoing) palette else MeshPalette(FallbackColors)).tunedSlots()
+            LegacyAmbientColors(slots, slots.first().dimmed())
+        }
+    }
+    val tuned = held?.slots ?: palette.tunedSlots()
 
     // Each colour slot crossfades independently when the track (palette) changes,
     // unless "reduce animation" is on, in which case colours snap straight to target.
-    val colorSpec: AnimationSpec<Color> = if (reduceAnimation || !animated) snap() else tween(1400)
-    val animatedColors = tuned.mapIndexed { index, color ->
-        animateColorAsState(color, colorSpec, label = "meshColor$index").value
+    val colorSpec: AnimationSpec<Color> = if (directStill || reduceAnimation || !animated) snap() else tween(colorFadeMillis)
+    val (animatedColors, baseColor) = key(snapKey) {
+        val slots = tuned.mapIndexed { index, color ->
+            animateColorAsState(color, colorSpec, label = "meshColor$index")
+        }
+        slots to animateColorAsState(held?.base ?: tuned.first().dimmed(), colorSpec, label = "meshBase")
     }
-    val baseColor by animateColorAsState(tuned.first().dimmed(), colorSpec, label = "meshBase")
+    val target = remember(mix) {
+        mix?.prepared?.palette?.tunedSlots()?.let { LegacyAmbientColors(it, it.first().dimmed()) }
+    }
 
     // Read in the draw lambda, not here: an Animatable read during draw
     // invalidates only the drawing, leaving composition out of the loop.
     val phase = remember { Animatable(0f) }
-    LaunchedEffect(trackKey, reduceAnimation, continuous, animated) {
+    LaunchedEffect(trackKey, reduceAnimation, continuous, animated, paused, mix, settled) {
         when {
             !animated || reduceAnimation -> phase.snapTo(0f)
-            // A full turn at a time, restarted rather than looped with an
-            // infinite spec: the blobs' speeds are irrational multiples of each
-            // other, so the pattern never repeats, and a linear phase keeps the
-            // orbit even instead of easing to a halt each lap.
+            paused || mix != null || settled -> Unit
             continuous -> while (isActive) {
                 phase.animateTo(
                     targetValue = phase.value + (2 * PI).toFloat(),
@@ -144,11 +163,6 @@ fun MeshGradientBackground(
         }
     }
 
-    // When animated=false the blobs are static after their single settle.  There is
-    // no reason to route a static image through a scaled offscreen layer + a
-    // multi-pass RenderEffect GPU blur every frame.  The radial falloff already
-    // reads soft; skip the blur entirely for static (list-item) surfaces and save
-    // the offscreen allocation + extra shader passes.
     val useGpuBlur = animated && !reduceAnimation && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
 
     Canvas(
@@ -162,10 +176,24 @@ fun MeshGradientBackground(
                             scaleX = 1.3f
                             scaleY = 1.3f
                         }
-                        .background(baseColor)
+                        .then(
+                            if (held == null || mix == null) {
+                                Modifier.background(if (directStill) tuned.first().dimmed() else baseColor.value)
+                            } else {
+                                Modifier.drawBehind {
+                                    drawRect(ambientColor(held.base, target?.base, mix.ease()))
+                                }
+                            },
+                        )
                         .blur(blurRadius)
                 } else {
-                    Modifier.background(baseColor)
+                    if (held == null || mix == null) {
+                        Modifier.background(if (directStill) tuned.first().dimmed() else baseColor.value)
+                    } else {
+                        Modifier.drawBehind {
+                            drawRect(ambientColor(held.base, target?.base, mix.ease()))
+                        }
+                    }
                 },
             ),
     ) {
@@ -178,7 +206,13 @@ fun MeshGradientBackground(
         val speeds = listOf(1f, -0.7f, 0.85f, -1.15f)
         val drift = phase.value
 
-        animatedColors.forEachIndexed { index, color ->
+        val e = mix?.ease() ?: 0f
+        val slots = held?.slots ?: if (directStill) tuned else animatedColors.map { it.value }
+        if (held == null && trackKey != null) {
+            lastDrawn.colors = LegacyAmbientColors(slots, if (directStill) tuned.first().dimmed() else baseColor.value)
+        }
+        slots.forEachIndexed { index, slot ->
+            val color = ambientColor(slot, target?.slots?.get(index), e)
             val anchor = anchors[index]
             val center = Offset(
                 x = (anchor.x + 0.16f * cos(drift * speeds[index] + index * 1.7f)) * size.width,
@@ -208,42 +242,73 @@ fun MeshGradientBackground(
     }
 }
 
-/**
- * Loads the artwork with Coil (software bitmap, thumbnail-sized) and pulls a
- * 4-colour palette out of it. Recomputes when [imageUrl] changes.
- *
- * A track's motion artwork is frequently lit nothing like its still sleeve —
- * a different shot, a different grade. [canvasFrame], a frame captured off
- * the playing clip once one is available, is quantised the same way and
- * takes over from there, crossfading in exactly like a track skip.
- */
-@Composable
-fun rememberArtworkColors(imageUrl: String?, canvasFrame: Bitmap? = null): MeshPalette {
-    val context = LocalContext.current
-    var palette by remember(imageUrl) { mutableStateOf(MeshPalette(FallbackColors)) }
+private class LastLegacyAmbientColors(var colors: LegacyAmbientColors? = null)
+private class LegacyAmbientColors(val slots: List<Color>, val base: Color)
 
-    LaunchedEffect(imageUrl) {
-        if (imageUrl == null) return@LaunchedEffect
-        val request = ImageRequest.Builder(context)
-            .data(imageUrl)
-            .size(128) // palette quality is fine at thumbnail size, and it's fast
-            .allowHardware(false) // Palette needs pixel access
-            .build()
-        val result = SingletonImageLoader.get(context).execute(request)
-        val bitmap = (result as? SuccessResult)?.image?.toBitmap() ?: return@LaunchedEffect
-        palette = MeshPalette(paletteOf(bitmap))
+private fun MeshPalette.tunedSlots(): List<Color> =
+    (colors.ifEmpty { FallbackColors } + FallbackColors).take(4).map { it.tuned() }
+
+private fun ambientColor(from: Color, to: Color?, e: Float): Color = when {
+    to == null || e <= 0f -> from
+    e >= 1f -> to
+    else -> lerp(from, to, e)
+}
+
+@Composable
+fun rememberArtworkColors(imageUrl: String?, canvasFrame: Bitmap? = null): MeshPalette =
+    rememberArtworkColors(imageUrl, canvasFrame, seed = null)
+
+@Composable
+internal fun rememberArtworkColors(
+    imageUrl: String?,
+    canvasFrame: Bitmap?,
+    seed: MeshPalette?,
+    clipKey: Any? = imageUrl,
+): MeshPalette {
+    val context = LocalContext.current
+    var palette by remember(imageUrl, clipKey) { mutableStateOf(seed ?: MeshPalette(FallbackColors)) }
+
+    LaunchedEffect(imageUrl, clipKey) {
+        if (imageUrl == null || seed != null) return@LaunchedEffect
+        val next = cachedArtworkPalette(imageUrl) ?: run {
+            val bitmap = loadArtworkPaletteBitmap(context, imageUrl) ?: return@LaunchedEffect
+            withContext(Dispatchers.Default) { MeshPalette(paletteOf(bitmap)) }
+        }
+        artworkPaletteCache[imageUrl] = next
+        palette = next
     }
 
-    LaunchedEffect(canvasFrame) {
+    LaunchedEffect(imageUrl, clipKey, canvasFrame) {
         val frame = canvasFrame ?: return@LaunchedEffect
-        // Reject near-black frames (first read after surface recreation, before
-        // ExoPlayer decodes real content).  A dark sleeve will still exceed the
-        // threshold because compression noise pushes mean luminance above ~12.
         if (isLikelyBlackFrame(frame)) return@LaunchedEffect
         val colors = withContext(Dispatchers.Default) { paletteOf(frame) }
         palette = MeshPalette(colors)
     }
     return palette
+}
+
+private val artworkPaletteCache = object : LinkedHashMap<String, MeshPalette>(0, 0.75f, true) {
+    override fun removeEldestEntry(eldest: Map.Entry<String, MeshPalette>) = size > 8
+}
+
+internal fun cachedArtworkPalette(imageUrl: String?): MeshPalette? = imageUrl?.let(artworkPaletteCache::get)
+
+internal suspend fun prefetchArtworkPalette(context: Context, imageUrl: String): MeshPalette? {
+    cachedArtworkPalette(imageUrl)?.let { return it }
+    val bitmap = loadArtworkPaletteBitmap(context, imageUrl) ?: return null
+    val palette = withContext(Dispatchers.Default) { MeshPalette(paletteOf(bitmap)) }
+    artworkPaletteCache[imageUrl] = palette
+    return palette
+}
+
+private suspend fun loadArtworkPaletteBitmap(context: Context, imageUrl: String): Bitmap? {
+    val request = ImageRequest.Builder(context)
+        .data(imageUrl)
+        .size(128)
+        .allowHardware(false)
+        .build()
+    val result = SingletonImageLoader.get(context).execute(request)
+    return (result as? SuccessResult)?.image?.toBitmap()
 }
 
 /**
