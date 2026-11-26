@@ -13,11 +13,14 @@ import com.music.raaga.auth.AuthStore
 import com.music.raaga.data.model.Song
 import com.music.raaga.data.lyrics.LyricsSource
 import com.music.raaga.data.sources.SourceKind
+import com.music.raaga.playback.AutoMixVisualFeed
 import com.music.raaga.playback.EqLayout
 import com.music.raaga.playback.EqualizerPreset
 import com.music.raaga.data.backup.BackupFrequency
 import com.music.raaga.data.backup.BackupRetentionPeriod
+import com.music.raaga.ui.player.AutoMixArtworkPreferences
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * Stream bitrate ceiling on the YouTube fallback path — MEDIUM, HIGH and
@@ -238,6 +241,11 @@ enum class LibrarySort {
 enum class SongSort {
     CUSTOM_ORDER,
     DEFAULT,
+    /**
+     * By the file's own track-number tag — only offered on a page whose rows
+     * carry one, which in practice means an album off the device's files.
+     */
+    TRACK_NUMBER,
     TITLE_ASC,
     TITLE_DESC,
     ARTIST_ASC,
@@ -401,6 +409,14 @@ object AppSettings {
      * See [com.music.raaga.playback.smart.TransitionPlanner].
      */
     val smartFadeEnabled = MutableStateFlow(false)
+    private val _autoMixArtwork = MutableStateFlow(AutoMixArtworkPreferences())
+    val autoMixArtwork = _autoMixArtwork.asStateFlow()
+
+    /** Draws the Raaga mark at the top of a shared lyrics card. */
+    val lyricsCardLogo = MutableStateFlow(true)
+
+    /** Shows the Best Part button on the player scrubber. */
+    val showBestPart = MutableStateFlow(true)
 
     /** The CPU budget used by Beat This! and vocal analysis for Automix. */
     val automixPerformanceMode = MutableStateFlow(AutomixPerformanceMode.BALANCED)
@@ -731,6 +747,19 @@ object AppSettings {
 
     /** Sources and addon quality router preferences. */
     val directSourceStream = MutableStateFlow(false)
+
+    /**
+     * The listener's word that their YouTube account has Premium, and that
+     * YouTube playback should take the signed-in route that reaches Premium's
+     * ~256kbps Opus (itag 774) instead of the anonymous 251 — the route
+     * age-restricted tracks already take. See
+     * [InnerTubeXResolver.extract][com.music.raaga.data.innertube.InnerTubeXResolver.extract].
+     *
+     * Off by default and asked rather than detected: nothing InnerTubeX
+     * exposes confirms the entitlement, and claiming it for an account
+     * without Premium only costs that account the faster anonymous route.
+     */
+    val youtubePremiumAudio = MutableStateFlow(false)
     val strictTrackMatching = MutableStateFlow(true)
     val addonQualityPreferences = MutableStateFlow<Map<String, String>>(emptyMap())
 
@@ -1309,6 +1338,12 @@ object AppSettings {
         val savedSec = prefs.getInt(KEY_CROSSFADE, 5)
         crossfadeSeconds.value = if (savedSec > 0) savedSec else 5
         smartFadeEnabled.value = prefs.getBoolean(KEY_SMART_FADE, resolvedMode == CrossfadeMode.AUTOMATIC)
+        _autoMixArtwork.value = AutoMixArtworkPreferences(
+            artTransition = prefs.getBoolean(KEY_AUTOMIX_ART_TRANSITION, false),
+            miniPlayerTransition = prefs.getBoolean(KEY_AUTOMIX_MINI_ART_TRANSITION, false),
+        )
+        lyricsCardLogo.value = prefs.getBoolean(KEY_LYRICS_CARD_LOGO, true)
+        showBestPart.value = prefs.getBoolean(KEY_SHOW_BEST_PART, true)
         automixPerformanceMode.value = runCatching {
             AutomixPerformanceMode.valueOf(
                 prefs.getString(KEY_AUTOMIX_PERFORMANCE_MODE, null) ?: AutomixPerformanceMode.BALANCED.name,
@@ -1419,6 +1454,7 @@ object AppSettings {
         peakLimiterEnabled.value = prefs.getBoolean(KEY_PEAK_LIMITER_ENABLED, true)
 
         directSourceStream.value = prefs.getBoolean(KEY_DIRECT_SOURCE_STREAM, false)
+        youtubePremiumAudio.value = prefs.getBoolean(KEY_YOUTUBE_PREMIUM_AUDIO, false)
         strictTrackMatching.value = prefs.getBoolean(KEY_STRICT_TRACK_MATCHING, true)
 
         val rawAddonQuality = prefs.getString(KEY_ADDON_QUALITY_PREFERENCES, null)
@@ -1747,8 +1783,8 @@ object AppSettings {
 
     fun setCrossfadeMode(mode: CrossfadeMode) {
         crossfadeMode.value = mode
-        if (mode == CrossfadeMode.AUTOMATIC) {
-            smartFadeEnabled.value = true
+        if (mode == CrossfadeMode.AUTOMATIC && !smartFadeEnabled.value) {
+            setSmartFadeEnabled(true)
         }
         prefs.edit()
             .putString(KEY_CROSSFADE_MODE, mode.name)
@@ -1768,8 +1804,50 @@ object AppSettings {
     }
 
     fun setSmartFadeEnabled(value: Boolean) {
+        if (smartFadeEnabled.value != value) {
+            val previous = _autoMixArtwork.value
+            _autoMixArtwork.value = previous.copy(
+                skipArtworkThrough = artworkCutoff(previous.skipArtworkThrough),
+                skipMiniThrough = artworkCutoff(previous.skipMiniThrough),
+            )
+        }
         smartFadeEnabled.value = value
         prefs.edit().putBoolean(KEY_SMART_FADE, value).apply()
+    }
+
+    fun setAutoMixArtTransition(value: Boolean) {
+        val previous = _autoMixArtwork.value
+        if (previous.artTransition == value) return
+        _autoMixArtwork.value = previous.copy(
+            artTransition = value,
+            skipArtworkThrough = artworkCutoff(previous.skipArtworkThrough),
+        )
+        prefs.edit().putBoolean(KEY_AUTOMIX_ART_TRANSITION, value).apply()
+    }
+
+    fun setAutoMixMiniPlayerTransition(value: Boolean) {
+        val previous = _autoMixArtwork.value
+        if (previous.miniPlayerTransition == value) return
+        _autoMixArtwork.value = previous.copy(
+            miniPlayerTransition = value,
+            skipMiniThrough = artworkCutoff(previous.skipMiniThrough),
+        )
+        prefs.edit().putBoolean(KEY_AUTOMIX_MINI_ART_TRANSITION, value).apply()
+    }
+
+    // At either edge, skip the generation already in flight. Even a rapid
+    // off/on round trip cannot revive the artwork on a renderer just mounting.
+    private fun artworkCutoff(previous: Long): Long =
+        maxOf(previous, AutoMixVisualFeed.state.value?.generation ?: 0L)
+
+    fun setLyricsCardLogo(value: Boolean) {
+        lyricsCardLogo.value = value
+        prefs.edit().putBoolean(KEY_LYRICS_CARD_LOGO, value).apply()
+    }
+
+    fun setShowBestPart(value: Boolean) {
+        showBestPart.value = value
+        prefs.edit().putBoolean(KEY_SHOW_BEST_PART, value).apply()
     }
 
     fun setAutomixPerformanceMode(value: AutomixPerformanceMode) {
@@ -2012,6 +2090,13 @@ object AppSettings {
     fun setDirectSourceStream(value: Boolean) {
         directSourceStream.value = value
         prefs.edit().putBoolean(KEY_DIRECT_SOURCE_STREAM, value).apply()
+    }
+
+    fun setYoutubePremiumAudio(value: Boolean) {
+        youtubePremiumAudio.value = value
+        prefs.edit().putBoolean(KEY_YOUTUBE_PREMIUM_AUDIO, value).apply()
+        // Remembered URLs were picked under the old route; the next play asks again.
+        com.music.raaga.data.innertube.StreamResolver.forgetResolved()
     }
 
     fun setStrictTrackMatching(value: Boolean) {
@@ -3031,6 +3116,10 @@ object AppSettings {
     private const val KEY_CROSSFADE = "crossfade_seconds"
     private const val KEY_CROSSFADE_MODE = "crossfade_mode"
     private const val KEY_SMART_FADE = "smart_fade_enabled"
+    private const val KEY_AUTOMIX_ART_TRANSITION = "raaga_automix_art_transition"
+    private const val KEY_AUTOMIX_MINI_ART_TRANSITION = "raaga_automix_mini_art_transition"
+    private const val KEY_LYRICS_CARD_LOGO = "raaga_lyrics_card_logo"
+    private const val KEY_SHOW_BEST_PART = "raaga_show_best_part"
     private const val KEY_AUTOMIX_PERFORMANCE_MODE = "automix_performance_mode"
     private const val KEY_SKIP_SILENCE = "skip_silence"
     private const val KEY_OUTPUT_PCM_MODE = "output_pcm_mode"
@@ -3102,6 +3191,7 @@ object AppSettings {
     private const val KEY_RELEASE_HARDWARE_ON_PAUSE = "release_hardware_on_pause"
     private const val KEY_PEAK_LIMITER_ENABLED = "peak_limiter_enabled"
     private const val KEY_DIRECT_SOURCE_STREAM = "direct_source_stream"
+    private const val KEY_YOUTUBE_PREMIUM_AUDIO = "youtube_premium_audio"
     private const val KEY_STRICT_TRACK_MATCHING = "strict_track_matching"
     private const val KEY_ADDON_QUALITY_PREFERENCES = "addon_quality_preferences"
     private const val KEY_RAAGA_CONNECT_AUTO_DISCOVERY = "raaga_connect_auto_discovery"
