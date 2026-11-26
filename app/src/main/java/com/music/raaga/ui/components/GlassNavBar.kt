@@ -51,19 +51,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.music.raaga.R
-import com.music.raaga.data.model.ROW_ART_PX
 import com.music.raaga.data.model.Song
-import com.music.raaga.data.model.artworkAt
+import com.music.raaga.data.settings.AppSettings
 import com.music.raaga.ui.components.floatingtabbar.FloatingTabBar
 import com.music.raaga.ui.components.floatingtabbar.FloatingTabBarDefaults
 import com.music.raaga.ui.components.floatingtabbar.FloatingTabBarScrollConnection
 import com.music.raaga.ui.haptics.Haptic
 import com.music.raaga.ui.haptics.rememberHaptics
+import com.music.raaga.ui.player.PlayerPlayPauseGlyph
+import com.music.raaga.ui.player.rememberPlayerPlayPauseMotion
+import com.music.raaga.ui.player.rememberPlayerSkipMotion
 
 /**
  * The liquid glass navigation bar: the iOS 26 shape where the now playing
@@ -100,7 +103,9 @@ fun GlassNavBar(
     /** @see com.music.raaga.data.listentogether.ListenTogether.State.controlsLocked */
     controlsLocked: Boolean = false,
     onBlockedControl: () -> Unit = {},
+    animationsActive: Boolean = true,
     modifier: Modifier = Modifier,
+    autoMixArtwork: (@Composable (String?, Modifier) -> Unit)? = null,
 ) {
     // Held for the same reason [tabs] is. The glass factory below closes over
     // this shape, and a fresh RoundedCornerShape each pass means a fresh factory
@@ -143,6 +148,7 @@ fun GlassNavBar(
                     isInline = true,
                     isPlaying = isPlaying,
                     isLoading = isLoading,
+                    animationsActive = animationsActive,
                     contentColor = contentColor,
                     onPlayPause = onPlayPause,
                     onNext = onNext,
@@ -151,6 +157,7 @@ fun GlassNavBar(
                     controlsLocked = controlsLocked,
                     onBlockedControl = onBlockedControl,
                     modifier = accessoryModifier.then(glassSurface()),
+                    autoMixArtwork = autoMixArtwork,
                 )
             }
         },
@@ -161,6 +168,7 @@ fun GlassNavBar(
                     isInline = false,
                     isPlaying = isPlaying,
                     isLoading = isLoading,
+                    animationsActive = animationsActive,
                     contentColor = contentColor,
                     onPlayPause = onPlayPause,
                     onNext = onNext,
@@ -169,6 +177,7 @@ fun GlassNavBar(
                     controlsLocked = controlsLocked,
                     onBlockedControl = onBlockedControl,
                     modifier = accessoryModifier.fillMaxWidth().then(glassSurface()),
+                    autoMixArtwork = autoMixArtwork,
                 )
             }
         },
@@ -213,6 +222,7 @@ fun GlassNavBar(
         contentKey = remember(selectedIndex, tabs, contentColor) {
             listOf(selectedIndex, tabs, contentColor)
         },
+        mergeStandaloneWhenExpanded = true,
     ) {
         tabs.forEachIndexed { index, tab ->
             val isSelected = index == selectedIndex
@@ -221,43 +231,40 @@ fun GlassNavBar(
                 if (!isSelected) haptics.play(Haptic.Select)
                 currentOnTabSelected(index)
             }
+            val icon = @Composable {
+                Icon(
+                    imageVector = tab.icon,
+                    contentDescription = tab.label,
+                    tint = tint,
+                    modifier = Modifier.size(TAB_ICON_SIZE),
+                )
+            }
+            val title = @Composable {
+                Text(
+                    text = tab.label,
+                    style = tabLabelStyle(),
+                    color = tint,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    // The library's Tab stacks the glyph and the label
+                    // with nothing between them; the plain bar spaces
+                    // them, and this is where that gap goes.
+                    modifier = Modifier.padding(top = TAB_ICON_LABEL_GAP),
+                )
+            }
             if (index == standaloneIndex) {
+                // Titled for the expanded bar, where it is the pill's last tab.
                 standaloneTab(
                     key = index,
-                    icon = {
-                        Icon(
-                            imageVector = tab.icon,
-                            contentDescription = tab.label,
-                            tint = tint,
-                            modifier = Modifier.size(TAB_ICON_SIZE),
-                        )
-                    },
+                    icon = icon,
+                    title = title,
                     onClick = onClick,
                 )
             } else {
                 tab(
                     key = index,
-                    icon = {
-                        Icon(
-                            imageVector = tab.icon,
-                            contentDescription = tab.label,
-                            tint = tint,
-                            modifier = Modifier.size(TAB_ICON_SIZE),
-                        )
-                    },
-                    title = {
-                        Text(
-                            text = tab.label,
-                            style = tabLabelStyle(),
-                            color = tint,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            // The library's Tab stacks the glyph and the label
-                            // with nothing between them; the plain bar spaces
-                            // them, and this is where that gap goes.
-                            modifier = Modifier.padding(top = TAB_ICON_LABEL_GAP),
-                        )
-                    },
+                    icon = icon,
+                    title = title,
                     onClick = onClick,
                 )
             }
@@ -285,6 +292,7 @@ private fun GlassNowPlaying(
     isInline: Boolean,
     isPlaying: Boolean,
     isLoading: Boolean,
+    animationsActive: Boolean,
     contentColor: Color,
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
@@ -293,9 +301,17 @@ private fun GlassNowPlaying(
     controlsLocked: Boolean,
     onBlockedControl: () -> Unit,
     modifier: Modifier = Modifier,
+    autoMixArtwork: (@Composable (String?, Modifier) -> Unit)? = null,
 ) {
     val haptics = rememberHaptics()
     val pressSource = remember { MutableInteractionSource() }
+    val reduceAnimation by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
+    val nextMotion = rememberPlayerSkipMotion(active = animationsActive, reduceMotion = reduceAnimation)
+    val playPauseMotion = rememberPlayerPlayPauseMotion(
+        isPlaying = isPlaying,
+        active = animationsActive && !isLoading,
+        reduceMotion = reduceAnimation,
+    )
     val isPressed by pressSource.collectIsPressedAsState()
     val pressScale by animateFloatAsState(
         targetValue = if (isPressed) 1.04f else 1f,
@@ -365,12 +381,7 @@ private fun GlassNowPlaying(
                     .clip(RoundedCornerShape(ACCESSORY_ART_CORNER))
                     .background(MaterialTheme.colorScheme.surfaceVariant),
             ) {
-                AsyncImage(
-                    model = rememberRemoteArtworkUrl(song)?.artworkAt(ROW_ART_PX),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.size(ACCESSORY_ART_SIZE),
-                )
+                MiniPlayerArtwork(song, autoMixArtwork)
             }
             Spacer(Modifier.width(if (isInline) 8.dp else 9.dp))
             Column(Modifier.weight(1f)) {
@@ -399,12 +410,17 @@ private fun GlassNowPlaying(
                 IconButton(
                     onClick = {
                         haptics.play(if (isPlaying) Haptic.Pause else Haptic.Resume)
+                        playPauseMotion.onTap()
                         onPlayPause()
                     },
                     modifier = Modifier.size(glyphSlot),
                 ) {
-                    Icon(
-                        imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                    PlayerPlayPauseGlyph(
+                        motion = playPauseMotion,
+                        play = Icons.Rounded.PlayArrow,
+                        pause = Icons.Rounded.Pause,
+                        playPainter = rememberVectorPainter(Icons.Rounded.PlayArrow),
+                        pausePainter = rememberVectorPainter(Icons.Rounded.Pause),
                         contentDescription = stringResource(if (isPlaying) R.string.pause else R.string.play),
                         tint = contentColor,
                         modifier = Modifier.size(glyphSize),
@@ -420,16 +436,15 @@ private fun GlassNowPlaying(
                 IconButton(
                     onClick = {
                         haptics.play(Haptic.SkipNext)
+                        nextMotion.onTap()
                         onNext()
                     },
                     enabled = !controlsLocked,
                     modifier = Modifier.size(glyphSlot),
                 ) {
-                    Icon(
-                        imageVector = Icons.Rounded.SkipNext,
-                        contentDescription = stringResource(R.string.widget_next),
+                    MiniPlayerNextGlyph(
+                        motion = nextMotion,
                         tint = contentColor.copy(alpha = if (controlsLocked) 0.3f else 1f),
-                        modifier = Modifier.size(glyphSize),
                     )
                 }
             }
