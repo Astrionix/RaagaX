@@ -144,27 +144,19 @@ object InnertubeParser {
             }
             .distinct()
 
-        val entities = collectRenderers(response, "musicResponsiveListItemRenderer")
-            .mapNotNull { renderer ->
-                val browse = parseBrowseItem(renderer)
-                if (browse != null) {
-                    SearchResult.Browse(browse)
-                } else {
-                    parseResponsiveListItem(renderer)?.let { song ->
-                        SearchResult.Track(song)
-                    }
-                }
-            }
-            .distinctBy {
-                when (it) {
-                    is SearchResult.TopTrack -> "v:${it.song.videoId}"
-                    is SearchResult.Track -> "v:${it.song.videoId}"
-                    is SearchResult.Browse -> "b:${it.item.browseId}"
-                }
-            }
-
-        return SearchSuggestionsPayload(queries, entities)
+        return SearchSuggestionsPayload(queries, parseSearchSuggestionEntities(response))
     }
+
+    /**
+     * The songs, artists and albums a `music/get_search_suggestions` response
+     * lists under its query strings — YouTube Music's own live cards for a
+     * half-typed query. Asked signed in, YouTube ranks them by what the
+     * account listens to, and the call is not filed in the account's search
+     * history the way a `search` is. Music videos are left out, as on the
+     * All tab.
+     */
+    fun parseSearchSuggestionEntities(response: JsonObject): List<SearchResult> =
+        parseSearchPage(response).rows
 
     fun parseSearchSuggestions(response: JsonObject): List<String> =
         parseSearchSuggestionsPayload(response).queries
@@ -1453,6 +1445,9 @@ object InnertubeParser {
                 thumbnailUrl = item.thumbnailUrl,
             )
         }
+
+    fun parseTwoRowItemsDeep(root: JsonElement): List<ShelfItem> =
+        collectRenderers(root, "musicTwoRowItemRenderer").mapNotNull(::parseTwoRowItem)
 
     private fun parseTwoRowItem(renderer: JsonObject?): ShelfItem? {
         if (renderer == null) return null
