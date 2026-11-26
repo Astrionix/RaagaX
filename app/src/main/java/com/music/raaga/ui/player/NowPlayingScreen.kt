@@ -30,6 +30,10 @@ import androidx.activity.compose.BackHandler
 import androidx.annotation.RequiresApi
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -3394,8 +3398,23 @@ private fun AutomixBadge(
     isBlending: Boolean,
     onClick: () -> Unit,
 ) {
-    val bg = if (isBlending) Color(0xFF30D158).copy(alpha = 0.22f) else Color.White.copy(alpha = 0.12f)
-    val tint = if (isBlending) Color(0xFF30D158) else Color.White.copy(alpha = 0.75f)
+    val infiniteTransition = rememberInfiniteTransition(label = "automix_pulse")
+    val pulseAlpha by if (isBlending) {
+        infiniteTransition.animateFloat(
+            initialValue = 0.6f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(800, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "pulse_alpha",
+        )
+    } else {
+        remember { mutableFloatStateOf(1f) }
+    }
+
+    val bg = if (isBlending) Color(0xFF30D158).copy(alpha = 0.22f * pulseAlpha) else Color.White.copy(alpha = 0.12f)
+    val tint = if (isBlending) Color(0xFF30D158).copy(alpha = pulseAlpha) else Color.White.copy(alpha = 0.75f)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
