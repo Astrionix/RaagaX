@@ -111,6 +111,7 @@ private val PreviewSong = Song(
 private val PreviewTabs = listOf(
     BottomTab("Play", RaagaIcons.Play),
     BottomTab("Explore", RaagaIcons.Explore),
+    BottomTab("Radio", RaagaIcons.Radio),
     BottomTab("Library", RaagaIcons.Library),
     BottomTab("Search", RaagaIcons.Search),
 )
