@@ -27,10 +27,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Devices
@@ -40,7 +42,16 @@ import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.music.raaga.data.connect.AndroidConnect
+import com.music.raaga.data.settings.AppSettings
+import com.music.raaga.ui.player.PlayerPlayPauseGlyph
+import com.music.raaga.ui.player.PlayerSkipGlyph
+import com.music.raaga.ui.player.PlayerSkipMotion
+import com.music.raaga.ui.player.rememberPlayerPlayPauseMotion
+import com.music.raaga.ui.player.rememberPlayerSkipMotion
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -53,18 +64,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.music.raaga.data.model.ROW_ART_PX
 import com.music.raaga.data.model.Song
 import com.music.raaga.data.model.artworkAt
-import com.music.raaga.data.settings.AppSettings
 import com.music.raaga.ui.components.thumbnailBorder
 import com.music.raaga.ui.haptics.Haptic
 import com.music.raaga.ui.haptics.rememberHaptics
@@ -256,10 +264,19 @@ fun MiniPlayer(
     /** @see com.music.raaga.data.listentogether.ListenTogether.State.controlsLocked */
     controlsLocked: Boolean = false,
     onBlockedControl: () -> Unit = {},
+    animationsActive: Boolean = true,
     modifier: Modifier = Modifier,
+    autoMixArtwork: (@Composable (String?, Modifier) -> Unit)? = null,
 ) {
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
     val haptics = rememberHaptics()
+    val reduceAnimation by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
+    val nextMotion = rememberPlayerSkipMotion(active = animationsActive, reduceMotion = reduceAnimation)
+    val playPauseMotion = rememberPlayerPlayPauseMotion(
+        isPlaying = isPlaying,
+        active = animationsActive && !isLoading,
+        reduceMotion = reduceAnimation,
+    )
     // percent rather than a dp figure, so the corner stays exactly half the
     // height if the row's contents ever change it — which is what keeps a pill
     // a pill instead of a rounded rectangle. Same idiom as [FloatingBottomBar]
@@ -338,15 +355,15 @@ fun MiniPlayer(
                 ),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            AsyncImage(
-                model = rememberRemoteArtworkUrl(song)?.artworkAt(ROW_ART_PX),
-                contentDescription = null,
+            Box(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(RoundedCornerShape(ART_CORNER))
                     .thumbnailBorder(RoundedCornerShape(ART_CORNER))
                     .background(MaterialTheme.colorScheme.surfaceVariant),
-            )
+            ) {
+                MiniPlayerArtwork(song, autoMixArtwork)
+            }
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
                 ExplicitSongTitle(
@@ -382,31 +399,20 @@ fun MiniPlayer(
                         )
                     }
                 } else {
-                    val playInteractionSource = remember { MutableInteractionSource() }
-                    val playPressed by playInteractionSource.collectIsPressedAsState()
-                    val playScale by animateFloatAsState(
-                        targetValue = if (playPressed) 0.88f else 1f,
-                        animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioNoBouncy,
-                            stiffness = Spring.StiffnessMediumLow,
-                        ),
-                        label = "miniPlayerPlayScale",
-                    )
                     IconButton(
                         onClick = {
                             haptics.play(if (isPlaying) Haptic.Pause else Haptic.Resume)
+                            playPauseMotion.onTap()
                             onPlayPause()
                         },
-                        interactionSource = playInteractionSource,
-                        modifier = Modifier
-                            .size(GLYPH_SLOT)
-                            .graphicsLayer {
-                                scaleX = playScale
-                                scaleY = playScale
-                            },
+                        modifier = Modifier.size(GLYPH_SLOT),
                     ) {
-                        Icon(
-                            imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                        PlayerPlayPauseGlyph(
+                            motion = playPauseMotion,
+                            play = Icons.Rounded.PlayArrow,
+                            pause = Icons.Rounded.Pause,
+                            playPainter = rememberVectorPainter(Icons.Rounded.PlayArrow),
+                            pausePainter = rememberVectorPainter(Icons.Rounded.Pause),
                             contentDescription = stringResource(if (isPlaying) R.string.pause else R.string.play),
                             tint = MaterialTheme.colorScheme.onBackground,
                             modifier = Modifier.size(GLYPH_SIZE),
@@ -415,40 +421,50 @@ fun MiniPlayer(
                 }
             }
             Spacer(Modifier.width(TRANSPORT_GAP))
-            // Faded and inert rather than removed while the host holds the
-            // controls, so the bar keeps its shape — see [controlsLocked].
-            val nextInteractionSource = remember { MutableInteractionSource() }
-            val nextPressed by nextInteractionSource.collectIsPressedAsState()
-            val nextScale by animateFloatAsState(
-                targetValue = if (nextPressed && !controlsLocked) 0.88f else 1f,
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioNoBouncy,
-                    stiffness = Spring.StiffnessMediumLow,
-                ),
-                label = "miniPlayerNextScale",
-            )
             IconButton(
                 onClick = {
                     haptics.play(Haptic.SkipNext)
+                    nextMotion.onTap()
                     onNext()
                 },
-                interactionSource = nextInteractionSource,
                 enabled = !controlsLocked,
-                modifier = Modifier
-                    .size(GLYPH_SLOT)
-                    .graphicsLayer {
-                        scaleX = nextScale
-                        scaleY = nextScale
-                    },
+                modifier = Modifier.size(GLYPH_SLOT),
             ) {
-                Icon(
-                    Icons.Rounded.SkipNext,
-                    contentDescription = stringResource(R.string.widget_next),
+                MiniPlayerNextGlyph(
+                    motion = nextMotion,
                     tint = MaterialTheme.colorScheme.onBackground
                         .copy(alpha = if (controlsLocked) 0.3f else 1f),
-                    modifier = Modifier.size(GLYPH_SIZE),
                 )
             }
         }
     }
+}
+
+/**
+ * Renders the mini-player's artwork either through [autoMixArtwork] or directly via Coil.
+ */
+@Composable
+internal fun MiniPlayerArtwork(song: Song, autoMixArtwork: (@Composable (String?, Modifier) -> Unit)?) {
+    val model = rememberRemoteArtworkUrl(song)?.artworkAt(ROW_ART_PX)
+    val modifier = Modifier.fillMaxSize()
+    if (autoMixArtwork != null) {
+        autoMixArtwork(model, modifier)
+    } else {
+        AsyncImage(model = model, contentDescription = null, contentScale = ContentScale.Crop, modifier = modifier)
+    }
+}
+
+/**
+ * Next button glyph with Apple Music-style skip motion.
+ */
+@Composable
+internal fun MiniPlayerNextGlyph(tint: Color, motion: PlayerSkipMotion) {
+    PlayerSkipGlyph(
+        motion = motion,
+        contentDescription = stringResource(R.string.widget_next),
+        tint = tint,
+        modifier = Modifier
+            .size(GLYPH_SIZE)
+            .graphicsLayer { scaleY = 0.85f },
+    )
 }
