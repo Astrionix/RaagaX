@@ -75,6 +75,13 @@ data class LyricLine(
     }
 
     /**
+     * Where each separately timed piece of the line sits in [text].
+     * The sweep crosses each of these at a steady pace of its own.
+     */
+    val sweepSpans: List<IntRange>
+        get() = wordSpans
+
+    /**
      * Whether anything on this line is off the floor at [positionMs].
      *
      * Two comparisons, so the lines that are not being sung — which is every
