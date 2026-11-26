@@ -23,6 +23,7 @@ import coil3.toBitmap
 import com.music.raaga.data.model.CARD_ART_PX
 import com.music.raaga.data.model.HEADER_ART_PX
 import com.music.raaga.data.model.NOTIFICATION_ART_PX
+import com.music.raaga.data.model.PLAYER_ART_MEMORY_CACHE_KEY_EXTRA
 import com.music.raaga.data.model.PLAYER_ART_PX
 import com.music.raaga.data.model.ROW_ART_PX
 import com.music.raaga.data.model.artworkAt
@@ -302,6 +303,11 @@ internal object MediaWidgetArt {
             // hint and passes through untouched.
             .data(url.artworkAt(px) ?: url)
             .size(px)
+            .apply {
+                if (px == PLAYER_ART_PX) {
+                    memoryCacheKeyExtra(PLAYER_ART_MEMORY_CACHE_KEY_EXTRA, px.toString())
+                }
+            }
             .allowHardware(false) // the blur below reads pixels
             .build()
         val result = runCatching { SingletonImageLoader.get(context).execute(request) }.getOrNull()
