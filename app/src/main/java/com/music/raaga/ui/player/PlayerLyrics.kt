@@ -208,6 +208,23 @@ private val GLOW_RADIUS = 6.dp
  */
 private val GLOW_ROOM = 10.dp
 
+/** Applies group alpha while leaving [outset] available for draw overflow. */
+private fun Modifier.alphaLayerWithOutset(alpha: () -> Float, outset: Dp): Modifier = drawWithCache {
+    val outsetPx = outset.toPx()
+    val bounds = androidx.compose.ui.geometry.Rect(-outsetPx, -outsetPx, size.width + outsetPx, size.height + outsetPx)
+    val paint = androidx.compose.ui.graphics.Paint()
+    onDrawWithContent {
+        paint.alpha = alpha()
+        val canvas = drawContext.canvas
+        canvas.saveLayer(bounds, paint)
+        try {
+            drawContent()
+        } finally {
+            canvas.restore()
+        }
+    }
+}
+
 /**
  * How the answering vocal is drawn: smaller than the lead and a shade behind
  * it, the way Apple Music hangs a backing line under the one it answers.
@@ -617,6 +634,7 @@ private fun SweptLyricLine(
     glowAlpha: Float = 0f,
     glowRadius: Dp = GLOW_RADIUS,
     glowRoom: Dp = 0.dp,
+    glowLayerOutset: Dp = 0.dp,
     feather: Boolean = false,
     rise: Boolean = true,
     alignEnd: Boolean = false,
@@ -710,14 +728,18 @@ private fun SweptLyricLine(
             modifier = riseAgainst(room),
         )
         if (glowAlpha > 0.01f) {
+            val glowAlphaLayer = if (glowLayerOutset > 0.dp) {
+                Modifier.alphaLayerWithOutset(alpha = { glowAlpha }, outset = glowLayerOutset)
+            } else {
+                Modifier.graphicsLayer { alpha = glowAlpha }
+            }
             Text(
                 text = line.text,
                 style = style,
                 color = Color.White,
                 maxLines = maxLines,
                 overflow = overflow,
-                modifier = Modifier
-                    .graphicsLayer { alpha = glowAlpha }
+                modifier = glowAlphaLayer
                     .blur(glowRadius, BlurredEdgeTreatment.Unbounded)
                     .then(room)
                     // Each letter is masked to its own brightness with DstIn,
@@ -1987,7 +2009,8 @@ internal fun LyricsPanel(
                                 .size(22.dp),
                         )
                     }
-                    Column(modifier = if (picker != null && picker.picking) Modifier.weight(1f) else Modifier.fillMaxWidth()) {
+                    val isPicking = picker != null && picker.picking
+                    Column(modifier = if (isPicking) Modifier.weight(1f) else Modifier.fillMaxWidth()) {
                     PanelVoice(
                         line = line,
                         clock = clock,
@@ -1999,6 +2022,7 @@ internal fun LyricsPanel(
                         glowAlpha = glow,
                         room = GLOW_ROOM,
                         alignEnd = alignEnd,
+                        picking = isPicking,
                         modifier = Modifier.fillMaxWidth(),
                     )
                     // A line the service handed back unchanged ("falling
@@ -2116,6 +2140,7 @@ private fun PanelVoice(
     /** Whether this line is one of the right-hand voice's; see [LyricAlignment]. */
     alignEnd: Boolean,
     translationProgress: State<Float>? = null,
+    picking: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     // Vazirmatn for Persian/Arabic-script lines; Latin lines keep the player's font.
@@ -2143,9 +2168,10 @@ private fun PanelVoice(
             style = lyricStyle,
             dimAlpha = tail,
             modifier = modifier,
-            glowAlpha = glowAlpha,
+            glowAlpha = if (picking) 0f else glowAlpha,
             glowRoom = room,
-            feather = isActive,
+            glowLayerOutset = room,
+            feather = isActive && !picking,
             alignEnd = alignEnd,
             translationProgress = translationProgress,
         )
