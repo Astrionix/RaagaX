@@ -19,6 +19,14 @@ import com.music.raaga.data.settings.AppSettings
 internal val LocalPlayerChrome = compositionLocalOf { false }
 
 /**
+ * Whether the boosted chrome (the bottom row, the bars, the timestamps) is
+ * dodged a touch less: over the mesh backdrops, which are already lit with
+ * the cover's own colours, the full boost read as too bright. The blurred
+ * cover and a Spotify Canvas, darker under the controls, keep it whole.
+ */
+internal val LocalChromeSoftened = compositionLocalOf { false }
+
+/**
  * How strong a control's "full" white is while the blend is on. Solid white comes
  * out of [additiveChrome] as solid white, with none of the backdrop in it.
  */
