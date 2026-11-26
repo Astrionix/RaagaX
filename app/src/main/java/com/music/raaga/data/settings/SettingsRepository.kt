@@ -54,6 +54,7 @@ object SettingsRepository {
         val crossfadeDurationSec: StateFlow<Int> get() = AppSettings.crossfadeSeconds
         val releaseHardwareOnPause: StateFlow<Boolean> get() = AppSettings.releaseHardwareOnPause
         val peakLimiterEnabled: StateFlow<Boolean> get() = AppSettings.peakLimiterEnabled
+        val youtubePremiumAudio: StateFlow<Boolean> get() = AppSettings.youtubePremiumAudio
 
         fun setPreferMusicOnlyVersion(value: Boolean) = AppSettings.setPreferMusicOnly(value)
         fun setWifiQuality(quality: AudioQuality) = AppSettings.setAudioQualityWifi(quality)
@@ -63,6 +64,7 @@ object SettingsRepository {
         fun setCrossfadeDurationSec(seconds: Int) = AppSettings.setCrossfadeSeconds(seconds)
         fun setReleaseHardwareOnPause(value: Boolean) = AppSettings.setReleaseHardwareOnPause(value)
         fun setPeakLimiterEnabled(value: Boolean) = AppSettings.setPeakLimiterEnabled(value)
+        fun setYoutubePremiumAudio(value: Boolean) = AppSettings.setYoutubePremiumAudio(value)
     }
 
     object SourcesAndAddons {
