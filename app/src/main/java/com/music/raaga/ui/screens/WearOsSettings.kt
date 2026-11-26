@@ -76,8 +76,8 @@ internal fun WearOsSettingsRow(onClick: () -> Unit) {
 }
 
 /**
- * Settings → BitChord for Wear OS, a page of its own: every watch paired with
- * this phone, whether it has this build of BitChord, and the one action that
+ * Settings → Raaga for Wear OS, a page of its own: every watch paired with
+ * this phone, whether it has this build of Raaga, and the one action that
  * makes it so. Install switches the page to the steps for it; Back steps out of
  * them before it leaves the page.
  */
@@ -329,7 +329,7 @@ private fun StatusLine(state: WatchPairingState) {
 
 /** The page's one big action: full width, fully rounded. */
 @Composable
-private fun PrimaryButton(text: String, enabled: Boolean, onClick: () -> Unit) {
+internal fun PrimaryButton(text: String, enabled: Boolean, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
