@@ -419,6 +419,7 @@ object Downloads {
      * where a single track only ever offers [delete].
      */
     suspend fun deleteCollection(context: Context, id: String): Boolean {
+        if (id == com.music.raaga.data.YtMusicRepository.LIKED_MUSIC) AppSettings.setDownloadLikedSongs(false)
         val record = _collections.value[id] ?: return false
         var any = false
         record.videoIds.forEach { videoId -> if (delete(context, videoId)) any = true }
