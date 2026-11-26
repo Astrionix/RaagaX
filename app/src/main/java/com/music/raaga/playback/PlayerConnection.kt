@@ -23,6 +23,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.Timeline
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionResult
 import androidx.media3.session.SessionToken
 import com.music.raaga.data.model.NOTIFICATION_ART_PX
 import com.music.raaga.data.model.PlaybackSourceType
@@ -260,6 +261,27 @@ fun MediaController.setQueueDragActive(active: Boolean) {
         bundleOf(EXTRA_QUEUE_DRAG_ACTIVE to active),
     )
 }
+
+/**
+ * A queue-screen tap on a history row: played again at the playhead, keeping
+ * later history as history. False when the service left the queue as it was
+ * (a party, a row that moved): seek to it instead.
+ */
+suspend fun MediaController.replayFromHistory(index: Int, song: Song): Boolean =
+    try {
+        sendCustomCommand(
+            SessionCommand(ACTION_QUEUE_REPLAY_HISTORY, Bundle.EMPTY),
+            bundleOf(
+                EXTRA_QUEUE_MOVE_INDEX to index,
+                EXTRA_QUEUE_MOVE_ENTRY to song.queueEntryId,
+                EXTRA_QUEUE_MOVE_MEDIA to song.videoId,
+            ),
+        ).await().resultCode == SessionResult.RESULT_SUCCESS
+    } catch (cancelled: kotlinx.coroutines.CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        false
+    }
 
 /**
  * Threshold below which a buffering burst is considered a micro-glitch (e.g.
