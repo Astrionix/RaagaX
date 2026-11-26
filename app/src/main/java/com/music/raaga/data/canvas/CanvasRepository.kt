@@ -4,6 +4,8 @@ import com.music.raaga.data.DebugLog as Log
 import com.music.raaga.data.model.Song
 import com.music.raaga.data.settings.AppSettings
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -101,6 +103,45 @@ object CanvasRepository {
                 sources.add { SpotifyCanvas.search(title, artist, album) }
             }
             firstHit(*sources.toTypedArray()) { it.matches(title, artist, album) }
+        }
+    }
+
+    /**
+     * The animated covers the lyrics share can offer for [song], by source.
+     *
+     * Starts from the clip the player is already showing ([cached]) — that is
+     * the one the listener has seen, and it was found with the album in hand,
+     * which is what lets Apple's search land. Searching again here without it
+     * was turning the player's own clip down. Whatever source the player's
+     * clip didn't come from is then looked up on its own, Apple and Spotify
+     * each, rather than first-hit-wins. A clip from Tidal or the community
+     * index comes back under [CanvasSource.OTHER]. Each search is held to
+     * [CanvasArtwork.matches].
+     */
+    suspend fun shareClipsFor(song: Song): Map<CanvasSource, CanvasArtwork> = coroutineScope {
+        val playing = cached(song)
+        val title = song.title.cleaned()
+        val artist = song.artist.cleaned()
+        if (title.isBlank() || artist.isBlank()) {
+            return@coroutineScope playing?.let { mapOf(it.source to it) }.orEmpty()
+        }
+        val album = song.albumName ?: playing?.album
+        fun CanvasArtwork?.ok() = this?.takeIf { it.matches(title, artist, album) }
+        val apple = async(Dispatchers.IO) {
+            if (playing?.source == CanvasSource.APPLE) playing
+            else runCatching { AppleMusicCanvas.search(title, artist, album) }.getOrNull().ok()
+        }
+        val spotify = async(Dispatchers.IO) {
+            when {
+                !AppSettings.spotifyCanvasEnabled.value -> null
+                playing?.source == CanvasSource.SPOTIFY -> playing
+                else -> runCatching { SpotifyCanvas.search(title, artist, album) }.getOrNull().ok()
+            }
+        }
+        buildMap {
+            if (playing?.source == CanvasSource.OTHER) put(CanvasSource.OTHER, playing)
+            apple.await()?.let { put(CanvasSource.APPLE, it) }
+            spotify.await()?.let { put(CanvasSource.SPOTIFY, it) }
         }
     }
 
