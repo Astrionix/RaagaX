@@ -81,7 +81,7 @@ enum class LyricsSource(
     ),
     YOUTUBE_MUSIC(
         label = "YouTube Music",
-        detail = "Plain lyrics from the playing video's Lyrics tab",
+        detail = "Timed lyrics from the playing video's Lyrics tab",
         wordSynced = false,
     ),
     MEGALOBIZ(
