@@ -45,6 +45,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -206,40 +207,68 @@ internal fun ShareAction(
     enabled: Boolean,
     saved: Boolean = false,
     savedLabel: String? = null,
+    plainFill: Color? = null,
+    busy: Boolean = false,
+    busyLabel: String? = null,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
     val background = when {
         accent -> MaterialTheme.colorScheme.primary
+        plainFill != null -> plainFill
         else -> MaterialTheme.colorScheme.surfaceVariant
     }
     val foreground = when {
         accent -> MaterialTheme.colorScheme.onPrimary
+        plainFill != null -> Color.White
         else -> MaterialTheme.colorScheme.onSurface
     }
     Row(
         modifier = modifier
             .clip(RoundedCornerShape(14.dp))
-            .background(background.copy(alpha = if (enabled) 1f else 0.4f))
+            .background(
+                if (plainFill != null && !accent) {
+                    background.copy(alpha = background.alpha * if (enabled) 1f else 0.4f)
+                } else {
+                    background.copy(alpha = if (enabled) 1f else 0.4f)
+                },
+            )
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 18.dp, vertical = 15.dp),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Crossfade(targetState = saved, label = "shareAction") { isSaved ->
+        val state = when {
+            busy -> ActionState.BUSY
+            saved -> ActionState.SAVED
+            else -> ActionState.IDLE
+        }
+        Crossfade(targetState = state, label = "shareAction") { now ->
             Row(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(
-                    imageVector = if (isSaved) Icons.Rounded.Check else icon,
-                    contentDescription = null,
-                    tint = foreground,
-                    modifier = Modifier.size(19.dp),
-                )
+                if (now == ActionState.BUSY) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(17.dp),
+                        strokeWidth = 2.dp,
+                        color = foreground,
+                    )
+                } else {
+                    Icon(
+                        imageVector = if (now == ActionState.SAVED) Icons.Rounded.Check else icon,
+                        contentDescription = null,
+                        tint = foreground,
+                        modifier = Modifier.size(19.dp),
+                    )
+                }
                 Spacer(Modifier.width(10.dp))
                 Text(
-                    text = if (isSaved) (savedLabel ?: label) else label,
+                    text = when (now) {
+                        ActionState.BUSY -> busyLabel ?: label
+                        ActionState.SAVED -> savedLabel ?: label
+                        ActionState.IDLE -> label
+                    },
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.W700,
                     color = foreground,
@@ -250,6 +279,8 @@ internal fun ShareAction(
         }
     }
 }
+
+private enum class ActionState { IDLE, BUSY, SAVED }
 
 internal fun sendIntent(uri: Uri) = Intent(Intent.ACTION_SEND)
     .setType(MIME)
